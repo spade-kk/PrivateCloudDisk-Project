@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-neutral-100 text-neutral-700 min-h-screen font-inter;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-neutral-100 rounded;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 rounded;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400;
+  }
+}
+
+@layer components {
+  .shadow-card {
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  }
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+.font-inter {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.dark {
+  --tw-bg-opacity: 1;
+  background-color: #1a1a1a;
+}
+.dark .bg-white { background-color: #2d2d2d; }
+.dark .text-neutral-700 { color: #e5e5e5; }
+.dark .border-neutral-200 { border-color: #404040; }
+/* 其他暗色变量可继续补充 */

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.QuotaMapper">
+    <resultMap id="QuotaEntityMap" type="org.project.data.QuotaData">
+        <id column="quota_user_id" property="user_id"/>
+        <result column="quota_total_capacity" property="total_capacity"/>
+        <result column="quota_used_capacity" property="used_capacity"/>
+        <result column="quota_file_count" property="file_count"/>
+        <result column="quota_version" property="version"/>
+        <result column="quota_created_at" property="created_at"/>
+        <result column="quota_updated_at" property="updated_at"/>
+    </resultMap>
+
+    <select id="findQuotaByUserId"  resultMap="QuotaEntityMap">
+        select * from pcd_user_quota_table where quota_user_id=#{user_id};
+    </select>
+
+    <insert id="insertQuota" useGeneratedKeys="true" keyProperty="quota_id" parameterType="org.project.data.QuotaData">
+        insert into pcd_user_quota_table (quota_id, quota_user_id, quota_total_capacity, quota_used_capacity, quota_file_count, quota_version)
+        values(#{quota_id}, #{user_id}, #{total_capacity}, #{used_capacity}, #{file_count}, #{version});
+    </insert>
+
+    <update id="updateQuota" parameterType="org.project.data.QuotaData">
+        update pcd_user_quota_table set quota_total_capacity=#{total_capacity}, quota_used_capacity=#{used_capacity}, quota_file_count=#{file_count}, quota_version=#{version}
+        where quota_user_id=#{user_id};
+    </update>
+
+    <update  id="updateQuotaTotalCapacity">
+        update pcd_user_quota_table set quota_total_capacity=#{total_capacity}
+        where quota_user_id=#{user_id};
+    </update>
+
+    <update id="updateQuotaUsedCapacity">
+        update pcd_user_quota_table set quota_used_capacity=#{used_capacity}
+        where quota_user_id=#{user_id};
+    </update>
+
+    <update id="updateQuotaFileCount">
+        update pcd_user_quota_table set quota_file_count=#{file_count}
+        where quota_user_id=#{user_id};
+    </update>
+
+    <delete id="deleteQuotaByUserId">
+        delete from pcd_user_quota_table where quota_user_id=#{user_id};
+    </delete>
+</mapper>

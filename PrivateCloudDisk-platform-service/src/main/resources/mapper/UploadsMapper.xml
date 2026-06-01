@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.UploadsMapper">
+    <resultMap id="UploadsSessionEntityMap" type="org.project.data.UploadsSessionData">
+        <id column="uploads_id" property="uploads_id"/>
+        <result column="uploads_starting_time" property="starting_time"/>
+        <result column="uploads_endding_time" property="endding_time"/>
+        <result column="uploads_total_chunks" property="total_chunks"/>
+        <result column="uploads_chunks_max_size" property="chunks_max_size"/>
+        <result column="uploads_file_checksum" property="file_checksum"/>
+        <result column="uploads_file_name" property="file_name"/>
+        <result column="uploads_file_size" property="file_size"/>
+        <result column="uploads_user_id" property="user_id"/>
+        <result column="uploads_file_type" property="file_type"/>
+        <result column="uploads_node_id" property="node_id"/>
+        <result column="uploads_status" property="status"/>
+    </resultMap>
+
+    <select id="findUploadsSessionById"  resultMap="UploadsSessionEntityMap">
+        select * from pcd_uploads_session_table where uploads_id=#{uploads_id};
+    </select>
+
+    <insert id="insertUploadsSession" useGeneratedKeys="true" keyProperty="uploads_id" parameterType="org.project.data.UploadsSessionData">
+        insert into pcd_uploads_session_table (uploads_id, uploads_user_id, uploads_total_chunks, uploads_starting_time, uploads_endding_time, uploads_file_size, uploads_file_checksum, uploads_chunks_max_size, uploads_file_name, uploads_file_type, uploads_node_id, uploads_status)
+        values(#{uploads_id}, #{user_id}, #{total_chunks}, #{starting_time}, #{endding_time}, #{file_size}, #{file_checksum}, #{chunks_max_size}, #{file_name}, #{file_type}, #{node_id}, #{status});
+    </insert>
+
+    <update id="updateUploadsSessionStatusById">
+        update pcd_uploads_session_table set uploads_status=#{newStatus} where uploads_id=#{uploads_id};
+    </update>
+
+    <delete id="deleteUploadsSessionById" parameterType="string">
+        delete from pcd_uploads_session_table where uploads_id=#{uploads_id};
+    </delete>
+</mapper>

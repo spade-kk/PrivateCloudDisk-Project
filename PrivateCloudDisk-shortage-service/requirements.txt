@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+aiofiles
+python-multipart
+requests
+redis
+pyjwt[crypto]
+aiohttp
+pyvips

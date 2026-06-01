@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.UserMapper">
+    <resultMap id="UserEntityMap" type="org.project.data.UserData">
+        <id column="user_id" property="id"/>
+        <result column="user_name" property="name"/>
+        <result column="user_password" property="password"/>
+        <result column="user_image_path" property="image_path"/>
+        <result column="user_phone_number" property="phone_number"/>
+        <result column="user_email" property="email"/>
+        <result column="user_account" property="account"/>
+    </resultMap>
+
+    <!--配置sql语句通过account字段查询user数据信息-->
+    <select id="findUserByAccount"  resultMap="UserEntityMap">
+        select * from pcd_user_info_table where user_account=#{account};
+    </select>
+    <!--配置sql语句通过phone_number字段查询user数据信息-->
+    <select id="findUserByPhoneNumber"  resultMap="UserEntityMap">
+        select * from pcd_user_info_table where user_phone_number=#{phone_number};
+    </select>
+     <!--通过用户ID查询用户信息-->
+    <select id="findUserById" resultMap="UserEntityMap">
+        select * from pcd_user_info_table where user_id=#{user_id};
+    </select>
+    <!--    配置sql语句插入单条用户数据-->
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="uid" parameterType="org.project.data.UserData">
+        insert into pcd_user_info_table (user_name, user_id, user_phone_number, user_image_path, user_password, user_account, user_email)
+        values(#{name}, #{id}, #{phone_number}, #{image_path}, #{password}, #{account}, #{email});
+    </insert>
+    <!--配置sql语句更新用户数据-->
+    <update id="updateUserData" parameterType="org.project.data.UserData">
+        update pcd_user_info_table set user_name=#{name}, user_phone_number=#{phone_number}, user_image_path=#{image_path}, user_email=#{email}, user_account=#{account} where user_id=#{id};
+    </update>
+    <!--配置sql语句更新用户密码-->
+    <update id="updateUserPassword" parameterType="java.lang.String">
+        update pcd_user_info_table set user_password=#{new_password} where user_id=#{user_id};
+    </update>
+    <!--配置sql语句删除用户-->
+    <delete id="deleteUserById" parameterType="java.lang.String">
+        delete from pcd_user_info_table where user_id=#{user_id};
+    </delete>
+</mapper>

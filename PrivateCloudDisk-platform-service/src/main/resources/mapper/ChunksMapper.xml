@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.ChunksMapper">
+    <resultMap id="UploadsChunkEntityMap" type="org.project.data.UploadsChunkData">
+        <id column="chunk_uploads_id" property="uploads_id"/>
+        <id column="chunk_index" property="chunk_index"/>
+        <result column="chunk_storage_path" property="chunk_storage_path"/>
+        <result column="chunk_uploaded_time" property="chunk_uploaded_time"/>
+        <result column="chunk_status" property="chunk_status"/>
+    </resultMap>
+
+    <select id="findChunkByUploadsIdAndChunkIndex"  resultMap="UploadsChunkEntityMap">
+        select * from pcd_upload_chunks_table where chunk_uploads_id = #{uploads_id} and chunk_index = #{chunk_index};
+    </select>
+
+    <select id="findChunkByUploadsId" resultMap="UploadsChunkEntityMap">
+        select * from pcd_upload_chunks_table where chunk_uploads_id = #{uploads_id};
+    </select>
+
+    <insert id="insertUploadsChunk" useGeneratedKeys="true" keyProperty="chunk_index" parameterType="org.project.data.UploadsChunkData">
+        insert into pcd_upload_chunks_table (chunk_uploads_id, chunk_index, chunk_storage_path, chunk_uploaded_time, chunk_status)
+        values(#{uploads_id}, #{chunk_index}, #{chunk_storage_path}, #{chunk_uploaded_time}, #{chunk_status});
+    </insert>
+</mapper>
