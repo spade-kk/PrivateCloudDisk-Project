@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>大型文件切片上传解决方案</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@0.21.4/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    header {
+      text-align: center;
+      padding: 30px 0;
+    }
+    
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 10px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+    
+    .subtitle {
+      font-size: 1.2rem;
+      opacity: 0.9;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    
+    .upload-container {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 30px;
+      margin: 30px 0;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    
+    .upload-area {
+      border: 3px dashed rgba(255, 255, 255, 0.3);
+      border-radius: 15px;
+      padding: 50px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .upload-area:hover {
+      border-color: #4a9eff;
+      background: rgba(74, 158, 255, 0.1);
+    }
+    
+    .upload-area i {
+      font-size: 4rem;
+      color: #4a9eff;
+      margin-bottom: 20px;
+    }
+    
+    .upload-area h2 {
+      font-size: 1.8rem;
+      margin-bottom: 15px;
+    }
+    
+    .upload-area p {
+      font-size: 1.1rem;
+      opacity: 0.8;
+      margin-bottom: 10px;
+    }
+    
+    .file-info {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .file-info i {
+      font-size: 2.5rem;
+      margin-right: 15px;
+      color: #4a9eff;
+    }
+    
+    .file-details {
+      flex: 1;
+    }
+    
+    .file-name {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .file-size {
+      opacity: 0.8;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 15px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+    
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 50px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn-primary {
+      background: #4a9eff;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #3a8def;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(74, 158, 255, 0.4);
+    }
+    
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .progress-section {
+      margin-top: 30px;
+    }
+    
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    
+    .progress-container {
+      background: rgba(0, 0, 0, 0.2);
+      height: 25px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4a9eff, #2a7dee);
+      border-radius: 12px;
+      transition: width 0.3s ease;
+      position: relative;
+    }
+    
+    .progress-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    
+    .chunks-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+      margin-top: 30px;
+    }
+    
+    .chunk-card {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 15px 10px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .chunk-card .progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: #4a9eff;
+    }
+    
+    .chunk-number {
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #4a9eff;
+    }
+    
+    .chunk-status {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    
+    .status-pending {
+      color: #ffc107;
+    }
+    
+    .status-uploading {
+      color: #4a9eff;
+    }
+    
+    .status-completed {
+      color: #4caf50;
+    }
+    
+    .status-error {
+      color: #f44336;
+    }
+    
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 30px;
+    }
+    
+    .stat-item {
+      text-align: center;
+      flex: 1;
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #4a9eff;
+    }
+    
+    .stat-label {
+      font-size: 0.95rem;
+      opacity: 0.8;
+    }
+    
+    @media (max-width: 768px) {
+      .stats {
+        flex-direction: column;
+        gap: 20px;
+      }
+      
+      .chunks-container {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <header>
+      <h1>大型文件切片上传解决方案</h1>
+      <p class="subtitle">基于Vue.js和Axios实现的多线程切片上传，支持断点续传和实时进度监控</p>
+    </header>
+    
+    <main>
+      <div class="upload-container">
+        <div class="upload-area" @click="triggerFileInput" @dragover.prevent="onDragOver" @drop.prevent="onDrop">
+          <input type="file" ref="fileInput" @change="onFileChange" hidden>
+          <i class="fas fa-cloud-upload-alt"></i>
+          <h2>拖放文件到此处或点击选择文件</h2>
+          <p>支持单个文件上传，最大支持10GB</p>
+          <p>文件将被自动切片上传</p>
+        </div>
+        
+        <div class="file-info" v-if="file">
+          <i class="fas fa-file-alt"></i>
+          <div class="file-details">
+            <div class="file-name">{{ file.name }}</div>
+            <div class="file-size">{{ formatFileSize(file.size) }}</div>
+          </div>
+        </div>
+        
+        <div class="controls">
+          <button class="btn btn-primary" @click="startUpload" :disabled="!file || isUploading">
+            <i class="fas fa-play"></i> {{ isUploading ? '上传中...' : '开始上传' }}
+          </button>
+          <button class="btn btn-secondary" @click="pauseUpload" :disabled="!isUploading">
+            <i class="fas fa-pause"></i> {{ isPaused ? '继续上传' : '暂停上传' }}
+          </button>
+          <button class="btn btn-secondary" @click="resetUpload" :disabled="!file">
+            <i class="fas fa-redo"></i> 重置
+          </button>
+        </div>
+        
+        <div class="progress-section" v-if="file">
+          <div class="progress-header">
+            <span>总进度</span>
+            <span>{{ uploadProgress }}%</span>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar" :style="{ width: uploadProgress + '%' }">
+              <div class="progress-text">{{ uploadProgress }}%</div>
+            </div>
+          </div>
+          
+          <div class="stats">
+            <div class="stat-item">
+              <div class="stat-value">{{ chunks.length }}</div>
+              <div class="stat-label">总切片数</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ uploadedChunksCount }}</div>
+              <div class="stat-label">已上传</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ activeConnections }}</div>
+              <div class="stat-label">并发上传</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{{ formatSpeed(uploadSpeed) }}</div>
+              <div class="stat-label">上传速度</div>
+            </div>
+          </div>
+          
+          <div class="chunks-container">
+            <div class="chunk-card" v-for="(chunk, index) in chunks" :key="index">
+              <div class="chunk-number">#{{ index + 1 }}</div>
+              <div class="chunk-status" :class="'status-' + chunk.status">
+                {{ getStatusText(chunk.status) }}
+              </div>
+              <div class="progress" :style="{ width: chunk.progress + '%' }"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // 模拟后端URL - 实际项目中替换为真实后端接口
+    const CREATE_UPLOADS_SESSION_URL = 'http://127.0.0.1:8080/api/act/uploads/create'
+    const UPLOAD_URL = 'http://127.0.0.1:8000/uploads';
+    const MERGE_URL = 'http://127.0.0.1:8000/uploads/complete';
+    
+    // 切片大小 (5MB)
+    const CHUNK_SIZE = 5 * 1024 * 1024;
+    // 最大并发数
+    const MAX_CONCURRENT_UPLOADS = 4;
+    
+    new Vue({
+      el: '#app',
+      data: {
+        file: null,
+        isUploading: false,
+        isPaused: false,
+        uploadProgress: 0,
+        chunks: [],
+        uploadedChunksCount: 0,
+        activeConnections: 0,
+        uploadSpeed: 0,
+        fileHash: '',
+        startTime: null
+      },
+      methods: {
+        // 触发文件选择
+        triggerFileInput() {
+          this.$refs.fileInput.click();
+        },
+        
+        // 文件选择处理
+        onFileChange(e) {
+          const file = e.target.files[0];
+          if (file) {
+            this.resetUpload();
+            this.file = file;
+            this.prepareFile();
+          }
+        },
+        
+        // 拖放处理
+        onDragOver(e) {
+          e.dataTransfer.dropEffect = 'copy';
+        },
+        
+        onDrop(e) {
+          const file = e.dataTransfer.files[0];
+          if (file) {
+            this.resetUpload();
+            this.file = file;
+            this.prepareFile();
+          }
+        },
+        
+        // 准备文件 - 计算文件hash和切片
+        async prepareFile() {
+          if (!this.file) return;
+          
+          try {
+            // 计算文件hash（使用SparkMD5）
+            this.fileHash = await this.calculateFileHash(this.file);
+            
+            // 创建文件切片
+            this.createChunks();
+          } catch (error) {
+            console.error('Error preparing file:', error);
+            alert('文件准备失败: ' + error.message);
+          }
+        },
+
+        // 计算文件hash
+        calculateFileHash(file) {
+          return new Promise((resolve, reject) => {
+            const spark = new SparkMD5.ArrayBuffer();
+            const reader = new FileReader();
+            const chunkSize = 2 * 1024 * 1024; // 2MB chunks for hashing
+            const chunks = Math.ceil(file.size / chunkSize);
+            let currentChunk = 0;
+
+            reader.onload = e => {
+              spark.append(e.target.result);
+              currentChunk++;
+
+              if (currentChunk < chunks) {
+                loadNext();
+              } else {
+                resolve(spark.end());
+              }
+            };
+
+            reader.onerror = reject;
+
+            function loadNext() {
+              const start = currentChunk * chunkSize;
+              const end = Math.min(start + chunkSize, file.size);
+              reader.readAsArrayBuffer(file.slice(start, end));
+            }
+            
+            loadNext();
+          });
+        },
+        
+        // 创建文件切片
+        createChunks() {
+          if (!this.file) return;
+          
+          this.chunks = [];
+          const totalChunks = Math.ceil(this.file.size / CHUNK_SIZE);
+          
+          for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, this.file.size);
+            const chunk = this.file.slice(start, end);
+            
+            this.chunks.push({
+              index: i,
+              file: chunk,
+              progress: 0,
+              status: 'pending',
+              retries: 0
+            });
+          }
+        },
+        
+        // 开始上传
+        async startUpload() {
+          if (!this.file || this.isUploading) return;
+          
+          this.isUploading = true;
+          this.isPaused = false;
+          this.startTime = Date.now();
+          this.uploadedChunksCount = 0;
+          this.uploadProgress = 0;
+          this.uploadSpeed = 0;
+          this.uploads_id = '';
+          
+          // 重置所有切片状态
+          this.chunks.forEach(chunk => {
+            if (chunk.status !== 'completed') {
+              chunk.status = 'pending';
+              chunk.progress = 0;
+            }
+          });
+
+          axios.post(
+              'http://127.0.0.1:8080/api/user/login',
+              {},
+              {
+                params: {
+                  'phone_number': '15777446691',
+                  'password': '20070315mwz'
+                },
+                withCredentials: true
+              }
+            ).then(response => {
+                res = response.data;
+                if (res.code == 200) {
+                    console.log('登录成功');
+                    axios.post(
+                      CREATE_UPLOADS_SESSION_URL,
+                      {},
+                      {
+                        params:{
+                          'total_chunks': this.chunks.length,
+                          'file_size': this.file.size,
+                          'file_checksum': '61676495065fa4f141141561e7ff13ab91ce69c2f14e096b5208eae5f079c16f',
+                          'chunks_max_size': CHUNK_SIZE,
+                          'file_name': this.file.name,
+                          'node_id': 'd8785081-e2bf-4ced-97fa-3b785de3abc6',
+                          'file_type': this.file.type
+                        },
+                        withCredentials: true
+                      }).then(response => {
+                          res = response.data;
+                          if (res.code == 200) {
+                            // 开始上传切片
+                            this.uploads_id = res.data;
+                            this.uploadChunks(res.data);
+                          } else {
+                            console.log(new Error('上传会话申请失败: ' + res.message));
+                          }
+                      }).catch(error => {
+                        console.log(error);
+                      });
+                  } else {
+                    console.log(new Error('登录账号失败: ' + res.message));
+                  }
+            }).catch(error => {
+              console.log(error);
+            });
+        },
+        
+        // 上传切片（带并发控制）
+        async uploadChunks(uploads_id) {
+          const pendingChunks = this.chunks.filter(chunk => 
+            chunk.status === 'pending' || chunk.status === 'error'
+          );
+
+          if (pendingChunks.length === 0) {
+            // 所有切片上传完成，合并文件
+            console.log("开始发送合并文件请求...");
+            await this.mergeChunks(uploads_id);
+            this.isUploading = false;
+            alert('文件上传完成！');
+            return;
+          }
+
+          if (this.isPaused) return;
+
+          // 计算可用并发数
+          const availableSlots = MAX_CONCURRENT_UPLOADS - this.activeConnections;
+
+          for (let i = 0; i < availableSlots; i++) {
+            const chunk = pendingChunks[i];
+            if (chunk) {
+              this.activeConnections++;
+              chunk.status = 'uploading';
+
+              this.uploadChunk(chunk, uploads_id)
+                .then(() => {
+                  this.activeConnections--;
+                  this.uploadedChunksCount++;
+                  
+                  // 更新进度
+                  this.updateProgress();
+                  
+                  // 继续上传下一个切片
+                  if (!this.isPaused) {
+                    this.uploadChunks(uploads_id);
+                  }
+                })
+                .catch(error => {
+                  this.activeConnections--;
+                  chunk.status = 'error';
+
+                  // 重试机制（最多重试3次）
+                  if (chunk.retries < 3) {
+                    chunk.retries++;
+                    setTimeout(() => {
+                      if (!this.isPaused) {
+                        this.uploadChunks(uploads_id);
+                      }
+                    }, 1000);
+                  } else {
+                    console.error(`Chunk ${chunk.index} failed after 3 retries:`, error);
+                  }
+                  
+                  if (!this.isPaused) {
+                    this.uploadChunks(uploads_id);
+                  }
+                });
+            }
+          }
+        },
+        
+        // 上传单个切片
+        async uploadChunk(chunk, uploads_id) {
+          return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', chunk.file);
+            
+            const config = {
+              onUploadProgress: progressEvent => {
+                const percent = Math.round(
+                  (progressEvent.loaded * 100) / progressEvent.total
+                );
+                chunk.progress = percent;
+                this.updateProgress();
+              },
+              withCredentials: true,
+              params:{
+                'uploads_id': uploads_id,
+                'chunk_index': chunk.index + 1
+              }
+            };
+            
+            axios.post(UPLOAD_URL, formData, config)
+              .then(response => {
+                res = response.data;
+                if (res.code == 200) {
+                  chunk.status = 'completed';
+                  chunk.progress = 100;
+                  resolve();
+                } else {
+                  console.log(new Error('上传失败: ' + res.message));
+                }
+              })
+              .catch(error => {
+                console.log(error);
+                reject(error);
+              });
+          });
+        },
+        
+        // 合并切片
+        async mergeChunks(uploads_id) {
+          try {
+            const response = await axios.post(MERGE_URL, {}, { params: {'uploads_id': uploads_id}, withCredentials: true });
+            res = response.data;
+            if (res.code == 200) {
+              console.log('文件合并成功');
+            } else {
+              throw new Error('文件合并失败: ' + res.message);
+            }
+          } catch (error) {
+            console.error('合并失败:', error);
+            alert('文件合并失败: ' + error.message);
+          }
+        },
+        
+        // 更新上传进度
+        updateProgress() {
+          const uploaded = this.chunks.reduce((sum, chunk) => {
+            if (chunk.status === 'completed') return sum + chunk.file.size;
+            return sum + (chunk.progress / 100) * chunk.file.size;
+          }, 0);
+          
+          this.uploadProgress = Math.round((uploaded / this.file.size) * 100);
+          
+          // 计算上传速度
+          if (this.startTime) {
+            const elapsed = (Date.now() - this.startTime) / 1000; // seconds
+            if (elapsed > 0) {
+              this.uploadSpeed = uploaded / elapsed; // bytes per second
+            }
+          }
+        },
+
+        // 暂停上传
+        pauseUpload() {
+          this.isPaused = !this.isPaused;
+          if (!this.isPaused && this.isUploading) {
+            this.uploadChunks(this.uploads_id);
+          }
+        },
+
+        // 重置上传
+        resetUpload() {
+          this.file = null;
+          this.isUploading = false;
+          this.isPaused = false;
+          this.uploadProgress = 0;
+          this.chunks = [];
+          this.uploadedChunksCount = 0;
+          this.activeConnections = 0;
+          this.uploadSpeed = 0;
+          this.fileHash = '';
+          this.startTime = null;
+
+          if (this.$refs.fileInput) {
+            this.$refs.fileInput.value = '';
+          }
+        },
+
+        // 获取状态文本
+        getStatusText(status) {
+          const statusMap = {
+            pending: '等待上传',
+            uploading: '上传中',
+            completed: '已完成',
+            error: '上传失败'
+          };
+          return statusMap[status] || status;
+        },
+
+        // 格式化文件大小
+        formatFileSize(bytes) {
+          if (bytes === 0) return '0 Bytes';
+
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        },
+
+        // 格式化上传速度
+        formatSpeed(bytesPerSecond) {
+          if (bytesPerSecond < 1024) {
+            return bytesPerSecond.toFixed(0) + ' B/s';
+          } else if (bytesPerSecond < 1024 * 1024) {
+            return (bytesPerSecond / 1024).toFixed(1) + ' KB/s';
+          } else {
+            return (bytesPerSecond / (1024 * 1024)).toFixed(1) + ' MB/s';
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>私有云网盘管理系统</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.7.2/dist/axios.min.js"></script>
+  
+  <!-- Tailwind 配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#36CFC9',
+            neutral: {
+              100: '#F5F7FA',
+              200: '#E4E7ED',
+              300: '#C0C6CF',
+              400: '#909399',
+              500: '#606266',
+              600: '#303133',
+              700: '#1E1E1E',
+            },
+            success: '#52C41A',
+            warning: '#FAAD14',
+            danger: '#FF4D4F',
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            'card': '0 2px 12px 0 rgba(0, 0, 0, 0.08)',
+            'hover': '0 4px 16px 0 rgba(22, 93, 255, 0.15)',
+          }
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .transition-all-300 {
+        transition: all 0.3s ease;
+      }
+      .text-ellipsis-1 {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .bg-gradient-primary {
+        background: linear-gradient(135deg, #165DFF 0%, #0F48D9 100%);
+      }
+    }
+  </style>
+  
+  <style>
+    /* 基础样式 */
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      scroll-behavior: smooth;
+    }
+    
+    /* 动画效果 */
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .scale-hover {
+      transition: transform 0.2s ease;
+    }
+    
+    .scale-hover:hover {
+      transform: scale(1.02);
+    }
+    
+    /* 滚动条美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #c0c6cf;
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #909399;
+    }
+
+    /* 上传进度浮窗最小化小球 */
+    .upload-mini-ball {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #165DFF;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      font-size: 18px;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 100;
+      transition: all 0.2s ease;
+    }
+    .upload-mini-ball:hover {
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+
+<body class="bg-neutral-100 text-neutral-700 min-h-screen flex flex-col">
+  <!-- 顶部导航栏 -->
+  <header id="app-header" class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fa fa-cloud text-primary text-2xl"></i>
+        <h1 class="text-xl font-bold text-neutral-700">CloudDrive <span class="text-primary">私有云</span></h1>
+      </div>
+      
+      <div class="flex items-center space-x-4">
+        <div id="user-info" class="hidden items-center space-x-2">
+          <span id="username" class="text-neutral-600">用户</span>
+          <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            <i class="fa fa-user"></i>
+          </div>
+        </div>
+
+        <!-- 存储容量组件 -->
+        <div id="storage-info" class="hidden items-center space-x-3 px-3 py-1.5 bg-neutral-50 rounded-lg">
+          <i class="fa fa-cloud-upload text-primary text-lg"></i>
+          <div class="flex flex-col">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs text-neutral-500">总容量</span>
+              <span class="text-xs font-medium text-neutral-700" id="storage-used-text">-- GB</span>
+              <span class="text-xs text-neutral-400">/</span>
+              <span class="text-xs font-medium text-neutral-700" id="storage-total-text">-- GB</span>
+            </div>
+            <div class="w-24 h-1.5 bg-neutral-200 rounded-full mt-1 overflow-hidden" style="width: 100%;">
+              <div id="storage-bar-used" class="h-full bg-primary transition-all duration-500" style="width: 0%; flex-shrink: 0;"></div>
+              <div id="storage-bar-free" class="h-full bg-neutral-300 transition-all duration-500" style="flex-grow: 1;"></div>
+            </div>
+          </div>
+        </div>
+        
+        <button id="login-btn" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-all-300 flex items-center space-x-1">
+          <i class="fa fa-sign-in"></i>
+          <span>登录</span>
+        </button>
+        
+        <button id="logout-btn" class="hidden bg-neutral-200 hover:bg-neutral-300 text-neutral-700 px-4 py-2 rounded-lg transition-all-300 flex items-center space-x-1">
+          <i class="fa fa-sign-out"></i>
+          <span>退出</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="flex-1 pt-20 pb-16 container mx-auto px-4">
+    <!-- 登录面板 (默认隐藏) -->
+    <div id="login-panel" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 fade-in">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-neutral-700">用户登录</h2>
+          <button id="close-login" class="text-neutral-400 hover:text-neutral-700 transition-all-300">
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-neutral-600 mb-1">手机号</label>
+            <input type="text" id="phone-number" value="15777446691" class="w-full px-4 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all-300" placeholder="请输入手机号">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-neutral-600 mb-1">密码</label>
+            <input type="password" id="password" value="20070315mwz" class="w-full px-4 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all-300" placeholder="请输入密码">
+          </div>
+          
+          <button id="do-login" class="w-full bg-primary hover:bg-primary/90 text-white py-2.5 rounded-lg transition-all-300 font-medium flex items-center justify-center space-x-2">
+            <i class="fa fa-sign-in"></i>
+            <span>登录</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 网盘内容区 (默认隐藏，登录后显示) -->
+    <div id="drive-content" class="hidden">
+      <!-- 路径导航栏 -->
+      <div class="bg-white rounded-lg shadow-card p-4 mb-6">
+        <div class="flex items-center space-x-2">
+          <button id="home-btn" class="text-primary hover:text-primary/80 transition-all-300 flex items-center">
+            <i class="fa fa-home mr-1"></i>
+            <span>我的网盘</span>
+          </button>
+          
+          <div id="path-nav" class="flex items-center space-x-2 overflow-x-auto flex-1 pl-2 pb-1">
+            <!-- 路径导航由JS动态生成 -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- 操作栏 -->
+      <div class="bg-white rounded-lg shadow-card p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <button id="create-folder-btn" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg transition-all-300 flex items-center space-x-1">
+            <i class="fa fa-folder-plus"></i>
+            <span>新建文件夹</span>
+          </button>
+          <!-- 新增上传文件按钮 -->
+          <button id="upload-file-btn" class="bg-success hover:bg-success/90 text-white px-4 py-2 rounded-lg transition-all-300 flex items-center space-x-1">
+            <i class="fa fa-upload"></i>
+            <span>上传文件</span>
+          </button>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+          <div class="relative">
+            <input type="text" id="search-input" class="pl-10 pr-4 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all-300 w-64" placeholder="搜索文件或文件夹...">
+            <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
+          </div>
+          
+          <div class="flex items-center space-x-1 border border-neutral-200 rounded-lg p-1">
+            <button id="view-grid" class="px-3 py-1.5 rounded bg-primary text-white transition-all-300">
+              <i class="fa fa-th"></i>
+            </button>
+            <button id="view-list" class="px-3 py-1.5 rounded text-neutral-600 hover:bg-neutral-100 transition-all-300">
+              <i class="fa fa-list"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 新建文件夹弹窗 (默认隐藏) -->
+      <div id="create-folder-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 fade-in">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-neutral-700">新建文件夹</h2>
+            <button id="close-folder-modal" class="text-neutral-400 hover:text-neutral-700 transition-all-300">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-neutral-600 mb-1">文件夹名称</label>
+              <input type="text" id="folder-name" class="w-full px-4 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all-300" placeholder="请输入文件夹名称">
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+              <button id="cancel-create-folder" class="px-4 py-2 border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-all-300">
+                取消
+              </button>
+              <button id="confirm-create-folder" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-all-300">
+                确认创建
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 下载确认弹窗 -->
+      <div id="download-confirm-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-sm p-6 fade-in">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold text-neutral-700">确认下载</h2>
+            <button id="close-download-modal" class="text-neutral-400 hover:text-neutral-700 transition-all-300">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+          <div class="mb-6">
+            <p class="text-neutral-600">确定要下载文件 <span id="download-file-name" class="font-medium text-neutral-700"></span> 吗？</p>
+          </div>
+          <div class="flex justify-end space-x-3">
+            <button id="cancel-download" class="px-4 py-2 border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-all-300">
+              取消
+            </button>
+            <button id="confirm-download" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-all-300 flex items-center space-x-1">
+              <i class="fa fa-download"></i>
+              <span>确认下载</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 上传确认弹窗 (新增) -->
+      <div id="upload-confirm-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-sm p-6 fade-in">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold text-neutral-700">确认上传</h2>
+            <button id="close-upload-confirm" class="text-neutral-400 hover:text-neutral-700 transition-all-300">
+              <i class="fa fa-times text-xl"></i>
+            </button>
+          </div>
+          <div class="mb-4 space-y-2">
+            <div class="flex items-center space-x-2">
+              <i id="upload-file-icon" class="fa fa-file text-neutral-500 text-xl"></i>
+              <span id="upload-file-name" class="font-medium text-neutral-700 truncate"></span>
+            </div>
+            <div class="text-sm text-neutral-500 space-y-1">
+              <div>类型：<span id="upload-file-type"></span></div>
+              <div>大小：<span id="upload-file-size"></span></div>
+            </div>
+          </div>
+          <div class="flex justify-end space-x-3">
+            <button type="button" id="cancel-upload" class="px-4 py-2 border border-neutral-200 rounded-lg text-neutral-700 hover:bg-neutral-50 transition-all-300">
+              取消
+            </button>
+            <button type="button" id="confirm-upload" class="px-4 py-2 bg-success hover:bg-success/90 text-white rounded-lg transition-all-300 flex items-center space-x-1">
+              <i class="fa fa-upload"></i>
+              <span>确认上传</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 上传进度浮窗 (新增) -->
+      <div id="upload-progress-panel" class="hidden fixed bottom-6 right-6 z-50 bg-white rounded-xl shadow-lg w-80 p-5 fade-in">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-neutral-700 text-sm">正在上传...</h3>
+          <div class="flex items-center space-x-2">
+            <button id="minimize-upload" class="text-neutral-400 hover:text-neutral-600 transition">
+              <i class="fa fa-minus"></i>
+            </button>
+            <button id="close-upload-progress" class="text-neutral-400 hover:text-neutral-600 transition">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+        </div>
+        <div class="mb-2 text-sm text-neutral-600 truncate" id="progress-file-name"></div>
+        <div class="w-full bg-neutral-200 rounded-full h-2 mb-2">
+          <div id="progress-bar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-neutral-500 mb-3">
+          <span id="progress-percent">0%</span>
+          <span id="progress-speed"></span>
+        </div>
+        <div class="flex space-x-2">
+          <button type="button" id="pause-resume-btn" class="flex-1 px-3 py-1.5 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 transition">
+            <i class="fa fa-pause mr-1"></i>暂停
+          </button>
+          <button id="cancel-upload-progress" class="flex-1 px-3 py-1.5 text-sm border border-neutral-200 rounded-lg text-danger hover:bg-red-50 transition">
+            取消上传
+          </button>
+        </div>
+      </div>
+
+      <!-- 最小化上传小球 (新增) -->
+      <div id="upload-mini-ball" class="hidden upload-mini-ball">
+        <i class="fa fa-cloud-upload"></i>
+      </div>
+
+      <!-- 隐藏的文件选择input -->
+      <input type="file" id="file-input" class="hidden" />
+      
+      <!-- 加载中状态 -->
+      <div id="loading" class="hidden flex flex-col items-center justify-center py-20">
+        <div class="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
+        <p class="text-neutral-500">加载中...</p>
+      </div>
+      
+      <!-- 空状态 -->
+      <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20">
+        <div class="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
+          <i class="fa fa-folder-open text-4xl text-neutral-300"></i>
+        </div>
+        <h3 class="text-lg font-medium text-neutral-600 mb-1">该文件夹为空</h3>
+        <p class="text-neutral-400 mb-4">点击新建文件夹或上传文件</p>
+        <button id="empty-create-folder" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-all-300 flex items-center space-x-1">
+          <i class="fa fa-folder-plus"></i>
+          <span>新建文件夹</span>
+        </button>
+      </div>
+      
+      <!-- 文件列表网格视图 -->
+      <div id="grid-view" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <!-- 文件夹和文件由JS动态生成 -->
+      </div>
+      
+      <!-- 文件列表视图 (默认隐藏) -->
+      <div id="list-view" class="hidden bg-white rounded-lg shadow-card overflow-hidden">
+        <div class="grid grid-cols-12 bg-neutral-50 py-2 px-4 font-medium text-neutral-600 border-b border-neutral-200">
+          <div class="col-span-6">名称</div>
+          <div class="col-span-4 hidden md:block">类型</div>
+          <div class="col-span-2 text-right">操作</div>
+        </div>
+        <div id="list-container" class="divide-y divide-neutral-200">
+          <!-- 列表项由JS动态生成 -->
+        </div>
+      </div>
+    </div>
+    
+    <!-- 未登录提示 -->
+    <div id="not-login-hint" class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="w-32 h-32 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+        <i class="fa fa-cloud text-5xl text-primary"></i>
+      </div>
+      <h2 class="text-2xl font-bold text-neutral-700 mb-2">欢迎使用私有云网盘</h2>
+      <p class="text-neutral-500 mb-8 max-w-md">请先登录后查看您的文件和文件夹，管理您的私有云存储资源</p>
+      <button id="go-login-btn" class="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg transition-all-300 font-medium flex items-center space-x-2">
+        <i class="fa fa-sign-in"></i>
+        <span>立即登录</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-white border-t border-neutral-200 py-4">
+    <div class="container mx-auto px-4 text-center text-neutral-500 text-sm">
+      <p>© 2025 CloudDrive 私有云网盘管理系统 - 版权所有</p>
+    </div>
+  </footer>
+
+  <!-- 消息提示组件 -->
+  <div id="toast" class="fixed top-20 right-4 z-50 max-w-xs bg-neutral-700 text-white px-4 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 flex items-center space-x-2">
+    <i id="toast-icon" class="fa fa-info-circle"></i>
+    <span id="toast-message">操作成功</span>
+  </div>
+
+  <script>
+    // 全局变量
+    const APP = {
+      baseUrl: 'http://127.0.0.1:8080', // 请在这里设置你的API基础地址
+      token: localStorage.getItem('cloudDriveToken') || '',
+      currentNodeId: '', // 当前所在文件夹节点ID
+      pathStack: [], // 路径栈，用于导航
+      viewMode: 'grid', // 视图模式：grid/list
+      pendingDownloadFile: null, // 待下载的文件信息 { node_id, node_name }
+      // 上传相关
+      uploadFile: null,
+      uploadSessionId: null,
+      totalChunks: 0,
+      chunkSize: 5 * 1024 * 1024, // 5MB
+      chunksStatus: [],           // { status: 'pending'|'uploading'|'success'|'failed', retries: 0 }
+      activeControllers: [],      // AbortController 数组
+      uploadPaused: false,
+      uploadCancelled: false,
+      uploadMinimized: false,
+      concurrentUploads: 3,
+      uploadStartTime: null,
+      fileChecksum: null,
+      
+      // 初始化
+      init() {
+        this.bindEvents();
+        this.checkLoginStatus();
+        // 全局开启跨域 Cookie 携带（关键）
+        axios.defaults.withCredentials = true;
+        axios.defaults.crossDomain = true; // 辅助标记为跨域请求
+      },
+      
+      // 绑定事件
+      bindEvents() {
+        // 登录相关
+        document.getElementById('login-btn').addEventListener('click', () => this.showLoginPanel());
+        document.getElementById('go-login-btn').addEventListener('click', () => this.showLoginPanel());
+        document.getElementById('close-login').addEventListener('click', () => this.hideLoginPanel());
+        document.getElementById('do-login').addEventListener('click', () => this.login());
+        document.getElementById('logout-btn').addEventListener('click', () => this.logout());
+        
+        // 文件夹创建相关
+        document.getElementById('create-folder-btn').addEventListener('click', () => this.showCreateFolderModal());
+        document.getElementById('empty-create-folder').addEventListener('click', () => this.showCreateFolderModal());
+        document.getElementById('close-folder-modal').addEventListener('click', () => this.hideCreateFolderModal());
+        document.getElementById('cancel-create-folder').addEventListener('click', () => this.hideCreateFolderModal());
+        document.getElementById('confirm-create-folder').addEventListener('click', () => this.createFolder());
+        
+        // 视图切换
+        document.getElementById('view-grid').addEventListener('click', () => this.switchView('grid'));
+        document.getElementById('view-list').addEventListener('click', () => this.switchView('list'));
+        
+        // 导航相关
+        document.getElementById('home-btn').addEventListener('click', () => this.goHome());
+        
+        // 下载弹窗事件
+        document.getElementById('close-download-modal').addEventListener('click', () => this.hideDownloadModal());
+        document.getElementById('cancel-download').addEventListener('click', () => this.hideDownloadModal());
+        document.getElementById('confirm-download').addEventListener('click', () => this.executeDownload());
+        
+        // 点击空白处关闭弹窗
+        document.getElementById('login-panel').addEventListener('click', (e) => {
+          if (e.target === document.getElementById('login-panel')) this.hideLoginPanel();
+        });
+        document.getElementById('create-folder-modal').addEventListener('click', (e) => {
+          if (e.target === document.getElementById('create-folder-modal')) this.hideCreateFolderModal();
+        });
+        document.getElementById('download-confirm-modal').addEventListener('click', (e) => {
+          if (e.target === document.getElementById('download-confirm-modal')) this.hideDownloadModal();
+        });
+        
+        // 搜索功能
+        document.getElementById('search-input').addEventListener('input', (e) => this.filterItems(e.target.value));
+
+        // ========== 上传相关事件 ==========
+        // 上传按钮打开文件选择
+        document.getElementById('upload-file-btn').addEventListener('click', () => {
+          document.getElementById('file-input').click();
+        });
+        
+        // 文件选择后的处理
+        document.getElementById('file-input').addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            this.handleFileSelected(e.target.files[0]);
+          }
+          // 清空value，允许重复选同一个文件
+          e.target.value = '';
+        });
+        
+        // 上传确认弹窗按钮
+        document.getElementById('close-upload-confirm').addEventListener('click', () => this.hideUploadConfirm());
+        document.getElementById('cancel-upload').addEventListener('click', () => this.hideUploadConfirm());
+        document.getElementById('confirm-upload').addEventListener('click', () => this.startUpload());
+        
+        // 点击空白关闭上传确认弹窗
+        document.getElementById('upload-confirm-modal').addEventListener('click', (e) => {
+          if (e.target === document.getElementById('upload-confirm-modal')) this.hideUploadConfirm();
+        });
+        
+        // 进度浮窗控制
+        document.getElementById('minimize-upload').addEventListener('click', () => this.minimizeProgress());
+        document.getElementById('close-upload-progress').addEventListener('click', () => this.cancelUpload());
+        document.getElementById('cancel-upload-progress').addEventListener('click', () => this.cancelUpload());
+        document.getElementById('pause-resume-btn').addEventListener('click', () => this.togglePauseResume());
+        
+        // 最小化小球点击恢复
+        document.getElementById('upload-mini-ball').addEventListener('click', () => this.restoreProgress());
+      },
+      
+      // 检查登录状态
+      checkLoginStatus() {
+        if (this.token) {
+          // 已登录，显示网盘内容
+          document.getElementById('user-info').classList.remove('hidden');
+          document.getElementById('user-info').classList.add('flex');
+          document.getElementById('login-btn').classList.add('hidden');
+          document.getElementById('logout-btn').classList.remove('hidden');
+          document.getElementById('drive-content').classList.remove('hidden');
+          document.getElementById('not-login-hint').classList.add('hidden');
+          
+          // 加载根目录
+          this.goHome();
+          //显示存储容量
+          this.showStorageInfo();   // ← 新增
+        } else {
+          // 未登录，显示登录提示
+          document.getElementById('user-info').classList.add('hidden');
+          document.getElementById('user-info').classList.remove('flex');
+          document.getElementById('login-btn').classList.remove('hidden');
+          document.getElementById('logout-btn').classList.add('hidden');
+          document.getElementById('drive-content').classList.add('hidden');
+          document.getElementById('not-login-hint').classList.remove('hidden');
+
+          this.hideStorageInfo();
+        }
+      },
+      
+      // 显示登录面板
+      showLoginPanel() {
+        document.getElementById('login-panel').classList.remove('hidden');
+        document.getElementById('phone-number').focus();
+      },
+      
+      // 隐藏登录面板
+      hideLoginPanel() {
+        document.getElementById('login-panel').classList.add('hidden');
+      },
+      
+      // 登录
+      login() {
+        const phoneNumber = document.getElementById('phone-number').value.trim();
+        const password = document.getElementById('password').value.trim();
+        
+        if (!phoneNumber || !password) {
+          this.showToast('手机号和密码不能为空', 'warning');
+          return;
+        }
+        
+        // 显示加载状态
+        const loginBtn = document.getElementById('do-login');
+        const originalHtml = loginBtn.innerHTML;
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i><span>登录中...</span>';
+        // 调用登录接口
+        axios.post(`${this.baseUrl}/api/v1/business/users/login`, { phone_number: phoneNumber, password: password }, {
+          withCredentials: true,
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+          console.log(response)
+          if (response.data.code === 200) {
+            // 登录成功，存储token（实际项目中应从响应中获取token）
+            this.token = response.data.data;
+            localStorage.setItem('cloudDriveToken', this.token);
+            
+            this.showToast('登录成功', 'success');
+            this.hideLoginPanel();
+            this.checkLoginStatus();
+          } else {
+            this.showToast('登录失败：' + (response.data.message || '未知错误'), 'error');
+          }
+        })
+        .catch(error => {
+          console.error('登录失败', error);
+          this.showToast('登录失败：网络错误', 'error');
+        })
+        .finally(() => {
+          loginBtn.disabled = false;
+          loginBtn.innerHTML = originalHtml;
+        });
+      },
+      
+      // 退出登录
+      logout() {
+        this.token = '';
+        localStorage.removeItem('cloudDriveToken');
+        this.currentNodeId = '';
+        this.pathStack = [];
+        this.showToast('退出成功', 'success');
+        this.checkLoginStatus();
+      },
+      
+      // 前往根目录
+      goHome() {
+        this.pathStack = [];
+        this.loadRootNode();
+      },
+      
+      // 加载根目录
+      async loadRootNode() {
+        this.showLoading();
+        
+        axios.get(`${this.baseUrl}/api/v1/business/nodes/root`,
+        {
+          withCredentials: true,
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Authorization': 'Bearer ' + this.token }
+        })
+        .then(response => {
+          console.log(response)
+          if (response.data.code === 200 && response.data.data) {
+            // 根目录节点（假设返回的第一个节点是根目录）
+            const rootNode = response.data.data;
+            this.currentNodeId = rootNode.node_id;
+            this.pathStack = [{ node_id: rootNode.node_id, node_name: '我的网盘' }];
+            // 更新路径导航
+            this.updatePathNav();
+            // 加载根目录下的子节点
+            this.loadChildNodes(rootNode.node_id);
+          } else {
+            this.hideLoading();
+            this.showEmptyState();
+            this.updatePathNav();
+          }
+        })
+        .catch(error => {
+          console.error('加载根目录失败', error);
+          this.hideLoading();
+          this.showToast('加载失败：' + (error.response?.data?.message || '网络错误'), 'error');
+        });
+      },
+      
+      // 加载子节点
+      loadChildNodes(nodeId) {
+        this.showLoading();
+        
+        axios.get(`${this.baseUrl}/api/v1/business/nodes/${nodeId}/children`, 
+        {
+          withCredentials: true,
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Authorization': 'Bearer ' + this.token }
+        })
+        .then(response => {
+          this.hideLoading();
+          
+          if (response.data.code === 200) {
+            const nodes = response.data.data || [];
+            this.currentNodeId = nodeId;
+            
+            // 渲染节点
+            this.renderNodes(nodes);
+            
+            // 如果没有节点，显示空状态
+            if (nodes.length === 0) {
+              this.showEmptyState();
+            } else {
+              this.hideEmptyState();
+            }
+          } else {
+            this.showToast('加载失败：' + (response.data.message || '未知错误'), 'error');
+            this.showEmptyState();
+          }
+        })
+        .catch(error => {
+          console.error('加载子节点失败', error);
+          this.hideLoading();
+          this.showToast('加载失败：' + (error.response?.data?.message || '网络错误'), 'error');
+          this.showEmptyState();
+        });
+      },
+      
+      // 渲染节点（增加文件下载点击事件）
+      renderNodes(nodes) {
+        const gridContainer = document.getElementById('grid-view');
+        const listContainer = document.getElementById('list-container');
+        
+        // 清空容器
+        gridContainer.innerHTML = '';
+        listContainer.innerHTML = '';
+        
+        // 分离文件夹和文件，文件夹在前
+        const folders = nodes.filter(node => node.node_type === 'FOLDER');
+        const files = nodes.filter(node => node.node_type === 'FILE');
+        const sortedNodes = [...folders, ...files];
+        
+        // 渲染网格视图
+        sortedNodes.forEach(node => {
+          // 网格项
+          const gridItem = document.createElement('div');
+          gridItem.className = 'bg-white rounded-lg shadow-card p-4 scale-hover cursor-pointer fade-in';
+          gridItem.setAttribute('data-node-id', node.node_id);
+          gridItem.setAttribute('data-node-type', node.node_type);
+          gridItem.setAttribute('data-node-name', node.node_name);
+          
+          // 图标
+          const iconClass = node.node_type === 'FOLDER' 
+            ? 'fa-folder text-primary text-3xl' 
+            : this.getFileIconClass(node.node_name);
+          
+          gridItem.innerHTML = `
+            <div class="flex flex-col items-center">
+              <div class="w-16 h-16 rounded-lg bg-neutral-50 flex items-center justify-center mb-3">
+                <i class="fa ${iconClass}"></i>
+              </div>
+              <h3 class="text-ellipsis-1 text-center font-medium text-neutral-700 w-full">${node.node_name}</h3>
+              <p class="text-xs text-neutral-400 mt-1">${node.node_type === 'FOLDER' ? '文件夹' : this.getFileExtension(node.node_name)}</p>
+            </div>
+          `;
+          
+          // 文件夹点击：进入子目录
+          if (node.node_type === 'FOLDER') {
+            gridItem.addEventListener('click', () => {
+              this.pathStack.push(node);
+              this.updatePathNav();
+              this.loadChildNodes(node.node_id);
+            });
+          } else {
+            // 文件点击：打开下载确认弹窗
+            gridItem.addEventListener('click', () => {
+              this.showDownloadModal(node);
+            });
+          }
+          
+          gridContainer.appendChild(gridItem);
+          
+          // 列表项
+          const listItem = document.createElement('div');
+          listItem.className = 'grid grid-cols-12 py-3 px-4 hover:bg-neutral-50 transition-all-300 items-center';
+          listItem.setAttribute('data-node-id', node.node_id);
+          listItem.setAttribute('data-node-type', node.node_type);
+          listItem.setAttribute('data-node-name', node.node_name);
+          
+          listItem.innerHTML = `
+            <div class="col-span-6 flex items-center space-x-3">
+              <div class="w-10 h-10 rounded bg-neutral-50 flex items-center justify-center">
+                <i class="fa ${iconClass.replace('text-3xl', 'text-xl')}"></i>
+              </div>
+              <span class="text-ellipsis-1 font-medium text-neutral-700">${node.node_name}</span>
+            </div>
+            <div class="col-span-4 hidden md:block text-neutral-500">
+              ${node.node_type === 'FOLDER' ? '文件夹' : this.getFileExtension(node.node_name)}
+            </div>
+            <div class="col-span-2 text-right">
+              ${node.node_type === 'FOLDER' 
+                ? '<button class="text-primary hover:text-primary/80 transition-all-300"><i class="fa fa-arrow-right"></i></button>' 
+                : '<button class="text-primary hover:text-primary/80 transition-all-300"><i class="fa fa-download"></i></button>'}
+            </div>
+          `;
+          
+          // 文件夹点击事件
+          if (node.node_type === 'FOLDER') {
+            listItem.addEventListener('click', (e) => {
+              // 阻止事件冒泡到按钮
+              if (e.target.tagName !== 'BUTTON' && e.target.parentElement.tagName !== 'BUTTON') {
+                this.pathStack.push(node);
+                this.updatePathNav();
+                this.loadChildNodes(node.node_id);
+              }
+            });
+            
+            // 箭头按钮点击
+            const arrowBtn = listItem.querySelector('button');
+            arrowBtn.addEventListener('click', () => {
+              this.pathStack.push(node);
+              this.updatePathNav();
+              this.loadChildNodes(node.node_id);
+            });
+          } else {
+            // 文件项：点击行触发下载确认
+            listItem.addEventListener('click', () => {
+              this.showDownloadModal(node);
+            });
+            // 列表中的下载按钮同样触发
+            const downloadBtn = listItem.querySelector('button');
+            downloadBtn.addEventListener('click', (e) => {
+              e.stopPropagation(); // 防止重复触发
+              this.showDownloadModal(node);
+            });
+          }
+          
+          listContainer.appendChild(listItem);
+        });
+      },
+      
+      // 显示下载确认弹窗
+      showDownloadModal(fileNode) {
+        this.pendingDownloadFile = fileNode;
+        document.getElementById('download-file-name').textContent = fileNode.node_name;
+        document.getElementById('download-confirm-modal').classList.remove('hidden');
+      },
+      
+      // 隐藏下载确认弹窗
+      hideDownloadModal() {
+        document.getElementById('download-confirm-modal').classList.add('hidden');
+        this.pendingDownloadFile = null;
+      },
+
+      /**
+       * 下载文件（自动适配全量下载 / 分片下载）
+       * @param {object} options
+       * @param {string} options.node_id       节点ID
+       * @param {string} options.node_name     文件名
+       * @param {string} options.file_size.    文件大小
+       * @param {number} [options.chunkSize]   分片大小（字节），默认 5MB
+       * @param {number} [options.maxConcurrency] 最大并发数，默认 4
+       * @param {number} [options.threshold]   超过此大小（字节）启用分片，默认 10MB
+       * @param {function} [options.onProgress] 进度回调 (percent: number)
+       * @returns {Promise<Blob>} 文件 Blob
+       */
+      async downloadFile({
+        node_id,
+        node_name,
+        file_size,
+        chunkSize = 5 * 1024 * 1024,      // 5MB
+        maxConcurrency = 4,
+        threshold = 10 * 1024 * 1024,      // 10MB
+        onProgress,
+      }) {
+        // ===========================
+        // 第一步：获取操作令牌（operation_token）
+        // ===========================
+        const initResponse = await axios.post(
+          `${this.baseUrl}/api/v1/files/operations/init`,
+          {},
+          {
+            params: { node_id, file_name: node_name, operation_type: 'download' },
+            withCredentials: true,
+            headers: {
+              Authorization: `Bearer ${this.token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (initResponse.data.code !== 200) {
+          throw new Error(initResponse.data.message || '获取下载令牌失败');
+        }
+
+        const operationToken = initResponse.data.data.operation_token;
+        const contentLength = file_size;
+
+        // ===========================
+        // 第二步：根据大小选择下载策略
+        // ===========================
+        if (contentLength < threshold) {
+          // ---- 小文件：全量下载 ----
+          if (onProgress) onProgress(0);
+          const response = await axios.get(
+            `${this.baseUrl}/api/v1/files/download/${node_id}/${encodeURIComponent(node_name)}`,
+            {
+              responseType: 'blob',
+              withCredentials: true,
+              headers: {
+                Authorization: `Bearer ${this.token}`,
+                'X-Operation-Token': operationToken,
+              },
+              onDownloadProgress: (progressEvent) => {
+                if (onProgress && progressEvent.total) {
+                  const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                  onProgress(percent);
+                }
+              },
+            }
+          );
+          if (onProgress) onProgress(100);
+          return response.data;
+        } else {
+          // ---- 大文件：分片并发下载 ----
+          return await this.downloadLargeFile({
+            operationToken,
+            node_id,
+            node_name,
+            fileSize: contentLength,
+            chunkSize,
+            maxConcurrency,
+            onProgress,
+          });
+        }
+      },
+
+      /**
+       * 分片下载大文件，合并 Blob
+       */
+      async downloadLargeFile({
+        operationToken,
+        node_id,
+        node_name,
+        fileSize,
+        chunkSize,
+        maxConcurrency,
+        onProgress,
+      }) {
+        const totalChunks = Math.ceil(fileSize / chunkSize);
+        const chunks = new Array(totalChunks).fill(null);   // 按索引存放 Blob
+        const baseUrl = this.baseUrl;
+        const token = this.token;
+        let downloadedSize = 0;
+
+        // 创建下载任务列表（每个任务返回一个 Promise）
+        const tasks = Array.from({ length: totalChunks }, (_, index) => {
+          const start = index * chunkSize;
+          const end = index === totalChunks - 1 ? fileSize - 1 : start + chunkSize - 1;
+          return { index, start, end };
+        });
+
+        // 并发控制：限制同时进行的请求数
+        const pool = new Array(maxConcurrency).fill(null).map(async () => {
+          while (tasks.length > 0) {
+            const task = tasks.shift();
+            if (!task) break;
+            await downloadChunk(task);
+          }
+        });
+
+        // 下载单个分片（含重试）
+        async function downloadChunk({ index, start, end }) {
+          const maxRetries = 3;
+          let lastError;
+
+          for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+              const response = await axios.get(
+                `${baseUrl}/api/v1/files/download/${node_id}/${encodeURIComponent(node_name)}`,
+                {
+                  responseType: 'blob',
+                  withCredentials: true,
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    'X-Operation-Token': operationToken,
+                    Range: `bytes=${start}-${end}`,
+                  },
+                }
+              );
+              // 后端返回 206 Partial Content
+              if (response.status !== 206 && response.status !== 200) {
+                throw new Error(`分片下载失败，状态码: ${response.status}`);
+              }
+              chunks[index] = response.data;
+              downloadedSize += response.data.size;
+              response.headers
+              if (onProgress) {
+                const percent = Math.round((downloadedSize / fileSize) * 100);
+                onProgress(percent);
+              }
+              return; // 成功，退出重试循环
+            } catch (err) {
+              lastError = err;
+              // 如果不是最后一次尝试，等待一小段时间再重试
+              if (attempt < maxRetries - 1) {
+                await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+              }
+            }
+          }
+          throw new Error(`分片 ${index} 下载失败，已重试${maxRetries}次: ${lastError.message}`);
+        }
+
+        // 等待所有并发任务完成
+        await Promise.all(pool);
+
+        // 检查是否有缺失的分片
+        if (chunks.some((c) => c === null)) {
+          throw new Error('文件合并失败：存在未下载完成的分片');
+        }
+
+        // 合并 Blob
+        return new Blob(chunks);
+      },
+      
+      // 执行下载流程
+      async executeDownload() {
+        if (!this.pendingDownloadFile) return;
+        const { node_id, node_name, node_size } = this.pendingDownloadFile;
+        
+        // 显示加载状态
+        const confirmBtn = document.getElementById('confirm-download');
+        const originalHtml = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i><span>准备下载...</span>';
+        
+        try {
+          // 第一步：下载文件
+          const blob = await this.downloadFile({
+            node_id: node_id,
+            node_name: node_name,
+            file_size: node_size,
+            chunkSize: 5 * 1024 * 1024,   // 5MB 分片
+            threshold: 10 * 1024 * 1024,  // 大于 10MB 走分片
+            onProgress: (percent) => {
+              console.log(`下载进度：${percent}%`);
+            },
+          });
+          
+          // 第二步：触发浏览器保存文件
+          const url = window.URL.createObjectURL(new Blob([blob]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', node_name); // 指定下载文件名
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+          
+          this.showToast('下载成功', 'success');
+          this.hideDownloadModal();
+        } catch (error) {
+          console.error('下载失败:', error);
+          let message = '下载失败：网络错误';
+          if (error.response) {
+            // 尝试解析错误信息（可能是JSON）
+            const text = await error.response.data.text();
+            try {
+              const errData = JSON.parse(text);
+              message = errData.message || message;
+            } catch (e) {}
+          } else if (error.message) {
+            message = error.message;
+          }
+          this.showToast(message, 'error');
+        } finally {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = originalHtml;
+        }
+      },
+      
+      // 更新路径导航
+      updatePathNav() {
+        const pathNav = document.getElementById('path-nav');
+        pathNav.innerHTML = '';
+        
+        this.pathStack.forEach((item, index) => {
+          // 分隔符
+          if (index > 0) {
+            const separator = document.createElement('span');
+            separator.className = 'text-neutral-300';
+            separator.innerHTML = '<i class="fa fa-angle-right"></i>';
+            pathNav.appendChild(separator);
+          }
+          
+          // 路径项
+          const pathItem = document.createElement('div');
+          pathItem.className = 'flex-shrink-0';
+          
+          const link = document.createElement('a');
+          link.className = index === this.pathStack.length - 1 
+            ? 'text-neutral-700 font-medium' 
+            : 'text-primary hover:text-primary/80 transition-all-300';
+          link.textContent = item.node_name;
+          
+          // 只有非当前路径的项可点击
+          if (index !== this.pathStack.length - 1) {
+            link.addEventListener('click', () => {
+              // 截取路径栈
+              this.pathStack = this.pathStack.slice(0, index + 1);
+              this.updatePathNav();
+              // 加载对应节点
+              this.loadChildNodes(item.node_id);
+            });
+          }
+          
+          pathItem.appendChild(link);
+          pathNav.appendChild(pathItem);
+        });
+      },
+      
+      // 显示新建文件夹弹窗
+      showCreateFolderModal() {
+        document.getElementById('folder-name').value = '';
+        document.getElementById('create-folder-modal').classList.remove('hidden');
+        document.getElementById('folder-name').focus();
+      },
+      
+      // 隐藏新建文件夹弹窗
+      hideCreateFolderModal() {
+        document.getElementById('create-folder-modal').classList.add('hidden');
+      },
+      
+      // 创建文件夹
+      createFolder() {
+        const folderName = document.getElementById('folder-name').value.trim();
+        
+        if (!folderName) {
+          this.showToast('文件夹名称不能为空', 'warning');
+          return;
+        }
+        
+        // 显示加载状态
+        const confirmBtn = document.getElementById('confirm-create-folder');
+        const originalHtml = confirmBtn.innerHTML;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 创建中...';
+        
+        // 调用创建文件夹接口
+        axios.post(`${this.baseUrl}/api/v1/business/node/create_folder`, {}, {
+          params: { folder_name: folderName, position: this.currentNodeId },
+          withCredentials: true,
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Authorization': 'Bearer ' + this.token }
+        })
+        .then(response => {
+          if (response.data.code === 200) {
+            this.showToast('文件夹创建成功', 'success');
+            this.hideCreateFolderModal();
+            // 重新加载当前节点的子节点
+            this.loadChildNodes(this.currentNodeId);
+          } else {
+            this.showToast('创建失败：' + (response.data.message || '未知错误'), 'error');
+          }
+        })
+        .catch(error => {
+          console.error('创建文件夹失败', error);
+          this.showToast('创建失败：' + (error.response?.data?.message || '网络错误'), 'error');
+        })
+        .finally(() => {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = originalHtml;
+        });
+      },
+      
+      // 切换视图模式
+      switchView(mode) {
+        this.viewMode = mode;
+        
+        if (mode === 'grid') {
+          document.getElementById('grid-view').classList.remove('hidden');
+          document.getElementById('list-view').classList.add('hidden');
+          document.getElementById('view-grid').classList.add('bg-primary', 'text-white');
+          document.getElementById('view-grid').classList.remove('text-neutral-600', 'hover:bg-neutral-100');
+          document.getElementById('view-list').classList.remove('bg-primary', 'text-white');
+          document.getElementById('view-list').classList.add('text-neutral-600', 'hover:bg-neutral-100');
+        } else {
+          document.getElementById('grid-view').classList.add('hidden');
+          document.getElementById('list-view').classList.remove('hidden');
+          document.getElementById('view-list').classList.add('bg-primary', 'text-white');
+          document.getElementById('view-list').classList.remove('text-neutral-600', 'hover:bg-neutral-100');
+          document.getElementById('view-grid').classList.remove('bg-primary', 'text-white');
+          document.getElementById('view-grid').classList.add('text-neutral-600', 'hover:bg-neutral-100');
+        }
+      },
+      
+      // 过滤文件和文件夹
+      filterItems(keyword) {
+        const lowerKeyword = keyword.toLowerCase().trim();
+        
+        // 网格视图过滤
+        const gridItems = document.querySelectorAll('#grid-view > div');
+        gridItems.forEach(item => {
+          const nodeName = item.getAttribute('data-node-name').toLowerCase();
+          if (nodeName.includes(lowerKeyword)) {
+            item.classList.remove('hidden');
+          } else {
+            item.classList.add('hidden');
+          }
+        });
+        
+        // 列表视图过滤
+        const listItems = document.querySelectorAll('#list-container > div');
+        listItems.forEach(item => {
+          const nodeName = item.getAttribute('data-node-name').toLowerCase();
+          if (nodeName.includes(lowerKeyword)) {
+            item.classList.remove('hidden');
+          } else {
+            item.classList.add('hidden');
+          }
+        });
+        
+        // 检查是否有可见项
+        const hasVisibleGridItems = Array.from(gridItems).some(item => !item.classList.contains('hidden'));
+        const hasVisibleListItems = Array.from(listItems).some(item => !item.classList.contains('hidden'));
+        
+        if ((this.viewMode === 'grid' && !hasVisibleGridItems) || (this.viewMode === 'list' && !hasVisibleListItems)) {
+          this.showEmptyState('没有找到匹配的文件或文件夹');
+        } else {
+          this.hideEmptyState();
+        }
+      },
+      
+      // 显示加载状态
+      showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('grid-view').classList.add('hidden');
+        document.getElementById('list-view').classList.add('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+      },
+      
+      // 隐藏加载状态
+      hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
+        if (this.viewMode === 'grid') {
+          document.getElementById('grid-view').classList.remove('hidden');
+        } else {
+          document.getElementById('list-view').classList.remove('hidden');
+        }
+      },
+      
+      // 显示空状态
+      showEmptyState(message = '该文件夹为空') {
+        document.getElementById('empty-state').classList.remove('hidden');
+        document.getElementById('grid-view').classList.add('hidden');
+        document.getElementById('list-view').classList.add('hidden');
+        
+        // 自定义空状态消息
+        const emptyMsg = document.querySelector('#empty-state h3');
+        emptyMsg.textContent = message;
+      },
+      
+      // 隐藏空状态
+      hideEmptyState() {
+        document.getElementById('empty-state').classList.add('hidden');
+      },
+      
+      // 显示提示消息
+      showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toast-icon');
+        const toastMessage = document.getElementById('toast-message');
+        
+        // 设置消息内容
+        toastMessage.textContent = message;
+        
+        // 设置图标和颜色
+        switch(type) {
+          case 'success':
+            toastIcon.className = 'fa fa-check-circle text-success';
+            toast.classList.add('bg-success');
+            break;
+          case 'error':
+            toastIcon.className = 'fa fa-exclamation-circle text-danger';
+            toast.classList.add('bg-danger');
+            break;
+          case 'warning':
+            toastIcon.className = 'fa fa-exclamation-triangle text-warning';
+            toast.classList.add('bg-warning', 'text-neutral-700');
+            break;
+          default:
+            toastIcon.className = 'fa fa-info-circle text-primary';
+            toast.classList.add('bg-primary');
+        }
+        
+        // 显示提示
+        toast.classList.remove('translate-x-full');
+        
+        // 3秒后隐藏
+        setTimeout(() => {
+          toast.classList.add('translate-x-full');
+          
+          // 清除颜色类
+          setTimeout(() => {
+            toast.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-primary', 'text-neutral-700');
+          }, 300);
+        }, 3000);
+      },
+      
+      // 获取文件图标类
+      getFileIconClass(fileName) {
+        const ext = this.getFileExtension(fileName).split(' ')[0].toLowerCase();
+        
+        switch(true) {
+          case ['pdf'].includes(ext):
+            return 'fa-file-pdf-o text-danger text-3xl';
+          case ['doc', 'docx'].includes(ext):
+            return 'fa-file-word-o text-blue-600 text-3xl';
+          case ['xls', 'xlsx'].includes(ext):
+            return 'fa-file-excel-o text-green-600 text-3xl';
+          case ['ppt', 'pptx'].includes(ext):
+            return 'fa-file-powerpoint-o text-orange-500 text-3xl';
+          case ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(ext):
+            return 'fa-file-image-o text-purple-500 text-3xl';
+          case ['mp4', 'avi', 'mov', 'mkv'].includes(ext):
+            return 'fa-file-video-o text-red-500 text-3xl';
+          case ['mp3', 'wav', 'flac'].includes(ext):
+            return 'fa-file-audio-o text-pink-500 text-3xl';
+          case ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext):
+            return 'fa-file-archive-o text-yellow-600 text-3xl';
+          case ['java', 'js', 'html', 'css', 'php', 'py', 'cpp', 'c'].includes(ext):
+            return 'fa-file-code-o text-neutral-700 text-3xl';
+          default:
+            return 'fa-file-o text-neutral-400 text-3xl';
+        }
+      },
+      
+      // 获取文件扩展名
+      getFileExtension(fileName) {
+        const lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex === -1) return '文件';
+        return fileName.slice(lastDotIndex + 1).toUpperCase() + ' 文件';
+      },
+
+      // ========== 新增上传相关方法 ==========
+      handleFileSelected(file) {
+        this.uploadFile = file;
+        // 显示确认弹窗，填充文件信息
+        const ext = file.name.split('.').pop() || '未知';
+        document.getElementById('upload-file-icon').className = `fa ${this.getFileIconClass(file.name).replace('text-3xl', 'text-xl')}`;
+        document.getElementById('upload-file-name').textContent = file.name;
+        document.getElementById('upload-file-type').textContent = ext.toUpperCase() + ' 文件';
+        document.getElementById('upload-file-size').textContent = this.formatFileSize(file.size);
+        document.getElementById('upload-confirm-modal').classList.remove('hidden');
+      },
+      
+      hideUploadConfirm() {
+        document.getElementById('upload-confirm-modal').classList.add('hidden');
+      },
+      
+      formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      },
+      
+      // 开始上传（模拟进度，实际API待后续替换）
+      async startUpload() {
+        if (!this.uploadFile) return;
+        this.hideUploadConfirm();
+
+        console.log(this.uploadFile)
+        
+        // 重置状态
+        this.uploadSessionId = null;
+        this.totalChunks = Math.ceil(this.uploadFile.size / this.chunkSize);
+        this.chunksStatus = Array.from({ length: this.totalChunks }, (_, i) => ({ index: i + 1, status: 'pending', retries: 0 }));
+        this.activeControllers = [];
+        this.uploadPaused = false;
+        this.uploadCancelled = false;
+        this.uploadMinimized = false;
+        this.uploadStartTime = Date.now();
+        
+        // 显示进度浮窗
+        document.getElementById('upload-progress-panel').classList.remove('hidden');
+        document.getElementById('progress-file-name').textContent = this.uploadFile.name;
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('progress-percent').textContent = '0%';
+        document.getElementById('progress-speed').textContent = '准备中...';
+        document.getElementById('pause-resume-btn').innerHTML = '<i class="fa fa-pause mr-1"></i>暂停';
+        
+        // 计算文件校验码（SHA256）
+        try {
+          this.fileChecksum = await this.calculateFileChecksum(this.uploadFile);
+        } catch (e) {
+          this.showToast('校验码计算失败，无法上传', 'error');
+          return this.cancelUpload(true);
+        }
+
+        // 创建上传会话
+        const params = new URLSearchParams({
+          total_chunks: this.totalChunks,
+          file_size: this.uploadFile.size,
+          file_checksum: this.fileChecksum,
+          chunks_max_size: this.chunkSize,
+          file_name: this.uploadFile.name,
+          node_id: this.currentNodeId,
+          file_type: this.uploadFile.type || 'application/octet-stream'
+        });
+
+        // 调用上传会话创建接口
+        axios.post(`${this.baseUrl}/api/v1/business/uploads/create`, {}, {
+          params: params,
+          withCredentials: true,
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Authorization': 'Bearer ' + this.token }
+        })
+        .then(res => {
+          if (res.data.code === 200) {
+            this.uploadSessionId = res.data.data;
+            // 开始并发上传分片
+            this.uploadChunks();
+          } else {
+            this.showToast(res.data.message || '创建上传会话失败', 'error');
+            this.cancelUpload(true);
+          }
+        })
+        .catch(error => {
+          console.error('上传失败', error);
+          this.showToast('上传失败：网络错误', 'error');
+          this.cancelUpload(true);
+        });
+      },
+      
+      // 并发上传分片管理
+      uploadChunks() {
+        if (this.uploadCancelled || this.uploadPaused) return;
+        const pending = this.chunksStatus.filter(c => c.status === 'pending' || (c.status === 'failed' && c.retries < 3));
+        if (pending.length === 0) {
+          const failed = this.chunksStatus.filter(c => c.status === 'failed').length;
+          if (failed === 0) return this.completeUpload();
+          return; // 失败时自动停止，可手动重试
+        }
+        const slots = this.concurrentUploads - this.chunksStatus.filter(c => c.status === 'uploading').length;
+        if (slots <= 0) return;
+        pending.slice(0, slots).forEach(chunk => this.uploadSingleChunk(chunk.index));
+      },
+
+      // 上传单个分片
+      async uploadSingleChunk(chunkIndex) {
+        const chunk = this.chunksStatus.find(c => c.index === chunkIndex);
+        if (!chunk || chunk.status === 'success' || chunk.status === 'uploading') return;
+        chunk.status = 'uploading';
+        this.updateChunkProgress();
+
+        const start = (chunkIndex - 1) * this.chunkSize;
+        const end = Math.min(start + this.chunkSize, this.uploadFile.size);
+        const blob = this.uploadFile.slice(start, end);
+        const formData = new FormData();
+        formData.append('file', blob, this.uploadFile.name);
+
+        const controller = new AbortController();
+        this.activeControllers.push(controller);
+
+        axios.post(`${this.baseUrl}/api/v1/files/uploads`, formData, {
+          params: {
+            uploads_id: this.uploadSessionId,
+            chunk_index: chunkIndex
+          },
+          signal: controller.signal,
+          withCredentials: true,
+          maxRedirects: 0,   // 禁止 axios 跟随重定向
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Authorization': 'Bearer ' + this.token }
+        })
+        .then(res => {
+          if (res.data.code === 200) {
+            chunk.status = 'success';
+          } else {
+            chunk.status = 'failed';
+            chunk.retries++;
+            this.showToast(res.data.message || '分片上传失败', 'error');
+          }
+        })
+        .catch(err => {
+          if (err.name === 'AbortError') {
+            chunk.status = 'pending';
+          } else {
+            chunk.status = 'failed';
+            chunk.retries++;
+            console.error('上传失败', error);
+            this.showToast('上传失败：网络错误', 'error');
+          }
+        })
+        .finally(() => {
+          this.activeControllers = this.activeControllers.filter(c => c !== controller);
+          this.updateChunkProgress();
+          this.updateOverallProgress();
+          if (!this.uploadPaused && !this.uploadCancelled) this.uploadChunks();
+        });
+      },
+
+      // 更新分片进度条（简单百分比）
+      updateChunkProgress() {
+        const completed = this.chunksStatus.filter(c => c.status === 'success').length;
+        document.getElementById('progress-bar').style.width = `${(completed / this.totalChunks) * 100}%`;
+        document.getElementById('progress-percent').textContent = `${Math.round((completed / this.totalChunks) * 100)}%`;
+      },
+
+      // 更新整体上传速度和剩余时间
+      updateOverallProgress() {
+        const completed = this.chunksStatus.filter(c => c.status === 'success').length;
+        const uploaded = completed * this.chunkSize;
+        const elapsed = (Date.now() - this.uploadStartTime) / 1000;
+        if (elapsed > 0 && uploaded > 0) {
+          const speed = uploaded / elapsed; // bytes/s
+          document.getElementById('progress-speed').textContent = speed > 1048576 ? `${(speed/1048576).toFixed(1)} MB/s` : `${(speed/1024).toFixed(1)} KB/s`;
+          const remaining = (this.uploadFile.size - uploaded) / speed;
+          const mins = Math.floor(remaining / 60);
+          const secs = Math.floor(remaining % 60);
+          document.getElementById('progress-speed').textContent += ` 剩余 ${mins}:${secs.toString().padStart(2,'0')}`;
+        }
+      },
+      
+      // 暂停/继续
+      togglePauseResume() {
+        const btn = document.getElementById('pause-resume-btn');
+        if (this.uploadPaused) {
+          this.uploadPaused = false;
+          btn.innerHTML = '<i class="fa fa-pause mr-1"></i>暂停';
+          this.uploadChunks();
+        } else {
+          this.uploadPaused = true;
+          btn.innerHTML = '<i class="fa fa-play mr-1"></i>继续';
+          // 中止所有进行中的请求
+          this.activeControllers.forEach(c => c.abort());
+          this.activeControllers = [];
+          // 将 uploading 状态重置为 pending
+          this.chunksStatus.forEach(c => { if (c.status === 'uploading') c.status = 'pending'; });
+          this.updateChunkProgress();
+        }
+      },
+      
+      // 取消上传
+      cancelUpload(silent = false) {
+        if (!silent && !confirm('确定要取消上传吗？')) return;
+        this.uploadCancelled = true;
+        this.activeControllers.forEach(c => c.abort());
+        this.activeControllers = [];
+        document.getElementById('upload-progress-panel').classList.add('hidden');
+        document.getElementById('upload-mini-ball').classList.add('hidden');
+        this.resetUploadState();
+        if (!silent) this.showToast('上传已取消', 'warning');
+      },
+
+      // 完成上传（合并文件）
+      async completeUpload() {
+        axios.post(`${this.baseUrl}/api/v1/files/uploads/complete`, null, {
+          params: { uploads_id: this.uploadSessionId },
+          withCredentials: true,
+          headers: { 'Access-Control-Allow-Credentials': 'true', 'Authorization': 'Bearer ' + this.token }
+        })
+        .then(res => {
+          if (res.data.code === 200) {
+            this.showToast('上传成功！', 'success');
+            document.getElementById('upload-progress-panel').classList.add('hidden');
+            document.getElementById('upload-mini-ball').classList.add('hidden');
+            this.resetUploadState();
+            this.loadChildNodes(this.currentNodeId);
+            debugger;
+          } else {
+            this.showToast('文件合并失败：' + res.data.message, 'error');
+          }
+        })
+        .catch(err => {
+          this.showToast('文件合并失败：网络未知错误', 'error');
+        });
+      },
+
+      // 计算 SHA256
+      calculateFileChecksum(file) {
+        return new Promise((resolve, reject) => {
+          const workerCode = `
+            self.onmessage = function(e) {
+              const file = e.data;
+              const reader = new FileReader();
+              reader.onload = function(ev) {
+                crypto.subtle.digest('SHA-256', ev.target.result)
+                  .then(buf => {
+                    const arr = Array.from(new Uint8Array(buf));
+                    const hex = arr.map(b => b.toString(16).padStart(2,'0')).join('');
+                    self.postMessage({ hash: hex });
+                  }).catch(err => {
+                    self.close();
+                    throw Error('校验码计算失败，无法上传');
+                  });
+              };
+              reader.onerror = (e) => {
+                self.close();
+                throw Error('校验码计算失败，无法上传');
+              };
+              reader.readAsArrayBuffer(file);
+            };
+          `;
+          const blob = new Blob([workerCode], { type: 'application/javascript' });
+          const worker = new Worker(URL.createObjectURL(blob));
+          worker.onmessage = (e) => { resolve(e.data.hash); worker.terminate(); };
+          worker.onerror = (e) => { reject(e); worker.terminate(); };
+          worker.postMessage(file);
+        });
+      },
+      
+      // 最小化/恢复进度浮窗
+      minimizeProgress() {
+        this.uploadMinimized = true;
+        document.getElementById('upload-progress-panel').classList.add('hidden');
+        document.getElementById('upload-mini-ball').classList.remove('hidden');
+      },
+      
+      restoreProgress() {
+        this.uploadMinimized = false;
+        document.getElementById('upload-mini-ball').classList.add('hidden');
+        document.getElementById('upload-progress-panel').classList.remove('hidden');
+      },
+      
+      // 重置上传状态
+      resetUploadState() {
+        this.uploadFile = null;
+        this.uploadSessionId = null;
+        this.totalChunks = 0;
+        this.chunksStatus = [];
+        this.activeControllers = [];
+        this.uploadPaused = false;
+        this.uploadCancelled = false;
+        this.uploadMinimized = false;
+        this.fileChecksum = null;
+      },
+      // ========== 工具函数 ==========
+      formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      },
+      showLoading() { document.getElementById('loading').classList.remove('hidden'); },
+      hideLoading() { document.getElementById('loading').classList.add('hidden'); },
+      showEmptyState(msg = '该文件夹为空') {
+        document.getElementById('empty-state').classList.remove('hidden');
+        document.querySelector('#empty-state h3').textContent = msg;
+      },
+      hideEmptyState() { document.getElementById('empty-state').classList.add('hidden'); },
+      showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const icon = document.getElementById('toast-icon');
+        document.getElementById('toast-message').textContent = message;
+        icon.className = type === 'success' ? 'fa fa-check-circle text-green-400' :
+                         type === 'error' ? 'fa fa-exclamation-circle text-red-400' :
+                         type === 'warning' ? 'fa fa-exclamation-triangle text-yellow-400' : 'fa fa-info-circle text-blue-400';
+        toast.classList.remove('translate-x-full');
+        setTimeout(() => toast.classList.add('translate-x-full'), 3000);
+      },
+      getFileIconClass(fileName) {
+        const ext = this.getFileExtension(fileName).split(' ')[0].toLowerCase();
+        const map = {
+          pdf: 'fa-file-pdf-o text-danger text-3xl', doc: 'fa-file-word-o text-blue-600 text-3xl', docx: 'fa-file-word-o text-blue-600 text-3xl',
+          xls: 'fa-file-excel-o text-green-600 text-3xl', xlsx: 'fa-file-excel-o text-green-600 text-3xl',
+          ppt: 'fa-file-powerpoint-o text-orange-500 text-3xl', pptx: 'fa-file-powerpoint-o text-orange-500 text-3xl',
+          jpg: 'fa-file-image-o text-purple-500 text-3xl', jpeg: 'fa-file-image-o text-purple-500 text-3xl', png: 'fa-file-image-o text-purple-500 text-3xl',
+          gif: 'fa-file-image-o text-purple-500 text-3xl', svg: 'fa-file-image-o text-purple-500 text-3xl',
+          mp4: 'fa-file-video-o text-red-500 text-3xl', avi: 'fa-file-video-o text-red-500 text-3xl',
+          mp3: 'fa-file-audio-o text-pink-500 text-3xl', wav: 'fa-file-audio-o text-pink-500 text-3xl',
+          zip: 'fa-file-archive-o text-yellow-600 text-3xl', rar: 'fa-file-archive-o text-yellow-600 text-3xl', '7z': 'fa-file-archive-o text-yellow-600 text-3xl',
+          js: 'fa-file-code-o text-neutral-700 text-3xl', html: 'fa-file-code-o text-neutral-700 text-3xl', css: 'fa-file-code-o text-neutral-700 text-3xl',
+        };
+        return map[ext] || 'fa-file-o text-neutral-400 text-3xl';
+      },
+      getFileExtension(fileName) {
+        const idx = fileName.lastIndexOf('.');
+        return idx === -1 ? '文件' : fileName.slice(idx + 1).toUpperCase() + ' 文件';
+      },
+      // ========== 存储容量相关方法 ==========
+      /**
+       * 显示存储容量组件（登录后调用）
+       */
+      showStorageInfo() {
+        const storageInfo = document.getElementById('storage-info');
+        storageInfo.classList.remove('hidden');
+        storageInfo.classList.add('flex');
+        // 预留接口调用位置，目前仅显示默认占位
+        this.updateStorageUI(40, 100); // 0 表示未知
+      },
+      /**
+       * 隐藏存储容量组件（退出登录后调用）
+       */
+      hideStorageInfo() {
+        const storageInfo = document.getElementById('storage-info');
+        storageInfo.classList.add('hidden');
+        storageInfo.classList.remove('flex');
+      },
+      /**
+       * 更新容量UI（进度条和文字）
+       * @param {number} used 已用容量（字节）
+       * @param {number} total 总容量（字节）
+       */
+      updateStorageUI(used, total) {
+        const usedText = document.getElementById('storage-used-text');
+        const totalText = document.getElementById('storage-total-text');
+        const barUsed = document.getElementById('storage-bar-used');
+        const barFree = document.getElementById('storage-bar-free');
+
+        if (total > 0) {
+          usedText.textContent = this.formatFileSize(used);
+          totalText.textContent = this.formatFileSize(total);
+          const percent = Math.min(100, (used / total) * 100);
+          barUsed.style.width = percent + '%';
+          barFree.style.flexGrow = '1';  // 确保剩余部分自动填充
+        } else {
+          usedText.textContent = '-- GB';
+          totalText.textContent = '-- GB';
+          barUsed.style.width = '0%';
+          barFree.style.flexGrow = '1';
+        }
+      },
+      /**
+       * 从后端获取容量信息（预留，当前为空）
+       * 后续可在此处调用真实API并更新UI
+       */
+      fetchStorageInfo() {
+        // TODO: 调用后端接口获取容量数据
+        // 示例：axios.get('/api/v1/storage/quota')...
+        // 调用 this.updateStorageUI(usedBytes, totalBytes);
+      },
+    };
+
+    // 初始化应用
+    document.addEventListener('DOMContentLoaded', () => {
+      APP.init();
+    });
+  </script>
+</body>
+</html>

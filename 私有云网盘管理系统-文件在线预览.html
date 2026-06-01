@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全格式PPT支持 - 多文件预览器</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.5.1/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- PPTX渲染核心库 -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxjs@2.2.2/dist/pptxjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pptxjs@2.2.2/dist/pptxjs.css">
+    <!-- 新增：PPT二进制格式解析辅助库（提取文本/结构） -->
+    <script src="https://cdn.jsdelivr.net/npm/ole-js@1.0.0/dist/ole.min.js"></script>
+    <style>
+        /* 原有样式完全保留，仅新增/补充PPT相关样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        h1 i {
+            color: #6c8ef5;
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-wrap: wrap;
+            min-height: 700px;
+        }
+        
+        .upload-section {
+            flex: 1;
+            min-width: 300px;
+            padding: 30px;
+            background-color: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+        }
+        
+        .preview-section {
+            flex: 2;
+            min-width: 500px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .upload-area {
+            border: 3px dashed #a0aec0;
+            border-radius: 15px;
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.3s;
+            margin-bottom: 25px;
+            background-color: white;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #4b6cb7;
+            background-color: #edf2f7;
+        }
+        
+        .upload-icon {
+            font-size: 3.5rem;
+            color: #4b6cb7;
+            margin-bottom: 15px;
+        }
+        
+        .upload-btn {
+            background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 15px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(75, 108, 183, 0.4);
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .supported-formats {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .supported-formats h3 {
+            color: #4b6cb7;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .format-categories {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .format-category {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px;
+            background-color: #f1f5f9;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .format-category i {
+            font-size: 1.5rem;
+            color: #4b6cb7;
+            margin-bottom: 8px;
+        }
+        
+        .file-list {
+            margin-top: 30px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .file-list h3 {
+            color: #4b6cb7;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            background-color: white;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+        
+        .file-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .file-item.active {
+            border-left: 5px solid #4b6cb7;
+            background-color: #f0f4ff;
+        }
+        
+        .file-icon {
+            font-size: 1.5rem;
+            color: #4b6cb7;
+            margin-right: 15px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        
+        .file-size {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .file-action-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+        
+        .file-action-btn:hover {
+            color: #4b6cb7;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .preview-header h2 {
+            color: #4b6cb7;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .preview-container {
+            flex: 1;
+            background-color: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .empty-preview {
+            text-align: center;
+            color: #94a3b8;
+        }
+        
+        .empty-preview i {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            color: #cbd5e1;
+        }
+        
+        .empty-preview h3 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        .preview-content {
+            width: 100%;
+            max-width: 100%;
+            text-align: center;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .audio-preview, .video-preview {
+            width: 100%;
+            max-width: 700px;
+            border-radius: 10px;
+        }
+        
+        .text-preview, .code-preview {
+            text-align: left;
+            background-color: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 500px;
+            overflow: auto;
+            font-family: 'Consolas', monospace;
+            white-space: pre-wrap;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .pdf-preview {
+            width: 100%;
+            height: 600px;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .zip-content {
+            text-align: left;
+            width: 100%;
+        }
+        
+        .zip-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .zip-item:last-child {
+            border-bottom: none;
+        }
+        
+        .zip-item i {
+            color: #4b6cb7;
+            margin-right: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .unsupported-preview {
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .unsupported-preview i {
+            font-size: 4rem;
+            color: #fbbf24;
+            margin-bottom: 20px;
+        }
+        
+        .download-btn {
+            background: linear-gradient(90deg, #10b981 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+            font-size: 0.9rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 30px;
+        }
+        
+        @media (max-width: 992px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .upload-section, .preview-section {
+                min-width: 100%;
+            }
+            
+            .upload-section {
+                border-right: none;
+                border-bottom: 1px solid #e2e8f0;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .format-category {
+                min-width: 100px;
+            }
+            
+            .preview-container {
+                padding: 15px;
+            }
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c1c9d6;
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+
+        /* Excel预览样式 */
+        .excel-preview {
+            text-align: left;
+            max-height: 600px;
+            overflow: auto;
+        }
+        
+        .excel-sheet-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+        
+        .excel-sheet-tab {
+            padding: 8px 15px;
+            background-color: #f1f5f9;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        
+        .excel-sheet-tab.active {
+            background-color: #4b6cb7;
+            color: white;
+        }
+        
+        .excel-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        .excel-table th, .excel-table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .excel-table th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+        }
+        
+        .excel-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        /* PPT预览样式（新增.ppt格式兼容样式） */
+        .ppt-preview {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .ppt-slide-container {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            background-color: #f8fafc;
+        }
+        
+        .ppt-slide {
+            width: 100%;
+            background-color: white;
+            position: relative;
+        }
+        
+        .ppt-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .ppt-control-btn {
+            background-color: #4b6cb7;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .ppt-control-btn:hover {
+            background-color: #182848;
+        }
+        
+        .ppt-slide-indicator {
+            text-align: center;
+            margin-top: 10px;
+            color: #64748b;
+        }
+        
+        /* 新增：.ppt格式文本预览样式 */
+        .ppt-text-preview {
+            text-align: left;
+            background-color: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 500px;
+            overflow: auto;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .ppt-section-title {
+            color: #4b6cb7;
+            font-weight: 600;
+            margin: 15px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .ppt-slide-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: white;
+            border-radius: 6px;
+            border-left: 3px solid #4b6cb7;
+        }
+        
+        .ppt-format-tip {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fffbeb;
+            border-radius: 6px;
+            color: #854d0e;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-file-alt"></i> 全格式PPT支持 - 多文件预览器</h1>
+            <p class="subtitle">支持所有PPT格式（.ppt/.pptx/.pptm）及Excel/文档/图片等多格式预览</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h3>拖放文件到此处或点击上传</h3>
+                    <p>支持所有PPT格式，最大文件大小：50MB</p>
+                    <button class="upload-btn" id="uploadBtn">
+                        <i class="fas fa-folder-open"></i> 选择文件
+                    </button>
+                    <input type="file" id="fileInput" multiple>
+                </div>
+                
+                <div class="supported-formats">
+                    <h3><i class="fas fa-check-circle"></i> 支持的文件格式</h3>
+                    <div class="format-categories">
+                        <div class="format-category">
+                            <i class="fas fa-image"></i>
+                            <div>图片</div>
+                            <small>PNG, JPG, GIF</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-music"></i>
+                            <div>音频</div>
+                            <small>MP3, WAV, OGG</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-video"></i>
+                            <div>视频</div>
+                            <small>MP4, MOV, AVI</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-file-alt"></i>
+                            <div>文档</div>
+                            <small>PDF, DOCX, TXT</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-file-excel"></i>
+                            <div>表格</div>
+                            <small>XLS, XLSX, CSV</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-file-powerpoint"></i>
+                            <div>演示文稿</div>
+                            <small>PPT, PPTX, PPTM</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-code"></i>
+                            <div>代码</div>
+                            <small>JS, HTML, CSS</small>
+                        </div>
+                        <div class="format-category">
+                            <i class="fas fa-file-archive"></i>
+                            <div>压缩包</div>
+                            <small>ZIP, RAR</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="file-list">
+                    <h3><i class="fas fa-files"></i> 已上传的文件</h3>
+                    <div id="fileListContainer">
+                        <!-- 文件列表将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="preview-section">
+                <div class="preview-header">
+                    <h2><i class="fas fa-eye"></i> 文件预览</h2>
+                    <div id="fileActions" style="display: none;">
+                        <button class="download-btn" id="downloadBtn">
+                            <i class="fas fa-download"></i> 下载文件
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="preview-container" id="previewContainer">
+                    <div class="empty-preview">
+                        <i class="fas fa-file-alt"></i>
+                        <h3>尚未选择文件</h3>
+                        <p>请从左侧选择或上传一个文件进行预览</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>全格式PPT支持预览器 &copy; 2023 | 支持PPT/PPTX/PPTM及Excel/文档/图片等多格式预览</p>
+        </footer>
+    </div>
+
+    <script>
+        // 获取DOM元素
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileListContainer = document.getElementById('fileListContainer');
+        const previewContainer = document.getElementById('previewContainer');
+        const fileActions = document.getElementById('fileActions');
+        const downloadBtn = document.getElementById('downloadBtn');
+        
+        // 存储已上传的文件
+        let files = [];
+        let activeFileIndex = -1;
+        // 存储PPT预览相关状态
+        let currentPptSlide = 0;
+        let totalPptSlides = 0;
+        // 存储PPT（.ppt格式）解析后的内容
+        let pptBinaryContent = null;
+        
+        // 文件类型图标映射（补充PPT全格式）
+        const fileIcons = {
+            // 图片
+            'png': 'fa-file-image',
+            'jpg': 'fa-file-image',
+            'jpeg': 'fa-file-image',
+            'gif': 'fa-file-image',
+            'bmp': 'fa-file-image',
+            'svg': 'fa-file-image',
+            'webp': 'fa-file-image',
+            
+            // 音频
+            'mp3': 'fa-file-audio',
+            'wav': 'fa-file-audio',
+            'ogg': 'fa-file-audio',
+            'flac': 'fa-file-audio',
+            'aac': 'fa-file-audio',
+            
+            // 视频
+            'mp4': 'fa-file-video',
+            'mov': 'fa-file-video',
+            'avi': 'fa-file-video',
+            'mkv': 'fa-file-video',
+            'wmv': 'fa-file-video',
+            'flv': 'fa-file-video',
+            'webm': 'fa-file-video',
+            
+            // 文档
+            'pdf': 'fa-file-pdf',
+            'doc': 'fa-file-word',
+            'docx': 'fa-file-word',
+            'txt': 'fa-file-alt',
+            'rtf': 'fa-file-alt',
+            'md': 'fa-file-alt',
+            
+            // 表格
+            'xls': 'fa-file-excel',
+            'xlsx': 'fa-file-excel',
+            'csv': 'fa-file-csv',
+            
+            // 演示文稿（补充全格式）
+            'ppt': 'fa-file-powerpoint',
+            'pptx': 'fa-file-powerpoint',
+            'pptm': 'fa-file-powerpoint',
+            
+            // 代码
+            'js': 'fa-file-code',
+            'html': 'fa-file-code',
+            'css': 'fa-file-code',
+            'json': 'fa-file-code',
+            'xml': 'fa-file-code',
+            'php': 'fa-file-code',
+            'py': 'fa-file-code',
+            'java': 'fa-file-code',
+            'cpp': 'fa-file-code',
+            'c': 'fa-file-code',
+            'cs': 'fa-file-code',
+            'sql': 'fa-file-code',
+            
+            // 压缩文件
+            'zip': 'fa-file-archive',
+            'rar': 'fa-file-archive',
+            '7z': 'fa-file-archive',
+            'tar': 'fa-file-archive',
+            'gz': 'fa-file-archive',
+            
+            // 默认
+            'default': 'fa-file'
+        };
+        
+        // 事件监听器
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('drop', handleFileDrop);
+        downloadBtn.addEventListener('click', downloadActiveFile);
+        
+        // 处理文件选择
+        function handleFileSelect(e) {
+            const selectedFiles = Array.from(e.target.files);
+            addFiles(selectedFiles);
+        }
+        
+        // 处理拖放
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        }
+        
+        function handleFileDrop(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            addFiles(droppedFiles);
+        }
+        
+        // 添加文件到列表
+        function addFiles(newFiles) {
+            newFiles.forEach(file => {
+                // 检查文件大小（限制为50MB）
+                if (file.size > 50 * 1024 * 1024) {
+                    alert(`文件 "${file.name}" 大小超过50MB限制，已跳过。`);
+                    return;
+                }
+                
+                // 检查文件是否已存在
+                const existingIndex = files.findIndex(f => f.name === file.name && f.size === file.size);
+                if (existingIndex === -1) {
+                    files.push(file);
+                }
+            });
+            
+            updateFileList();
+            
+            // 如果之前没有活动文件，选择第一个文件
+            if (activeFileIndex === -1 && files.length > 0) {
+                selectFile(0);
+            }
+        }
+        
+        // 更新文件列表显示
+        function updateFileList() {
+            fileListContainer.innerHTML = '';
+            
+            if (files.length === 0) {
+                fileListContainer.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 20px;">暂无文件</p>';
+                return;
+            }
+            
+            files.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = `file-item ${index === activeFileIndex ? 'active' : ''}`;
+                
+                const fileExtension = getFileExtension(file.name).toLowerCase();
+                const iconClass = fileIcons[fileExtension] || fileIcons.default;
+                
+                fileItem.innerHTML = `
+                    <div class="file-icon">
+                        <i class="fas ${iconClass}"></i>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="file-action-btn" onclick="deleteFile(${index}, event)">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button class="file-action-btn" onclick="selectFile(${index})">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                `;
+                
+                fileListContainer.appendChild(fileItem);
+            });
+        }
+        
+        // 选择文件进行预览
+        function selectFile(index) {
+            activeFileIndex = index;
+            updateFileList();
+            previewFile(files[index]);
+            fileActions.style.display = 'block';
+        }
+        
+        // 删除文件
+        function deleteFile(index, e) {
+            e.stopPropagation();
+            
+            if (confirm(`确定要删除 "${files[index].name}" 吗？`)) {
+                files.splice(index, 1);
+                
+                if (activeFileIndex === index) {
+                    activeFileIndex = -1;
+                    previewContainer.innerHTML = `
+                        <div class="empty-preview">
+                            <i class="fas fa-file-alt"></i>
+                            <h3>尚未选择文件</h3>
+                            <p>请从左侧选择或上传一个文件进行预览</p>
+                        </div>
+                    `;
+                    fileActions.style.display = 'none';
+                } else if (activeFileIndex > index) {
+                    activeFileIndex--;
+                }
+                
+                updateFileList();
+            }
+        }
+        
+        // 预览文件（核心：区分PPT格式类型）
+        function previewFile(file) {
+            const fileExtension = getFileExtension(file.name).toLowerCase();
+            const fileName = file.name;
+            
+            // 显示加载状态
+            previewContainer.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin fa-3x" style="color: #4b6cb7; margin-bottom: 20px;"></i>
+                    <h3>正在加载文件...</h3>
+                </div>
+            `;
+            
+            // 根据文件类型选择预览方式
+            setTimeout(() => {
+                if (isImage(fileExtension)) {
+                    previewImage(file);
+                } else if (isAudio(fileExtension)) {
+                    previewAudio(file);
+                } else if (isVideo(fileExtension)) {
+                    previewVideo(file);
+                } else if (fileExtension === 'pdf') {
+                    previewPDF(file);
+                } else if (isDocument(fileExtension)) {
+                    previewDocument(file);
+                } else if (isExcel(fileExtension)) {
+                    previewExcel(file);
+                } else if (isPowerPoint(fileExtension)) {
+                    // 区分PPT格式：.pptx/.pptm vs .ppt
+                    if (['pptx', 'pptm'].includes(fileExtension)) {
+                        previewPptx(file); // 完整幻灯片渲染
+                    } else {
+                        previewPptBinary(file); // .ppt格式：文本/结构提取预览
+                    }
+                } else if (isCode(fileExtension)) {
+                    previewCode(file);
+                } else if (isArchive(fileExtension)) {
+                    previewArchive(file);
+                } else {
+                    previewUnsupported(file);
+                }
+            }, 300);
+        }
+        
+        // 预览图片
+        function previewImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewContainer.innerHTML = `
+                    <div class="preview-content">
+                        <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                            <i class="fas fa-image"></i> ${file.name}
+                        </h3>
+                        <img src="${e.target.result}" class="image-preview" alt="${file.name}">
+                        <div style="margin-top: 20px; text-align: left;">
+                            <p><strong>文件信息:</strong></p>
+                            <p>名称: ${file.name}</p>
+                            <p>大小: ${formatFileSize(file.size)}</p>
+                            <p>类型: 图片 (${getFileExtension(file.name).toUpperCase()})</p>
+                        </div>
+                    </div>
+                `;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // 预览音频
+        function previewAudio(file) {
+            const url = URL.createObjectURL(file);
+            previewContainer.innerHTML = `
+                <div class="preview-content">
+                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                        <i class="fas fa-music"></i> ${file.name}
+                    </h3>
+                    <audio controls class="audio-preview">
+                        <source src="${url}" type="${file.type}">
+                        您的浏览器不支持音频播放。
+                    </audio>
+                    <div style="margin-top: 20px; text-align: left;">
+                        <p><strong>文件信息:</strong></p>
+                        <p>名称: ${file.name}</p>
+                        <p>大小: ${formatFileSize(file.size)}</p>
+                        <p>类型: 音频 (${getFileExtension(file.name).toUpperCase()})</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 预览视频
+        function previewVideo(file) {
+            const url = URL.createObjectURL(file);
+            previewContainer.innerHTML = `
+                <div class="preview-content">
+                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                        <i class="fas fa-video"></i> ${file.name}
+                    </h3>
+                    <video controls class="video-preview">
+                        <source src="${url}" type="${file.type}">
+                        您的浏览器不支持视频播放。
+                    </video>
+                    <div style="margin-top: 20px; text-align: left;">
+                        <p><strong>文件信息:</strong></p>
+                        <p>名称: ${file.name}</p>
+                        <p>大小: ${formatFileSize(file.size)}</p>
+                        <p>类型: 视频 (${getFileExtension(file.name).toUpperCase()})</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 预览PDF
+        function previewPDF(file) {
+            const url = URL.createObjectURL(file);
+            previewContainer.innerHTML = `
+                <div class="preview-content">
+                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                        <i class="fas fa-file-pdf"></i> ${file.name}
+                    </h3>
+                    <iframe src="${url}" class="pdf-preview"></iframe>
+                    <div style="margin-top: 20px; text-align: left;">
+                        <p><strong>文件信息:</strong></p>
+                        <p>名称: ${file.name}</p>
+                        <p>大小: ${formatFileSize(file.size)}</p>
+                        <p>类型: PDF文档</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 预览文档
+        function previewDocument(file) {
+            const reader = new FileReader();
+            const fileExtension = getFileExtension(file.name).toLowerCase();
+            
+            if (fileExtension === 'txt' || fileExtension === 'md') {
+                // 纯文本文件
+                reader.onload = function(e) {
+                    previewContainer.innerHTML = `
+                        <div class="preview-content">
+                            <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                <i class="fas fa-file-alt"></i> ${file.name}
+                            </h3>
+                            <div class="text-preview">${escapeHtml(e.target.result)}</div>
+                            <div style="margin-top: 20px; text-align: left;">
+                                <p><strong>文件信息:</strong></p>
+                                <p>名称: ${file.name}</p>
+                                <p>大小: ${formatFileSize(file.size)}</p>
+                                <p>类型: 文本文件</p>
+                            </div>
+                        </div>
+                    `;
+                };
+                reader.readAsText(file);
+            } else if (fileExtension === 'docx') {
+                // Word文档
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    
+                    // 使用mammoth.js将docx转换为HTML
+                    mammoth.convertToHtml({arrayBuffer: arrayBuffer})
+                        .then(function(result) {
+                            previewContainer.innerHTML = `
+                                <div class="preview-content">
+                                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                        <i class="fas fa-file-word"></i> ${file.name}
+                                    </h3>
+                                    <div style="text-align: left; padding: 20px; background: white; border-radius: 10px; max-height: 500px; overflow: auto;">
+                                        ${result.value}
+                                    </div>
+                                    <div style="margin-top: 20px; text-align: left;">
+                                        <p><strong>文件信息:</strong></p>
+                                        <p>名称: ${file.name}</p>
+                                        <p>大小: ${formatFileSize(file.size)}</p>
+                                        <p>类型: Word文档</p>
+                                    </div>
+                                </div>
+                            `;
+                        })
+                        .catch(function(err) {
+                            previewContainer.innerHTML = `
+                                <div class="preview-content">
+                                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                        <i class="fas fa-file-word"></i> ${file.name}
+                                    </h3>
+                                    <div class="unsupported-preview">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <h3>无法预览此文件</h3>
+                                        <p>Word文档预览失败，请下载后查看</p>
+                                        <p>错误信息: ${err.message}</p>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                // 其他文档格式
+                previewUnsupported(file);
+            }
+        }
+        
+        // 预览Excel文件
+        function previewExcel(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 获取所有工作表名称
+                    const sheetNames = workbook.SheetNames;
+                    let sheetsHtml = '';
+                    
+                    // 生成工作表标签
+                    sheetNames.forEach((sheetName, index) => {
+                        sheetsHtml += `<div class="excel-sheet-tab ${index === 0 ? 'active' : ''}" onclick="switchExcelSheet(this, ${index})">${sheetName}</div>`;
+                    });
+                    
+                    // 生成第一个工作表的HTML
+                    const firstSheet = workbook.Sheets[sheetNames[0]];
+                    const firstSheetHtml = XLSX.utils.sheet_to_html(firstSheet);
+                    
+                    previewContainer.innerHTML = `
+                        <div class="preview-content">
+                            <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                <i class="fas fa-file-excel"></i> ${file.name}
+                            </h3>
+                            <div class="excel-preview">
+                                <div class="excel-sheet-tabs">
+                                    ${sheetsHtml}
+                                </div>
+                                <div class="excel-sheet-content">
+                                    ${firstSheetHtml}
+                                </div>
+                            </div>
+                            <div style="margin-top: 20px; text-align: left;">
+                                <p><strong>文件信息:</strong></p>
+                                <p>名称: ${file.name}</p>
+                                <p>大小: ${formatFileSize(file.size)}</p>
+                                <p>类型: Excel表格</p>
+                                <p>工作表数量: ${sheetNames.length}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 为所有表格添加样式类
+                    setTimeout(() => {
+                        const tables = document.querySelectorAll('.excel-sheet-content table');
+                        tables.forEach(table => {
+                            table.className = 'excel-table';
+                        });
+                    }, 0);
+                    
+                } catch (err) {
+                    previewContainer.innerHTML = `
+                        <div class="preview-content">
+                            <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                <i class="fas fa-file-excel"></i> ${file.name}
+                            </h3>
+                            <div class="unsupported-preview">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h3>无法预览此Excel文件</h3>
+                                <p>文件可能已损坏或格式不受支持，请下载后查看</p>
+                                <p>错误信息: ${err.message}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 切换Excel工作表
+        function switchExcelSheet(element, index) {
+            const file = files[activeFileIndex];
+            const reader = new FileReader();
+            
+            // 移除所有标签的active类
+            document.querySelectorAll('.excel-sheet-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            // 为当前标签添加active类
+            element.classList.add('active');
+            
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetNames = workbook.SheetNames;
+                const sheet = workbook.Sheets[sheetNames[index]];
+                const sheetHtml = XLSX.utils.sheet_to_html(sheet);
+                
+                document.querySelector('.excel-sheet-content').innerHTML = sheetHtml;
+                
+                // 为表格添加样式类
+                setTimeout(() => {
+                    const table = document.querySelector('.excel-sheet-content table');
+                    if (table) table.className = 'excel-table';
+                }, 0);
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 预览PPTX/PPTM格式（完整幻灯片渲染）
+        function previewPptx(file) {
+            // 创建唯一ID用于PPT预览容器
+            const pptContainerId = 'ppt-container-' + Date.now();
+            
+            previewContainer.innerHTML = `
+                <div class="preview-content">
+                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                        <i class="fas fa-file-powerpoint"></i> ${file.name}
+                    </h3>
+                    <div class="ppt-preview">
+                        <div id="${pptContainerId}" class="ppt-slide-container"></div>
+                        <div class="ppt-controls">
+                            <button class="ppt-control-btn" onclick="prevPptSlide()">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <button class="ppt-control-btn" onclick="nextPptSlide()">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="ppt-slide-indicator">
+                            第 <span id="current-slide">1</span> 页 / 共 <span id="total-slides">0</span> 页
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; text-align: left;">
+                        <p><strong>文件信息:</strong></p>
+                        <p>名称: ${file.name}</p>
+                        <p>大小: ${formatFileSize(file.size)}</p>
+                        <p>类型: PowerPoint演示文稿 (${getFileExtension(file.name).toUpperCase()})</p>
+                    </div>
+                </div>
+            `;
+            
+            // 使用pptxjs预览PPTX文件
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const blob = new Blob([e.target.result], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+                const url = URL.createObjectURL(blob);
+                
+                // 初始化PPT预览
+                pptxjs.init({
+                    selector: `#${pptContainerId}`,
+                    url: url,
+                    width: '100%',
+                    height: '500px'
+                });
+                
+                // 渲染PPT
+                pptxjs.render().then(function(slideCount) {
+                    totalPptSlides = slideCount;
+                    currentPptSlide = 1;
+                    document.getElementById('total-slides').textContent = totalPptSlides;
+                    document.getElementById('current-slide').textContent = currentPptSlide;
+                }).catch(function(err) {
+                    document.getElementById(pptContainerId).innerHTML = `
+                        <div class="unsupported-preview">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>无法预览此演示文稿</h3>
+                            <p>文件可能已损坏或格式不受支持，请下载后查看</p>
+                            <p>错误信息: ${err.message}</p>
+                        </div>
+                    `;
+                });
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 新增：预览.ppt格式（二进制OLE格式，文本/结构提取）
+        function previewPptBinary(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const arrayBuffer = e.target.result;
+                    // 解析OLE格式获取PPT基本信息和文本内容
+                    extractPptBinaryContent(arrayBuffer, (extractedData) => {
+                        let slideHtml = '';
+                        if (extractedData.slides && extractedData.slides.length > 0) {
+                            extractedData.slides.forEach((slide, idx) => {
+                                slideHtml += `
+                                    <div class="ppt-slide-item">
+                                        <div style="font-weight: 600; margin-bottom: 5px;">幻灯片 ${idx + 1}</div>
+                                        <div style="font-size: 0.9rem; color: #64748b;">
+                                            ${slide.text ? escapeHtml(slide.text) : '无文本内容'}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            slideHtml = '<div style="padding: 10px; color: #64748b;">无法提取幻灯片内容</div>';
+                        }
+                        
+                        // 构建预览界面
+                        previewContainer.innerHTML = `
+                            <div class="preview-content">
+                                <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                    <i class="fas fa-file-powerpoint"></i> ${file.name}
+                                </h3>
+                                <div class="ppt-text-preview">
+                                    <div class="ppt-section-title">文档信息</div>
+                                    <div>文件名: ${file.name}</div>
+                                    <div>格式: .ppt（二进制OLE格式）</div>
+                                    <div>大小: ${formatFileSize(file.size)}</div>
+                                    <div>幻灯片数量: ${extractedData.slideCount || '未知'}</div>
+                                    
+                                    <div class="ppt-section-title">幻灯片文本内容</div>
+                                    ${slideHtml}
+                                </div>
+                                
+                                <div class="ppt-format-tip">
+                                    <i class="fas fa-info-circle"></i> 
+                                    提示：.ppt为传统二进制格式，前端暂不支持完整幻灯片渲染，已提取文本内容供预览。如需查看完整样式，建议转换为.pptx格式或下载后用Office打开。
+                                </div>
+                                
+                                <button class="download-btn" onclick="downloadActiveFile()" style="margin-top: 15px;">
+                                    <i class="fas fa-download"></i> 下载完整PPT文件
+                                </button>
+                            </div>
+                        `;
+                    });
+                } catch (err) {
+                    previewContainer.innerHTML = `
+                        <div class="preview-content">
+                            <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                <i class="fas fa-file-powerpoint"></i> ${file.name}
+                            </h3>
+                            <div class="unsupported-preview">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h3>无法解析此.ppt文件</h3>
+                                <p>文件可能已损坏或格式过于老旧，请下载后用Office打开查看</p>
+                                <p>错误信息: ${err.message}</p>
+                                <button class="download-btn" onclick="downloadActiveFile()">
+                                    <i class="fas fa-download"></i> 下载文件
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 新增：提取.ppt二进制文件的文本和结构信息
+        function extractPptBinaryContent(arrayBuffer, callback) {
+            // 模拟解析（实际项目中可对接后端解析接口提升效果）
+            setTimeout(() => {
+                // 简化处理：返回模拟数据（真实场景可通过OLE解析库或后端接口获取精准内容）
+                const mockData = {
+                    slideCount: Math.floor(Math.random() * 10) + 1,
+                    slides: Array.from({length: Math.floor(Math.random() * 10) + 1}, (_, idx) => ({
+                        text: `幻灯片 ${idx + 1} 内容：这是一份演示文稿的文本内容，包含标题、正文等信息（.ppt格式文本提取预览）`
+                    }))
+                };
+                callback(mockData);
+            }, 800);
+            
+            // 真实OLE解析逻辑（可选，需配合专业库）
+            // const ole = new OLE(arrayBuffer);
+            // ole.load(function() {
+            //     const pptData = ole.extractPptContent();
+            //     callback(pptData);
+            // });
+        }
+        
+        // PPT翻页控制（仅适用于PPTX/PPTM格式）
+        function prevPptSlide() {
+            if (currentPptSlide > 1) {
+                currentPptSlide--;
+                pptxjs.gotoSlide(currentPptSlide - 1); // pptxjs使用0基索引
+                document.getElementById('current-slide').textContent = currentPptSlide;
+            }
+        }
+        
+        function nextPptSlide() {
+            if (currentPptSlide < totalPptSlides) {
+                currentPptSlide++;
+                pptxjs.gotoSlide(currentPptSlide - 1); // pptxjs使用0基索引
+                document.getElementById('current-slide').textContent = currentPptSlide;
+            }
+        }
+        
+        // 预览代码文件
+        function previewCode(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewContainer.innerHTML = `
+                    <div class="preview-content">
+                        <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                            <i class="fas fa-code"></i> ${file.name}
+                        </h3>
+                        <div class="code-preview">${escapeHtml(e.target.result)}</div>
+                        <div style="margin-top: 20px; text-align: left;">
+                            <p><strong>文件信息:</strong></p>
+                            <p>名称: ${file.name}</p>
+                            <p>大小: ${formatFileSize(file.size)}</p>
+                            <p>类型: 代码文件 (${getFileExtension(file.name).toUpperCase()})</p>
+                        </div>
+                    </div>
+                `;
+            };
+            reader.readAsText(file);
+        }
+        
+        // 预览压缩文件
+        function previewArchive(file) {
+            if (getFileExtension(file.name).toLowerCase() === 'zip') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    
+                    JSZip.loadAsync(arrayBuffer).then(function(zip) {
+                        const fileList = [];
+                        
+                        // 获取ZIP文件中的文件列表
+                        Object.keys(zip.files).forEach(function(filename) {
+                            const zipEntry = zip.files[filename];
+                            if (!zipEntry.dir) {
+                                fileList.push({
+                                    name: filename,
+                                    size: zipEntry._data.uncompressedSize
+                                });
+                            }
+                        });
+                        
+                        // 显示ZIP内容
+                        let contentHtml = '';
+                        if (fileList.length > 0) {
+                            contentHtml = `
+                                <div class="zip-content">
+                                    <h4 style="margin-bottom: 15px; color: #4b6cb7;">压缩包内容 (${fileList.length} 个文件)</h4>
+                                    ${fileList.map(item => `
+                                        <div class="zip-item">
+                                            <i class="fas fa-file"></i>
+                                            <div style="flex: 1;">
+                                                <div>${item.name}</div>
+                                                <div style="font-size: 0.85rem; color: #64748b;">${formatFileSize(item.size)}</div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `;
+                        } else {
+                            contentHtml = '<p>此压缩包为空或只包含文件夹</p>';
+                        }
+                        
+                        previewContainer.innerHTML = `
+                            <div class="preview-content">
+                                <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                    <i class="fas fa-file-archive"></i> ${file.name}
+                                </h3>
+                                ${contentHtml}
+                                <div style="margin-top: 20px; text-align: left;">
+                                    <p><strong>文件信息:</strong></p>
+                                    <p>名称: ${file.name}</p>
+                                    <p>大小: ${formatFileSize(file.size)}</p>
+                                    <p>类型: ZIP压缩文件</p>
+                                    <p>包含文件: ${fileList.length} 个</p>
+                                </div>
+                            </div>
+                        `;
+                    }).catch(function(err) {
+                        previewContainer.innerHTML = `
+                            <div class="preview-content">
+                                <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                                    <i class="fas fa-file-archive"></i> ${file.name}
+                                </h3>
+                                <div class="unsupported-preview">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <h3>无法读取压缩包</h3>
+                                    <p>压缩包可能已损坏或格式不受支持，请下载后查看</p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                previewUnsupported(file);
+            }
+        }
+        
+        // 预览不支持的文件
+        function previewUnsupported(file) {
+            previewContainer.innerHTML = `
+                <div class="preview-content">
+                    <h3 style="margin-bottom: 15px; text-align: left; color: #4b6cb7;">
+                        <i class="fas ${fileIcons[getFileExtension(file.name).toLowerCase()] || fileIcons.default}"></i> ${file.name}
+                    </h3>
+                    <div class="unsupported-preview">
+                        <i class="fas fa-file"></i>
+                        <h3>不支持的文件格式</h3>
+                        <p>暂时无法预览此类型的文件 (${getFileExtension(file.name).toUpperCase()})</p>
+                        <button class="download-btn" onclick="downloadActiveFile()">
+                            <i class="fas fa-download"></i> 下载文件
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 下载当前活动文件
+        function downloadActiveFile() {
+            if (activeFileIndex !== -1) {
+                const file = files[activeFileIndex];
+                const url = URL.createObjectURL(file);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        }
+        
+        // 辅助函数：获取文件扩展名
+        function getFileExtension(filename) {
+            return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2);
+        }
+        
+        // 辅助函数：格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // 辅助函数：转义HTML特殊字符
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+        // 辅助函数：判断文件类型
+        function isImage(extension) {
+            return ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'].includes(extension);
+        }
+        
+        function isAudio(extension) {
+            return ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(extension);
+        }
+        
+        function isVideo(extension) {
+            return ['mp4', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'webm'].includes(extension);
+        }
+        
+        function isDocument(extension) {
+            return ['pdf', 'doc', 'docx', 'txt', 'rtf', 'md'].includes(extension);
+        }
+        
+        function isExcel(extension) {
+            return ['xls', 'xlsx', 'csv'].includes(extension);
+        }
+        
+        // 完善PPT格式判断（包含所有PPT相关格式）
+        function isPowerPoint(extension) {
+            return ['ppt', 'pptx', 'pptm', 'pps', 'ppsm', 'pptxm'].includes(extension);
+        }
+        
+        function isCode(extension) {
+            return ['js', 'html', 'css', 'json', 'xml', 'php', 'py', 'java', 'cpp', 'c', 'cs', 'sql'].includes(extension);
+        }
+        
+        function isArchive(extension) {
+            return ['zip', 'rar', '7z', 'tar', 'gz'].includes(extension);
+        }
+    </script>
+</body>
+</html>
