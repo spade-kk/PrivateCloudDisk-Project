@@ -4,7 +4,7 @@ package-lock.json   # 可选：建议保留，但锁文件应复制进镜像；�
 yarn.lock
 
 # 构建产物（镜像构建时会重新生成）
-dist
+#dist
 build
 out
 .cache

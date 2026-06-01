@@ -4,6 +4,11 @@ FROM eclipse-temurin:18-jdk AS builder
 # 容器工作目录
 WORKDIR /backend_gateway_service
 
+# 1. 先复制 Gradle Wrapper 和配置文件（便于缓存依赖）
+COPY gradle gradle
+COPY gradlew .
+COPY build.gradle settings.gradle ./
+
 # 下载 Gradle 发行版和依赖（只执行一次，缓存加速）
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
 

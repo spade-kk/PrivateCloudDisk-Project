@@ -1,26 +1,28 @@
-# 基础镜像：轻量级 JDK18（SpringBoot3 推荐；SpringBoot2 可改为 8/11）
+# 第一阶段：构建（使用完整 JDK）
 FROM eclipse-temurin:18-jdk AS builder
 
-# 容器工作目录
 WORKDIR /backend_platform_service
 
-# 下载 Gradle 发行版和依赖（只执行一次，缓存加速）
+# 1. 先复制 Gradle Wrapper 和配置文件（便于缓存依赖）
+COPY gradle gradle
+COPY gradlew .
+COPY build.gradle settings.gradle ./
+
+# 2. 下载依赖（这一步会缓存，除非 build.gradle/settings.gradle 变化）
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
 
-# 再构建 jar 包
+# 3. 复制全部源码并构建 jar
+COPY src src
 RUN ./gradlew bootJar --no-daemon
 
-# 第二阶段：运行（使用精简 JRE）
+# 第二阶段：运行（精简 JRE）
 FROM eclipse-temurin:18-jre
 
-# 容器工作目录
 WORKDIR /backend_platform_service
 
-# 复制本地打包好的 jar 包到容器（修改为你的 jar 包名称）
-COPY --from=builder backend_platform_service/build/libs/PrivateCloudDisk-platform-service-0.0.1-SNAPSHOT.jar app.jar
+# 复制构建好的 jar 包（请确认实际生成的 jar 文件名）
+COPY --from=builder /backend_platform_service/build/libs/*.jar app.jar
 
-# 暴露 SpringBoot 默认端口
 EXPOSE 8081
 
-# 启动命令
 ENTRYPOINT ["java", "-jar", "app.jar"]
