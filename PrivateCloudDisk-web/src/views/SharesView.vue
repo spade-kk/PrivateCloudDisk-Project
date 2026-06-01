@@ -22,7 +22,7 @@ import { ref, onMounted } from 'vue'
 import ShareLinkItem from '@/components/share/ShareLinkItem.vue'
 import CreateShareDialog from '@/components/share/CreateShareDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { useShareStore } from '@/stores/share'
+import { useShareStore } from '@/stores/shareStore'
 
 const shareStore = useShareStore()
 const shares = ref([])
