@@ -56,17 +56,6 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
        - rabbitmq-data:/var/lib/rabbitmq
-  gateway-service-backend:
-    build: ./PrivateCloudDisk-gateway-service
-    container_name: backend-gateway-service
-    networks:
-      - app-networks
-    restart: always
-    ports:
-      - "8080:8080"
-    depends_on:
-      - platform-service-backend
-      - file-service-backend
 
   # 2. SpringBoot 后端业务服务
   platform-service-backend:
@@ -76,7 +65,7 @@ services:
       - app-networks
     restart: always
     ports:
-      - "8081:8081"
+      - "8080:8080"
     depends_on:
       - mysql
       - redis
@@ -92,6 +81,13 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBItMQ_PORT: 5672
+    # 核心：本地代码目录挂载到容器 → 改代码实时生效，不用重新build
+    volumes:
+      - ./PrivateCloudDisk-platform-service:/backend_platform_service
+      - /backend_platform_service/.gradle
+      - /backend_platform_service/.idea
+      - /backend_platform_service/build
+      - /backend_platform_service/out
   
   # 3. FastAPI 后端文件服务
   file-service-backend:
@@ -104,6 +100,11 @@ services:
       - "8000:8000"
     depends_on:
       - platform-service-backend
+     # 核心：本地代码目录挂载到容器 → 改代码实时生效，不用重新build
+    volumes:
+      - ./PrivateCloudDisk-shortage-service:/backend_file_service
+      - /backend_file_service/__pycache__
+      - /backend_file_service/.venv
 
   # 4. Vue 前端服务
   frontend:
@@ -117,3 +118,8 @@ services:
     depends_on:
       - platform-service-backend # 等待数据库启动后再启动后端
       - file-service-backend
+     # 核心：本地代码目录挂载到容器 → 改代码实时生效，不用重新build
+    volumes:
+      - ./PrivateCloudDisk-web:/frontend_web_app
+      - /frontend_web_app/dist
+      - /frontend_web_app/node_modules

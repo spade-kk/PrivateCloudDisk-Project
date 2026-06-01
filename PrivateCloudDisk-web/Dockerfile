@@ -1,14 +1,14 @@
-FROM node:22-alpine
+# 基础镜像：Nginx
+FROM nginx:latest
 
 WORKDIR /frontend_web_app
 
-# 复制依赖文件，安装依赖
 COPY package.json .
 
-RUN npm install
+RUN npm install && npm run build
 
-COPY . .
+# 复制 Vue 打包后的静态文件到 Nginx 目录
+COPY dist/ /usr/share/nginx/html/
 
-EXPOSE 5500
-
-CMD [ "npm", "run", "dev" ]
+# 暴露80端口
+EXPOSE 80
