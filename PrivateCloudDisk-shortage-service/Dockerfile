@@ -2,6 +2,10 @@ FROM python:3.11-alpine
 
 WORKDIR /backend_file_service
 
+RUN apk add --no-cache vips
+
+ENV PATH=/root/.local/bin:$PATH
+
 COPY requirements.txt requirements.txt
 
 # 安装依赖（国内阿里云源，加速安装）
