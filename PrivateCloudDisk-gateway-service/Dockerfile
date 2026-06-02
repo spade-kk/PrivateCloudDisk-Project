@@ -12,6 +12,7 @@ COPY build.gradle settings.gradle ./
 # 下载 Gradle 发行版和依赖（只执行一次，缓存加速）
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
 
+COPY src src
 # 再构建 jar 包
 RUN ./gradlew bootJar --no-daemon
 
