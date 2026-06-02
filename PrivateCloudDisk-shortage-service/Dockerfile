@@ -2,6 +2,9 @@ FROM python:3.11-alpine
 
 WORKDIR /backend_file_service
 
+# 更换为阿里云镜像源，加速构建
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 RUN apk add --no-cache vips
 
 ENV PATH=/root/.local/bin:$PATH
