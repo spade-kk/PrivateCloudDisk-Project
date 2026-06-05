@@ -12,7 +12,7 @@ ENV PATH=/root/.local/bin:$PATH
 COPY requirements.txt requirements.txt
 
 # 安装依赖（国内阿里云源，加速安装）
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 COPY . .
 
