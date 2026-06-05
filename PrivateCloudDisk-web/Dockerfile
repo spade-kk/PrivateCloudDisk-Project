@@ -1,7 +1,6 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /frontend_web_app
-ENV NODE_OPTIONS=--max-old-space-size=2048
 
 COPY package.json package-lock.json ./
 RUN npm config set registry https://registry.npmmirror.com
