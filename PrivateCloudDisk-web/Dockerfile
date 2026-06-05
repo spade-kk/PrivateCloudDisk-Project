@@ -9,7 +9,7 @@ COPY . .
 RUN npm run build
 
 # 基础镜像：Nginx
-FROM nginx:lastest
+FROM nginx:1.27-alpine
 
 WORKDIR /frontend_web_app
 
