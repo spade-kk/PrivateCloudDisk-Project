@@ -11,7 +11,7 @@ export function loginApi(phone_number, password) {
         phone_number: phone_number,
         password: password
     };
-  return post('/api/v1/business/users/login', data);
+  return post('business/users/login', data);
 }
 
 /**
@@ -29,14 +29,14 @@ export function registerApi(phone_number, password, code, username) {
         code: code,
         name: username
     };
-    return post('/api/v1/business/users/', data);
+    return post('business/users/', data);
 }
 /**
  * 获取我的用户信息
  * @returns {Promise}
  */
 export function getMyUserInfoApi() {
-    return get('/api/v1/business/users/me');
+    return get('business/users/me');
 }
 /**
  * 更新我的用户信息
@@ -51,7 +51,7 @@ export function updateMyUserInfoApi(email, username, phone_number) {
         new_username: username,
         new_phone_number: phone_number
     };
-    return patch('/api/v1/business/users/me', data);
+    return patch('business/users/me', data);
 }
 /**
  * 更新用户密码
@@ -64,7 +64,7 @@ export function changeMyUserPasswordApi(old_password, new_password) {
         old_password: old_password,
         new_password: new_password
     };
-    return post('/api/v1/business/users/me/password', data);
+    return post('business/users/me/password', data);
 }
 /**
  * 上传用户头像
@@ -74,7 +74,7 @@ export function changeMyUserPasswordApi(old_password, new_password) {
 export function uploadUserAvatarApi(file) {
     let formData = new FormData();
     formData.append('avatar_file', file);
-    return put('/api/v1/business/users/me/avatar', formData, {
+    return put('business/users/me/avatar', formData, {
         headers: {
             'Content-Type': 'multipart/form-data'
         }
@@ -85,12 +85,12 @@ export function uploadUserAvatarApi(file) {
  * @returns {Promise}
  */
 export function getMyUserOnlineDevicesApi() {
-    return get('/api/v1/business/users/me/online-devices');
+    return get('business/users/me/online-devices');
 }
 /**
  * 注销当前用户
  * @returns {Promise}
  */
 export function deleteMyUserApi() {
-    return del('/api/v1/business/users/me');
+    return del('business/users/me');
 }

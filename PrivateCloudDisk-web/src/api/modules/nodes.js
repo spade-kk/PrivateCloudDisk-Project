@@ -5,7 +5,7 @@ import {post, get, del, patch} from '@/utils/request'
  * @returns 
  */
 export function getMyUserRootNodeApi() {
-    return get('/api/v1/business/nodes/root');
+    return get('business/nodes/root');
 }
 /**
  * 
@@ -13,7 +13,7 @@ export function getMyUserRootNodeApi() {
  * @returns 
  */
 export function getNodeInfoApi(node_id) {
-    return get(`/api/v1/business/nodes/${node_id}`);
+    return get(`business/nodes/${node_id}`);
 }
 /**
  * 
@@ -26,7 +26,7 @@ export function createFolderApi(node_id, folder_name) {
         node_id: node_id,
         folder_name: folder_name
     };
-    return post('/api/v1/business/nodes/', data);
+    return post('business/nodes/', data);
 }
 /**
  * 
@@ -34,7 +34,7 @@ export function createFolderApi(node_id, folder_name) {
  * @returns 
  */
 export function deleteNodeApi(node_id) {
-    return del(`/api/v1/business/nodes/${node_id}`);
+    return del(`business/nodes/${node_id}`);
 }
 /**
  * 
@@ -46,7 +46,7 @@ export function renameNodeApi(node_id, new_name) {
     let data = {
         new_name: new_name
     };
-    return patch(`/api/v1/business/nodes/${node_id}/name`, data);
+    return patch(`business/nodes/${node_id}/name`, data);
 }
 /**
  * 
@@ -58,7 +58,7 @@ export function moveNodeApi(node_id, target_node_id) {
     let data = {
         target_node_id: target_node_id
     };
-    return patch(`/api/v1/business/nodes/${node_id}/position`, data);
+    return patch(`business/nodes/${node_id}/position`, data);
 }
 /**
  * 
@@ -66,5 +66,5 @@ export function moveNodeApi(node_id, target_node_id) {
  * @returns 
  */
 export function getNodeChildrenApi(node_id) {
-    return get(`/api/v1/business/nodes/${node_id}/children`);
+    return get(`business/nodes/${node_id}/children`);
 }

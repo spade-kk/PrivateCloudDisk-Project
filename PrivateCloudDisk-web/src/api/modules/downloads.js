@@ -13,7 +13,7 @@ export function createOperationTokenApi(node_id, file_name, operation_type) {
         file_name: file_name,
         operation_type: operation_type
     };
-    return post('/api/v1/files/operation-tokens', data);
+    return post('files/operation-tokens', data);
 }
 /**
  * 
@@ -24,7 +24,7 @@ export function cancelOperationApi(operation_token) {
     let data = {
         operation_token: operation_token
     };
-    return del('/api/v1/files/operation-tokens/', data);
+    return del('files/operation-tokens/', data);
 }
 /**
  * 
@@ -35,7 +35,7 @@ export function cancelOperationApi(operation_token) {
  * @returns 
  */
 export function getFileContentApi(node_id, file_name, operation_token, onProgress) {
-    return get(`/api/v1/files/nodes/${node_id}/files/${file_name}/content`, {}, {
+    return get(`files/nodes/${node_id}/files/${file_name}/content`, {}, {
         responseType: 'blob',
         headers: {
             'X-Operation-Token': operation_token
@@ -53,7 +53,7 @@ export function getFileContentApi(node_id, file_name, operation_token, onProgres
  * @returns 
  */
 export function getFileContentChunkApi(node_id, file_name, operation_token, start, end) {
-    return get(`/api/v1/files/nodes/${node_id}/files/${file_name}/content`, {}, {
+    return get(`files/nodes/${node_id}/files/${file_name}/content`, {}, {
         responseType: 'blob',
         headers: {
             'X-Operation-Token': operation_token,

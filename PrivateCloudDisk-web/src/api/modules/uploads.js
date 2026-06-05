@@ -21,7 +21,7 @@ export function createUploadsSessionApi(total_chunks, file_size, file_checksum, 
         file_name: file_name,
         node_id: node_id
     };
-  return post('/api/v1/business/uploads/', data);
+  return post('business/uploads/', data);
 }
 
 /**
@@ -37,7 +37,7 @@ export function uploadFileChunkApi(uploads_id, chunk_index, upload_file_chunk, s
     chunk_index: chunk_index,
     file: upload_file_chunk
   };
-  return post(`/api/v1/files/uploads/${uploads_id}/chunks`, data, { 
+  return post(`files/uploads/${uploads_id}/chunks`, data, { 
     signal: signal, 
     headers: { 'Content-Type': 'multipart/form-data' } 
   });
@@ -48,5 +48,5 @@ export function uploadFileChunkApi(uploads_id, chunk_index, upload_file_chunk, s
  * @returns {Promise}
  */
 export function completeUploadSessionApi(uploads_id) {
-  return post(`/api/v1/files/uploads/${uploads_id}/merge`);
+  return post(`files/uploads/${uploads_id}/merge`);
 }

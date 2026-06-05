@@ -42,6 +42,7 @@ Thumbs.db
 #application-dev.properties
 #bootstrap-local.yml
 #*.local.properties
+application.properties
 
 # Docker 相关
 Dockerfile.dev

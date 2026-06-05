@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, FileResponse, Res
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import BaseModel, Field, EmailStr, constr, conint
+from core.config import settings
 import aiofiles
 import hashlib
 import os
@@ -26,17 +27,17 @@ import base64
 app = FastAPI()
 
 # ---------- 配置 ----------
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-PRIVATE_KEY_PATH = os.getenv("PRIVATE_KEY_PATH", "./private_key.pem")    # 用于签发 ticket
-PUBLIC_KEY_PATH = os.getenv("PUBLIC_KEY_PATH", "./public_key.pem")       # 用于验证 ticket
-OPERATION_TOKEN_EXPIRE_SECONDS = 600                                     # 操作凭证有效期 10 分钟
-MAX_CONCURRENT = 3                                                       # 单操作最大并发连接数
-MAX_REQUESTS_PER_OPERATION_TOKEN = 300                                   # 单操作最大请求次数（可依据文件大小动态调整）
-RATE_PER_SEC = 10                                                        # 单操作每秒最大请求数
-MAX_RANGE_BYTES = 100 * 1024 * 1024                                      # 单次 Range 请求允许的最大字节数（这里设为 10 MB）
-UPLOAD_DIR = os.getenv("FILE_UPLOAD_DIR", "../Uploads")                  # 服务器存储上传文件的目录 /Uploads/storage 存放已经上传合并完成的文件 /Uploads 存放文件切片临时文件
-FRONTEND_HOSTNAME = os.getenv("FRONTEND_HOSTNAME", "")                   # 前端地址
-THUMBNAIL_TTL = 3600                                                     # 略缩图保存时间 1小时
+REDIS_URL = settings.redis_url  # Redis 连接 URL
+PRIVATE_KEY_PATH = settings.private_key_path   # 用于签发 ticket 的私钥路径
+PUBLIC_KEY_PATH = settings.public_key_path  # 用于验证 ticket 的公钥路径
+OPERATION_TOKEN_EXPIRE_SECONDS = settings.operation_token_expire_seconds                                    # 操作凭证有效期 10 分钟
+MAX_CONCURRENT = settings.max_concurrent                                       # 单操作最大并发连接数
+MAX_REQUESTS_PER_OPERATION_TOKEN = settings.max_requests_per_operation_token                                   # 单操作最大请求次数（可依据文件大小动态调整）
+RATE_PER_SEC = settings.rate_per_sec                                                        # 单操作每秒最大请求数
+MAX_RANGE_BYTES = settings.max_range_bytes                                      # 单次 Range 请求允许的最大字节数（这里设为 10 MB）
+UPLOAD_DIR = settings.file_upload_dir                                    # 服务器存储上传文件的目录 /Uploads/storage 存放已经上传合并完成的文件 /Uploads 存放文件切片临时文件  
+THUMBNAIL_TTL = settings.thumbnail_ttl
+BUSINESS_SERVICE_URL = settings.business_service_url  # 业务服务地址
 
 # ---------- 加载密钥 ----------
 with open(PRIVATE_KEY_PATH, "rb") as f:
@@ -227,7 +228,7 @@ async def init_operation(
     req: InitOperationTokenRequest,
     user_id:str = Header(..., alias="X-User-Id")
 ):  # 替换为实际认证
-    response = requests.get(f"http://127.0.0.1:8080/api/v1/business/internal/storage/file/{req.node_id}/{req.file_name}/info?uid={user_id}")
+    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{req.node_id}/{req.file_name}/info?uid={user_id}")
     result = response.json()
 
     if(result["code"] != 200):
@@ -296,7 +297,7 @@ async def download_file(
         metadata = json.loads(data)
     else:
         # 降级查库（极少数情况）
-        response = requests.get(f"http://127.0.0.1:8080/api/v1/business/internal/storage/file/{node_id}/{file_name}/info?uid={user_id}")
+        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{node_id}/{file_name}/info?uid={user_id}")
         result = response.json()
         if result["code"] != 200:
             raise HTTPException(status_code=404, detail="文件不存在用户网盘, 或者路径目录不存在")
@@ -391,9 +392,9 @@ async def upload_chunk(
 ):
     chunk_path = f"{UPLOAD_DIR}/{uploads_id}-{chunk_index}.part"
 
-    response = requests.post(f"http://127.0.0.1:8080/api/v1/business/internal/storage/uploads/{uploads_id}/query")
+    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/query")
     result = response.json()
-    response = requests.post(f"http://127.0.0.1:8080/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/query")
+    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/query")
     chunk_result = response.json()
 
     if(result["code"] == 15000):
@@ -437,7 +438,7 @@ async def upload_chunk(
             await f.write(chunk)
     
     response = requests.post(
-        f"http://127.0.0.1:8080/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete",
+        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete",
         params = {
             "storage_path":chunk_path
             }
@@ -458,7 +459,7 @@ async def complete_uploads_internal(
     uploads_id: str,
     user_id:str = Header(..., alias="X-User-Id")
 ):
-    response = requests.post(f"http://127.0.0.1:8080/api/v1/business/internal/storage/uploads/{uploads_id}/query")
+    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/query")
     result = response.json()
 
     if(result["code"] == 15000):
@@ -477,7 +478,7 @@ async def complete_uploads_internal(
                     detail = f"会话状态错误"
                 )
     """ 开始处理合并请求逻辑 提交上传会话状态 合并中... 逻辑锁防止并发异常多次处理 """
-    response = requests.post(f"http://127.0.0.1:8080/api/v1/business/internal/storage/uploads/{uploads_id}/merging")
+    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/merging")
     merging_result = response.json()
 
     if(merging_result["code"] != 200):
@@ -487,9 +488,9 @@ async def complete_uploads_internal(
             )
 
     """合并文件并验证完整性"""
-    session_dir = f"../Uploads/{uploads_id}"
+    session_dir = f"{UPLOAD_DIR}/{uploads_id}"
     total_chunks = result["data"]["total_chunks"]
-    final_path = f"../Uploads/storage/{uploads_id}-{total_chunks}.cloud"
+    final_path = f"{UPLOAD_DIR}/storage/{uploads_id}-{total_chunks}.cloud"
     file_hash = hashlib.sha256()
 
     # 创建最终文件
@@ -509,7 +510,7 @@ async def complete_uploads_internal(
     actual_checksum = file_hash.hexdigest()
 
     response = requests.post(
-    f"http://127.0.0.1:8080/api/v1/business/internal/storage/file/complete",
+    f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/complete",
     params = {
         "uploads_id": uploads_id,
         "file_storage_path": final_path
@@ -535,7 +536,7 @@ async def get_thumbnail(
     width: int = Query(200, ge=50, le=800),
     height: int = Query(200, ge=50, le=800)
 ):
-    response = requests.get(f"http://127.0.0.1:8080/api/v1/business/internal/storage/file/{node_id}/{file_name}/info?uid={user_id}")
+    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{node_id}/{file_name}/info?uid={user_id}")
     result = response.json()
 
     if(result["code"] != 200):

@@ -10,6 +10,7 @@ volumes:
   mysql-data:
   redis-data:
   rabbitmq-data:
+  uploads-data:
 
 # 定义所有服务（容器）
 services:
@@ -19,8 +20,8 @@ services:
     container_name: project-mysql
     networks:
       - app-networks
-    ports:
-      - "3307:3306"
+    expose:
+      - "3306"
     environment:
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: private_cloud_disk # 自动创建数据库
@@ -36,8 +37,8 @@ services:
     networks:
       - app-networks
     restart: always
-    ports:
-      - "6389:6379"
+    expose:
+      - "6379"
     volumes:
       - redis-data:/data
     hostname: redis
@@ -48,9 +49,9 @@ services:
     networks:
       - app-networks
     restart: always
-    ports:
-      - "5673:5672"    # 程序连接端口
-      - "15673:15672"  # 管理面板端口
+    expose:
+      - "5672"    # 程序连接端口
+      - "15672"  # 管理面板端口
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -62,11 +63,15 @@ services:
     networks:
       - app-networks
     restart: always
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       - platform-service-backend
       - file-service-backend
+    environment:
+      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+      FILE_SERVICE_URL: http://file-service-backend:8000
+      SPRING_PROFILES_ACTIVE: docker
 
   # 2. SpringBoot 后端业务服务
   platform-service-backend:
@@ -75,8 +80,8 @@ services:
     networks:
       - app-networks
     restart: always
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     depends_on:
       - mysql
       - redis
@@ -91,7 +96,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBItMQ_PORT: 5672
+      SPRING_RABBITMQ_PORT: 5672
   
   # 3. FastAPI 后端文件服务
   file-service-backend:
@@ -100,10 +105,26 @@ services:
     networks:
       - app-networks
     restart: always
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     depends_on:
       - platform-service-backend
+    environment:
+      FILE_UPLOAD_DIR: /data/uploads # 文件存储目录
+      REDIS_URL: redis://redis:6379/0
+      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+
+      PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
+      PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
+
+      MAX_CONCURRENT: 3
+      OPERATION_TOKEN_EXPIRE_SECONDS: 3600
+      MAX_REQUESTS_PER_OPERATION_TOKEN: 300
+      RATE_PER_SEC: 10
+      MAX_RANGE_BYTES: 104857600
+      THUMBNAIL_TTL: 3600
+    volumes:
+      - uploads-data:/data/uploads # 文件持久化（删容器不丢数据）
 
   # 4. Vue 前端服务
   frontend:

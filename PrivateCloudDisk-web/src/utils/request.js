@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 
 // 创建 Axios 实例
 const service = axios.create({
-  baseURL: 'http://127.0.0.1:8080', // 环境变量
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1', // 环境变量
   timeout: 15000,
   headers: { 'Content-Type': 'application/json;charset=utf-8' },
 });

@@ -6,7 +6,7 @@ import { get, post, patch } from '@/utils/request'
  * @returns 
  */
 export function getFileInfoApi(file_id) {
-  return get(`/api/v1/business/files/${file_id}`);
+  return get(`business/files/${file_id}`);
 }
 /**
  * 获取文件信息 根据路径和文件名
@@ -15,7 +15,7 @@ export function getFileInfoApi(file_id) {
  * @returns 
  */
 export function getFileInfoByPathAndNameApi(node_id, name) {
-    return get(`/api/v1/business/nodes/${node_id}/files/${name}`);
+    return get(`business/nodes/${node_id}/files/${name}`);
 }
 /**
  * 移动文件位置
@@ -24,7 +24,7 @@ export function getFileInfoByPathAndNameApi(node_id, name) {
  * @returns 
  */
 export function moveFileApi(file_id, target_node_id) {
-  return patch(`/api/v1/business/files/${file_id}/position`, {
+  return patch(`business/files/${file_id}/position`, {
     target_node_id: target_node_id
   });
 }
@@ -35,7 +35,7 @@ export function moveFileApi(file_id, target_node_id) {
  * @returns 
  */
 export function renameFileApi(file_id, new_name) {
-  return patch(`/api/v1/business/files/${file_id}/name`, {
+  return patch(`business/files/${file_id}/name`, {
     new_name: new_name
   });
 }
@@ -45,5 +45,5 @@ export function renameFileApi(file_id, new_name) {
  * @returns 
  */
 export function deleteFileApi(file_id) {
-  return del(`/api/v1/business/files/${file_id}/`);
+  return del(`business/files/${file_id}/`);
 }
