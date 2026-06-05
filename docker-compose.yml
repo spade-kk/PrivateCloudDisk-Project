@@ -128,7 +128,14 @@ services:
 
   # 4. Vue 前端服务
   frontend:
-    build: ./PrivateCloudDisk-web
+    build:
+      context: ./PrivateCloudDisk-web
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_CHUNK_SIZE: ${VITE_CHUNK_SIZE:-5242880}
+        VITE_MAX_CONCURRENT_UPLOADS: ${VITE_MAX_CONCURRENT_UPLOADS:-3}
+        VITE_MAX_CONCURRENT_DOWNLOADS: ${VITE_MAX_CONCURRENT_DOWNLOADS:-4}
+        VITE_UPLOAD_THRESHOLD: ${VITE_UPLOAD_THRESHOLD:-10485760}
     container_name: private-cloud-web
     networks:
       - app-networks
