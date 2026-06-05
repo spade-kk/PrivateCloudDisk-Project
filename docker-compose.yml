@@ -1,5 +1,5 @@
 # 版本定义
-version: '1'
+version: '1.0'
 
 networks:
   app-networks:
@@ -128,7 +128,7 @@ services:
 
   # 4. Vue 前端服务
   frontend:
-    build: ./PrivateCloudDisk-web # 自动读取后端Dockerfile
+    build: ./PrivateCloudDisk-web
     container_name: private-cloud-web
     networks:
       - app-networks
@@ -136,5 +136,4 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - platform-service-backend # 等待数据库启动后再启动后端
-      - file-service-backend
+      - gateway-service-backend
