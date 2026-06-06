@@ -1,12 +1,12 @@
 <template>
-  <div class="space-y-4">
-    <h1 class="text-2xl font-bold">回收站</h1>
+  <div class="space-y-4 sm:space-y-6">
+    <h1 class="text-xl font-bold sm:text-2xl">回收站</h1>
     <div v-if="loading" class="flex justify-center py-10"><LoadingSpinner /></div>
-    <div v-else-if="items.length === 0" class="bg-white rounded-lg shadow-card p-10 text-center text-neutral-400">
+    <div v-else-if="items.length === 0" class="responsive-panel p-8 text-center text-neutral-400 sm:p-10">
       <i class="fa fa-trash text-4xl mb-2"></i><p>回收站为空</p>
     </div>
-    <div class="bg-white rounded-lg shadow-card overflow-hidden">
-      <div class="grid grid-cols-12 bg-neutral-50 p-3 font-medium text-sm">
+    <div v-else class="overflow-hidden rounded-lg bg-white shadow-card">
+      <div class="hidden grid-cols-12 bg-neutral-50 p-3 font-medium text-sm sm:grid">
         <div class="col-span-6">名称</div>
         <div class="col-span-3">删除时间</div>
         <div class="col-span-3 text-right">操作</div>

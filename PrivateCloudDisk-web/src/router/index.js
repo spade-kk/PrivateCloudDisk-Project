@@ -14,6 +14,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'Dashboard', component: () => import('@/views/DashboardView.vue') },
+      { path: 'starred', name: 'Starred', component: () => import('@/views/StarredView.vue') },
       { path: 'shares', name: 'Shares', component: () => import('@/views/SharesView.vue') },
       { path: 'trash', name: 'Trash', component: () => import('@/views/TrashView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },

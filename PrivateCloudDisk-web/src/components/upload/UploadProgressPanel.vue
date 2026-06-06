@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <!-- 展开面板 -->
-    <div v-if="visible && !minimized" class="fixed bottom-6 right-6 z-50 bg-white rounded-xl shadow-lg w-80 p-5 fade-in border border-neutral-200">
+    <div v-if="visible && !minimized" class="safe-bottom fixed inset-x-4 bottom-4 z-50 rounded-xl border border-neutral-200 bg-white p-4 shadow-lg fade-in sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-80 sm:p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-bold text-neutral-700 text-sm flex items-center"><i class="fa fa-cloud-upload text-primary mr-2"></i>正在上传</h3>
         <div class="flex items-center space-x-2">
@@ -17,18 +17,18 @@
         <span>{{ progress.toFixed(1) }}%</span>
         <span>{{ speed }}</span>
       </div>
-      <div class="flex space-x-2">
-        <button @click="$emit('togglePause')" class="flex-1 px-3 py-1.5 text-sm border border-neutral-200 rounded-lg hover:bg-neutral-50 transition">
+      <div class="grid grid-cols-2 gap-2">
+        <button @click="$emit('togglePause')" class="touch-button rounded-lg border border-neutral-200 px-3 py-1.5 text-sm transition hover:bg-neutral-50">
           <i :class="paused ? 'fa fa-play' : 'fa fa-pause'" class="mr-1"></i>{{ paused ? '继续' : '暂停' }}
         </button>
-        <button @click="$emit('cancel')" class="flex-1 px-3 py-1.5 text-sm border border-neutral-200 rounded-lg text-danger hover:bg-red-50 transition">
+        <button @click="$emit('cancel')" class="touch-button rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-danger transition hover:bg-red-50">
           取消上传
         </button>
       </div>
     </div>
 
     <!-- 最小化小球 -->
-    <div v-if="visible && minimized" @click="$emit('restore')" class="fixed bottom-6 right-6 w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-all duration-200 z-50">
+    <div v-if="visible && minimized" @click="$emit('restore')" class="fixed bottom-4 right-4 z-50 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-200 hover:scale-110 sm:bottom-6 sm:right-6">
       <i class="fa fa-cloud-upload text-xl"></i>
     </div>
   </Teleport>

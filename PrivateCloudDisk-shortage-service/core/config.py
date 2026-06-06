@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     file_upload_dir: str = "../Uploads"
-    business_service_url: str = "http://127.0.0.1:8081"
+    business_service_url: str = "http://127.0.0.1:8080"
     private_key_path: str = "./private_key.pem"
     public_key_path: str = "./public_key.pem"
     max_concurrent: int = 3

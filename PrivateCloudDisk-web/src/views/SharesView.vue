@@ -1,13 +1,13 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex justify-between items-center">
-      <h1 class="text-2xl font-bold">分享管理</h1>
-      <button @click="showCreateDialog = true" class="bg-primary text-white px-4 py-2 rounded-lg flex items-center space-x-1">
+  <div class="space-y-4 sm:space-y-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h1 class="text-xl font-bold sm:text-2xl">分享管理</h1>
+      <button @click="showCreateDialog = true" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-white">
         <i class="fa fa-plus"></i><span>新建分享</span>
       </button>
     </div>
     <div v-if="loading" class="flex justify-center py-10"><LoadingSpinner /></div>
-    <div v-else-if="shares.length === 0" class="bg-white rounded-lg shadow-card p-10 text-center text-neutral-400">
+    <div v-else-if="shares.length === 0" class="responsive-panel p-8 text-center text-neutral-400 sm:p-10">
       <i class="fa fa-share-alt text-4xl mb-2"></i><p>暂无分享链接</p>
     </div>
     <div v-else class="space-y-3">

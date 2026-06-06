@@ -1,8 +1,8 @@
 <template>
-  <div class="flex items-center space-x-3 px-3 py-1.5 bg-neutral-50 rounded-lg">
+  <div class="flex items-center gap-3 rounded-lg bg-neutral-50 px-3 py-1.5">
     <i class="fa fa-cloud-upload text-primary text-lg"></i>
-    <div class="flex flex-col">
-      <div class="flex items-center space-x-2">
+    <div class="flex min-w-0 flex-col">
+      <div class="flex items-center gap-2">
         <span class="text-xs text-neutral-500">已用</span>
         <span class="text-xs font-medium text-neutral-700">{{ usedFormatted }}</span>
         <span class="text-xs text-neutral-400">/</span>

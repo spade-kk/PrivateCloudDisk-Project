@@ -4,7 +4,7 @@
       <!-- 遮罩层 -->
       <div class="flex-1 bg-black/50" @click="$emit('close')"></div>
       <!-- 抽屉内容 -->
-      <div class="w-96 bg-white shadow-xl h-full overflow-y-auto animate-slide-in">
+      <div class="animate-slide-in h-full w-[min(100vw,24rem)] overflow-y-auto bg-white shadow-xl">
         <div class="p-4 border-b flex justify-between items-center">
           <h3 class="text-lg font-semibold">文件详情</h3>
           <button @click="$emit('close')" class="text-neutral-400 hover:text-neutral-600">
@@ -24,10 +24,10 @@
             <div><label class="text-neutral-500 text-sm">存储路径</label><p class="text-xs break-all">{{ fullPath }}</p></div>
             <div v-if="node?.md5"><label class="text-neutral-500 text-sm">MD5</label><p class="text-xs font-mono break-all">{{ node?.md5 }}</p></div>
           </div>
-          <div class="pt-4 flex space-x-2">
-            <button v-if="node?.node_type === 'FILE'" @click="download" class="flex-1 bg-primary text-white py-2 rounded-lg">下载</button>
-            <button @click="copyPath" class="flex-1 border border-primary text-primary py-2 rounded-lg">复制路径</button>
-            <button v-if="node?.node_type !== 'FOLDER'" @click="showVersionHistory" class="flex-1 border border-neutral-300 py-2 rounded-lg">版本历史</button>
+          <div class="grid grid-cols-1 gap-2 pt-4 sm:grid-cols-3">
+            <button v-if="node?.node_type === 'FILE'" @click="download" class="touch-button rounded-lg bg-primary py-2 text-white">下载</button>
+            <button @click="copyPath" class="touch-button rounded-lg border border-primary py-2 text-primary">复制路径</button>
+            <button v-if="node?.node_type !== 'FOLDER'" @click="showVersionHistory" class="touch-button rounded-lg border border-neutral-300 py-2">版本历史</button>
           </div>
         </div>
       </div>

@@ -1,9 +1,9 @@
 <template>
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 sm:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] sm:gap-4 xl:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
     <div
       v-for="node in nodes"
       :key="node.node_id"
-      class="relative bg-white rounded-lg shadow-card p-3 transition-all duration-200 hover:shadow-hover hover:-translate-y-1 cursor-pointer group"
+      class="group relative min-h-[150px] cursor-pointer rounded-lg bg-white p-3 shadow-card transition-all duration-200 hover:-translate-y-1 hover:shadow-hover sm:min-h-[166px]"
       :class="{ 'ring-2 ring-primary': isSelected(node.node_id) }"
     >
       <!-- 复选框 -->
@@ -22,15 +22,15 @@
         </button>
       </div>
       <!-- 内容 -->
-      <div class="flex flex-col items-center pt-4" @click="$emit('itemClick', node)">
-        <div class="w-16 h-16 rounded-lg bg-neutral-50 flex items-center justify-center mb-3">
-          <i :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary text-3xl' : 'text-3xl']"></i>
+      <div class="flex h-full flex-col items-center justify-center pt-4" @click="$emit('itemClick', node)">
+        <div class="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-neutral-50 sm:h-16 sm:w-16">
+          <i :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary text-3xl' : 'text-2xl sm:text-3xl']"></i>
         </div>
-        <h3 class="text-ellipsis-1 text-center font-medium text-neutral-700 w-full">{{ node.node_name }}</h3>
+        <h3 class="text-ellipsis-1 w-full text-center text-sm font-medium text-neutral-700 sm:text-base">{{ node.node_name }}</h3>
         <p class="text-xs text-neutral-400 mt-1">{{ node.node_type === 'FOLDER' ? '文件夹' : getFileExtension(node.node_name) }}</p>
       </div>
       <!-- 操作菜单（悬浮显示） -->
-      <div class="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition">
+      <div class="absolute bottom-2 right-2 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
         <div class="flex space-x-1 bg-white rounded shadow p-1">
           <button @click.stop="$emit('action', node, 'download')" class="text-primary text-xs p-1 hover:bg-neutral-100 rounded" title="下载"><i class="fa fa-download"></i></button>
           <button @click.stop="$emit('action', node, 'rename')" class="text-neutral-500 text-xs p-1 hover:bg-neutral-100 rounded" title="重命名"><i class="fa fa-pencil"></i></button>

@@ -1,18 +1,18 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" @click.self="$emit('close')">
-      <div class="relative bg-white rounded-lg max-w-5xl w-full max-h-screen overflow-auto">
-        <div class="sticky top-0 bg-white p-2 border-b flex justify-between items-center">
+    <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4" @click.self="$emit('close')">
+      <div class="relative max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl overflow-auto rounded-lg bg-white">
+        <div class="sticky top-0 flex items-center justify-between gap-3 border-b bg-white p-3">
           <span class="font-medium truncate">{{ node?.node_name }}</span>
           <button @click="$emit('close')" class="text-neutral-500 hover:text-neutral-700"><i class="fa fa-times text-xl"></i></button>
         </div>
-        <div class="p-4 flex justify-center items-center min-h-[300px]">
+        <div class="flex min-h-[240px] items-center justify-center p-3 sm:min-h-[300px] sm:p-4">
           <!-- 图片预览 -->
           <img v-if="isImage" :src="fileUrl" class="max-w-full max-h-[70vh] object-contain" />
           <!-- PDF 预览 -->
-          <iframe v-else-if="isPdf" :src="fileUrl" class="w-full h-[70vh]" />
+          <iframe v-else-if="isPdf" :src="fileUrl" class="h-[70dvh] w-full" />
           <!-- 文本预览 -->
-          <pre v-else-if="isText" class="whitespace-pre-wrap w-full overflow-auto max-h-[70vh] bg-neutral-50 p-4 rounded">{{ textContent }}</pre>
+          <pre v-else-if="isText" class="max-h-[70dvh] w-full overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-3 text-sm sm:p-4">{{ textContent }}</pre>
           <!-- 视频预览 -->
           <video v-else-if="isVideo" controls class="w-full max-h-[70vh]" :src="fileUrl" />
           <!-- 音频预览 -->

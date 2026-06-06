@@ -1,39 +1,39 @@
 <template>
-  <div class="max-w-2xl mx-auto space-y-6">
+  <div class="mx-auto max-w-2xl space-y-4 sm:space-y-6">
     <!-- 基本信息 -->
-    <div class="bg-white rounded-lg shadow-card p-6">
-      <h2 class="text-xl font-bold mb-4">个人资料</h2>
+    <div class="responsive-panel p-4 sm:p-6">
+      <h2 class="mb-4 text-lg font-bold sm:text-xl">个人资料</h2>
       <form @submit.prevent="updateProfile">
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium mb-1">头像</label>
-            <div class="flex items-center space-x-4">
-              <img :src="avatarUrl" class="w-16 h-16 rounded-full object-cover border" />
-              <button type="button" @click="selectAvatar" class="text-primary text-sm">更换头像</button>
+            <div class="flex items-center gap-4">
+              <img :src="avatarUrl" class="h-16 w-16 rounded-full border object-cover" />
+              <button type="button" @click="selectAvatar" class="touch-button rounded-lg border border-primary px-3 py-2 text-sm text-primary">更换头像</button>
               <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="uploadAvatar" />
             </div>
           </div>
           <div><label class="block text-sm font-medium mb-1">昵称</label><input v-model="userInfo.name" class="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label class="block text-sm font-medium mb-1">邮箱</label><input v-model="userInfo.email" type="email" class="w-full px-3 py-2 border rounded-lg" /></div>
-          <div><button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">保存修改</button></div>
+          <div><button type="submit" class="touch-button w-full rounded-lg bg-primary px-4 py-2 text-white sm:w-auto">保存修改</button></div>
         </div>
       </form>
     </div>
     <!-- 修改密码 -->
-    <div class="bg-white rounded-lg shadow-card p-6">
-      <h2 class="text-xl font-bold mb-4">修改密码</h2>
+    <div class="responsive-panel p-4 sm:p-6">
+      <h2 class="mb-4 text-lg font-bold sm:text-xl">修改密码</h2>
       <form @submit.prevent="changePassword">
         <div class="space-y-4">
           <div><label class="block text-sm font-medium mb-1">原密码</label><input v-model="passwordForm.old" type="password" class="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label class="block text-sm font-medium mb-1">新密码</label><input v-model="passwordForm.new" type="password" class="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label class="block text-sm font-medium mb-1">确认新密码</label><input v-model="passwordForm.confirm" type="password" class="w-full px-3 py-2 border rounded-lg" /></div>
-          <div><button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">修改密码</button></div>
+          <div><button type="submit" class="touch-button w-full rounded-lg bg-primary px-4 py-2 text-white sm:w-auto">修改密码</button></div>
         </div>
       </form>
     </div>
     <!-- 登录日志入口 -->
-    <div class="bg-white rounded-lg shadow-card p-6">
-      <div class="flex justify-between items-center">
+    <div class="responsive-panel p-4 sm:p-6">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 class="text-xl font-bold">登录日志</h2><p class="text-sm text-neutral-500">查看最近登录记录</p></div>
         <router-link to="/login-history" class="text-primary">查看详情 &rarr;</router-link>
       </div>

@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-neutral-100">
+  <div class="space-y-4 sm:space-y-6">
     <!-- 主内容区 -->
     <!-- <main class="pt-20 pb-16 container mx-auto px-4"> -->
       <!-- 路径导航 -->
@@ -35,31 +35,31 @@
       </div> -->
 
     <!-- 路径导航 -->
-    <div class="bg-white rounded-lg shadow-card p-4 mb-6">
+    <div class="responsive-panel p-3 sm:p-4">
       <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
     </div>
     <!-- 原有操作栏 -->
-    <div class="bg-white rounded-lg shadow-card p-4 flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <button @click="showCreateModal = true" class="bg-primary text-white px-4 py-2 rounded-lg flex items-center space-x-1">
+    <div class="responsive-panel flex flex-col gap-4 p-3 sm:p-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
+      <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 md:flex-nowrap">
+        <button @click="showCreateModal = true" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-white sm:px-4">
           <i class="fa fa-folder-plus"></i><span>新建文件夹</span>
         </button>
-        <button @click="triggerFileSelect" class="bg-success text-white px-4 py-2 rounded-lg flex items-center space-x-1">
+        <button @click="triggerFileSelect" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-success px-3 py-2 text-sm text-white sm:px-4">
           <i class="fa fa-upload"></i><span>上传文件</span>
         </button>
         <input ref="fileInputRef" type="file" class="hidden" @change="onFileSelected" />
-        <button v-if="selectionStore.selectedIds.size > 0" @click="clearSelection" class="text-neutral-500 hover:text-danger">
+        <button v-if="selectionStore.selectedIds.size > 0" @click="clearSelection" class="col-span-2 text-sm text-neutral-500 hover:text-danger sm:col-span-1">
           <i class="fa fa-times-circle"></i> 取消选中 ({{ selectionStore.selectedIds.size }})
         </button>
       </div>
-      <div class="flex items-center space-x-3">
-        <div class="relative">
-          <input v-model="fileBrowserStore.searchKeyword" type="text" class="pl-10 pr-4 py-2 border rounded-lg w-64" placeholder="搜索...">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center md:ml-auto md:justify-end">
+        <div class="relative w-full sm:w-72 md:w-64 lg:w-72">
+          <input v-model="fileBrowserStore.searchKeyword" type="text" class="w-full rounded-lg border px-10 py-2" placeholder="搜索...">
           <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
         </div>
-        <div class="flex border rounded-lg p-1">
-          <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-primary text-white' : 'text-neutral-600'" class="px-3 py-1.5 rounded"> <i class="fa fa-th"></i> </button>
-          <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-primary text-white' : 'text-neutral-600'" class="px-3 py-1.5 rounded"> <i class="fa fa-list"></i> </button>
+        <div class="grid grid-cols-2 rounded-lg border p-1 sm:flex">
+          <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-primary text-white' : 'text-neutral-600'" class="touch-button rounded px-3 py-1.5"> <i class="fa fa-th"></i> </button>
+          <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-primary text-white' : 'text-neutral-600'" class="touch-button rounded px-3 py-1.5"> <i class="fa fa-list"></i> </button>
         </div>
       </div>
     </div>
@@ -85,7 +85,7 @@
       <EmptyState v-else-if="filteredNodes.length === 0" message="该文件夹为空" @create="showCreateModal = true" />
 
       <!-- 文件列表 -->
-      <div class="mt-6" v-else>
+      <div v-else>
         <FileGridView
         v-if="viewMode === 'grid'"
         :nodes="filteredNodes"

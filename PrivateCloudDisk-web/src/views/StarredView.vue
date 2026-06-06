@@ -1,8 +1,8 @@
 <template>
-  <div class="space-y-4">
-    <h1 class="text-2xl font-bold"><i class="fa fa-star text-warning"></i> 我的收藏</h1>
+  <div class="space-y-4 sm:space-y-6">
+    <h1 class="text-xl font-bold sm:text-2xl"><i class="fa fa-star text-warning"></i> 我的收藏</h1>
     <div v-if="loading"><LoadingSpinner /></div>
-    <div v-else-if="starredNodes.length === 0" class="bg-white rounded-lg shadow-card p-10 text-center text-neutral-400">
+    <div v-else-if="starredNodes.length === 0" class="responsive-panel p-8 text-center text-neutral-400 sm:p-10">
       <i class="fa fa-star-o text-4xl mb-2"></i><p>暂无收藏的文件或文件夹</p>
     </div>
     <div v-else>

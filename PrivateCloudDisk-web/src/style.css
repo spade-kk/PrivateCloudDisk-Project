@@ -3,8 +3,39 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
   body {
     @apply bg-neutral-100 text-neutral-700 min-h-screen font-inter;
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: hidden;
+  }
+  #app {
+    height: 100vh;
+    height: 100dvh;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button,
+  [role='button'] {
+    touch-action: manipulation;
+  }
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
   }
   ::-webkit-scrollbar {
     width: 6px;
@@ -22,6 +53,31 @@
 }
 
 @layer components {
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .app-content {
+    width: 100%;
+    min-width: 0;
+  }
+  .page-container {
+    width: 100%;
+    max-width: 1440px;
+    margin-inline: auto;
+  }
+  .responsive-panel {
+    @apply bg-white rounded-lg shadow-card;
+  }
+  .icon-button {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-lg text-neutral-600 transition hover:bg-neutral-100 hover:text-primary;
+  }
+  .touch-button {
+    min-height: 40px;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
   .shadow-card {
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
   }
@@ -31,6 +87,35 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@media (max-width: 1023px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mobile-full {
+    width: 100%;
+  }
+  .mobile-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .responsive-panel {
+    border-radius: 0.75rem;
   }
 }
 
