@@ -1,40 +1,140 @@
 <template>
-  <div class="relative">
-    <button @click="showDropdown = !showDropdown" class="relative text-neutral-600 hover:text-primary">
-      <i class="fa fa-bell text-xl"></i>
-      <span v-if="unreadCount" class="absolute -top-1 -right-2 bg-danger text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{{ unreadCount }}</span>
+  <div
+    ref="panelRef"
+    class="relative"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
+  >
+    <button
+      @click="handleTriggerClick"
+      class="icon-button relative"
+      title="消息通知"
+      aria-label="消息通知"
+    >
+      <i class="fa fa-bell text-lg"></i>
+      <span
+        v-if="unreadCount"
+        class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] leading-none text-white ring-2 ring-white"
+      >
+        {{ unreadCount > 9 ? '9+' : unreadCount }}
+      </span>
     </button>
-    <div v-if="showDropdown" class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg z-20 max-h-96 overflow-y-auto">
-      <div class="p-3 border-b font-semibold">通知</div>
-      <div v-if="notifications.length === 0" class="p-4 text-center text-neutral-400">暂无通知</div>
-      <div v-for="notif in notifications" :key="notif.id" class="p-3 border-b hover:bg-neutral-50">
-        <p class="text-sm">{{ notif.message }}</p>
-        <p class="text-xs text-neutral-400 mt-1">{{ formatTime(notif.time) }}</p>
+
+    <transition name="dropdown-pop">
+      <div
+        v-if="open"
+        class="absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg"
+      >
+        <div class="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+          <div>
+            <div class="font-semibold text-neutral-700">消息通知</div>
+            <div class="mt-0.5 text-xs text-neutral-400">{{ unreadCount }} 条未读消息</div>
+          </div>
+          <button
+            @click="notificationStore.markAllAsRead"
+            class="text-xs text-primary hover:text-primary/80"
+          >
+            全部已读
+          </button>
+        </div>
+
+        <div v-if="recentNotifications.length === 0" class="px-4 py-8 text-center text-sm text-neutral-400">
+          暂无通知
+        </div>
+        <div v-else class="max-h-80 overflow-y-auto">
+          <button
+            v-for="item in recentNotifications"
+            :key="item.id"
+            @click="openDetail(item.id)"
+            class="flex w-full gap-3 border-b border-neutral-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-neutral-50"
+          >
+            <div class="relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" :class="typeMeta(item.type).bg">
+              <i :class="[typeMeta(item.type).icon, typeMeta(item.type).color]"></i>
+              <span v-if="!item.read" class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-white"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <p class="truncate text-sm font-medium text-neutral-700">{{ item.title }}</p>
+                <span class="shrink-0 text-xs text-neutral-400">{{ timeAgo(item.time) }}</span>
+              </div>
+              <p class="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{{ item.message }}</p>
+            </div>
+          </button>
+        </div>
+
+        <router-link
+          to="/notifications"
+          class="flex items-center justify-center gap-2 border-t border-neutral-200 px-4 py-3 text-sm text-primary transition hover:bg-primary/5"
+          @click="open = false"
+        >
+          <span>查看全部消息</span>
+          <i class="fa fa-angle-right"></i>
+        </router-link>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useNotificationStore } from '@/stores/notificationStore'
+import { timeAgo } from '@/utils/helpers'
 
-const showDropdown = ref(false)
-const unreadCount = ref(0)
-const notifications = ref([])
+const router = useRouter()
+const notificationStore = useNotificationStore()
+const panelRef = ref(null)
+const open = ref(false)
+const isHoverDevice = ref(false)
 
-const formatTime = (timestamp) => {
-  const diff = Date.now() - timestamp
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
-  return new Date(timestamp).toLocaleDateString()
+const unreadCount = computed(() => notificationStore.unreadCount)
+const recentNotifications = computed(() => notificationStore.recentNotifications)
+
+function syncPointerMode() {
+  isHoverDevice.value = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+}
+
+function handleMouseEnter() {
+  if (isHoverDevice.value) open.value = true
+}
+
+function handleMouseLeave() {
+  if (isHoverDevice.value) open.value = false
+}
+
+function handleTriggerClick() {
+  if (!isHoverDevice.value) open.value = !open.value
+}
+
+function handlePointerDown(event) {
+  if (!open.value || isHoverDevice.value) return
+  if (panelRef.value && !panelRef.value.contains(event.target)) open.value = false
+}
+
+function openDetail(id) {
+  notificationStore.markAsRead(id)
+  open.value = false
+  router.push('/notifications')
+}
+
+function typeMeta(type) {
+  const map = {
+    success: { icon: 'fa fa-check', bg: 'bg-success/10', color: 'text-success' },
+    warning: { icon: 'fa fa-exclamation-triangle', bg: 'bg-warning/10', color: 'text-warning' },
+    security: { icon: 'fa fa-shield', bg: 'bg-primary/10', color: 'text-primary' },
+    info: { icon: 'fa fa-info', bg: 'bg-neutral-100', color: 'text-neutral-500' },
+  }
+  return map[type] || map.info
 }
 
 onMounted(() => {
-  // 模拟通知
-  notifications.value = [
-    { id: 1, message: '文件 "report.pdf" 上传成功', time: Date.now() - 1000 * 60 * 5 },
-    { id: 2, message: '分享链接 "项目资料" 被访问', time: Date.now() - 1000 * 60 * 60 },
-  ]
-  unreadCount.value = notifications.value.length
+  syncPointerMode()
+  window.addEventListener('resize', syncPointerMode)
+  document.addEventListener('pointerdown', handlePointerDown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncPointerMode)
+  document.removeEventListener('pointerdown', handlePointerDown)
 })
 </script>
