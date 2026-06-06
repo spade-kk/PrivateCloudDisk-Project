@@ -4,12 +4,15 @@ import { get, post, patch, put, del } from '@/utils/request';
  * 登录
  * @param {String} phone_number -手机号
  * @param {String} password -密码
+ * @param {String} captchaToken -人机验证码token
  * @returns {Promise}
  */
-export function loginApi(phone_number, password) {
+export function loginApi(phone_number, password, captchaToken = '', captchaAction = 'login') {
     var data = {
         phone_number: phone_number,
-        password: password
+        password: password,
+        captcha_token: captchaToken,
+        captcha_action: captchaAction
     };
   return post('business/users/login', data);
 }
@@ -20,14 +23,17 @@ export function loginApi(phone_number, password) {
  * @param {String} password -密码
  * @param {String} code -验证码
  * @param {String} username -用户名
+ * @param {String} captchaToken -人机验证码token
  * @return {Promise}
  */
-export function registerApi(phone_number, password, code, username) {
+export function registerApi(phone_number, password, code, username, captchaToken = '', captchaAction = 'register') {
     let data = {
         phone_number: phone_number,
         password: password,
         code: code,
-        name: username
+        name: username,
+        captcha_token: captchaToken,
+        captcha_action: captchaAction
     };
     return post('business/users/', data);
 }

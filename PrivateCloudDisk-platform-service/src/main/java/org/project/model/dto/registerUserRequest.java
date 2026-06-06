@@ -2,6 +2,7 @@ package org.project.model.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
@@ -18,12 +19,18 @@ public class registerUserRequest {
     String password;
 
     @NotBlank(message = "验证码不能为空")
-    @Pattern( regexp = "^[a-zA-Z0-9]{6}$",
-              message = "验证码必须是6位数字或字母")
+    @Pattern( regexp = "^[a-zA-Z0-9]{6,16}$",
+              message = "验证码必须是6-16位数字或字母")
     String code;
 
     @NotBlank(message = "用户名不能为空")
     @Pattern( regexp = "^[a-zA-Z0-9]{2,10}$",
               message = "用户名必须是2-10位数字或字母")
     String name;
+
+    @Size(max = 2048, message = "人机验证码长度不正确")
+    String captcha_token;
+
+    @Size(max = 32, message = "人机验证码动作长度不正确")
+    String captcha_action;
 }

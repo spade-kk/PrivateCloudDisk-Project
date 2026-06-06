@@ -1,6 +1,7 @@
 package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.project.data.UserData;
 
 @Mapper
@@ -39,10 +40,11 @@ public interface UserMapper {
     int updateUserData(UserData userData);
     /**
      * 更新用户密码
+     * @param user_id 用户ID
      * @param new_password 新密码
      * @return 更新了数据行数
      */
-    int updateUserPassword(String new_password);
+    int updateUserPassword(@Param("user_id") String user_id, @Param("new_password") String new_password);
     /**
      * 删除用户
      * @param user_id 用户ID

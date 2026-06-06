@@ -51,21 +51,23 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String requestPath = exchange.getRequest().getURI().getPath();
-        String requestMethod = exchange.getRequest().getMethod().name();
+        ServerHttpRequest sanitizedRequest = removeClientSuppliedInternalHeaders(exchange.getRequest());
+        ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
+        String requestPath = sanitizedRequest.getURI().getPath();
+        String requestMethod = sanitizedRequest.getMethod().name();
         log.debug("网关拦截请求: {} {}", requestMethod, requestPath);
 
         // 1. 白名单路径直接放行
         if (isExcludedPath(requestMethod, requestPath)) {
             log.debug("白名单路径，直接放行: {}", requestPath);
-            return chain.filter(exchange);
+            return chain.filter(sanitizedExchange);
         }
 
         // 2. 从请求头中提取 JWT token
-        String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        String authHeader = sanitizedRequest.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("请求缺少 Authorization 头: {}", requestPath);
-            return unauthorizedResponse(exchange, "缺少认证令牌");
+            return unauthorizedResponse(sanitizedExchange, "缺少认证令牌");
         }
 
         String token = authHeader.substring(7);
@@ -75,21 +77,34 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             String userId = jwtUtil.getUserIdFromToken(token);
 
             // 4. 验证成功，将用户信息注入请求头，透传给下游服务
-            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                    .header("X-User-Id", userId)
-                    .header("X-Auth-Source", "gateway")
+            ServerHttpRequest mutatedRequest = sanitizedRequest.mutate()
+                    .headers(headers -> {
+                        headers.set("X-User-Id", userId);
+                        headers.set("X-Auth-Source", "gateway");
+                    })
                     .build();
 
             log.info("认证通过: 用户ID={}, 请求路径={}", userId, requestPath);
-            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            return chain.filter(sanitizedExchange.mutate().request(mutatedRequest).build());
 
         } catch (JwtException e) {
             log.warn("JWT 验证失败: {}, 原因: {}", requestPath, e.getMessage());
-            return unauthorizedResponse(exchange, "令牌无效或已过期");
+            return unauthorizedResponse(sanitizedExchange, "令牌无效或已过期");
         } catch (Exception e) {
             log.error("认证过程发生内部错误: {}", requestPath, e);
-            return errorResponse(exchange, "认证服务内部错误");
+            return errorResponse(sanitizedExchange, "认证服务内部错误");
         }
+    }
+
+    private ServerHttpRequest removeClientSuppliedInternalHeaders(ServerHttpRequest request) {
+        return request.mutate()
+                .headers(headers -> {
+                    headers.remove("X-User-Id");
+                    headers.remove("X-Auth-Source");
+                    headers.remove("X-Session-Id");
+                    headers.remove("X-Device-Id");
+                })
+                .build();
     }
 
     /**

@@ -1,5 +1,6 @@
 package org.project.data;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.io.Serializable;
 
@@ -9,6 +10,7 @@ import java.io.Serializable;
 @Data
 public class UserData implements Serializable {
     private String name;
+    @JsonIgnore
     private String password;
     private String email;
     private String id;

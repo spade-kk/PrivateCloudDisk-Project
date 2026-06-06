@@ -1,5 +1,6 @@
 package org.project.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
@@ -9,6 +10,7 @@ public class ChangeUserPasswordRequest {
     @NotBlank(message = "旧密码不能为空")
     @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,15}$",
             message = "密码必须是8-15位，包含字母、数字")
+    @JsonAlias("old_password")
     String user_password;
     @NotBlank(message = "新密码不能为空")
     @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,15}$",

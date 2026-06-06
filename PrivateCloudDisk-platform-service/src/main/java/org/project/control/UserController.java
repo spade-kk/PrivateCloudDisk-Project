@@ -1,5 +1,6 @@
 package org.project.control;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.project.control.result.JsonResult;
 import org.project.data.UserData;
@@ -7,7 +8,11 @@ import org.project.model.dto.ChangeUserPasswordRequest;
 import org.project.model.dto.LoginRequest;
 import org.project.model.dto.registerUserRequest;
 import org.project.model.dto.updateUserInfoRequest;
+import org.project.security.ApiAbuseProtectionService;
+import org.project.security.CaptchaVerifier;
+import org.project.service.ex.ServiceException;
 import org.project.service.UserService;
+import org.project.util.ClientIpUtil;
 import org.project.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -25,19 +30,31 @@ public class UserController extends BaseController {
     @Autowired
     JwtUtil jwtUtil;
 
+    @Autowired
+    private CaptchaVerifier captchaVerifier;
+    @Autowired
+    private ApiAbuseProtectionService apiAbuseProtectionService;
     /**
      * 处理用户登录的请求
      * @param loginRequest 登陆请求体参数Json对象
      * @return JsonResult data String 登陆通行凭证令牌 JWT Token
      */
     @PostMapping("/login")
-    public JsonResult<String> login( @Valid @RequestBody LoginRequest loginRequest )
+    public JsonResult<String> login( @Valid @RequestBody LoginRequest loginRequest,
+                                     HttpServletRequest request )
     {
-        //调用业务层函数
-        UserData userData = userService.login(loginRequest.getAccount(), loginRequest.getPhone_number(), loginRequest.getPassword());
-        String token = jwtUtil.generateAccessToken(userData.getId());
-        //请求登录操作结果成功！ OK
-        return new JsonResult<String>(OK, token);
+        String clientIp = ClientIpUtil.resolveClientIp(request);
+        apiAbuseProtectionService.checkLoginStart(loginRequest, clientIp);
+        try {
+            captchaVerifier.verify(loginRequest.getCaptcha_token(), "login", clientIp);
+            UserData userData = userService.login(loginRequest.getAccount(), loginRequest.getPhone_number(), loginRequest.getPassword());
+            String token = jwtUtil.generateAccessToken(userData.getId());
+            apiAbuseProtectionService.recordLoginSuccess(loginRequest, clientIp);
+            return new JsonResult<String>(OK, token);
+        } catch (ServiceException e) {
+            apiAbuseProtectionService.recordLoginFailure(loginRequest, clientIp);
+            throw e;
+        }
     }
 
     /**
@@ -46,8 +63,12 @@ public class UserController extends BaseController {
      * @return JsonResult data String
      */
     @PostMapping("/")
-    public JsonResult<String> register( @Valid @RequestBody registerUserRequest registerUserRequest )
+    public JsonResult<String> register( @Valid @RequestBody registerUserRequest registerUserRequest,
+                                        HttpServletRequest request )
     {
+        String clientIp = ClientIpUtil.resolveClientIp(request);
+        apiAbuseProtectionService.checkRegisterStart(registerUserRequest.getPhone_number(), clientIp);
+        captchaVerifier.verify(registerUserRequest.getCaptcha_token(), "register", clientIp);
         String account = userService.register(
                 registerUserRequest.getPhone_number(),
                 registerUserRequest.getPassword(),
@@ -105,7 +126,7 @@ public class UserController extends BaseController {
      */
     @PostMapping("/me/password")
     public JsonResult<Void> updateUserPassword(@RequestHeader("X-User-Id") String user_id,
-                                               @RequestBody ChangeUserPasswordRequest changeUserPasswordRequest ) {
+                                               @Valid @RequestBody ChangeUserPasswordRequest changeUserPasswordRequest ) {
         userService.updateUserPassword( user_id,
                 changeUserPasswordRequest.getUser_password(),
                 changeUserPasswordRequest.getNew_password());

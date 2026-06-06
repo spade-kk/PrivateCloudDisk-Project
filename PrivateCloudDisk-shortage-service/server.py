@@ -2,7 +2,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, status, Header, Request, Depends, Query, Form
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse, Response
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, Field, EmailStr, constr, conint
 from core.config import settings
 import aiofiles
@@ -38,6 +38,12 @@ MAX_RANGE_BYTES = settings.max_range_bytes                                      
 UPLOAD_DIR = settings.file_upload_dir                                    # 服务器存储上传文件的目录 /Uploads/storage 存放已经上传合并完成的文件 /Uploads 存放文件切片临时文件  
 THUMBNAIL_TTL = settings.thumbnail_ttl
 BUSINESS_SERVICE_URL = settings.business_service_url  # 业务服务地址
+OPERATION_TOKEN_ISSUE_FILE_LIMIT = settings.operation_token_issue_file_limit
+OPERATION_TOKEN_ISSUE_FILE_WINDOW_SECONDS = settings.operation_token_issue_file_window_seconds
+OPERATION_TOKEN_DESTROY_USER_LIMIT = settings.operation_token_destroy_user_limit
+OPERATION_TOKEN_DESTROY_USER_WINDOW_SECONDS = settings.operation_token_destroy_user_window_seconds
+OPERATION_TOKEN_DESTROY_IP_LIMIT = settings.operation_token_destroy_ip_limit
+OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS = settings.operation_token_destroy_ip_window_seconds
 
 # ---------- 加载密钥 ----------
 with open(PRIVATE_KEY_PATH, "rb") as f:
@@ -72,6 +78,14 @@ end
 return current
 """
 
+LUA_FIXED_WINDOW = """
+local key = KEYS[1]
+local ttl = tonumber(ARGV[1])
+local current = redis.call('INCR', key)
+if current == 1 then redis.call('EXPIRE', key, ttl) end
+return current
+"""
+
 async def check_and_incr_concurrency(key: str, limit: int, ttl: int = 30) -> bool:
     """原子并发计数，超过 limit 返回 False, 否则 True"""
     current = await redis_client.eval(LUA_CONCURRENCY, 1, key, limit, ttl)
@@ -80,16 +94,49 @@ async def check_and_incr_concurrency(key: str, limit: int, ttl: int = 30) -> boo
 async def release_concurrency(key: str):
     await redis_client.eval(LUA_RELEASE, 1, key)
 
-def verify_operation_token(token: str) -> dict:
+def get_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+def stable_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+async def enforce_fixed_window(key: str, limit: int, window_seconds: int, detail: str):
+    if limit <= 0 or window_seconds <= 0:
+        return
+    current = await redis_client.eval(LUA_FIXED_WINDOW, 1, key, window_seconds)
+    if int(current) > limit:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
+
+async def enforce_operation_token_issue_limits(req: "InitOperationTokenRequest", user_id: str, client_ip: str):
+    file_fingerprint = stable_hash(f"{req.node_id}|{req.file_name}|{req.operation_type}")
+    # Gateway handles generic user/IP throttling. File service keeps file-operation semantics.
+    await enforce_fixed_window(
+        f"rl:operation_token:issue:file:{stable_hash(user_id)}:{file_fingerprint}",
+        OPERATION_TOKEN_ISSUE_FILE_LIMIT,
+        OPERATION_TOKEN_ISSUE_FILE_WINDOW_SECONDS,
+        "Operation token requests are too frequent for this file"
+    )
+
+async def verify_operation_token(token: str) -> dict:
     """ 验证操作凭证 JWT,返回 payload, 失败抛出 401 """
     try:
         payload = jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"],
-                             options={"require": ["jti", "sub", "node_id","file_name", "exp", "rlimit"]})
+                             options={"require": ["jti", "sub", "node_id","file_name", "operation_type", "exp", "rlimit"]})
+        if await redis_client.exists(f"revoked:operation_token:{payload['jti']}"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Operation token revoked")
         return payload
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ticket expired")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Operation token expired")
+    except HTTPException:
+        raise
     except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid ticket")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid operation token")
     
 # ---------- 依赖：操作级多维限流 ----------
 class OperationRateLimiter:
@@ -98,9 +145,13 @@ class OperationRateLimiter:
         self.max_concurrent = max_concurrent
         self.rate_per_sec = rate_per_sec
 
-    async def __call__(self, request: Request, token: str = Header(..., alias="X-Operation-Token")):
+    async def __call__(self, request: Request,
+                       token: str = Header(..., alias="X-Operation-Token"),
+                       user_id: str = Header(..., alias="X-User-Id")):
         # 1. 验证 JWT，提取限制信息
-        payload = verify_operation_token(token)
+        payload = await verify_operation_token(token)
+        if payload["sub"] != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operation token user mismatch")
         jti = payload["jti"]
         rlimit = payload["rlimit"]
 
@@ -220,16 +271,25 @@ async def add_process_time_header(request: Request, call_next):
 class InitOperationTokenRequest(BaseModel):
     node_id: str
     file_name: str
-    operation_type: str  # "download" / "preview" / "stream"
+    operation_type: Literal["download", "preview", "stream"]
+
+class OperationTokenCancelRequest(BaseModel):
+    operation_token: str
 
 # ---------- 接口：申请操作凭证 ----------
 @app.post("/files/operation-tokens")
 async def init_operation(
     req: InitOperationTokenRequest,
+    request: Request,
     user_id:str = Header(..., alias="X-User-Id")
 ):  # 替换为实际认证
-    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{req.node_id}/{req.file_name}/info?uid={user_id}")
-    result = response.json()
+    await enforce_operation_token_issue_limits(req, user_id, get_client_ip(request))
+    try:
+        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{req.node_id}/{req.file_name}/info?uid={user_id}", timeout=5)
+        response.raise_for_status()
+        result = response.json()
+    except requests.RequestException:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Business service unavailable")
 
     if(result["code"] != 200):
         raise HTTPException(
@@ -273,6 +333,49 @@ async def init_operation(
         "message": None
     })
 
+# ---------- 接口：销毁操作凭证 ----------
+@app.delete("/files/operation-tokens")
+@app.delete("/files/operation-tokens/")
+async def destroy_operation_token(
+    request: Request,
+    req: Optional[OperationTokenCancelRequest] = None,
+    operation_token: Optional[str] = Query(None),
+    user_id: str = Header(..., alias="X-User-Id")
+):
+    client_ip = get_client_ip(request)
+    await enforce_fixed_window(
+        f"rl:operation_token:destroy:user:{stable_hash(user_id)}",
+        OPERATION_TOKEN_DESTROY_USER_LIMIT,
+        OPERATION_TOKEN_DESTROY_USER_WINDOW_SECONDS,
+        "Operation token destroy requests are too frequent for this user"
+    )
+    await enforce_fixed_window(
+        f"rl:operation_token:destroy:ip:{stable_hash(client_ip)}",
+        OPERATION_TOKEN_DESTROY_IP_LIMIT,
+        OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS,
+        "Operation token destroy requests are too frequent from this client"
+    )
+
+    token = operation_token or (req.operation_token if req else None)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="operation_token is required")
+
+    payload = await verify_operation_token(token)
+    if payload["sub"] != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operation token user mismatch")
+
+    now = int(time.time())
+    ttl = max(1, int(payload["exp"]) - now + 30)
+    jti = payload["jti"]
+    sub = payload["sub"]
+    await redis_client.setex(f"revoked:operation_token:{jti}", ttl, sub)
+    await redis_client.delete(
+        f"operation_token_meta:{sub}:{jti}",
+        f"total:operation_token:{jti}",
+        f"concurrency:operation_token:{jti}"
+    )
+    return JSONResponse({"code": 200, "data": None, "message": None})
+
 # ---------- 接口：下载文件（支持Range） ----------
 @app.get("/files/nodes/{node_id}/files/{file_name}/content")
 async def download_file(
@@ -287,6 +390,8 @@ async def download_file(
     payload = request.state.operation_token_payload
     jti = payload["jti"]
     sub = payload["sub"]
+    if sub != user_id:
+        raise HTTPException(status_code=403, detail="Operation token user mismatch")
     # 交叉校验请求路径与凭证中的 node_id file_name
     if payload["node_id"] != node_id or payload["file_name"] != file_name:
         raise HTTPException(status_code=403, detail="Operation Token not for this file")

@@ -35,7 +35,7 @@
         update pcd_user_info_table set user_name=#{name}, user_phone_number=#{phone_number}, user_image_path=#{image_path}, user_email=#{email}, user_account=#{account} where user_id=#{id};
     </update>
     <!--配置sql语句更新用户密码-->
-    <update id="updateUserPassword" parameterType="java.lang.String">
+    <update id="updateUserPassword">
         update pcd_user_info_table set user_password=#{new_password} where user_id=#{user_id};
     </update>
     <!--配置sql语句删除用户-->

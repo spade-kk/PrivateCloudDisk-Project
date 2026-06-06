@@ -8,14 +8,13 @@ import org.project.mapper.UserMapper;
 import org.project.service.DirectoryTreeService;
 import org.project.service.UserService;
 import org.project.service.ex.*;
-import org.slf4j.Marker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.security.PrivateKey;
-import java.util.Random;
+import java.security.SecureRandom;
 import java.util.UUID;
 
 @Slf4j
@@ -27,6 +26,9 @@ public class UserServiceImpl implements UserService {
     private FolderNodeMapper folderNodeMapper;
     @Autowired
     private DirectoryTreeService directoryTreeService;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
     public UserData login(String account, String phone_number, String password) {
@@ -47,15 +49,19 @@ public class UserServiceImpl implements UserService {
         }
 
         if(account != null && phone_number != null &&
-                !result.getAccount().equals(account) &&
-                !result.getPhone_number().equals(phone_number))
+                (!result.getAccount().equals(account) ||
+                        !result.getPhone_number().equals(phone_number)))
         {
             throw new AccountOrPhoneNumberException("用户账号手机号不匹配");
         }
 
         //检查密码匹配情况
-        if(!result.getPassword().equals(password)) {
+        if(!passwordMatches(password, result.getPassword())) {
             throw new PasswordNotMatchException();
+        }
+        if(!isBcryptHash(result.getPassword())) {
+            String hashedPassword = passwordEncoder.encode(password);
+            userMapper.updateUserPassword(result.getId(), hashedPassword);
         }
 
         return result;
@@ -74,13 +80,10 @@ public class UserServiceImpl implements UserService {
         //创建UserData把参数添加进去
         UserData userData = new UserData();
         userData.setPhone_number(phone_number);
-        userData.setPassword(password);
+        userData.setPassword(passwordEncoder.encode(password));
         userData.setName(name);
 
-        // 将随机数转换为字符串
-        String randomString = String.valueOf(new Random().nextLong());
-        // 截取前11位数字
-        String elevenDigitsNumber = randomString.substring(0, 11);
+        String elevenDigitsNumber = String.format("%011d", Math.floorMod(SECURE_RANDOM.nextLong(), 100_000_000_000L));
         String account = "pcd_" + elevenDigitsNumber;
 
         String id = UUID.randomUUID().toString();
@@ -130,12 +133,12 @@ public class UserServiceImpl implements UserService {
             throw new UserNotFoundException();
         }
         // 检查密码匹配情况
-        if(!userData.getPassword().equals(user_password)) {
+        if(!passwordMatches(user_password, userData.getPassword())) {
             throw new PasswordNotMatchException();
         }
         // 更新密码
         // 调用持久层函数更新数据
-        Integer rows = userMapper.updateUserPassword(new_password);
+        Integer rows = userMapper.updateUserPassword(user_id, passwordEncoder.encode(new_password));
         if(rows != 1) {
             throw new UpdateException("更新密码失败");
         }
@@ -180,5 +183,19 @@ public class UserServiceImpl implements UserService {
         if(rows != 1) {
             throw new DeleteException("删除用户失败");
         }
+    }
+
+    private boolean passwordMatches(String rawPassword, String storedPassword) {
+        if(storedPassword == null) {
+            return false;
+        }
+        if(isBcryptHash(storedPassword)) {
+            return passwordEncoder.matches(rawPassword, storedPassword);
+        }
+        return storedPassword.equals(rawPassword);
+    }
+
+    private boolean isBcryptHash(String password) {
+        return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
     }
 }

@@ -21,6 +21,20 @@ public class BaseController {
     //操作成功的状态码
     public static final int OK = 200;
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<JsonResult<Void>> handleRateLimitException(RateLimitExceededException e) {
+        JsonResult<Void> result = new JsonResult<>(e.getMessage(), 42900);
+        log.warn("接口请求被限流:{}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(result);
+    }
+
+    @ExceptionHandler(CaptchaVerificationException.class)
+    public ResponseEntity<JsonResult<Void>> handleCaptchaVerificationException(CaptchaVerificationException e) {
+        JsonResult<Void> result = new JsonResult<>(e.getMessage(), 42000);
+        log.warn("人机验证失败:{}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
+    }
+
     /**
      * 1.@ExceptionHandler表示该方法用于处理捕获抛出的异常
      * 2.什么样的异常才会被这个方法处理呢?所以需要ServiceException.class,这样的话只要是抛出ServiceException异常就会被拦截到handleException方法,此时handleException方法就是请求处理方法,返回值就是需要传递给前端的数据

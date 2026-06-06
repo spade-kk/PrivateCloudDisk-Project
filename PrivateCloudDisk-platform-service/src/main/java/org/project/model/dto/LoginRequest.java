@@ -19,4 +19,10 @@ public class LoginRequest {
     @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,15}$",
             message = "密码必须是8-15位，包含字母、数字")
     private String password;
+
+    @Size(max = 2048, message = "人机验证码长度不正确")
+    private String captcha_token;
+
+    @Size(max = 32, message = "人机验证码动作长度不正确")
+    private String captcha_action;
 }

@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     rate_per_sec: int = 10
     max_range_bytes: int = 100 * 1024 * 1024
     thumbnail_ttl: int = 3600
+    operation_token_issue_file_limit: int = 10
+    operation_token_issue_file_window_seconds: int = 60
+    operation_token_destroy_user_limit: int = 60
+    operation_token_destroy_user_window_seconds: int = 60
+    operation_token_destroy_ip_limit: int = 180
+    operation_token_destroy_ip_window_seconds: int = 60
 
     class Config:
         env_file = ".env"
