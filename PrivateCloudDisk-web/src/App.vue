@@ -1,7 +1,8 @@
 <template>
   <router-view />
+  <ToastNotification />
 </template>
 
 <script setup>
-// 根组件，仅作为路由出口
+import ToastNotification from '@/components/common/ToastNotification.vue'
 </script>

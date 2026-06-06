@@ -1,7 +1,25 @@
 // src/utils/request.js
 import axios from 'axios';
-import { ElMessage } from 'element-plus'; // 以 Element Plus 为例
 import { useAuthStore } from '@/stores/authStore'
+import { useToastStore } from '@/stores/toastStore'
+
+export class ApiError extends Error {
+  constructor(message, options = {}) {
+    super(message)
+    this.name = 'ApiError'
+    Object.assign(this, options)
+  }
+}
+
+function notifyNetworkError(message, config = {}) {
+  if (config?.suppressToast || config?.silent) return
+  try {
+    const toastStore = useToastStore()
+    toastStore.showToast(message, 'error')
+  } catch (error) {
+    console.error(message)
+  }
+}
 
 // 创建 Axios 实例
 const service = axios.create({
@@ -30,13 +48,17 @@ service.interceptors.response.use(
     const res = response.data;
     // 根据后端约定的结构判断业务状态码
     if (res.code !== 200) {
-      ElMessage.error(res.message || '请求失败');
       // 特定业务错误码处理，如 401 跳转登录
       if (res.code === 401) {
         // 清除 token 并跳转
         window.location.href = '/login';
       }
-      return Promise.reject(new Error(res.message || 'Error'));
+      return Promise.reject(new ApiError(res.message || '请求失败', {
+        code: res.code,
+        data: res.data,
+        response,
+        isBusinessError: true,
+      }));
     }
     // 正常返回数据（只返回有效 data）
     return res;
@@ -44,6 +66,8 @@ service.interceptors.response.use(
   (error) => {
     // HTTP 状态码错误处理
     let message = '网络异常，请稍后重试';
+    let isNetworkError = false
+    let isTimeout = false
     if (error.response) {
       const status = error.response.status;
       switch (status) {
@@ -63,12 +87,25 @@ service.interceptors.response.use(
           message = `连接错误 ${status}`;
       }
     } else if (error.message.includes('timeout')) {
+      isTimeout = true
+      isNetworkError = true
       message = '请求超时，请检查网络';
     } else if (error.message.includes('Network Error')) {
+      isNetworkError = true
       message = '网络连接异常';
+    } else {
+      isNetworkError = true
     }
-    ElMessage.error(message);
-    return Promise.reject(error);
+    if (isNetworkError || isTimeout) {
+      notifyNetworkError(message, error.config)
+    }
+    return Promise.reject(new ApiError(message, {
+      status: error.response?.status,
+      response: error.response,
+      originalError: error,
+      isNetworkError,
+      isTimeout,
+    }));
   }
 );
 

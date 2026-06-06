@@ -46,7 +46,11 @@
     </header> -->
       <main class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
         <div class="page-container">
-          <router-view />
+          <router-view v-slot="{ Component, route: viewRoute }">
+            <transition name="page-fade" mode="out-in">
+              <component :is="Component" :key="viewRoute.fullPath" />
+            </transition>
+          </router-view>
         </div>
       </main>
       <footer class="shrink-0 border-t border-neutral-200 bg-white py-3 sm:py-4">

@@ -10,8 +10,6 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await loginApi(phoneNumber, password);
 
-      console.log('登录响应:', res); // 添加日志以检查响应内容
-
       if (res.code === 200) {
         token.value = res.data
         localStorage.setItem('cloudDriveToken', token.value)
@@ -19,7 +17,10 @@ export const useAuthStore = defineStore('auth', () => {
       }
       return { success: false, message: res.message || '登录失败' }
     } catch (error) {
-      return { success: false, message: '网络错误，请稍后重试' }
+      if (error.isBusinessError) {
+        return { success: false, message: error.message || '手机号或密码错误', scope: 'form' }
+      }
+      return { success: false, message: error.message || '网络错误，请稍后重试', scope: 'network' }
     }
   }
 

@@ -1,9 +1,17 @@
 <template>
   <Teleport to="body">
-    <div class="fixed top-20 right-4 z-50 max-w-xs transition-all duration-300" :class="visible ? 'translate-x-0' : 'translate-x-full'">
-      <div :class="['text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2', bgClass]">
+    <div
+      class="pointer-events-none fixed right-0 top-20 z-50 flex w-full justify-end overflow-hidden px-4"
+      aria-live="polite"
+    >
+      <div
+        class="pointer-events-auto max-w-xs transform transition-all duration-300 ease-out"
+        :class="visible ? 'translate-x-0 opacity-100' : 'translate-x-[calc(100%+2rem)] opacity-0'"
+      >
+      <div :class="['text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2', bgClass]">
         <i :class="iconClass"></i>
         <span>{{ message }}</span>
+      </div>
       </div>
     </div>
   </Teleport>

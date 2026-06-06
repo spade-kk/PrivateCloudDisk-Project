@@ -38,6 +38,11 @@
     <div class="responsive-panel p-3 sm:p-4">
       <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
     </div>
+    <WorkspaceOverview
+      :nodes="fileBrowserStore.nodes"
+      :selected-count="selectionStore.selectedIds.size"
+      :path-depth="fileBrowserStore.pathStack.length"
+    />
     <!-- 原有操作栏 -->
     <div class="responsive-panel flex flex-col gap-4 p-3 sm:p-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 md:flex-nowrap">
@@ -80,6 +85,18 @@
         <LoadingSpinner />
         <p class="text-neutral-500 mt-4">加载中...</p>
       </div>
+
+      <!-- 加载失败 -->
+      <PageState
+        v-else-if="fileBrowserStore.error"
+        type="error"
+        icon="fa fa-exclamation-triangle"
+        :title="fileBrowserStore.error.title"
+        :description="fileBrowserStore.error.message"
+        action-text="重试"
+        action-icon="fa fa-refresh"
+        @action="fileBrowserStore.retry"
+      />
 
       <!-- 空状态 -->
       <EmptyState v-else-if="filteredNodes.length === 0" message="该文件夹为空" @create="showCreateModal = true" />
@@ -148,7 +165,6 @@
       @togglePause="toggleUploadPause"
       @cancel="cancelUpload"
     /> -->
-    <ToastNotification />
   </div>
 </template>
 
@@ -169,15 +185,16 @@ import CreateFolderModal from '@/components/modals/CreateFolderModal.vue'
 import DownloadConfirmModal from '@/components/modals/DownloadConfirmModal.vue'
 import UploadConfirmModal from '@/components/modals/UploadConfirmModal.vue'
 import UploadProgressPanel from '@/components/upload/UploadProgressPanel.vue'
-import ToastNotification from '@/components/common/ToastNotification.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import PageState from '@/components/common/PageState.vue'
 import { useSelectionStore } from '@/stores/selectionStore'
 import BatchActionsBar from '@/components/file/BatchActionsBar.vue'
 import RenameDialog from '@/components/file/RenameDialog.vue'
 import MoveCopyDialog from '@/components/file/MoveCopyDialog.vue'
 import FileDetailDrawer from '@/components/file/FileDetailDrawer.vue'
 import FilePreview from '@/components/file/FilePreview.vue'
+import WorkspaceOverview from '@/components/dashboard/WorkspaceOverview.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

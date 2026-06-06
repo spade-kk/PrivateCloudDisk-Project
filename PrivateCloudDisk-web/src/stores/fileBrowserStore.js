@@ -3,13 +3,13 @@ import { ref, computed } from 'vue'
 import { useToastStore } from './toastStore'
 import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, renameFileApi, deleteFileApi, getMyUserRootNodeApi, createFolderApi } from '@/api/index'
 
-const toastStore = useToastStore()
-
 export const useFileBrowserStore = defineStore('fileBrowser', () => {
+  const toastStore = useToastStore()
   const currentNodeId = ref('')
   const pathStack = ref([]) // [{ node_id, node_name }]
   const nodes = ref([])
   const loading = ref(false)
+  const error = ref(null)
   const searchKeyword = ref('')
 
   const filteredNodes = computed(() => {
@@ -18,8 +18,18 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     return nodes.value.filter(node => node.node_name.toLowerCase().includes(kw))
   })
 
+  function setLoadError(title, message, rawError) {
+    error.value = {
+      title,
+      message,
+      isNetworkError: !!rawError?.isNetworkError,
+      isTimeout: !!rawError?.isTimeout,
+    }
+  }
+
   async function loadRoot() {
     loading.value = true
+    error.value = null
     try {
       const res = await getMyUserRootNodeApi();
       if (res.code === 200 && res.data) {
@@ -27,13 +37,13 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
         currentNodeId.value = root.node_id
         pathStack.value = [{ node_id: root.node_id, node_name: '我的网盘' }]
         await loadChildren(currentNodeId.value)
-        toastStore.showToast('加载根目录成功', 'success')
       } else {
         nodes.value = []
+        setLoadError('无法加载网盘', res.message || '根目录数据异常，请稍后重试')
       }
     } catch (error) {
-      toastStore.showToast('加载根目录失败', 'error')
       console.error('加载根目录失败', error)
+      setLoadError('无法加载网盘', error.message || '根目录加载失败，请稍后重试', error)
       nodes.value = []
     } finally {
       loading.value = false
@@ -42,6 +52,7 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
 
   async function loadChildren(nodeId) {
     loading.value = true
+    error.value = null
     try {
       const res = await getNodeChildrenApi(nodeId);
       if (res.code === 200) {
@@ -49,10 +60,11 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
         currentNodeId.value = nodeId
       } else {
         nodes.value = []
+        setLoadError('目录加载失败', res.message || '当前目录数据异常，请稍后重试')
       }
     } catch (error) {
-      toastStore.showToast('加载子节点失败', 'error')
       console.error('加载子节点失败', error)
+      setLoadError('目录加载失败', error.message || '当前目录加载失败，请稍后重试', error)
       nodes.value = []
     } finally {
       loading.value = false
@@ -91,8 +103,13 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
 
   function refresh() {
     if (currentNodeId.value) {
-      loadChildren(currentNodeId.value)
+      return loadChildren(currentNodeId.value)
     }
+    return loadRoot()
+  }
+
+  function retry() {
+    return refresh()
   }
 
   return {
@@ -101,6 +118,7 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     nodes,
     filteredNodes,
     loading,
+    error,
     searchKeyword,
     loadRoot,
     loadChildren,
@@ -108,5 +126,6 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     goHome,
     createFolder,
     refresh,
+    retry,
   }
 })
