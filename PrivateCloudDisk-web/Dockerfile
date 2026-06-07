@@ -32,5 +32,6 @@ COPY --from=builder /frontend_web_app/dist/ /usr/share/nginx/html/
 
 # 暴露80端口
 EXPOSE 80
+EXPOSE 443
 
 CMD ["nginx", "-g", "daemon off;"]
