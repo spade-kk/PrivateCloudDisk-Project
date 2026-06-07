@@ -1,86 +1,74 @@
 package org.project.control;
 
-
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import org.project.control.result.JsonResult;
-import org.project.data.FileData;
+import org.project.model.dto.MoveFileRequest;
+import org.project.model.dto.RenameFileRequest;
+import org.project.model.entity.FileEntity;
+import org.project.model.vo.FileVO;
+import org.project.model.vo.VoMapper;
 import org.project.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/business/files")
+@Validated
+@RequestMapping("/business")
 public class FileController extends BaseController {
     @Autowired
     private FileService fileService;
 
-    /**
-     * 查询文件信息
-     * @param position
-     * @param file_name
-     * @param user_id
-     * @return
-     */
-    @GetMapping("/{position}/{file_name}/info")
-    public JsonResult<FileData> queryFileData( @PathVariable String position,
-                                               @PathVariable String file_name,
-                                               @RequestHeader("X-User-Id") String user_id ) {
-        FileData fileData = fileService.queryUserFileByNodeIdAndName(position, file_name, user_id);
-
-        return new JsonResult<>(OK, fileData);
+    @GetMapping({"/nodes/{node_id}/files/{file_name}", "/nodes/{node_id}/files/{file_name}/"})
+    public JsonResult<FileVO> queryFileEntity(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "node_id必须是有效的UUID格式")
+            @PathVariable String node_id,
+            @PathVariable String file_name,
+            @RequestHeader("X-User-Id") String user_id ) {
+        FileEntity fileData = fileService.queryUserFileByNodeIdAndName(node_id, file_name, user_id);
+        return new JsonResult<>(OK, VoMapper.toFileVO(fileData));
     }
 
-    /**
-     * 根据ID查询文件信息
-     * @param file_id 文件ID
-     * @param user_id 查询用户Uid
-     * @return
-     */
-    @GetMapping("/{file_id}")
-    public JsonResult<FileData> queryFileDataByFileId( @PathVariable String file_id,
-                                                       @RequestHeader("X-User-Id") String user_id ) {
-        FileData fileData = fileService.queryUserFileById(file_id, user_id);
-        return new JsonResult<>(OK, fileData);
+    @GetMapping({"/files/{file_id}", "/files/{file_id}/"})
+    public JsonResult<FileVO> queryFileEntityByFileId(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "file_id必须是有效的UUID格式")
+            @PathVariable String file_id,
+            @RequestHeader("X-User-Id") String user_id ) {
+        FileEntity fileData = fileService.queryUserFileById(file_id, user_id);
+        return new JsonResult<>(OK, VoMapper.toFileVO(fileData));
     }
 
-    /**
-     * 文件重命名
-     * @param file_new_name
-     * @param file_id
-     * @param user_id
-     * @return
-     */
-    @PatchMapping("/{file_id}/name")
-    public JsonResult<Void> updateFileName(@PathVariable String file_id,
-                                           String file_new_name,
-                                           @RequestHeader("X-User-Id") String user_id ) {
-        fileService.updateFileName(file_id, file_new_name, user_id);
+    @PatchMapping({"/files/{file_id}/name", "/files/{file_id}/name/"})
+    public JsonResult<Void> updateFileName(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "file_id必须是有效的UUID格式")
+            @PathVariable String file_id,
+            @Valid @RequestBody RenameFileRequest request,
+            @RequestHeader("X-User-Id") String user_id ) {
+        fileService.updateFileName(file_id, request.getFile_new_name(), user_id);
         return new JsonResult<>(OK);
     }
 
-    /**
-     * 文件移动
-     * @param file_id 文件ID
-     * @param user_id 用户ID
-     * @param target_node_id 目标节点ID
-     * @return
-     */
-    @PatchMapping("/{file_id}/position")
-    public JsonResult<Void> moveFileByFileId( @PathVariable String file_id,
-                                              String target_node_id,
-                                              @RequestHeader("X-User-Id") String user_id ) {
-        fileService.moveFileByFileId(file_id, target_node_id, user_id);
+    @PatchMapping({"/files/{file_id}/position", "/files/{file_id}/position/"})
+    public JsonResult<Void> moveFileByFileId(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "file_id必须是有效的UUID格式")
+            @PathVariable String file_id,
+            @Valid @RequestBody MoveFileRequest request,
+            @RequestHeader("X-User-Id") String user_id ) {
+        fileService.moveFileByFileId(file_id, request.getTarget_node_id(), user_id);
         return new JsonResult<>(OK);
     }
 
-    /**
-     * 删除文件
-     * @param file_id
-     * @param user_id
-     * @return
-     */
-    @DeleteMapping("/{file_id}")
-    public JsonResult<Void> deleteFileByFileId( @PathVariable String file_id,
-                                              @RequestHeader("X-User-Id") String user_id ) {
+    @DeleteMapping({"/files/{file_id}", "/files/{file_id}/"})
+    public JsonResult<Void> deleteFileByFileId(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "file_id必须是有效的UUID格式")
+            @PathVariable String file_id,
+            @RequestHeader("X-User-Id") String user_id ) {
         fileService.deleteFileByFileId(file_id, user_id);
         return new JsonResult<>(OK);
     }

@@ -3,11 +3,14 @@ package org.project.control;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.project.control.result.JsonResult;
-import org.project.data.UserData;
+import org.project.model.entity.UserEntity;
 import org.project.model.dto.ChangeUserPasswordRequest;
 import org.project.model.dto.LoginRequest;
 import org.project.model.dto.registerUserRequest;
 import org.project.model.dto.updateUserInfoRequest;
+import org.project.model.vo.LoginDeviceVO;
+import org.project.model.vo.UserProfileVO;
+import org.project.model.vo.VoMapper;
 import org.project.security.ApiAbuseProtectionService;
 import org.project.security.CaptchaVerifier;
 import org.project.service.ex.ServiceException;
@@ -18,6 +21,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 /**
  * 处理用户模块的请求
@@ -47,7 +52,7 @@ public class UserController extends BaseController {
         apiAbuseProtectionService.checkLoginStart(loginRequest, clientIp);
         try {
             captchaVerifier.verify(loginRequest.getCaptcha_token(), "login", clientIp);
-            UserData userData = userService.login(loginRequest.getAccount(), loginRequest.getPhone_number(), loginRequest.getPassword());
+            UserEntity userData = userService.login(loginRequest.getAccount(), loginRequest.getPhone_number(), loginRequest.getPassword());
             String token = jwtUtil.generateAccessToken(userData.getId());
             apiAbuseProtectionService.recordLoginSuccess(loginRequest, clientIp);
             return new JsonResult<String>(OK, token);
@@ -110,12 +115,12 @@ public class UserController extends BaseController {
     /**
      * 查询登陆用户信息
      * @param user_id
-     * @return JsonResult data UserData 用户数据
+     * @return JsonResult data UserProfileVO 用户数据
      */
     @GetMapping("/me")
-    public JsonResult<UserData> queryUserInfoByUserId(@RequestHeader("X-User-Id") String user_id) {
-        UserData userData = userService.findUserInfoByUserId(user_id);
-        return new JsonResult<>(OK, userData);
+    public JsonResult<UserProfileVO> queryUserInfoByUserId(@RequestHeader("X-User-Id") String user_id) {
+        UserEntity userData = userService.findUserInfoByUserId(user_id);
+        return new JsonResult<>(OK, VoMapper.toUserProfileVO(userData));
     }
 
     /**
@@ -151,7 +156,7 @@ public class UserController extends BaseController {
      * @return
      */
     @GetMapping("/me/online-devices")
-    public JsonResult<Void> queryOnlineDevicesByUserId(@RequestHeader("X-User-Id") String user_id) {
-        return new JsonResult<>(OK);
+    public JsonResult<List<LoginDeviceVO>> queryOnlineDevicesByUserId(@RequestHeader("X-User-Id") String user_id) {
+        return new JsonResult<>(OK, List.of());
     }
 }

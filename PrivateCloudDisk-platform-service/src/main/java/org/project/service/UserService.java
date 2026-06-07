@@ -1,7 +1,7 @@
 package org.project.service;
 
-import org.project.data.FolderNodeData;
-import org.project.data.UserData;
+import org.project.model.entity.FolderNodeEntity;
+import org.project.model.entity.UserEntity;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface UserService {
@@ -12,7 +12,7 @@ public interface UserService {
      * @param password 密码
      * @return 用户数据
      */
-    UserData login(String account, String phone_number, String password);
+    UserEntity login(String account, String phone_number, String password);
     /**
      * 业务层函数实现注册用户功能
      * @param phone_number 手机号
@@ -27,7 +27,7 @@ public interface UserService {
       * @param user_id 用户ID
       * @return 用户根目录节点
       */
-    FolderNodeData findRootFolderNodeByUserId(String user_id);
+    FolderNodeEntity findRootFolderNodeByUserId(String user_id);
     /**
      * 业务层函数根据用户ID删除用户
      * @param user_id 用户ID
@@ -47,7 +47,7 @@ public interface UserService {
      * @param user_id 用户ID
      * @return 用户信息
      */
-    UserData findUserInfoByUserId(String user_id);
+    UserEntity findUserInfoByUserId(String user_id);
     /**
      * 业务层函数根据用户ID更新用户密码
      * @param user_id 用户ID

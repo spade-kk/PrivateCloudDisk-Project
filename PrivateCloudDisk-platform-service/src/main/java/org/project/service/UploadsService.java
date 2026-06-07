@@ -1,7 +1,7 @@
 package org.project.service;
 
-import org.project.data.UploadsChunkData;
-import org.project.data.UploadsSessionData;
+import org.project.model.entity.UploadsChunkEntity;
+import org.project.model.entity.UploadsSessionEntity;
 
 public interface UploadsService {
     /**
@@ -32,7 +32,7 @@ public interface UploadsService {
      * @param uploads_id 上传会话ID
      * @return 上传会话数据
      */
-    UploadsSessionData queryUploadsSessionById(String uploads_id);
+    UploadsSessionEntity queryUploadsSessionById(String uploads_id);
 
     /**
      * 根据上传会话ID和块索引查询块数据
@@ -40,7 +40,7 @@ public interface UploadsService {
      * @param chunk_index 块索引
      * @return 块数据
      */
-    UploadsChunkData queryChunkByUploadsIdAndChunkIndex(String uploads_id, int chunk_index);
+    UploadsChunkEntity queryChunkByUploadsIdAndChunkIndex(String uploads_id, int chunk_index);
 
     /**
      * 完成块上传

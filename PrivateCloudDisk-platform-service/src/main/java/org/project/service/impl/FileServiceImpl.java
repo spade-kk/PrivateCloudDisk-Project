@@ -1,8 +1,8 @@
 package org.project.service.impl;
 
 import jakarta.annotation.Resource;
-import org.project.data.FileData;
-import org.project.data.FolderNodeData;
+import org.project.model.entity.FileEntity;
+import org.project.model.entity.FolderNodeEntity;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
 import org.project.service.FileService;
@@ -26,8 +26,13 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public String createFile(String file_name, String file_type, long file_size, String user_id, String node_id, String file_checksum, int total_chunks, String storage_path) {
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
+        if(node == null) {
+            throw new NodeNotExistException("节点不存在");
+        }
+        assertNodeOwner(node, user_id);
         // 实现文件创建的逻辑
-        FileData fileData = new FileData();
+        FileEntity fileData = new FileEntity();
         fileData.setName(file_name);
         fileData.setType(file_type);
         fileData.setUser_id(user_id);
@@ -51,25 +56,27 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public List<FileData> queryUserFilesByNodeId(String node_id, String user_id) {
+    public List<FileEntity> queryUserFilesByNodeId(String node_id, String user_id) {
         // 检查节点是否存在
-        FolderNodeData node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
+        assertNodeOwner(node, user_id);
 
         return fileMapper.findUserFilesByNodeId(node_id, user_id);
     }
 
     @Override
-    public FileData queryUserFileByNodeIdAndName(String node_id, String file_name, String user_id) {
+    public FileEntity queryUserFileByNodeIdAndName(String node_id, String file_name, String user_id) {
         // 检查节点是否存在
-        FolderNodeData node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
+        assertNodeOwner(node, user_id);
 
-        FileData fileData = fileMapper.findUserFileByNodeIdAndName(node_id, file_name, user_id);
+        FileEntity fileData = fileMapper.findUserFileByNodeIdAndName(node_id, file_name, user_id);
         if(fileData == null || !fileData.getUser_id().equals(user_id)) {
             throw new FileNotExistException();
         }
@@ -77,8 +84,8 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public FileData queryUserFileById(String file_id, String user_id) {
-        FileData fileData = fileMapper.findFileById(file_id);
+    public FileEntity queryUserFileById(String file_id, String user_id) {
+        FileEntity fileData = fileMapper.findFileById(file_id);
         if(fileData == null || !fileData.getUser_id().equals(user_id)) {
             throw new FileNotExistException();
         }
@@ -88,10 +95,11 @@ public class FileServiceImpl implements FileService {
     @Override
     public void updateFileName(String file_id, String file_new_name, String user_id) {
         // 检查文件是否存在
-        FileData fileData = fileMapper.findFileById(file_id);
+        FileEntity fileData = fileMapper.findFileById(file_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
+        assertFileOwner(fileData, user_id);
         // 实现文件名称更新的逻辑
         Integer rows = fileMapper.updateUserFileNameById(file_id, file_new_name, user_id);
         if(rows!= 1) {
@@ -102,10 +110,16 @@ public class FileServiceImpl implements FileService {
     @Override
     public void moveFileByFileId(String file_id, String target_node_id, String user_id) {
         // 检查文件是否存在
-        FileData fileData = fileMapper.findFileById(file_id);
+        FileEntity fileData = fileMapper.findFileById(file_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
+        assertFileOwner(fileData, user_id);
+        FolderNodeEntity targetNode = folderNodeMapper.findFolderNodeById(target_node_id);
+        if(targetNode == null) {
+            throw new NodeNotExistException("目标节点不存在");
+        }
+        assertNodeOwner(targetNode, user_id);
         // 实现文件移动的逻辑
         Integer rows = fileMapper.updateUserFileParentNodeIdById(file_id, target_node_id, user_id);
         if(rows!= 1) {
@@ -116,14 +130,27 @@ public class FileServiceImpl implements FileService {
     @Override
     public void deleteFileByFileId(String file_id, String user_id) {
         // 检查文件是否存在
-        FileData fileData = fileMapper.findFileById(file_id);
+        FileEntity fileData = fileMapper.findFileById(file_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
+        assertFileOwner(fileData, user_id);
         // 实现文件删除的逻辑
         Integer rows = fileMapper.deleteUserFileById(file_id, user_id);
         if(rows!= 1) {
             throw new DeleteException("文件删除失败");
+        }
+    }
+
+    private void assertFileOwner(FileEntity fileData, String user_id) {
+        if(user_id == null || !user_id.equals(fileData.getUser_id())) {
+            throw new OverstepAuthorityException("您没有权限操作该文件");
+        }
+    }
+
+    private void assertNodeOwner(FolderNodeEntity node, String user_id) {
+        if(user_id == null || !user_id.equals(node.getUser_id())) {
+            throw new OverstepAuthorityException("您没有权限操作该节点");
         }
     }
 }

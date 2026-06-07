@@ -1,6 +1,6 @@
 package org.project.config;
 
-import org.project.data.UploadsSessionData;
+import org.project.model.entity.UploadsSessionEntity;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.statemachine.config.EnableStateMachine;
 import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
@@ -11,29 +11,29 @@ import java.util.EnumSet;
 
 @Configuration
 @EnableStateMachine(name = "uploadsStateMachine")
-public class UploadsStateMachineConfigure extends EnumStateMachineConfigurerAdapter<UploadsSessionData.UploadsSessionStatus, UploadsSessionData.UploadsSessionEvent> {
+public class UploadsStateMachineConfigure extends EnumStateMachineConfigurerAdapter<UploadsSessionEntity.UploadsSessionStatus, UploadsSessionEntity.UploadsSessionEvent> {
     @Override
-    public void configure(StateMachineStateConfigurer<UploadsSessionData.UploadsSessionStatus, UploadsSessionData.UploadsSessionEvent> statesConfigurer) throws Exception {
+    public void configure(StateMachineStateConfigurer<UploadsSessionEntity.UploadsSessionStatus, UploadsSessionEntity.UploadsSessionEvent> statesConfigurer) throws Exception {
         statesConfigurer.withStates()
-                .initial(UploadsSessionData.UploadsSessionStatus.uploading)
-                .states(EnumSet.allOf(UploadsSessionData.UploadsSessionStatus.class));
+                .initial(UploadsSessionEntity.UploadsSessionStatus.uploading)
+                .states(EnumSet.allOf(UploadsSessionEntity.UploadsSessionStatus.class));
     }
 
     @Override
-    public void configure(StateMachineTransitionConfigurer<UploadsSessionData.UploadsSessionStatus, UploadsSessionData.UploadsSessionEvent> transitionsConfigurer) throws Exception {
+    public void configure(StateMachineTransitionConfigurer<UploadsSessionEntity.UploadsSessionStatus, UploadsSessionEntity.UploadsSessionEvent> transitionsConfigurer) throws Exception {
         transitionsConfigurer.withExternal()
-                    .source(UploadsSessionData.UploadsSessionStatus.uploading)
-                    .target(UploadsSessionData.UploadsSessionStatus.merging)
-                    .event(UploadsSessionData.UploadsSessionEvent.Merge)
+                    .source(UploadsSessionEntity.UploadsSessionStatus.uploading)
+                    .target(UploadsSessionEntity.UploadsSessionStatus.merging)
+                    .event(UploadsSessionEntity.UploadsSessionEvent.Merge)
                 .and()
                 .withExternal()
-                    .source(UploadsSessionData.UploadsSessionStatus.merging)
-                    .target(UploadsSessionData.UploadsSessionStatus.completed)
-                    .event(UploadsSessionData.UploadsSessionEvent.Complete)
+                    .source(UploadsSessionEntity.UploadsSessionStatus.merging)
+                    .target(UploadsSessionEntity.UploadsSessionStatus.completed)
+                    .event(UploadsSessionEntity.UploadsSessionEvent.Complete)
                 .and()
                 .withExternal()
-                    .source(UploadsSessionData.UploadsSessionStatus.merging)
-                    .target(UploadsSessionData.UploadsSessionStatus.failed)
-                    .event(UploadsSessionData.UploadsSessionEvent.Fail);
+                    .source(UploadsSessionEntity.UploadsSessionStatus.merging)
+                    .target(UploadsSessionEntity.UploadsSessionStatus.failed)
+                    .event(UploadsSessionEntity.UploadsSessionEvent.Fail);
     }
 }

@@ -1,6 +1,6 @@
 package org.project.service;
 
-import org.project.data.FileData;
+import org.project.model.entity.FileEntity;
 
 import java.util.List;
 
@@ -34,7 +34,7 @@ public interface FileService {
      * @param user_id 查询用户Uid
      * @return 文件元数据列表
      */
-    List<FileData> queryUserFilesByNodeId(String node_id, String user_id);
+    List<FileEntity> queryUserFilesByNodeId(String node_id, String user_id);
 
     /**
      * 根据父节点ID和文件名字查询用户云盘节点下文件元数据
@@ -43,7 +43,7 @@ public interface FileService {
      * @param user_id 查询用户Uid
      * @return 文件元数据
      */
-    FileData queryUserFileByNodeIdAndName(String node_id, String file_name, String user_id);
+    FileEntity queryUserFileByNodeIdAndName(String node_id, String file_name, String user_id);
 
     /**
      * 根据文件ID查询用户云盘下文件元数据
@@ -51,7 +51,7 @@ public interface FileService {
      * @param user_id 查询用户Uid
      * @return 文件元数据
      */
-    FileData queryUserFileById(String file_id, String user_id);
+    FileEntity queryUserFileById(String file_id, String user_id);
 
     /**
      * 更新文件名称

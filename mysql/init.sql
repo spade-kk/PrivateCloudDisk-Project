@@ -192,7 +192,10 @@ CREATE TABLE `pcd_user_info_table` (
   `user_password` varchar(70) NOT NULL,
   `user_account` varchar(70) NOT NULL,
   `user_email` varchar(70) DEFAULT NULL,
-  PRIMARY KEY (`user_id`)
+  PRIMARY KEY (`user_id`),
+  UNIQUE KEY `uk_user_phone_number` (`user_phone_number`),
+  UNIQUE KEY `uk_user_account` (`user_account`),
+  UNIQUE KEY `uk_user_email` (`user_email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -202,9 +205,85 @@ CREATE TABLE `pcd_user_info_table` (
 
 LOCK TABLES `pcd_user_info_table` WRITE;
 /*!40000 ALTER TABLE `pcd_user_info_table` DISABLE KEYS */;
-INSERT INTO `pcd_user_info_table` VALUES ('XiaoMo','415d3064-a465-4813-8f42-d6f1aa9b87c0','15777446691',NULL,'20070315mwz','pcd_18181999067','1773172144@qq.com');
+INSERT INTO `pcd_user_info_table` VALUES ('XiaoMo','415d3064-a465-4813-8f42-d6f1aa9b87c0','15777446691',NULL,'$2y$10$EF.UYBZylYuTWCfUkPpy4O6s4fWLUJwXDIwmLwXhO6.k/f.pipIzG','pcd_18181999067','1773172144@qq.com');
 /*!40000 ALTER TABLE `pcd_user_info_table` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `pcd_user_device_table`
+--
+
+DROP TABLE IF EXISTS `pcd_user_device_table`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pcd_user_device_table` (
+  `device_id` varchar(36) NOT NULL COMMENT '服务端生成的设备ID',
+  `device_user_id` varchar(36) NOT NULL COMMENT '所属用户ID',
+  `device_client_type` varchar(50) NOT NULL COMMENT '客户端类型，例如 WEB/IOS/MACOS/WECHAT/PC',
+  `device_client_name` varchar(120) DEFAULT NULL COMMENT '客户端展示名称',
+  `device_platform` varchar(120) DEFAULT NULL COMMENT '系统或平台信息',
+  `device_user_agent_hash` varchar(64) DEFAULT NULL COMMENT 'User-Agent规范化后的哈希',
+  `device_public_key` text COMMENT '设备密钥绑定的公钥，可选',
+  `device_created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `device_last_seen_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `device_status` enum('active','disabled','revoked') NOT NULL DEFAULT 'active',
+  PRIMARY KEY (`device_id`),
+  KEY `idx_device_user_status` (`device_user_id`,`device_status`),
+  CONSTRAINT `pcd_user_device_table_ibfk_1` FOREIGN KEY (`device_user_id`) REFERENCES `pcd_user_info_table` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户登录设备表';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `pcd_login_session_table`
+--
+
+DROP TABLE IF EXISTS `pcd_login_session_table`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pcd_login_session_table` (
+  `login_session_id` varchar(36) NOT NULL COMMENT '服务端签发的登录会话ID，即sid',
+  `login_session_user_id` varchar(36) NOT NULL COMMENT '登录用户ID',
+  `login_session_device_id` varchar(36) DEFAULT NULL COMMENT '关联设备ID',
+  `login_session_token_jti` varchar(36) DEFAULT NULL COMMENT '登录JWT jti',
+  `login_session_client_ip` varchar(64) DEFAULT NULL COMMENT '登录IP',
+  `login_session_user_agent` varchar(512) DEFAULT NULL COMMENT '登录User-Agent',
+  `login_session_started_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `login_session_expires_at` datetime NOT NULL COMMENT '会话过期时间',
+  `login_session_revoked_at` datetime DEFAULT NULL COMMENT '会话撤销时间',
+  `login_session_status` enum('active','expired','revoked') NOT NULL DEFAULT 'active',
+  PRIMARY KEY (`login_session_id`),
+  KEY `idx_login_session_user_status` (`login_session_user_id`,`login_session_status`),
+  KEY `idx_login_session_device_status` (`login_session_device_id`,`login_session_status`),
+  KEY `idx_login_session_jti` (`login_session_token_jti`),
+  CONSTRAINT `pcd_login_session_table_ibfk_1` FOREIGN KEY (`login_session_user_id`) REFERENCES `pcd_user_info_table` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `pcd_login_session_table_ibfk_2` FOREIGN KEY (`login_session_device_id`) REFERENCES `pcd_user_device_table` (`device_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户登录会话表';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `pcd_login_audit_table`
+--
+
+DROP TABLE IF EXISTS `pcd_login_audit_table`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pcd_login_audit_table` (
+  `audit_id` bigint NOT NULL AUTO_INCREMENT,
+  `audit_user_id` varchar(36) DEFAULT NULL COMMENT '匹配到的用户ID，失败时可为空',
+  `audit_account` varchar(100) DEFAULT NULL COMMENT '登录账号',
+  `audit_phone_number` varchar(50) DEFAULT NULL COMMENT '登录手机号',
+  `audit_success` tinyint(1) NOT NULL COMMENT '是否登录成功',
+  `audit_failure_reason` varchar(120) DEFAULT NULL COMMENT '失败原因',
+  `audit_client_ip` varchar(64) DEFAULT NULL COMMENT '客户端IP',
+  `audit_user_agent` varchar(512) DEFAULT NULL COMMENT 'User-Agent',
+  `audit_created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`audit_id`),
+  KEY `idx_login_audit_user_time` (`audit_user_id`,`audit_created_at`),
+  KEY `idx_login_audit_account_time` (`audit_account`,`audit_created_at`),
+  KEY `idx_login_audit_ip_time` (`audit_client_ip`,`audit_created_at`),
+  CONSTRAINT `pcd_login_audit_table_ibfk_1` FOREIGN KEY (`audit_user_id`) REFERENCES `pcd_user_info_table` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='登录审计表';
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `pcd_user_quota_log_table`

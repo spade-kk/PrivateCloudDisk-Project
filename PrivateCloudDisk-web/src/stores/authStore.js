@@ -6,9 +6,9 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('cloudDriveToken') || '')
   const isLoggedIn = computed(() => !!token.value)
 
-  async function login(phoneNumber, password) {
+  async function login(phoneNumber, password, captchaToken = '') {
     try {
-      const res = await loginApi(phoneNumber, password);
+      const res = await loginApi(phoneNumber, password, captchaToken, 'login');
 
       if (res.code === 200) {
         token.value = res.data

@@ -1,7 +1,7 @@
 package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
-import org.project.data.FolderNodeData;
+import org.project.model.entity.FolderNodeEntity;
 
 import java.util.List;
 
@@ -12,28 +12,28 @@ public interface FolderNodeMapper {
      * @param folder_node_data 文件夹节点数据
      * @return
      */
-    int insertFolderNode(FolderNodeData folder_node_data);
+    int insertFolderNode(FolderNodeEntity folder_node_data);
 
     /**
      * 根据节点ID查询文件夹节点数据
      * @param node_id 节点ID
      * @return 文件夹节点数据
      */
-    FolderNodeData findFolderNodeById(String node_id);
+    FolderNodeEntity findFolderNodeById(String node_id);
 
     /**
      * 根据用户ID查询用户根目录节点数据
      * @param user_id 用户ID
      * @return 用户根目录节点数据
      */
-    FolderNodeData findRootFolderNodeByUserId(String user_id);
+    FolderNodeEntity findRootFolderNodeByUserId(String user_id);
 
      /**
      * 根据节点ID查询文件夹节点下的子文件夹节点数据
      * @param node_id 节点ID
      * @return 子文件夹节点数据列表
      */
-    List<FolderNodeData> findFolderNodesById(String node_id);
+    List<FolderNodeEntity> findFolderNodesById(String node_id);
 
     /**
      * 根据节点ID更新文件夹节点名称
@@ -49,7 +49,7 @@ public interface FolderNodeMapper {
      * @param node_id 节点ID
      * @return 更新影响的行数
      */
-    int updateFolderNodeStatusById(FolderNodeData.NodeStatus new_status, String node_id);
+    int updateFolderNodeStatusById(FolderNodeEntity.NodeStatus new_status, String node_id);
 
     /**
      * 根据节点ID更新文件夹节点父节点ID

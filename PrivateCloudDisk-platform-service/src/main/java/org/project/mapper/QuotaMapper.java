@@ -2,7 +2,7 @@ package org.project.mapper;
 
 
 import org.apache.ibatis.annotations.Mapper;
-import org.project.data.QuotaData;
+import org.project.model.entity.QuotaEntity;
 
 @Mapper
 public interface QuotaMapper {
@@ -10,22 +10,22 @@ public interface QuotaMapper {
     /**
      * 根据用户ID查询用户配额
      * @param user_id 用户ID
-     * @return QuotaData 用户配额数据
+     * @return QuotaEntity 用户配额数据
      */
-    QuotaData findQuotaByUserId(String user_id);
+    QuotaEntity findQuotaByUserId(String user_id);
 
     /**
-     * 插入QuotaData
+     * 插入QuotaEntity
      * @param quotaData quota数据
      * @return 受变动行数
      */
-    int insertQuota(QuotaData quotaData);
+    int insertQuota(QuotaEntity quotaData);
     /**
-     * 更新QuotaData
+     * 更新QuotaEntity
      * @param quotaData quota数据
      * @return 受变动行数
      */
-    int updateQuota(QuotaData quotaData);
+    int updateQuota(QuotaEntity quotaData);
     /**
      * 更新用户Quota网盘已用容量
      * @param used_capacity 已经使用的容量

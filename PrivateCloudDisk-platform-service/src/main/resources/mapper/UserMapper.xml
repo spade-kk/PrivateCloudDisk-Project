@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.project.mapper.UserMapper">
-    <resultMap id="UserEntityMap" type="org.project.data.UserData">
+    <resultMap id="UserEntityMap" type="org.project.model.entity.UserEntity">
         <id column="user_id" property="id"/>
         <result column="user_name" property="name"/>
         <result column="user_password" property="password"/>
@@ -26,12 +26,12 @@
         select * from pcd_user_info_table where user_id=#{user_id};
     </select>
     <!--    配置sql语句插入单条用户数据-->
-    <insert id="insertUser" useGeneratedKeys="true" keyProperty="uid" parameterType="org.project.data.UserData">
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.UserEntity">
         insert into pcd_user_info_table (user_name, user_id, user_phone_number, user_image_path, user_password, user_account, user_email)
         values(#{name}, #{id}, #{phone_number}, #{image_path}, #{password}, #{account}, #{email});
     </insert>
     <!--配置sql语句更新用户数据-->
-    <update id="updateUserData" parameterType="org.project.data.UserData">
+    <update id="updateUserEntity" parameterType="org.project.model.entity.UserEntity">
         update pcd_user_info_table set user_name=#{name}, user_phone_number=#{phone_number}, user_image_path=#{image_path}, user_email=#{email}, user_account=#{account} where user_id=#{id};
     </update>
     <!--配置sql语句更新用户密码-->

@@ -1,8 +1,8 @@
 package org.project.service;
 
-import org.project.data.FileData;
-import org.project.data.FolderNodeData;
-import org.project.data.NodeData;
+import org.project.model.entity.FileEntity;
+import org.project.model.entity.FolderNodeEntity;
+import org.project.model.entity.NodeEntity;
 
 import java.util.List;
 
@@ -31,13 +31,13 @@ public interface DirectoryTreeService {
      * @param node_id 节点ID
      * @return 文件夹节点数据
      */
-    FolderNodeData queryFolderNodeById(String node_id);
+    FolderNodeEntity queryFolderNodeById(String node_id);
     /**
      * 根据节点ID查询节点下所有节点元数据
      * @param node_id 节点ID
      * @return 节点元数据列表
      */
-    List<NodeData> findUserNodesByNodeId(String node_id, String user_id);
+    List<NodeEntity> findUserNodesByNodeId(String node_id, String user_id);
     /**
      * 移动节点
      * @param node_id 节点ID

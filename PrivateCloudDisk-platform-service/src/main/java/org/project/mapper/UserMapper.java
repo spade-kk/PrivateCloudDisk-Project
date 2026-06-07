@@ -2,7 +2,7 @@ package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.project.data.UserData;
+import org.project.model.entity.UserEntity;
 
 @Mapper
 public interface UserMapper {
@@ -11,33 +11,33 @@ public interface UserMapper {
      * @param acccount 用户账号
      * @return 用户数据
      */
-    UserData findUserByAccount(String acccount);
+    UserEntity findUserByAccount(String acccount);
 
     /**
      * 通过用户手机号查询用户信息
      * @param phone_number 用户手机号
      * @return 用户数据
      */
-    UserData findUserByPhoneNumber(String phone_number);
+    UserEntity findUserByPhoneNumber(String phone_number);
     /**
      * 通过用户ID查询用户信息
      * @param user_id 用户ID
      * @return 用户数据
      */
-    UserData findUserById(String user_id);
+    UserEntity findUserById(String user_id);
 
     /**
      * 插入用户数据
      * @param userData
      * @return 插入了数据行数
      */
-    int insertUser(UserData userData);
+    int insertUser(UserEntity userData);
     /**
      * 更新用户数据
      * @param userData 用户数据对象
      * @return 更新了数据行数
      */
-    int updateUserData(UserData userData);
+    int updateUserEntity(UserEntity userData);
     /**
      * 更新用户密码
      * @param user_id 用户ID

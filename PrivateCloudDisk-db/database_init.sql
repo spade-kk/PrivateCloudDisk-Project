@@ -15,8 +15,57 @@ CREATE TABLE pcd_user_info_table (
     user_image_path         VARCHAR(512)                    COMMENT '用户头像路径',
     user_password           VARCHAR(70)     NOT NULL        COMMENT '用户密码',
     user_account            VARCHAR(70)     NOT NULL UNIQUE COMMENT '用户账号',
-    user_email              VARCHAR(70)     UNIQUE          COMMENT '用户邮箱',
+    user_email              VARCHAR(70)     UNIQUE          COMMENT '用户邮箱'
 ) COMMENT='用户信息表';
+
+CREATE TABLE pcd_user_device_table (
+    device_id               VARCHAR(36)     NOT NULL PRIMARY KEY COMMENT '服务端生成的设备ID',
+    device_user_id          VARCHAR(36)     NOT NULL             COMMENT '所属用户ID',
+    device_client_type      VARCHAR(50)     NOT NULL             COMMENT '客户端类型，例如 WEB/IOS/MACOS/WECHAT/PC',
+    device_client_name      VARCHAR(120)                         COMMENT '客户端展示名称',
+    device_platform         VARCHAR(120)                         COMMENT '系统或平台信息',
+    device_user_agent_hash  VARCHAR(64)                          COMMENT 'User-Agent规范化后的哈希',
+    device_public_key       TEXT                                 COMMENT '设备密钥绑定的公钥，可选',
+    device_created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    device_last_seen_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    device_status           ENUM('active', 'disabled', 'revoked') NOT NULL DEFAULT 'active',
+    FOREIGN KEY (device_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    INDEX idx_device_user_status (device_user_id, device_status)
+) COMMENT='用户登录设备表';
+
+CREATE TABLE pcd_login_session_table (
+    login_session_id             VARCHAR(36) NOT NULL PRIMARY KEY COMMENT '服务端签发的登录会话ID，即sid',
+    login_session_user_id        VARCHAR(36) NOT NULL             COMMENT '登录用户ID',
+    login_session_device_id      VARCHAR(36)                      COMMENT '关联设备ID',
+    login_session_token_jti      VARCHAR(36)                      COMMENT '登录JWT jti',
+    login_session_client_ip      VARCHAR(64)                      COMMENT '登录IP',
+    login_session_user_agent     VARCHAR(512)                     COMMENT '登录User-Agent',
+    login_session_started_at     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    login_session_expires_at     DATETIME    NOT NULL             COMMENT '会话过期时间',
+    login_session_revoked_at     DATETIME                         COMMENT '会话撤销时间',
+    login_session_status         ENUM('active', 'expired', 'revoked') NOT NULL DEFAULT 'active',
+    FOREIGN KEY (login_session_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (login_session_device_id) REFERENCES pcd_user_device_table(device_id) ON DELETE SET NULL,
+    INDEX idx_login_session_user_status (login_session_user_id, login_session_status),
+    INDEX idx_login_session_device_status (login_session_device_id, login_session_status),
+    INDEX idx_login_session_jti (login_session_token_jti)
+) COMMENT='用户登录会话表';
+
+CREATE TABLE pcd_login_audit_table (
+    audit_id                 BIGINT       NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    audit_user_id            VARCHAR(36)                       COMMENT '匹配到的用户ID，失败时可为空',
+    audit_account            VARCHAR(100)                      COMMENT '登录账号',
+    audit_phone_number       VARCHAR(50)                       COMMENT '登录手机号',
+    audit_success            TINYINT(1)   NOT NULL             COMMENT '是否登录成功',
+    audit_failure_reason     VARCHAR(120)                      COMMENT '失败原因',
+    audit_client_ip          VARCHAR(64)                       COMMENT '客户端IP',
+    audit_user_agent         VARCHAR(512)                      COMMENT 'User-Agent',
+    audit_created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (audit_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE SET NULL,
+    INDEX idx_login_audit_user_time (audit_user_id, audit_created_at),
+    INDEX idx_login_audit_account_time (audit_account, audit_created_at),
+    INDEX idx_login_audit_ip_time (audit_client_ip, audit_created_at)
+) COMMENT='登录审计表';
 
 CREATE TABLE pcd_file_info_table (
     file_name               VARCHAR(150)    NOT NULL                COMMENT '文件名称',
@@ -29,8 +78,7 @@ CREATE TABLE pcd_file_info_table (
     file_checksum           VARCHAR(256)    NOT NULL                COMMENT '文件校验值',
     file_total_chunks       INT             NOT NULL                COMMENT '文件切片数目', --新增字段
     file_node_id            VARCHAR(36)     NOT NULL                COMMENT '文件所在目录节点ID',
-    chunk_storage_path      VARCHAR(512)    NOT NULL                COMMENT '文件切片存储路径前缀',
-    FOREIGN KEY (file_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE
+    file_storage_path       VARCHAR(512)    NOT NULL                COMMENT '文件存储路径'
 ) COMMENT='文件信息表';
 
 CREATE TABLE pcd_sharing_Link_mange_table (
@@ -76,8 +124,7 @@ CREATE TABLE pcd_uploads_session_table (
     uploads_file_name       VARCHAR(150)    NOT NULL                                                COMMENT '文件名称',
     uploads_file_type       VARCHAR(60)     NOT NULL                                                COMMENT '文件类型',
     uploads_node_id         VARCHAR(36)     NOT NULL                                                COMMENT '文件所在目录节点ID',
-    uploads_status          ENUM('uploading', 'merging', 'completed', 'failed') DEFAULT 'uploading' COMMENT '上传状态',
-    FOREIGN KEY (uploads_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE
+    uploads_status          ENUM('uploading', 'merging', 'completed', 'failed') DEFAULT 'uploading' COMMENT '上传状态'
 ) COMMENT='文件上传会话表';
 
 CREATE TABLE pcd_upload_chunks_table (
@@ -103,6 +150,14 @@ CREATE TABLE pcd_directory_tree_table (
     node_create_time TIMESTAMP       NOT NULL          COMMENT '节点创建时间'      DEFAULT NOW(),
     node_status      ENUM('lock', 'active', 'pending') COMMENT '节点状态'         DEFAULT 'active'
 ) COMMENT='节点目录树表';
+
+ALTER TABLE pcd_file_info_table
+    ADD CONSTRAINT fk_file_info_directory_tree
+    FOREIGN KEY (file_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE;
+
+ALTER TABLE pcd_uploads_session_table
+    ADD CONSTRAINT fk_uploads_session_directory_tree
+    FOREIGN KEY (uploads_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE;
 
 CREATE TABLE pcd_user_quota_table (
     quota_id              BIGINT          PRIMARY KEY AUTO_INCREMENT,

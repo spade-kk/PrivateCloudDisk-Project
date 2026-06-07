@@ -285,7 +285,7 @@ async def init_operation(
 ):  # 替换为实际认证
     await enforce_operation_token_issue_limits(req, user_id, get_client_ip(request))
     try:
-        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{req.node_id}/{req.file_name}/info?uid={user_id}", timeout=5)
+        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{req.node_id}/{req.file_name}?uid={user_id}", timeout=5)
         response.raise_for_status()
         result = response.json()
     except requests.RequestException:
@@ -402,7 +402,7 @@ async def download_file(
         metadata = json.loads(data)
     else:
         # 降级查库（极少数情况）
-        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{node_id}/{file_name}/info?uid={user_id}")
+        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{node_id}/{file_name}?uid={user_id}")
         result = response.json()
         if result["code"] != 200:
             raise HTTPException(status_code=404, detail="文件不存在用户网盘, 或者路径目录不存在")
@@ -489,6 +489,7 @@ async def download_file(
         )
 
 @app.post("/files/uploads/{uploads_id}/chunks")
+@app.post("/files/uploads/{uploads_id}/chunks/")
 async def upload_chunk(
     uploads_id: str,
     chunk_index: int = Form(...),
@@ -497,9 +498,9 @@ async def upload_chunk(
 ):
     chunk_path = f"{UPLOAD_DIR}/{uploads_id}-{chunk_index}.part"
 
-    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/query")
+    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}")
     result = response.json()
-    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/query")
+    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}")
     chunk_result = response.json()
 
     if(result["code"] == 15000):
@@ -564,7 +565,7 @@ async def complete_uploads_internal(
     uploads_id: str,
     user_id:str = Header(..., alias="X-User-Id")
 ):
-    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/query")
+    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}")
     result = response.json()
 
     if(result["code"] == 15000):
@@ -583,7 +584,7 @@ async def complete_uploads_internal(
                     detail = f"会话状态错误"
                 )
     """ 开始处理合并请求逻辑 提交上传会话状态 合并中... 逻辑锁防止并发异常多次处理 """
-    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/merging")
+    response = requests.post(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/merge")
     merging_result = response.json()
 
     if(merging_result["code"] != 200):
@@ -615,7 +616,7 @@ async def complete_uploads_internal(
     actual_checksum = file_hash.hexdigest()
 
     response = requests.post(
-    f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/complete",
+    f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files",
     params = {
         "uploads_id": uploads_id,
         "file_storage_path": final_path
@@ -641,7 +642,7 @@ async def get_thumbnail(
     width: int = Query(200, ge=50, le=800),
     height: int = Query(200, ge=50, le=800)
 ):
-    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/file/{node_id}/{file_name}/info?uid={user_id}")
+    response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{node_id}/{file_name}?uid={user_id}")
     result = response.json()
 
     if(result["code"] != 200):

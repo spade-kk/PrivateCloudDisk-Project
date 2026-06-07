@@ -1,5 +1,6 @@
 package org.project.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -19,5 +20,6 @@ public class updateUserInfoRequest {
     @NotBlank
     @Pattern( regexp = "^[a-zA-Z0-9]{2,10}$",
             message = "用户名必须是2-10位数字或字母")
+    @JsonAlias("new_username")
     String new_name;
 }

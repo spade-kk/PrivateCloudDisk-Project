@@ -1,8 +1,8 @@
 package org.project.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
-import org.project.data.FolderNodeData;
-import org.project.data.UserData;
+import org.project.model.entity.FolderNodeEntity;
+import org.project.model.entity.UserEntity;
 import org.project.mapper.FolderNodeMapper;
 import org.project.mapper.UserMapper;
 import org.project.service.DirectoryTreeService;
@@ -31,12 +31,12 @@ public class UserServiceImpl implements UserService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
-    public UserData login(String account, String phone_number, String password) {
+    public UserEntity login(String account, String phone_number, String password) {
         if(account == null && phone_number == null){
             throw new AccountOrPhoneNumberException();
         }
         //调用持久层函数根据用户名获取数据
-        UserData result;
+        UserEntity result;
         if(account != null){
             result = userMapper.findUserByAccount(account);
         }
@@ -73,12 +73,12 @@ public class UserServiceImpl implements UserService {
             throw new VerificationCodeErrorException();
         }
 
-        UserData result = userMapper.findUserByPhoneNumber(phone_number);
+        UserEntity result = userMapper.findUserByPhoneNumber(phone_number);
         if(result != null) {
             throw new PhoneNumberDuplicatedException();
         }
-        //创建UserData把参数添加进去
-        UserData userData = new UserData();
+        //创建UserEntity把参数添加进去
+        UserEntity userData = new UserEntity();
         userData.setPhone_number(phone_number);
         userData.setPassword(passwordEncoder.encode(password));
         userData.setName(name);
@@ -105,14 +105,14 @@ public class UserServiceImpl implements UserService {
 
     @Cacheable(cacheNames = "rootFolderNode", key = "#user_id")
     @Override
-    public FolderNodeData findRootFolderNodeByUserId(String user_id) {
+    public FolderNodeEntity findRootFolderNodeByUserId(String user_id) {
         // 检查用户是否存在
-        UserData userData = userMapper.findUserById(user_id);
+        UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
             throw new UserNotFoundException();
         }
         // 查询用户根目录节点
-        FolderNodeData rootFolderNode = folderNodeMapper.findRootFolderNodeByUserId(user_id);
+        FolderNodeEntity rootFolderNode = folderNodeMapper.findRootFolderNodeByUserId(user_id);
         if(rootFolderNode == null) {
             throw new NodeNotExistException("根目录节点不存在");
         }
@@ -121,14 +121,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserData findUserInfoByUserId(String user_id) {
+    public UserEntity findUserInfoByUserId(String user_id) {
         return userMapper.findUserById(user_id);
     }
 
     @Override
     public void updateUserPassword(String user_id, String user_password, String new_password) {
         // 检查用户是否存在
-        UserData userData = userMapper.findUserById(user_id);
+        UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
             throw new UserNotFoundException();
         }
@@ -146,7 +146,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void uploadUserAvator(String user_id, MultipartFile avator_file) {
         // 检查用户是否存在
-        UserData userData = userMapper.findUserById(user_id);
+        UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
             throw new UserNotFoundException();
         }
@@ -158,7 +158,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void updateUserInfo(String user_id, String new_email, String new_phone_number, String new_name) {
         // 检查用户是否存在
-        UserData userData = userMapper.findUserById(user_id);
+        UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
             throw new UserNotFoundException();
         }
@@ -166,7 +166,7 @@ public class UserServiceImpl implements UserService {
         userData.setPhone_number(new_phone_number);
         userData.setName(new_name);
         // 更新用户信息
-        Integer rows =  userMapper.updateUserData(userData);
+        Integer rows =  userMapper.updateUserEntity(userData);
         if(rows != 1) {
             throw new UpdateException("更新用户信息失败");
         }
@@ -174,7 +174,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUserByUserId(String user_id) {
         // 检查用户是否存在
-        UserData userData = userMapper.findUserById(user_id);
+        UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
             throw new UserNotFoundException();
         }

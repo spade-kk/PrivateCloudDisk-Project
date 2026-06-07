@@ -335,19 +335,33 @@ Content-Type: text/csv
 
 | API 接口路径                                                 | 请求类型 |    作用描述    | 需要的参数                                                   |
 | ------------------------------------------------------------ | :------: | :------------: | ------------------------------------------------------------ |
-| /api/v1/business/uploads/                                    |   POST   |  创建上传会话  | total_chunks, file_size, file_checksum, chunks_max_size, file_name, file_type, node_id, session(uid) |
-| /api/v1/business/users/login                                 |   POST   |    用户登录    | account, phone_number, password, httpSession                 |
-| /api/v1/business/users                                       |   POST   |    用户注册    | phone_number, password, code, name                           |
-| /api/v1/business/nodes/root                                  |   GET    |   查询根节点   | session(uid)                                                 |
-| api/v1/business/nodes/{node_id}/children                     |   GET    |   查询子节点   | node_id, session(uid)                                        |
-| api/v1/business/nodes/                                       |   POST   | 创建文件夹节点 | folder_name, position, session(uid)                          |
-| api/v1/business/internal/storage/uploads/{uploads_id}/chunks/ |   POST   |  完成分块上传  | uploads_id, chunk_index, chunk_checksum, storage_path        |
-| api/v1/business/internal/storage/uploads/{uploads_id}/       |   GET    |  查询上传会话  | uploads_id                                                   |
-| api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/ |   GET    |  查询分块信息  | uploads_id, chunk_index                                      |
-| /api/v1/business/internal/storage/uploads/{uploads_id}/merge |   POST   |  通知分块合并  | uploads_id                                                   |
-| /api/v1/business/internal/storage/files                      |   POST   |  完成文件上传  | uploads_id, file_shortage_path                               |
-| /api/v1/files/operation-tokens                               |   POST   |  操作凭证申请  | node_id, file_name, operation_type                           |
-| /api/v1/files/nodes/{node_id}/files/{file_name}              |   GET    |  文件获取下载  | file_name, node_id                                           |
+| /api/v1/business/uploads/                                    |   POST   |  创建上传会话  | JSON: total_chunks, file_size, file_checksum, chunks_max_size, file_name, file_type, node_id；Header: Authorization |
+| /api/v1/files/uploads/{uploads_id}/chunks/                   |   POST   |  上传文件分块  | Path: uploads_id；Form: chunk_index, upload_file_chunk；Header: Authorization |
+| /api/v1/files/uploads/{uploads_id}/merge                     |   POST   |  合并上传分块  | Path: uploads_id；Header: Authorization                      |
+| /api/v1/business/users/login                                 |   POST   |    用户登录    | JSON: account 或 phone_number, password, captcha_token        |
+| /api/v1/business/users/                                      |   POST   |    用户注册    | JSON: phone_number, password, code, name, captcha_token       |
+| /api/v1/business/users/me                                    | GET/PATCH/DELETE | 当前用户资料 | Header: Authorization；PATCH JSON: new_email, new_phone_number, new_name |
+| /api/v1/business/users/me/password                           |   POST   |  修改用户密码  | JSON: old_password, new_password；Header: Authorization       |
+| /api/v1/business/users/me/online-devices                     |   GET    | 查询登录设备列表 | Header: Authorization                                      |
+| /api/v1/business/nodes/root                                  |   GET    |   查询根节点   | Header: Authorization                                        |
+| /api/v1/business/nodes/{node_id}/children                    |   GET    |   查询子节点   | Path: node_id；Header: Authorization                         |
+| /api/v1/business/nodes/                                      |   POST   | 创建文件夹节点 | JSON: node_id, folder_name；Header: Authorization             |
+| /api/v1/business/nodes/{node_id}/position                    |   PATCH  |  移动文件夹节点 | Path: node_id；JSON: target_position；Header: Authorization  |
+| /api/v1/business/nodes/{node_id}/name                        |   PATCH  | 重命名文件夹节点 | Path: node_id；JSON: new_node_name；Header: Authorization   |
+| /api/v1/business/nodes/{node_id}/files/{file_name}/          |   GET    | 查询文件信息   | Path: node_id, file_name；Header: Authorization              |
+| /api/v1/business/files/{file_id}                             | GET/DELETE | 查询或删除文件 | Path: file_id；Header: Authorization                       |
+| /api/v1/business/files/{file_id}/name                        |   PATCH  |   文件重命名   | Path: file_id；JSON: file_new_name；Header: Authorization     |
+| /api/v1/business/files/{file_id}/position                    |   PATCH  |    文件移动    | Path: file_id；JSON: target_node_id；Header: Authorization    |
+| /api/v1/business/quotas/me                                   |   GET    | 查询用户配额   | Header: Authorization                                        |
+| /api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete |   POST   | 完成分块上传 | Path: uploads_id, chunk_index；Query/Form: storage_path       |
+| /api/v1/business/internal/storage/uploads/{uploads_id}/      |   GET    | 查询上传会话   | Path: uploads_id                                             |
+| /api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/ |   GET    | 查询分块信息 | Path: uploads_id, chunk_index                                |
+| /api/v1/business/internal/storage/uploads/{uploads_id}/merge |   POST   |  通知分块合并  | Path: uploads_id                                             |
+| /api/v1/business/internal/storage/files                      |   POST   |  完成文件上传  | Query/Form: uploads_id, file_storage_path                    |
+| /api/v1/business/internal/storage/files/{node_id}/{file_name} |   GET    | 查询内部文件元数据 | Path: node_id, file_name；Query: uid                    |
+| /api/v1/files/operation-tokens                               |   POST   |  操作凭证申请  | JSON: node_id, file_name, operation_type；Header: Authorization |
+| /api/v1/files/operation-tokens/                              |  DELETE  |  销毁操作凭证  | JSON: operation_token；Header: Authorization                  |
+| /api/v1/files/nodes/{node_id}/files/{file_name}/content      |   GET    |  文件获取下载  | Path: node_id, file_name；Header: Authorization, X-Operation-Token |
 
 ## 1.3. 上传相关接口
 
@@ -661,7 +675,7 @@ Content-Type: application/json
 
 ### 1.5.6. 文件夹节点重命名
 
-- **API 接口路径**：/api/v1/business/node/{node_id}/name
+- **API 接口路径**：/api/v1/business/nodes/{node_id}/name
 - **请求类型**：PATCH
 - **参数位置**：路径参数 请求头JSON
 - **参数说明**：new_node_name node_id
@@ -995,7 +1009,7 @@ aria2c -s4 -x4 --header="X-Operation-Ticket:eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9
 
 - 当接口发生异常时，会返回对应的错误状态码和错误信息，具体错误码可参考BaseController中的异常处理部分。
 
-- 涉及用户身份验证的接口均通过HttpSession中的uid属性获取用户 ID，因此需要先通过登录接口获取有效的会话。
+- 涉及用户身份验证的接口均通过登录 JWT 完成。公网请求必须携带 `Authorization: Bearer <token>`，网关校验后向内部服务注入可信 `X-User-Id`；业务服务和文件服务不信任客户端自行传入的内部身份头。
 
 - 接口参数中带有格式限制的，如手机号、密码、UUID 等，需严格按照指定格式传递，否则会返回参数校验错误。
 
@@ -1190,4 +1204,3 @@ graph LR
     B --> H[消息队列]
     H --> D
 ```
-

@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.project.mapper.FileMapper">
-    <resultMap id="FileEntityMap" type="org.project.data.FileData">
+    <resultMap id="FileEntityMap" type="org.project.model.entity.FileEntity">
         <id column="file_id" property="id"/>
         <result column="file_name" property="name"/>
         <result column="file_uploaded_time" property="uploaded_time"/>
@@ -16,7 +16,7 @@
         <result column="file_storage_path" property="storage_path"/>
     </resultMap>
 
-    <insert id="insertFile" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.data.FileData">
+    <insert id="insertFile" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.FileEntity">
         insert into pcd_file_info_table(file_id, file_name, file_uploaded_time, file_size, file_type, file_author_id, file_checksum, file_node_id, file_total_chunks, file_storage_path)
         values(#{id}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id}, #{checksum}, #{node_id}, #{total_chunks}, #{storage_path});
     </insert>

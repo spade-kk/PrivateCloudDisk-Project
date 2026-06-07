@@ -1,8 +1,9 @@
 package org.project.service.impl;
 
-import org.project.data.FileData;
-import org.project.data.UploadsChunkData;
-import org.project.data.UploadsSessionData;
+import org.project.model.entity.FileEntity;
+import org.project.model.entity.FolderNodeEntity;
+import org.project.model.entity.UploadsChunkEntity;
+import org.project.model.entity.UploadsSessionEntity;
 import org.project.mapper.ChunksMapper;
 import org.project.mapper.UploadsMapper;
 import org.project.service.DirectoryTreeService;
@@ -30,19 +31,23 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Override
     public String createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, String user_id, String node_id) {
-        if(directoryTreeService.queryFolderNodeById(node_id) == null) {
+        FolderNodeEntity folderNode = directoryTreeService.queryFolderNodeById(node_id);
+        if(folderNode == null) {
             throw new NodeNotExistException("节点不存在");
         }
+        if(user_id == null || !user_id.equals(folderNode.getUser_id())) {
+            throw new OverstepAuthorityException("您没有权限在该节点上传文件");
+        }
         // 检查同目录下是否已存在同名文件
-        List<FileData> fileDataList = fileService.queryUserFilesByNodeId(node_id, user_id);
-        for (FileData fileData : fileDataList) {
+        List<FileEntity> fileDataList = fileService.queryUserFilesByNodeId(node_id, user_id);
+        for (FileEntity fileData : fileDataList) {
             if(fileData.getName().equals(file_name)) {
                 throw new FileNameDuplicatedException("同目录下已存在同名文件");
             }
         }
 
         // 实现创建上传会话的逻辑
-        UploadsSessionData uploadsSessionData = new UploadsSessionData();
+        UploadsSessionEntity uploadsSessionData = new UploadsSessionEntity();
         uploadsSessionData.setTotal_chunks(total_chunks);
         uploadsSessionData.setFile_size(file_size);
         uploadsSessionData.setFile_checksum(file_checksum);
@@ -52,7 +57,7 @@ public class UploadsServiceImpl implements UploadsService {
         uploadsSessionData.setNode_id(node_id);
         uploadsSessionData.setUser_id(user_id);
 
-        uploadsSessionData.setStatus(UploadsSessionData.UploadsSessionStatus.uploading);
+        uploadsSessionData.setStatus(UploadsSessionEntity.UploadsSessionStatus.uploading);
         // 生成上传会话的ID
         String uploads_id = UUID.randomUUID().toString();
         uploadsSessionData.setUploads_id(uploads_id);
@@ -70,7 +75,7 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Override
     public boolean isValidUploadsSession(String uploads_id) {
-        UploadsSessionData uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
+        UploadsSessionEntity uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
         if(uploadsSessionData == null) {
             return false;
         }
@@ -82,7 +87,7 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Override
     @Cacheable(cacheNames = "uploadsSession", key = "#uploads_id")
-    public UploadsSessionData queryUploadsSessionById(String uploads_id) {
+    public UploadsSessionEntity queryUploadsSessionById(String uploads_id) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -91,7 +96,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public UploadsChunkData queryChunkByUploadsIdAndChunkIndex(String uploads_id, int chunk_index) {
+    public UploadsChunkEntity queryChunkByUploadsIdAndChunkIndex(String uploads_id, int chunk_index) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -106,24 +111,24 @@ public class UploadsServiceImpl implements UploadsService {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
-        UploadsSessionData uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
+        UploadsSessionEntity uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
         // 检查上传会话的状态是否正确
-        if(uploadsSessionData.getStatus() != UploadsSessionData.UploadsSessionStatus.uploading) {
+        if(uploadsSessionData.getStatus() != UploadsSessionEntity.UploadsSessionStatus.uploading) {
             throw new UploadsSessionStatusException("上传会话状态错误");
         }
         // 检查上传会话的分块是否全部上传完成
-        List<UploadsChunkData> chunkDataList = chunksMapper.findChunkByUploadsId(uploads_id);
+        List<UploadsChunkEntity> chunkDataList = chunksMapper.findChunkByUploadsId(uploads_id);
         if(chunkDataList.size() != uploadsSessionData.getTotal_chunks()) {
             throw new UploadsSessionNotCompleteException("上传会话分块未全部上传完成");
         }
         // 检查上传会话的分块状态是否全部完成
-        for (UploadsChunkData chunk : chunkDataList) {
-            if(chunk.getChunk_status() != UploadsChunkData.ChunkStatus.uploaded) {
+        for (UploadsChunkEntity chunk : chunkDataList) {
+            if(chunk.getChunk_status() != UploadsChunkEntity.ChunkStatus.uploaded) {
                 throw new UploadsSessionNotCompleteException("上传会话分块未全部上传完成");
             }
         }
         // 更新上传会话的状态为合并中
-        uploadsMapper.updateUploadsSessionStatusById(UploadsSessionData.UploadsSessionStatus.merging, uploads_id);
+        uploadsMapper.updateUploadsSessionStatusById(UploadsSessionEntity.UploadsSessionStatus.merging, uploads_id);
     }
 
     @Override
@@ -138,10 +143,10 @@ public class UploadsServiceImpl implements UploadsService {
             throw new ChunkDuplicatedException("分块已上传");
         }
 
-        UploadsChunkData chunkData = new UploadsChunkData();
+        UploadsChunkEntity chunkData = new UploadsChunkEntity();
         chunkData.setUploads_id(uploads_id);
         chunkData.setChunk_index(chunk_index);
-        chunkData.setChunk_status(UploadsChunkData.ChunkStatus.uploaded);
+        chunkData.setChunk_status(UploadsChunkEntity.ChunkStatus.uploaded);
         chunkData.setChunk_storage_path(chunk_storage_path);
         chunkData.setChunk_uploaded_time(LocalDateTime.now());
         // 调用Mapper插入数据
@@ -158,8 +163,8 @@ public class UploadsServiceImpl implements UploadsService {
                 throw new InvalidUploadsSessionException("上传会话无效");
         }
         // 检查上传会话的状态是否正确
-        UploadsSessionData uploadsSessionData = queryUploadsSessionById(uploads_id);
-        if(uploadsSessionData.getStatus() != UploadsSessionData.UploadsSessionStatus.merging) {
+        UploadsSessionEntity uploadsSessionData = queryUploadsSessionById(uploads_id);
+        if(uploadsSessionData.getStatus() != UploadsSessionEntity.UploadsSessionStatus.merging) {
             throw new UploadsSessionStatusException("上传会话状态错误");
         }
         // 调用文件服务创建文件

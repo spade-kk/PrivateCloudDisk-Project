@@ -1,7 +1,7 @@
 package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
-import org.project.data.FileData;
+import org.project.model.entity.FileEntity;
 
 import java.util.List;
 
@@ -12,7 +12,7 @@ public interface FileMapper {
      * @param fileData
      * @return 插入了数据行数
      */
-    int insertFile(FileData fileData);
+    int insertFile(FileEntity fileData);
 
     /**
      * 根据用户Uid节点ID查询节点下所有文件元数据
@@ -20,14 +20,14 @@ public interface FileMapper {
      * @param user_id 用户Uid
      * @return 文件元数据列表
      */
-    List<FileData> findUserFilesByNodeId(String node_id, String user_id);
+    List<FileEntity> findUserFilesByNodeId(String node_id, String user_id);
 
     /**
      * 根据文件ID查询文件元数据
      * @param file_id 文件ID
      * @return 文件元数据
      */
-    FileData findFileById(String file_id);
+    FileEntity findFileById(String file_id);
 
     /**
      * 根据用户Uid父目录节点ID和文件名字查询文件元数据
@@ -36,7 +36,7 @@ public interface FileMapper {
      * @param user_id 用户Uid
      * @return 文件元数据
      */
-    FileData findUserFileByNodeIdAndName(String node_id, String name, String user_id);
+    FileEntity findUserFileByNodeIdAndName(String node_id, String name, String user_id);
     /**
      * 更新用户文件名称
      * @param file_new_name 新文件名
