@@ -19,6 +19,7 @@ public class CorsConfig {
         // 允许的源（生产环境应配置具体域名）
         config.addAllowedOriginPattern("http://127.0.0.1:*");
         config.addAllowedOriginPattern("http://localhost:*");
+        config.addAllowedOriginPattern("https://www.hellomyservice.xyz");
         // 允许所有请求方法（GET、POST、PUT等）
         config.addAllowedMethod("*");
         // 允许所有请求头
