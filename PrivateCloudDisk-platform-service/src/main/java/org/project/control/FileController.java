@@ -20,17 +20,6 @@ public class FileController extends BaseController {
     @Autowired
     private FileService fileService;
 
-    @GetMapping({"/nodes/{node_id}/files/{file_name}", "/nodes/{node_id}/files/{file_name}/"})
-    public JsonResult<FileVO> queryFileEntity(
-            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-                    message = "node_id必须是有效的UUID格式")
-            @PathVariable String node_id,
-            @PathVariable String file_name,
-            @RequestHeader("X-User-Id") String user_id ) {
-        FileEntity fileData = fileService.queryUserFileByNodeIdAndName(node_id, file_name, user_id);
-        return new JsonResult<>(OK, VoMapper.toFileVO(fileData));
-    }
-
     @GetMapping({"/files/{file_id}", "/files/{file_id}/"})
     public JsonResult<FileVO> queryFileEntityByFileId(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",

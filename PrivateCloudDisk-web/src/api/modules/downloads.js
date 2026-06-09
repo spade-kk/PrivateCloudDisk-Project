@@ -2,15 +2,13 @@ import {get, post, del} from '@/utils/request'
 
 /**
  * 
- * @param {*} node_id 
- * @param {*} file_name 
+ * @param {*} file_id  
  * @param {*} operation_type
  * @returns 
  */
-export function createOperationTokenApi(node_id, file_name, operation_type) {
+export function createOperationTokenApi(file_id, operation_type) {
     let data = {
-        node_id: node_id,
-        file_name: file_name,
+        file_id: file_id,
         operation_type: operation_type
     };
     return post('files/operation-tokens', data);
@@ -28,14 +26,13 @@ export function cancelOperationApi(operation_token) {
 }
 /**
  * 
- * @param {*} node_id 
- * @param {*} file_name 
+ * @param {*} file_id 
  * @param {*} operation_token 
  * @param {*} onProgress
  * @returns 
  */
-export function getFileContentApi(node_id, file_name, operation_token, onProgress) {
-    return get(`files/nodes/${node_id}/files/${file_name}/content`, {}, {
+export function getFileContentApi(file_id, operation_token, onProgress) {
+    return get(`files/files/${file_id}/content`, {}, {
         responseType: 'blob',
         headers: {
             'X-Operation-Token': operation_token
@@ -45,15 +42,14 @@ export function getFileContentApi(node_id, file_name, operation_token, onProgres
 }
 /**
  * 
- * @param {*} node_id 
- * @param {*} file_name 
+ * @param {*} file_id 
  * @param {*} operation_token 
  * @param {*} start 
  * @param {*} end 
  * @returns 
  */
-export function getFileContentChunkApi(node_id, file_name, operation_token, start, end) {
-    return get(`files/nodes/${node_id}/files/${file_name}/content`, {}, {
+export function getFileContentChunkApi(file_id, operation_token, start, end) {
+    return get(`files/files/${file_id}/content`, {}, {
         responseType: 'blob',
         headers: {
             'X-Operation-Token': operation_token,

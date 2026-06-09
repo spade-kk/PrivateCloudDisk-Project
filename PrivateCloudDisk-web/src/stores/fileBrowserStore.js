@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToastStore } from './toastStore'
-import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, renameFileApi, deleteFileApi, getMyUserRootNodeApi, createFolderApi } from '@/api/index'
+import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, renameFileApi, deleteFileApi, deleteNodeApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi } from '@/api/index'
 
 export const useFileBrowserStore = defineStore('fileBrowser', () => {
   const toastStore = useToastStore()
@@ -89,12 +89,97 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
 
   async function createFolder(folderName) {
     try {
-      const res = await createFolderApi(folderName, currentNodeId.value)
+      const res = await createFolderApi(currentNodeId.value, folderName)
       if (res.code === 200) {
-        await loadChildren(currentNodeId.value)
+        refresh()
         return { success: true }
       }
       return { success: false, message: res.message || '创建失败' }
+    } catch (error) {
+      toastStore.showToast('网络错误', 'error')
+      return { success: false, message: '网络错误' }
+    }
+  }
+
+  async function moveFile(fileId, targetNodeId) {
+    try {
+      const res = await moveFileApi(fileId, targetNodeId)
+      if (res.code === 200) {
+        refresh()
+        return { success: true }
+      }
+      return { success: false, message: res.message || '移动文件失败' }
+    } catch (error) {
+      toastStore.showToast('网络错误', 'error')
+      return { success: false, message: '网络错误' }
+    }
+  }
+
+  async function moveFolder(nodeId, targetNodeId) {
+    try {
+      const res = await moveFileApi(nodeId, targetNodeId) // 复用移动文件接口
+      if (res.code === 200) {
+        refresh()
+        return { success: true }
+      }
+      return { success: false, message: res.message || '移动文件夹失败' }
+    } catch (error) {
+      toastStore.showToast('网络错误', 'error')
+      return { success: false, message: '网络错误' }
+    }
+  }
+
+  async function renameFileNode(nodeId, newName) {
+    try {
+      const res = await renameFileApi(nodeId, newName)
+      if (res.code === 200) {
+        refresh()
+        return { success: true }
+      }
+      return { success: false, message: res.message || '重命名文件失败' }
+    } catch (error) {
+      toastStore.showToast('网络错误', 'error')
+      return { success: false, message: '网络错误' }
+    }
+  }
+
+  async function renameFolderNode(nodeId, newName) {
+    try {
+      const res = await renameNodeApi(nodeId, newName)
+      if (res.code === 200) {
+        refresh()
+        return { success: true }
+      }
+      return { success: false, message: res.message || '重命名文件夹失败' }
+    } catch (error) {
+      toastStore.showToast('网络错误', 'error')
+      return { success: false, message: '网络错误' }
+    }
+  }
+
+  async function deleteFileNode(nodeId) {
+    try {
+      const res = await deleteFileApi(nodeId)
+      if (res.code === 200) {
+        refresh()
+        return { success: true }
+      }
+      return { success: false, message: res.message || '删除文件失败' }
+    } catch (error) {
+      toastStore.showToast('网络错误', 'error')
+      return { success: false, message: '网络错误' }
+    }
+  }
+
+
+  async function deleteFolderNode(nodeId) {
+    try {
+      const res = await deleteNodeApi(nodeId)
+      if (res.code === 200) {
+        refresh()
+        return { success: true }
+      }
+      return { success: false, message: res.message || '删除文件夹失败' }
     } catch (error) {
       toastStore.showToast('网络错误', 'error')
       return { success: false, message: '网络错误' }
@@ -127,5 +212,11 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     createFolder,
     refresh,
     retry,
+    moveFile,
+    moveFolder,
+    renameFileNode,
+    renameFolderNode,
+    deleteFileNode,
+    deleteFolderNode,
   }
 })

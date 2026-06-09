@@ -12,16 +12,16 @@
         <result column="node_status" property="status"/>
     </resultMap>
 
-    <select id="findFolderNodeById"  resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_id=#{node_id};
+    <select id="findFolderNodeByIdAndUserId"  resultMap="FolderNodeEntityMap">
+        select * from pcd_directory_tree_table where node_id=#{node_id} and node_user_id=#{user_id};
     </select>
 
     <select id="findRootFolderNodeByUserId" resultMap="FolderNodeEntityMap">
         select * from pcd_directory_tree_table where node_user_id=#{user_id} and node_parent_id is null;
     </select>
 
-    <select id="findFolderNodesById"  resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_parent_id=#{node_id};
+    <select id="findFolderNodesByIdAndUserId"  resultMap="FolderNodeEntityMap">
+        select * from pcd_directory_tree_table where node_parent_id=#{node_id} and node_user_id=#{user_id};
     </select>
 
     <insert id="insertFolderNode" useGeneratedKeys="true" keyProperty="node_id" parameterType="org.project.model.entity.FolderNodeEntity">
@@ -29,25 +29,25 @@
         values(#{node_id}, #{user_id}, #{parent_id}, #{name}, #{create_time}, #{status});
     </insert>
 
-    <update id="updateFolderNodeNameById">
+    <update id="updateFolderNodeNameByIdAndUserId">
         update pcd_directory_tree_table
         set node_name = #{new_name}
-        where node_id = #{node_id};
+        where node_id = #{node_id} and node_user_id = #{user_id};
     </update>
 
-    <update id="updateFolderNodeStatusById">
+    <update id="updateFolderNodeStatusByIdAndUserId">
         update pcd_directory_tree_table
         set node_status = #{new_status}
-        where node_id = #{node_id};
+        where node_id = #{node_id} and node_user_id = #{user_id};
     </update>
 
-    <update id="updateFolderNodeParentIdById">
+    <update id="updateFolderNodeParentIdByIdAndUserId">
         update pcd_directory_tree_table
         set node_parent_id = #{new_parent_id}
-        where node_id = #{node_id};
+        where node_id = #{node_id} and node_user_id = #{user_id};
     </update>
 
-    <delete id="deleteFolderNodeById">
-        delete from pcd_directory_tree_table where node_id = #{node_id};
+    <delete id="deleteFolderNodeByIdAndUserId">
+        delete from pcd_directory_tree_table where node_id = #{node_id} and node_user_id = #{user_id};
     </delete>
 </mapper>

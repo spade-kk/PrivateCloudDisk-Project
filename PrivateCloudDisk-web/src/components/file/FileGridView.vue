@@ -11,7 +11,7 @@
         <input
           type="checkbox"
           :checked="isSelected(node.node_id)"
-          @change="toggleSelect(node.node_id)"
+          @change="toggleSelect(node.node_id, node.node_type)"
           class="w-4 h-4 text-primary rounded border-neutral-300 focus:ring-primary"
         />
       </div>
@@ -57,7 +57,7 @@ const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star'])
 const iconClass = (node) => getFileIconClass(node.node_name)
 const isSelected = (id) => props.selectedIds.has(id)
 const isStarred = (id) => props.starredIds.has(id)
-const toggleSelect = (id) => emit('selection-change', id)
+const toggleSelect = (id, type) => emit('selection-change', id, type)
 </script>
 
 <style scoped>

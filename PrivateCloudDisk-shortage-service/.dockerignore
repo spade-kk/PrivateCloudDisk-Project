@@ -56,3 +56,5 @@ docker-compose*.yml
 *.tmp
 *.bak
 *.orig
+
+*.pem

@@ -33,35 +33,33 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         folderNodeEntity.setParent_id(null);
 
         if(parent_id != null) {
-            FolderNodeEntity parentNode = folderNodeMapper.findFolderNodeById(parent_id);
+            FolderNodeEntity parentNode = folderNodeMapper.findFolderNodeByIdAndUserId(parent_id, user_id);
             if(parentNode == null) {
                 throw new ParentNodeNotExistException("父节点不存在");
             }
-            //检查父节点与子节点一致性
-            if(!parentNode.getUser_id().equals(user_id)) {
-                throw new NodeUserNotMatchException("父节点不是当前用户创建");
-            }
+
             folderNodeEntity.setParent_id(parent_id);
             // 待处理状态
             folderNodeEntity.setStatus(FolderNodeEntity.NodeStatus.pending);
             // 锁定父节点
-            folderNodeMapper.updateFolderNodeStatusById(
+            folderNodeMapper.updateFolderNodeStatusByIdAndUserId(
                     FolderNodeEntity.NodeStatus.lock,
-                    parent_id
+                    parent_id,
+                    user_id
             );
         }
         folderNodeMapper.insertFolderNode(folderNodeEntity);
     }
 
     @Override
-    public FolderNodeEntity queryFolderNodeById(String node_id) {
-        return folderNodeMapper.findFolderNodeById(node_id);
+    public FolderNodeEntity queryFolderNodeById(String node_id, String user_id) {
+        return folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
     }
 
     @Override
-    public void activeFolderNode(String node_id) {
+    public void activeFolderNode(String node_id, String user_id) {
         // 检查节点是否存在
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
@@ -70,34 +68,40 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
             throw new NodeStatusException("节点状态错误");
         }
 
-        folderNodeMapper.updateFolderNodeStatusById(
+        folderNodeMapper.updateFolderNodeStatusByIdAndUserId(
                 FolderNodeEntity.NodeStatus.active,
-                node_id
+                node_id,
+                user_id
         );
         // 解锁父节点
-        folderNodeMapper.updateFolderNodeStatusById(
+        folderNodeMapper.updateFolderNodeStatusByIdAndUserId(
                 FolderNodeEntity.NodeStatus.active,
-                node.getParent_id()
+                node.getParent_id(),
+                user_id
         );
     }
 
     @Override
-    public void deleteFolderNode(String node_id) {
-        ;
+    public void deleteFolderNode(String node_id, String user_id) {
+        // 检查节点是否存在
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
+        if(node == null) {
+            throw new NodeNotExistException("节点不存在");
+        }
     }
 
     @Override
     public List<NodeEntity> findUserNodesByNodeId(String node_id, String user_id) {
         // 检查节点是否存在
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
-        assertNodeOwner(node, user_id);
+
 
         List<NodeEntity> nodeList = new ArrayList<>();
         List<FileEntity> fileDataList =fileMapper.findUserFilesByNodeId(node_id, user_id);
-        List<FolderNodeEntity> folderNodeEntityList = folderNodeMapper.findFolderNodesById(node_id);
+        List<FolderNodeEntity> folderNodeEntityList = folderNodeMapper.findFolderNodesByIdAndUserId(node_id, user_id);
 
         for(FolderNodeEntity folderNodeEntity : folderNodeEntityList) {
             NodeEntity nodeData = new NodeEntity();
@@ -108,7 +112,7 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         }
         for(FileEntity fileData : fileDataList) {
             NodeEntity nodeData = new NodeEntity();
-            nodeData.setNode_id(fileData.getNode_id());
+            nodeData.setNode_id(fileData.getId());
             nodeData.setNode_name(fileData.getName());
             nodeData.setNode_type(NodeEntity.NodeType.FILE);
             nodeData.setNode_size(fileData.getSize());
@@ -120,19 +124,21 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     @Override
     public void moveNodeByNodeId(String node_id, String target_position, String user_id) {
         // 检查节点是否存在
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
-        assertNodeOwner(node, user_id);
-        FolderNodeEntity targetNode = folderNodeMapper.findFolderNodeById(target_position);
+
+        FolderNodeEntity targetNode = folderNodeMapper.findFolderNodeByIdAndUserId(target_position, user_id);
         if(targetNode == null) {
             throw new ParentNodeNotExistException("目标父节点不存在");
         }
-        assertNodeOwner(targetNode, user_id);
-        Integer rows = folderNodeMapper.updateFolderNodeParentIdById(
+
+        Integer rows = folderNodeMapper.updateFolderNodeParentIdByIdAndUserId(
                 target_position,
-                node_id );
+                node_id,
+                user_id
+        );
         if(rows != 1) {
             throw new UpdateException("文件夹移动失败");
         }
@@ -140,14 +146,16 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     @Override
     public void updateNodeNameByNodeId(String node_id, String new_node_name, String user_id) {
         // 检查节点是否存在
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
-        assertNodeOwner(node, user_id);
-        Integer rows =  folderNodeMapper.updateFolderNodeNameById(
+
+        Integer rows =  folderNodeMapper.updateFolderNodeNameByIdAndUserId(
                 new_node_name,
-                node_id );
+                node_id,
+                user_id
+        );
         if(rows != 1) {
             throw new UpdateException("文件夹重命名失败");
         }
@@ -155,20 +163,14 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     @Override
     public void deleteNodeByNodeId(String node_id, String user_id) {
         // 检查节点是否存在
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeById(node_id);
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
-        assertNodeOwner(node, user_id);
-        Integer rows =  folderNodeMapper.deleteFolderNodeById(node_id);
+
+        Integer rows =  folderNodeMapper.deleteFolderNodeByIdAndUserId(node_id, user_id);
         if(rows != 1) {
             throw new UpdateException("文件夹删除失败");
-        }
-    }
-
-    private void assertNodeOwner(FolderNodeEntity node, String user_id) {
-        if(user_id == null || !user_id.equals(node.getUser_id())) {
-            throw new OverstepAuthorityException("您没有权限操作该节点");
         }
     }
 }

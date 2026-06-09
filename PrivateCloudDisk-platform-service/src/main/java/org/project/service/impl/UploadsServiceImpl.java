@@ -31,13 +31,11 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Override
     public String createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, String user_id, String node_id) {
-        FolderNodeEntity folderNode = directoryTreeService.queryFolderNodeById(node_id);
+        FolderNodeEntity folderNode = directoryTreeService.queryFolderNodeById(node_id, user_id);
         if(folderNode == null) {
             throw new NodeNotExistException("节点不存在");
         }
-        if(user_id == null || !user_id.equals(folderNode.getUser_id())) {
-            throw new OverstepAuthorityException("您没有权限在该节点上传文件");
-        }
+
         // 检查同目录下是否已存在同名文件
         List<FileEntity> fileDataList = fileService.queryUserFilesByNodeId(node_id, user_id);
         for (FileEntity fileData : fileDataList) {

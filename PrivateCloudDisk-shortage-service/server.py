@@ -114,7 +114,7 @@ async def enforce_fixed_window(key: str, limit: int, window_seconds: int, detail
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
 
 async def enforce_operation_token_issue_limits(req: "InitOperationTokenRequest", user_id: str, client_ip: str):
-    file_fingerprint = stable_hash(f"{req.node_id}|{req.file_name}|{req.operation_type}")
+    file_fingerprint = stable_hash(f"{req.file_id}|{req.operation_type}")
     # Gateway handles generic user/IP throttling. File service keeps file-operation semantics.
     await enforce_fixed_window(
         f"rl:operation_token:issue:file:{stable_hash(user_id)}:{file_fingerprint}",
@@ -127,7 +127,7 @@ async def verify_operation_token(token: str) -> dict:
     """ 验证操作凭证 JWT,返回 payload, 失败抛出 401 """
     try:
         payload = jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"],
-                             options={"require": ["jti", "sub", "node_id","file_name", "operation_type", "exp", "rlimit"]})
+                             options={"require": ["jti", "sub", "file_id", "operation_type", "exp", "rlimit"]})
         if await redis_client.exists(f"revoked:operation_token:{payload['jti']}"):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Operation token revoked")
         return payload
@@ -269,8 +269,7 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 class InitOperationTokenRequest(BaseModel):
-    node_id: str
-    file_name: str
+    file_id: str
     operation_type: Literal["download", "preview", "stream"]
 
 class OperationTokenCancelRequest(BaseModel):
@@ -285,7 +284,7 @@ async def init_operation(
 ):  # 替换为实际认证
     await enforce_operation_token_issue_limits(req, user_id, get_client_ip(request))
     try:
-        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{req.node_id}/{req.file_name}?uid={user_id}", timeout=5)
+        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{req.file_id}?uid={user_id}", timeout=5)
         response.raise_for_status()
         result = response.json()
     except requests.RequestException:
@@ -302,8 +301,7 @@ async def init_operation(
     now = int(time.time())
     payload = {
         "sub": user_id,
-        "node_id": req.node_id,
-        "file_name": req.file_name,
+        "file_id": req.file_id,
         "operation_type": req.operation_type,
         "jti": str(uuid.uuid4()),
         "iat": now,
@@ -320,7 +318,8 @@ async def init_operation(
         OPERATION_TOKEN_EXPIRE_SECONDS + 30,
         json.dumps({
             "storage_path": file_sotrage_path,
-            "file_size": result["data"]["size"]
+            "file_size": result["data"]["size"],
+            "file_name": result["data"]["name"]
         })
     )
 
@@ -377,10 +376,9 @@ async def destroy_operation_token(
     return JSONResponse({"code": 200, "data": None, "message": None})
 
 # ---------- 接口：下载文件（支持Range） ----------
-@app.get("/files/nodes/{node_id}/files/{file_name}/content")
+@app.get("/files/files/{file_id}/content")
 async def download_file(
-    node_id: str,
-    file_name: str,
+    file_id: str,
     request: Request,
     user_id: str = Header(..., alias="X-User-Id"),
     range_header: Optional[str] = Header(None, alias="Range"),
@@ -392,8 +390,8 @@ async def download_file(
     sub = payload["sub"]
     if sub != user_id:
         raise HTTPException(status_code=403, detail="Operation token user mismatch")
-    # 交叉校验请求路径与凭证中的 node_id file_name
-    if payload["node_id"] != node_id or payload["file_name"] != file_name:
+    # 交叉校验请求路径与凭证中的 file_id
+    if payload["file_id"] != file_id:
         raise HTTPException(status_code=403, detail="Operation Token not for this file")
     
     # 从缓存获取文件元数据（Redis 中存储，签发时已写入）
@@ -402,14 +400,15 @@ async def download_file(
         metadata = json.loads(data)
     else:
         # 降级查库（极少数情况）
-        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{node_id}/{file_name}?uid={user_id}")
+        response = requests.get(f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{file_id}?uid={user_id}")
         result = response.json()
         if result["code"] != 200:
             raise HTTPException(status_code=404, detail="文件不存在用户网盘, 或者路径目录不存在")
         
         metadata = {
             "storage_path": result["data"]["storage_path"],
-            "file_size": result["data"]["size"]
+            "file_size": result["data"]["size"],
+            "file_name": result["data"]["name"]
         }
         
         await redis_client.setex(
@@ -419,7 +418,8 @@ async def download_file(
         )
 
     file_storage_path = metadata["storage_path"]
-    file_size = os.path.getsize(file_storage_path)
+    file_size = metadata["file_size"]
+    file_name = metadata["file_name"]
     start, end = 0, file_size - 1
 
     if range_header:

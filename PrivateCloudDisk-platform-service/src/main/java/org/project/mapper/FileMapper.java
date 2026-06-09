@@ -25,9 +25,10 @@ public interface FileMapper {
     /**
      * 根据文件ID查询文件元数据
      * @param file_id 文件ID
+     * @param user_id 用户Uid
      * @return 文件元数据
      */
-    FileEntity findFileById(String file_id);
+    FileEntity findUserFileById(String file_id, String user_id);
 
     /**
      * 根据用户Uid父目录节点ID和文件名字查询文件元数据

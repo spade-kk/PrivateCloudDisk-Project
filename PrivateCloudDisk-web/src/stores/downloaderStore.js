@@ -12,26 +12,26 @@ export const useDownloaderStore = defineStore('downloader', () => {
   /**
    * 下载文件（自动选择全量或分片）
    * @param {string} nodeId
-   * @param {string} fileName
    * @param {number} fileSize
    * @param {Function} onProgress
    * @returns {Promise<Blob>}
    */
-  async function downloadFile(nodeId, fileName, fileSize, onProgress) {
+  async function downloadFile(nodeId, fileSize, onProgress) {
     downloading.value = true
     downloadProgress.value = 0
     try {
       // 获取操作令牌
-      const initRes = await createOperationTokenApi(nodeId, fileName, 'download');
+      const initRes = await createOperationTokenApi(nodeId, 'download');
 
       if (initRes.code !== 200) {
+        console.error('获取操作令牌失败', initRes)
         throw new Error(initRes.message || '获取下载令牌失败')
       }
       const operationToken = initRes.data.operation_token
 
       if (fileSize < UPLOAD_THRESHOLD) {
         // 小文件全量下载
-        const res = await getFileContentApi(nodeId, encodeURIComponent(fileName), operationToken, (progressEvent) => {
+        const res = await getFileContentApi(nodeId, operationToken, (progressEvent) => {
           if (onProgress && progressEvent.total) {
             const percent = (progressEvent.loaded / progressEvent.total) * 100
             downloadProgress.value = percent
@@ -40,11 +40,10 @@ export const useDownloaderStore = defineStore('downloader', () => {
         })
         downloadProgress.value = 100
         if (onProgress) onProgress(100)
-
         return res
       } else {
         // 大文件分片下载
-        return await downloadLargeFile(nodeId, fileName, fileSize, operationToken, onProgress)
+        return await downloadLargeFile(nodeId, fileSize, operationToken, onProgress)
       }
     } catch (error) {
       toastStore.showToast('下载失败：' + (error.message || '网络错误'), 'error')
@@ -57,7 +56,7 @@ export const useDownloaderStore = defineStore('downloader', () => {
   /**
    * 分片下载大文件
    */
-  async function downloadLargeFile(nodeId, fileName, fileSize, operationToken, onProgress) {
+  async function downloadLargeFile(nodeId, fileSize, operationToken, onProgress) {
     const totalChunks = Math.ceil(fileSize / CHUNK_SIZE)
     const chunks = new Array(totalChunks).fill(null)
     let downloadedSize = 0
@@ -66,7 +65,7 @@ export const useDownloaderStore = defineStore('downloader', () => {
       const start = index * CHUNK_SIZE
       const end = index === totalChunks - 1 ? fileSize - 1 : start + CHUNK_SIZE - 1
 
-      const res = await getFileContentChunkApi(nodeId, encodeURIComponent(fileName), operationToken, start, end)
+      const res = await getFileContentChunkApi(nodeId, operationToken, start, end)
 
       chunks[index] = res
       downloadedSize += res.size

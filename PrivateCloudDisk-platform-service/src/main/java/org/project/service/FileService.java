@@ -37,15 +37,6 @@ public interface FileService {
     List<FileEntity> queryUserFilesByNodeId(String node_id, String user_id);
 
     /**
-     * 根据父节点ID和文件名字查询用户云盘节点下文件元数据
-     * @param node_id 父节点ID
-     * @param file_name 文件名字
-     * @param user_id 查询用户Uid
-     * @return 文件元数据
-     */
-    FileEntity queryUserFileByNodeIdAndName(String node_id, String file_name, String user_id);
-
-    /**
      * 根据文件ID查询用户云盘下文件元数据
      * @param file_id 文件ID
      * @param user_id 查询用户Uid

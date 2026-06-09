@@ -18,7 +18,7 @@
       >
         <!-- 复选框 -->
         <div class="hidden items-center sm:col-span-1 sm:flex" @click.stop>
-          <input type="checkbox" :checked="isSelected(node.node_id)" @change="toggleSelect(node.node_id)" class="w-4 h-4" />
+          <input type="checkbox" :checked="isSelected(node.node_id)" @change="toggleSelect(node.node_id, node.node_type)" class="w-4 h-4" />
         </div>
         <!-- 名称 -->
         <div class="flex min-w-0 cursor-pointer items-start gap-3 sm:col-span-5 sm:items-center" @click="$emit('itemClick', node)">
@@ -46,7 +46,7 @@
         <!-- 操作按钮 -->
         <div class="mt-3 flex items-center justify-between gap-3 sm:col-span-2 sm:mt-0 sm:justify-end sm:space-x-1 sm:text-right">
           <label class="inline-flex items-center gap-2 text-sm text-neutral-500 sm:hidden" @click.stop>
-            <input type="checkbox" :checked="isSelected(node.node_id)" @change="toggleSelect(node.node_id)" class="w-4 h-4" />
+            <input type="checkbox" :checked="isSelected(node.node_id)" @change="toggleSelect(node.node_id, node.node_type)" class="w-4 h-4" />
             选择
           </label>
           <div class="flex shrink-0 items-center gap-1">
@@ -77,16 +77,16 @@ const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star'])
 const iconClass = (node) => getFileIconClass(node.node_name)
 const isSelected = (id) => props.selectedIds.has(id)
 const isStarred = (id) => props.starredIds.has(id)
-const toggleSelect = (id) => emit('selection-change', id)
+const toggleSelect = (id, type) => emit('selection-change', id, type)
 
 const allSelected = computed(() => props.nodes.length > 0 && props.nodes.every(n => props.selectedIds.has(n.node_id)))
 
 const toggleSelectAll = () => {
   if (allSelected.value) {
-    props.nodes.forEach(n => emit('selection-change', n.node_id))
+    props.nodes.forEach(n => emit('selection-change', n.node_id, n.node_type))
   } else {
     props.nodes.forEach(n => {
-      if (!props.selectedIds.has(n.node_id)) emit('selection-change', n.node_id)
+      if (!props.selectedIds.has(n.node_id)) emit('selection-change', n.node_id, n.node_type)
     })
   }
 }

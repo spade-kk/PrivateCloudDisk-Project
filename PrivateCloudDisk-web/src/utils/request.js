@@ -46,20 +46,20 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response) => {
     const res = response.data;
-    // 根据后端约定的结构判断业务状态码
-    if (res.code !== 200) {
-      // 特定业务错误码处理，如 401 跳转登录
-      if (res.code === 401) {
-        // 清除 token 并跳转
-        window.location.href = '/login';
-      }
-      return Promise.reject(new ApiError(res.message || '请求失败', {
-        code: res.code,
-        data: res.data,
-        response,
-        isBusinessError: true,
-      }));
-    }
+    // // 根据后端约定的结构判断业务状态码 暂时注释 不要错误拦截文件下载GET请求的 blob响应哦
+    // if (res.code !== 200) {
+    //   // 特定业务错误码处理，如 401 跳转登录
+    //   if (res.code === 401) {
+    //     // 清除 token 并跳转
+    //     window.location.href = '/login';
+    //   }
+    //   return Promise.reject(new ApiError(res.message || '请求失败', {
+    //     code: res.code,
+    //     data: res.data,
+    //     response,
+    //     isBusinessError: true,
+    //   }));
+    // }
     // 正常返回数据（只返回有效 data）
     return res;
   },

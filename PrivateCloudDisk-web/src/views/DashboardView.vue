@@ -1,39 +1,5 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
-    <!-- 主内容区 -->
-    <!-- <main class="pt-20 pb-16 container mx-auto px-4"> -->
-      <!-- 路径导航 -->
-      <!-- <div class="bg-white rounded-lg shadow-card p-4 mb-6">
-        <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
-      </div> -->
-
-      <!-- 操作栏 -->
-      <!-- <div class="bg-white rounded-lg shadow-card p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center space-x-3">
-          <button @click="showCreateModal = true" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center space-x-1">
-            <i class="fa fa-folder-plus"></i><span>新建文件夹</span>
-          </button>
-          <button @click="triggerFileSelect" class="bg-success hover:bg-success/90 text-white px-4 py-2 rounded-lg flex items-center space-x-1">
-            <i class="fa fa-upload"></i><span>上传文件</span>
-          </button>
-          <input ref="fileInputRef" type="file" class="hidden" @change="onFileSelected" />
-        </div>
-        <div class="flex items-center space-x-3">
-          <div class="relative">
-            <input v-model="fileBrowserStore.searchKeyword" type="text" class="pl-10 pr-4 py-2 border border-neutral-200 rounded-lg w-64 focus:ring-2 focus:ring-primary/30" placeholder="搜索文件或文件夹...">
-            <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
-          </div>
-          <div class="flex items-center space-x-1 border border-neutral-200 rounded-lg p-1">
-            <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-primary text-white' : 'text-neutral-600 hover:bg-neutral-100'" class="px-3 py-1.5 rounded transition-all">
-              <i class="fa fa-th"></i>
-            </button>
-            <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-primary text-white' : 'text-neutral-600 hover:bg-neutral-100'" class="px-3 py-1.5 rounded transition-all">
-              <i class="fa fa-list"></i>
-            </button>
-          </div>
-        </div>
-      </div> -->
-
     <!-- 路径导航 -->
     <div class="responsive-panel p-3 sm:p-4">
       <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
@@ -68,8 +34,6 @@
         </div>
       </div>
     </div>
-
-
       <!-- 批量操作栏 -->
       <BatchActionsBar
         v-if="selectionStore.selectedIds.size > 0"
@@ -108,6 +72,7 @@
         :nodes="filteredNodes"
         :selectedIds="selectionStore.selectedIds"
         @itemClick="onNodeClick"
+        @action="onNodeAction"
         @selection-change="toggleSelect"
       />
       <FileListView
@@ -119,14 +84,6 @@
         @selection-change="toggleSelect"
       />
       </div>
-    <!-- </main> -->
-
-    <!-- 页脚 -->
-    <!-- <footer class="bg-white border-t border-neutral-200 py-4">
-      <div class="container mx-auto px-4 text-center text-neutral-500 text-sm">
-        <p>© 2025 CloudDrive 私有云网盘管理系统</p>
-      </div>
-    </footer> -->
 
     <!-- 各种弹窗/抽屉 -->
     <CreateFolderModal :visible="showCreateModal" @close="showCreateModal = false" @confirm="handleCreateFolder" />
@@ -149,22 +106,7 @@
       @cancel="cancelUpload"
     />
     <!-- 模态框组件 -->
-    <LoginModal v-if="false" /> <!-- 已改为独立登录页，此处不需要 -->
-    <!-- <CreateFolderModal :visible="showCreateModal" @close="showCreateModal = false" @confirm="handleCreateFolder" />
-    <DownloadConfirmModal :visible="downloadModalVisible" :fileName="pendingDownload?.node_name" @close="downloadModalVisible = false" @confirm="executeDownload" />
-    <UploadConfirmModal :visible="uploadConfirmVisible" :file="selectedFile" @close="uploadConfirmVisible = false" @confirm="startUploadConfirmed" />
-    <UploadProgressPanel
-      :visible="uploaderStore.isUploading"
-      :minimized="uploadMinimized"
-      :progress="uploaderStore.uploadProgress"
-      :speed="uploaderStore.uploadSpeed"
-      :fileName="uploaderStore.uploadFileName"
-      :paused="uploaderStore.uploadPaused"
-      @minimize="uploadMinimized = true"
-      @restore="uploadMinimized = false"
-      @togglePause="toggleUploadPause"
-      @cancel="cancelUpload"
-    /> -->
+    <!-- <LoginModal v-if="false" />  -->
   </div>
 </template>
 
@@ -272,20 +214,58 @@ const onNodeClick = (node) => {
   }
 }
 
-function onNodeAction(node) {
-  if (node.node_type === 'FOLDER') {
-    fileBrowserStore.navigateTo(node)
-  } else {
-    pendingDownload.value = node
-    downloadModalVisible.value = true
+async function onNodeAction(node, actionType) {
+  if (actionType === 'download') {
+    if (node.node_type === 'FOLDER') {
+      fileBrowserStore.navigateTo(node)
+    } else {
+      pendingDownload.value = node
+      downloadModalVisible.value = true
+    }
+  } else if (actionType === 'rename') {
+    renameTarget.value = node
+    renameVisible.value = true
+  } else if (actionType === 'delete') {
+    // 直接调用删除接口，传入单个ID
+    const id = node.node_id
+    const type = node.node_type
+    let result = null
+    if (type === 'FILE') {
+      result = await fileBrowserStore.deleteFileNode(id)
+    } else {
+      result = await fileBrowserStore.deleteFolderNode(id)
+    }
+    if(result && result.success) toastStore.showToast('删除成功', 'success')
+    
+  } else if (actionType === 'detail') {
+    // 根据文件类型决定预览或仅显示详情
+    const ext = node.node_name.split('.').pop()?.toLowerCase()
+    if (['jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'md', 'html', 'css', 'js'].includes(ext)) {
+      previewNode.value = node
+      previewVisible.value = true
+    } else {
+      detailNode.value = node
+      detailVisible.value = true
+    }
   }
 }
 
 // 右键菜单可触发重命名等（为简洁，本处通过操作按钮触发）
 const handleRename = async (newName) => {
   // 调用API重命名
-  // await renameNode(renameTarget.value.node_id, newName)
   // 刷新列表
+  const type = renameTarget.value.node_type
+  const id = renameTarget.value.node_id
+  let result = null
+  if (type === 'FILE') {
+    result = await fileBrowserStore.renameFileNode(id, newName)
+  } else {
+    result = await fileBrowserStore.renameFolderNode(id, newName)
+  }
+  if (!result || !result.success) toastStore.showToast('重命名失败', 'error')
+  else toastStore.showToast('重命名成功', 'success')
+
+  renameVisible.value = false
 }
 
 async function handleCreateFolder(name) {
@@ -298,15 +278,32 @@ async function handleCreateFolder(name) {
   showCreateModal.value = false
 }
 
+function openMoveDialog(mode) {
+  moveMode.value = mode
+  moveVisible.value = true
+}
+
 const handleMoveCopy = async (targetFolderId) => {
   const ids = Array.from(selectionStore.selectedIds)
   const action = moveMode.value === 'move' ? 'move' : 'copy'
   try {
-    await client.post(`/v1/nodes/batch-${action}`, { ids, targetFolderId })
-    toastStore.showToast(`${moveMode.value === 'move' ? '移动' : '复制'}成功`, 'success')
-    fileBrowserStore.refresh()
+    //await client.post(`/v1/nodes/batch-${action}`, { items, targetFolderId })
+    ids.forEach(async (id) => {
+      const type = selectionStore.selectedTypes.value.get(id)
+      let result = null
+      if (type === 'FILE') {
+        if (action === 'move') result = await fileBrowserStore.moveFile(id, targetFolderId)
+      } else {
+        if (action === 'move') result = await fileBrowserStore.moveFolder(id, targetFolderId)
+      }
+      if (!result || !result.success) {
+        toastStore.showToast(`${type === 'FILE' ? 'File' : "Folder"} Node ID${id} ${action === 'move' ? '移动' : '复制'}失败`, 'error')
+        throw new Error('批量操作失败')
+      }
+    })
+    toastStore.showToast(`批量${moveMode.value === 'move' ? '移动' : '复制'}成功`, 'success')
     clearSelection()
-    moveDialogVisible.value = false
+    moveVisible.value = false
   } catch (err) {
     toastStore.showToast('操作失败', 'error')
   }
@@ -314,7 +311,27 @@ const handleMoveCopy = async (targetFolderId) => {
 
 const batchDelete = async () => {
   const ids = Array.from(selectionStore.selectedIds)
-  // 批量删除API
+  let result = null
+  try {
+    // 批量删除API
+    ids.forEach(async (id) => {
+      const type = selectionStore.selectedTypes.value.get(id)
+      if (type === 'FILE') {
+        result = await fileBrowserStore.deleteFileNode(id)
+      } else {
+        result = await fileBrowserStore.deleteFolderNode(id)
+      }
+      if (!result || !result.success) {
+        toastStore.showToast(`${type === 'FILE' ? 'File' : "Folder"} Node ID${id} 删除失败`, 'error')
+        throw new Error('批量删除失败')
+      }
+    })
+  }
+  catch (err) {
+    toastStore.showToast('批量删除失败', 'error')
+    selectionStore.clearSelection()
+  }
+  toastStore.showToast('批量删除成功', 'success')
   selectionStore.clearSelection()
 }
 
@@ -328,7 +345,7 @@ async function executeDownload() {
   downloadModalVisible.value = false
   const { node_id, node_name, node_size } = pendingDownload.value
   try {
-    const blob = await downloaderStore.downloadFile(node_id, node_name, node_size, (percent) => {
+    const blob = await downloaderStore.downloadFile(node_id, node_size, (percent) => {
       console.log(`下载进度: ${percent.toFixed(2)}%`)
     })
     const url = URL.createObjectURL(blob)
@@ -357,7 +374,7 @@ function onFileSelected(e) {
 }
 
 // 批量操作
-const toggleSelect = (id) => selectionStore.toggleSelect(id)
+const toggleSelect = (id, type) => selectionStore.toggleSelect(id, type)
 const clearSelection = () => selectionStore.clearSelection()
 
 function startUploadConfirmed() {

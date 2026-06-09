@@ -120,16 +120,15 @@ public class InternalStorageController extends BaseController {
         return new JsonResult<>(OK);
     }
 
-    @GetMapping({"files/{node_id}/{file_name}", "files/{node_id}/{file_name}/info", "file/{node_id}/{file_name}/info"})
+    @GetMapping({"files/{file_id}", "files/{file_id}/info", "file/{file_id}/info"})
     public JsonResult<InternalFileMetadataVO> file_metadata_query(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-                    message = "node_id必须是有效的UUID格式")
-            @PathVariable String node_id,
-            @PathVariable String file_name,
+                    message = "file_id必须是有效的UUID格式")
+            @PathVariable String file_id,
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uid必须是有效的UUID格式")
             @RequestParam String uid ) {
-        FileEntity fileData = fileService.queryUserFileByNodeIdAndName(node_id, file_name, uid);
+        FileEntity fileData = fileService.queryUserFileById(file_id, uid);
         return new JsonResult<>(OK, VoMapper.toInternalFileMetadataVO(fileData));
     }
 }
