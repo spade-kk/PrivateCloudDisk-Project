@@ -5,11 +5,13 @@ import jakarta.validation.constraints.Pattern;
 import org.project.control.result.JsonResult;
 import org.project.model.dto.CreateFolderNodeRequest;
 import org.project.model.dto.MoveNodeRequest;
+import org.project.model.dto.NodeQueryDTO;
 import org.project.model.dto.RenameNodeRequest;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.NodeEntity;
 import org.project.model.vo.FolderNodeVO;
 import org.project.model.vo.NodeVO;
+import org.project.model.vo.PageResultVO;
 import org.project.model.vo.VoMapper;
 import org.project.service.DirectoryTreeService;
 import org.project.service.UserService;
@@ -41,8 +43,8 @@ public class NodeController extends BaseController {
                     message = "node_id必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id) {
-        FolderNodeEntity node = directoryTreeService.queryFolderNodeById(node_id);
-        assertNodeOwner(node, user_id);
+        FolderNodeEntity node = directoryTreeService.queryFolderNodeById(node_id, user_id);
+
         return new JsonResult<>(OK, VoMapper.toFolderNodeVO(node));
     }
 
@@ -52,11 +54,46 @@ public class NodeController extends BaseController {
                     message = "node_id必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id ) {
-        FolderNodeEntity folderNodeEntity = directoryTreeService.queryFolderNodeById(node_id);
-        assertNodeOwner(folderNodeEntity, user_id);
-
         List<NodeEntity> nodeList = directoryTreeService.findUserNodesByNodeId(node_id, user_id);
         return new JsonResult<>(OK, VoMapper.toNodeVOList(nodeList));
+    }
+    
+    /**
+     * 分页查询节点子节点（支持搜索、过滤、排序）
+     */
+    @GetMapping("/{node_id}/children/paged")
+    public JsonResult<PageResultVO<NodeVO>> findNodesByNodeIdPaged(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "node_id必须是有效的UUID格式")
+            @PathVariable String node_id,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String fileType,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortOrder,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            @RequestHeader("X-User-Id") String user_id) {
+        
+        NodeQueryDTO query = new NodeQueryDTO();
+        query.setParentId(node_id);
+        query.setKeyword(keyword);
+        query.setFileType(fileType);
+        query.setSortBy(sortBy);
+        query.setSortOrder(sortOrder);
+        query.setPage(page);
+        query.setPageSize(pageSize);
+        
+        PageResultVO<NodeEntity> result = directoryTreeService.findUserNodesByNodeIdPaged(query, user_id);
+        
+        List<NodeVO> voList = VoMapper.toNodeVOList(result.getItems());
+        PageResultVO<NodeVO> voResult = new PageResultVO<>(
+                voList, 
+                result.getTotal(), 
+                result.getPage(), 
+                result.getPageSize()
+        );
+        
+        return new JsonResult<>(OK, voResult);
     }
 
     @PostMapping("/")
@@ -97,11 +134,5 @@ public class NodeController extends BaseController {
             @RequestHeader("X-User-Id") String user_id ) {
         directoryTreeService.updateNodeNameByNodeId(node_id, request.getNew_node_name(), user_id);
         return new JsonResult<>(OK);
-    }
-
-    private void assertNodeOwner(FolderNodeEntity node, String user_id) {
-        if(node == null || user_id == null || !user_id.equals(node.getUser_id())) {
-            throw new OverstepAuthorityException("您没有权限查询该节点");
-        }
     }
 }

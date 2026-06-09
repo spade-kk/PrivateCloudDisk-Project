@@ -7,6 +7,51 @@ import java.util.List;
 public final class VoMapper {
     private VoMapper() {
     }
+    
+    // ==================== 新增方法 ====================
+    
+    public static TrashFileVO toTrashFileVO(TrashFileEntity entity) {
+        if(entity == null) {
+            return null;
+        }
+        TrashFileVO vo = new TrashFileVO();
+        vo.setTrash_id(entity.getTrash_id());
+        vo.setFile_id(entity.getFile_id());
+        vo.setFile_name(entity.getFile_name());
+        vo.setFile_type(entity.getFile_type());
+        vo.setFile_size(entity.getFile_size());
+        vo.setOriginal_node_id(entity.getOriginal_node_id());
+        vo.setDeleted_at(entity.getDeleted_at());
+        vo.setExpires_at(entity.getExpires_at());
+        return vo;
+    }
+    
+    public static List<TrashFileVO> toTrashFileVOList(List<TrashFileEntity> entities) {
+        if(entities == null) {
+            return List.of();
+        }
+        return entities.stream().map(VoMapper::toTrashFileVO).toList();
+    }
+    
+    public static FileStarVO toFileStarVO(FileStarEntity entity) {
+        if(entity == null) {
+            return null;
+        }
+        FileStarVO vo = new FileStarVO();
+        vo.setStar_id(entity.getStar_id());
+        vo.setFile_id(entity.getFile_id());
+        vo.setStarred_at(entity.getStarred_at());
+        return vo;
+    }
+    
+    public static List<FileStarVO> toFileStarVOList(List<FileStarEntity> entities) {
+        if(entities == null) {
+            return List.of();
+        }
+        return entities.stream().map(VoMapper::toFileStarVO).toList();
+    }
+    
+    // ==================== 原有方法 ====================
 
     public static FileVO toFileVO(FileEntity entity) {
         if(entity == null) {

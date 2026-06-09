@@ -186,3 +186,33 @@ CREATE TABLE pcd_user_quota_log_table (
     quota_log_created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_id_time (quota_log_user_id, quota_log_created_at)
 ) COMMENT='配额变更日志';
+
+-- 文件收藏表
+CREATE TABLE pcd_file_star_table (
+    star_id             BIGINT          PRIMARY KEY AUTO_INCREMENT,
+    star_user_id        VARCHAR(36)     NOT NULL COMMENT '用户ID',
+    FOREIGN KEY (star_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    star_file_id        VARCHAR(36)     NOT NULL COMMENT '文件ID',
+    FOREIGN KEY (star_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
+    star_starred_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+    UNIQUE KEY uk_user_file (star_user_id, star_file_id),
+    INDEX idx_user_starred (star_user_id, star_starred_at)
+) COMMENT='文件收藏表';
+
+-- 回收站文件表
+CREATE TABLE pcd_trash_file_table (
+    trash_id                BIGINT          PRIMARY KEY AUTO_INCREMENT,
+    trash_file_id           VARCHAR(36)     NOT NULL COMMENT '原文件ID',
+    trash_user_id           VARCHAR(36)     NOT NULL COMMENT '用户ID',
+    FOREIGN KEY (trash_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    trash_file_name         VARCHAR(150)    NOT NULL COMMENT '文件名称',
+    trash_file_type         VARCHAR(60)     NOT NULL COMMENT '文件类型',
+    trash_file_size         BIGINT          NOT NULL COMMENT '文件大小',
+    trash_original_node_id  VARCHAR(36)     NOT NULL COMMENT '原节点ID',
+    trash_storage_path      VARCHAR(512)    NOT NULL COMMENT '文件存储路径',
+    trash_file_checksum     VARCHAR(256)    NOT NULL COMMENT '文件校验值',
+    trash_deleted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '删除时间',
+    trash_expires_at        DATETIME        NOT NULL COMMENT '过期时间（自动彻底删除时间）',
+    INDEX idx_user_deleted (trash_user_id, trash_deleted_at),
+    INDEX idx_expires (trash_expires_at)
+) COMMENT='回收站文件表';

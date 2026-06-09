@@ -1,0 +1,27 @@
+package org.project.model.entity;
+
+import lombok.Data;
+
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+/**
+ * 文件收藏实体
+ */
+@Data
+public class FileStarEntity implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
+    
+    /** 收藏ID */
+    private Long star_id;
+    
+    /** 用户ID */
+    private String user_id;
+    
+    /** 文件ID */
+    private String file_id;
+    
+    /** 收藏时间 */
+    private LocalDateTime starred_at;
+}
