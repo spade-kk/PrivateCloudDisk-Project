@@ -51,4 +51,29 @@ public interface UserMapper {
      * @return 删除了数据行数
      */
     int deleteUserById(String user_id);
+    
+    /**
+     * 通过用户邮箱查询用户信息
+     * @param email 用户邮箱
+     * @return 用户数据
+     */
+    UserEntity findUserByEmail(String email);
+    
+    /**
+     * 通过用户手机号查询用户信息（别名方法）
+     * @param phone 用户手机号
+     * @return 用户数据
+     */
+    default UserEntity findUserByPhone(String phone) {
+        return findUserByPhoneNumber(phone);
+    }
+    
+    /**
+     * 更新用户信息
+     * @param userData 用户数据对象
+     * @return 更新了数据行数
+     */
+    default int updateUserInfo(UserEntity userData) {
+        return updateUserEntity(userData);
+    }
 }

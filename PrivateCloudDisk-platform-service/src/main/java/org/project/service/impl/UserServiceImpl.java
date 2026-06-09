@@ -1,33 +1,36 @@
 package org.project.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.project.event.UserRegisteredEvent;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.UserEntity;
 import org.project.mapper.FolderNodeMapper;
 import org.project.mapper.UserMapper;
 import org.project.service.DirectoryTreeService;
+import org.project.service.LoginService;
+import org.project.service.UserEventPublisher;
 import org.project.service.UserService;
 import org.project.service.ex.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private FolderNodeMapper folderNodeMapper;
-    @Autowired
-    private DirectoryTreeService directoryTreeService;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
+    private final FolderNodeMapper folderNodeMapper;
+    private final DirectoryTreeService directoryTreeService;
+    private final PasswordEncoder passwordEncoder;
+    private final UserEventPublisher userEventPublisher;
+    private final LoginService loginService;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
@@ -99,6 +102,20 @@ public class UserServiceImpl implements UserService {
         // 创建用户根目录节点
         directoryTreeService.createFolderNode(userData.getId(), null, "#root");
 
+        // 发布用户注册事件（异步发送欢迎邮件/短信）
+        UserRegisteredEvent registeredEvent = UserRegisteredEvent.builder()
+                .eventId("user-registered:" + userData.getId() + ":" + System.currentTimeMillis())
+                .userId(userData.getId())
+                .userAccount(userData.getAccount())
+                .userName(userData.getName())
+                .email(userData.getEmail())
+                .phone(userData.getPhone_number())
+                .registeredAt(LocalDateTime.now())
+                .build();
+        userEventPublisher.publishUserRegistered(registeredEvent);
+
+        log.info("用户注册成功并发布事件: userId={}, account={}", userData.getId(), userData.getAccount());
+
         return userData.getAccount();
     }
 
@@ -137,11 +154,13 @@ public class UserServiceImpl implements UserService {
             throw new PasswordNotMatchException();
         }
         // 更新密码
-        // 调用持久层函数更新数据
         Integer rows = userMapper.updateUserPassword(user_id, passwordEncoder.encode(new_password));
         if(rows != 1) {
             throw new UpdateException("更新密码失败");
         }
+        // 密码修改成功后，强制用户所有设备下线
+        loginService.logoutAll(user_id);
+        log.info("用户密码修改成功，已强制所有设备下线: userId={}", user_id);
     }
     @Override
     public void uploadUserAvator(String user_id, MultipartFile avator_file) {

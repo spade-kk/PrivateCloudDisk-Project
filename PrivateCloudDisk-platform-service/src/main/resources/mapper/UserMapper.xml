@@ -42,4 +42,9 @@
     <delete id="deleteUserById" parameterType="java.lang.String">
         delete from pcd_user_info_table where user_id=#{user_id};
     </delete>
+    
+    <!--配置sql语句通过email字段查询user数据信息-->
+    <select id="findUserByEmail" resultMap="UserEntityMap">
+        select * from pcd_user_info_table where user_email=#{email};
+    </select>
 </mapper>

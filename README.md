@@ -855,8 +855,7 @@ Content-Type: application/json
 | 参数名         | 类型   | 描述                               |
 | :------------- | ------ | ---------------------------------- |
 | operation_type | String | 操作类型 Download Steaming Preview |
-| node_id        | String | 目标文件位于的目录节点ID           |
-| file_name      | String | 目标文件名字                       |
+| file_id        | String | 目标文件ID                         |
 
 - **请求实例**：
 
@@ -884,15 +883,14 @@ Content-Type: application/json
 
 ### 1.7.3. 文件下载
 
-- **API 接口路径**：/api/v1/files/nodes/{node_id}/files/{file_name}/content
+- **API 接口路径**：/api/v1/files/files/{file_id}/content
 - **请求类型**：GET
 - **参数位置**：路径参数
 - **参数说明**：
 
-| 参数名    | 类型   | 描述                     |
-| :-------- | ------ | ------------------------ |
-| file_name | String | 目标文件的文件名         |
-| node_id   | String | 目标文件位于的目录节点ID |
+| 参数名  | 类型   | 描述       |
+| :------ | ------ | ---------- |
+| file_id | String | 目标文件ID |
 
 - **请求实例**：
 
@@ -923,14 +921,7 @@ aria2c -s4 -x4 --header="X-Operation-Ticket:eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9
 
 ## 1.8. 文件相关接口
 
-### 1.8.1. 查询文件信息
-
-- **API 接口路径**：/api/v1/business/nodes/{node_id}/files/{file_name}/
-- **请求类型**：GET
-- **参数位置**：路径参数
-- **参数说明**:  file_name node_id
-
-### 1.8.2. 根据ID查询文件信息
+### 1.8.1. 根据ID查询文件信息
 
 - **API 接口路径**：/api/v1/business/files/{file_id}
 - **请求类型**：GET
