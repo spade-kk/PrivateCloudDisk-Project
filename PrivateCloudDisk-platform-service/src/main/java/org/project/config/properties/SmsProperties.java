@@ -23,7 +23,6 @@ import org.springframework.stereotype.Component;
  * 开发环境可将enabled设为false，只打印日志不真正发送短信。
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "app.sms")
 public class SmsProperties {
 

@@ -8,16 +8,17 @@ from fastapi import FastAPI
 
 from app.api.v1.router import api_router
 from app.middleware.timing import add_process_time_header
-from core.redis_client import redis_client
+from app.core.redis_client import redis_client
+from app.core.logging_config import setup_logging, get_logger
 from core.rabbitmq import rabbitmq_service
 from core.config import settings
 from core.consumers.file_process_consumer import FileProcessConsumer
 from core.consumers.file_delete_consumer import FileDeleteConsumer
 
 
-# 配置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# 配置日志系统
+setup_logging(level=logging.INFO, enable_color=True)
+logger = get_logger("app.main")
 
 
 # ==================== 应用生命周期管理 ====================
@@ -37,21 +38,30 @@ async def start_rabbitmq_consumers():
     - file_process_queue: 文件处理队列
     - file_delete_queue: 文件删除队列
     """
+    logger.info("🚀 开始启动 RabbitMQ 消费者...")
+    
+    # 连接 RabbitMQ
+    logger.info("🔗 连接 RabbitMQ 服务...")
     await rabbitmq_service.connect()
+    logger.info("✅ RabbitMQ 连接成功")
     
     # 启动文件处理消费者
+    logger.info(f"🔄 启动文件处理消费者 - queue: {settings.file_process_queue}")
     await rabbitmq_service.consume(
         settings.file_process_queue,
         FileProcessConsumer.process_message
     )
+    logger.info(f"✅ 文件处理消费者启动成功 - queue: {settings.file_process_queue}")
     
     # 启动文件删除消费者
+    logger.info(f"🔄 启动文件删除消费者 - queue: {settings.file_delete_queue}")
     await rabbitmq_service.consume(
         settings.file_delete_queue,
         FileDeleteConsumer.process_message
     )
+    logger.info(f"✅ 文件删除消费者启动成功 - queue: {settings.file_delete_queue}")
     
-    logger.info("RabbitMQ消费者已启动")
+    logger.info("🎉 RabbitMQ 消费者全部启动完成")
 
 
 @asynccontextmanager
@@ -76,11 +86,32 @@ async def lifespan(app: FastAPI):
         None: 应用运行期间
     """
     # 启动阶段
-    await start_rabbitmq_consumers()
-    yield
-    # 关闭阶段
-    await redis_client.close()
-    await rabbitmq_service.close()
+    logger.info("=" * 60)
+    logger.info("📦 PrivateCloudDisk 文件服务启动中...")
+    logger.info("=" * 60)
+    
+    try:
+        await start_rabbitmq_consumers()
+        logger.info("✅ 所有服务初始化完成")
+        logger.info("=" * 60)
+        yield
+    finally:
+        # 关闭阶段
+        logger.info("=" * 60)
+        logger.info("🛑 PrivateCloudDisk 文件服务关闭中...")
+        logger.info("=" * 60)
+        
+        logger.info("🔌 关闭 Redis 连接...")
+        await redis_client.close()
+        logger.info("✅ Redis 连接已关闭")
+        
+        logger.info("🔌 关闭 RabbitMQ 连接...")
+        await rabbitmq_service.close()
+        logger.info("✅ RabbitMQ 连接已关闭")
+        
+        logger.info("=" * 60)
+        logger.info("🛑 PrivateCloudDisk 文件服务已关闭")
+        logger.info("=" * 60)
 
 
 # ==================== 创建 FastAPI 应用实例 ====================

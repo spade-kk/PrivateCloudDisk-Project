@@ -50,6 +50,8 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
     // 邮件发送 JavaMailSender
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    // Thymeleaf 模板引擎（用于 HTML 邮件渲染）
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     // Jackson JSON 处理（已存在于boot，但这里显式声明以便于消息转换）
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'

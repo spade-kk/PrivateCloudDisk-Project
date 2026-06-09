@@ -26,12 +26,12 @@ const routes = [
       { path: 'trash', name: 'Trash', component: () => import('@/views/TrashView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
       { path: 'transfers', name: 'Transfers', component: () => import('@/views/TransfersView.vue') },
-      {
-        path: 'preview/:fileId',
-        name: 'FilePreview',
-        component: () => import('@/views/FilePreviewView.vue'),
-        meta: { requiresAuth: true }
-      },
+      // {
+      //   path: 'preview/:fileId',
+      //   name: 'FilePreview',
+      //   component: () => import('@/views/FilePreviewView.vue'),
+      //   meta: { requiresAuth: true }
+      // },
     ],
   }
 ]

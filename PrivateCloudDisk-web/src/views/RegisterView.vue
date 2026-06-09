@@ -23,13 +23,13 @@
           </div>
 
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-600">手机号</label>
+            <label class="mb-1 block text-sm font-medium text-slate-600">邮箱</label>
             <input
-              v-model="form.phone_number"
-              type="tel"
+              v-model="form.email"
+              type="email"
               class="w-full rounded-lg border px-4 py-2.5 text-slate-900 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               :class="formError ? 'border-danger' : 'border-slate-200'"
-              placeholder="请输入手机号"
+              placeholder="请输入邮箱地址"
               required
               @input="clearFormError"
             >
@@ -130,7 +130,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import { post } from '@/utils/request'
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
@@ -138,7 +138,7 @@ const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api
 const router = useRouter()
 const form = reactive({
   name: '',
-  phone_number: '',
+  email: '',
   code: '',
   password: '',
 })
@@ -161,14 +161,14 @@ const captchaStatusText = computed(() => {
 })
 
 const verificationDisabled = computed(() => {
-  return loading.value || verificationCountdown.value > 0 || !form.phone_number
+  return loading.value || verificationCountdown.value > 0 || !form.email
 })
 
 const submitDisabled = computed(() => {
   return loading.value || 
          !captchaToken.value || 
          !form.name || 
-         !form.phone_number || 
+         !form.email || 
          !form.code || 
          !form.password
 })
@@ -228,14 +228,14 @@ const initTurnstile = async () => {
 }
 
 const sendVerificationCode = async () => {
-  if (!form.phone_number) {
-    formError.value = '请先输入手机号'
+  if (!form.email) {
+    formError.value = '请先输入邮箱'
     return
   }
   
   try {
-    await axios.post('/api/business/users/phone/verification-code', null, {
-      params: { phone: form.phone_number }
+    await post('/business/users/email/verification-code', null, {
+      params: { email: form.email }
     })
     
     verificationCountdown.value = 60
@@ -269,9 +269,9 @@ const handleRegister = async () => {
   formError.value = ''
   
   try {
-    const response = await axios.post('/api/business/users/', {
+    const response = await post('/business/users/', {
       name: form.name,
-      phone_number: form.phone_number,
+      email: form.email,
       password: form.password,
       code: form.code,
       captcha_token: captchaToken.value

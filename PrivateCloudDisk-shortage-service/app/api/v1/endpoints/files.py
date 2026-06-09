@@ -11,8 +11,8 @@ from fastapi.responses import StreamingResponse, FileResponse, Response
 from typing import Optional
 
 from core.config import settings
-from core.redis_client import redis_client
-from core.rate_limiter import operation_limiter, OPERATION_TOKEN_EXPIRE_SECONDS
+from app.core.redis_client import redis_client
+from app.core.rate_limiter import operation_limiter, OPERATION_TOKEN_EXPIRE_SECONDS
 from app.services.thumbnail_service import get_thumbnail_bytes
 
 

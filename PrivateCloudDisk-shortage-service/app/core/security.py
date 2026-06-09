@@ -5,7 +5,7 @@
 import jwt
 from fastapi import HTTPException, status
 from core.config import settings
-from core.redis_client import redis_client
+from app.core.redis_client import redis_client
 
 
 # 加载 RSA 密钥对

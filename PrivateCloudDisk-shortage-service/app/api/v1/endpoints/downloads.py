@@ -11,8 +11,8 @@ from fastapi.responses import StreamingResponse, FileResponse, Response
 from typing import Optional
 
 from core.config import settings
-from core.redis_client import redis_client
-from core.download_grant import (
+from app.core.redis_client import redis_client
+from app.core.download_grant import (
     verify_download_grant,
     acquire_chunk_permit,
     release_chunk_permit,

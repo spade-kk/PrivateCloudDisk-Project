@@ -11,7 +11,7 @@ from fastapi import APIRouter, Header, Form, File, UploadFile, HTTPException, st
 from fastapi.responses import JSONResponse
 
 from core.config import settings, TaskTypes, TaskStatus
-from core.redis_client import redis_client
+from app.core.redis_client import redis_client
 from core.rabbitmq import rabbitmq_service
 
 

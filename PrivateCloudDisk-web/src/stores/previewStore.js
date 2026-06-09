@@ -7,7 +7,7 @@ import {
   getFileContentApi,
   getDocumentConversionStatusApi,
   requestDocumentConversionApi
-} from '@/api/modules/preview'
+} from '@/api'
 
 /**
  * 文件预览状态管理

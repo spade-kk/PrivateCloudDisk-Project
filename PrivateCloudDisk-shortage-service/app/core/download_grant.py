@@ -10,7 +10,7 @@ from fastapi import HTTPException, status, Header, Request, Depends
 from typing import Optional
 
 from core.config import settings
-from core.redis_client import redis_client
+from app.core.redis_client import redis_client
 
 
 # Redis Key 前缀常量

@@ -10,7 +10,7 @@ import logging
 import pyvips
 from fastapi import HTTPException
 from core.config import settings
-from core.redis_client import redis_client
+from app.core.redis_client import redis_client
 
 
 # 缩略图缓存 TTL（秒）

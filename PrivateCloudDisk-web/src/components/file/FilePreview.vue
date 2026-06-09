@@ -94,7 +94,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { getFilePreviewTokenApi, getFileContentApi } from '@/api/modules/preview'
+import { getFilePreviewTokenApi, getFileContentApi } from '@/api'
 import { getFileExtension } from '@/utils/helpers'
 import ImagePreview from '@/components/preview/ImagePreview.vue'
 import VideoPreview from '@/components/preview/VideoPreview.vue'

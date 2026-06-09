@@ -68,21 +68,6 @@ export function getSupportedFormatsApi() {
 }
 
 /**
- * 预览文件内容（文本/代码）
- * 直接获取文本或代码文件内容用于预览
- * @param {string} file_id - 文件ID
- * @param {Object} options - 获取选项
- * @param {number} options.maxSize - 最大读取字节数（默认1MB）
- * @param {string} options.encoding - 文本编码（默认utf-8）
- * @returns {Promise<Object>} 文件内容
- */
-export function getFileContentApi(file_id, options = {}) {
-  return get(`files/files/${file_id}/content`, options, {
-    responseType: 'text'
-  });
-}
-
-/**
  * 获取Office文档转换状态
  * 检查Office文档是否已转换为可预览格式
  * @param {string} file_id - 文件ID

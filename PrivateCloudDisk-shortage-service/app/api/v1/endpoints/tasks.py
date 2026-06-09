@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from core.config import TaskTypes, TaskStatus
-from core.redis_client import redis_client
+from app.core.redis_client import redis_client
 
 
 # 创建路由器

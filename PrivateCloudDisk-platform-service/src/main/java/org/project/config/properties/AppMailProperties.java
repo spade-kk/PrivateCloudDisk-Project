@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
  * </pre>
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "app.mail")
 public class AppMailProperties {
 
@@ -51,4 +50,9 @@ public class AppMailProperties {
      * 邮件编码
      */
     private String encoding = "UTF-8";
+
+    /**
+     * 登录页面URL（欢迎邮件中的跳转链接）
+     */
+    private String loginUrl = "http://localhost:5173/login";
 }
