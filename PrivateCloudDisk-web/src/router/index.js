@@ -9,6 +9,12 @@ const routes = [
     meta: { requiresGuest: true },
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: { requiresGuest: true },
+  },
+  {
     path: '/',
     component: () => import('@/components/layout/Layout.vue'),
     meta: { requiresAuth: true },
@@ -20,6 +26,12 @@ const routes = [
       { path: 'trash', name: 'Trash', component: () => import('@/views/TrashView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
       { path: 'transfers', name: 'Transfers', component: () => import('@/views/TransfersView.vue') },
+      {
+        path: 'preview/:fileId',
+        name: 'FilePreview',
+        component: () => import('@/views/FilePreviewView.vue'),
+        meta: { requiresAuth: true }
+      },
     ],
   }
 ]
