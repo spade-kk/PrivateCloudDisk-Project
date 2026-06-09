@@ -8,3 +8,6 @@ pyjwt[crypto]
 aiohttp
 pyvips
 pydantic-settings
+aio-pika
+pika
+python-dotenv

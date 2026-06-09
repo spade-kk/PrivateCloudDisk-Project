@@ -18,8 +18,41 @@ class Settings(BaseSettings):
     operation_token_destroy_user_window_seconds: int = 60
     operation_token_destroy_ip_limit: int = 180
     operation_token_destroy_ip_window_seconds: int = 60
+    
+    # RabbitMQ配置
+    rabbitmq_host: str = "localhost"
+    rabbitmq_port: int = 5672
+    rabbitmq_username: str = "guest"
+    rabbitmq_password: str = "guest"
+    rabbitmq_vhost: str = "/"
+    
+    # 文件处理队列配置
+    file_process_queue: str = "pcd.file.process.queue"
+    file_process_exchange: str = "pcd.file.process.exchange"
+    file_process_routing_key: str = "file.process"
+    
+    file_delete_queue: str = "pcd.file.delete.queue"
+    file_delete_exchange: str = "pcd.file.delete.exchange"
+    file_delete_routing_key: str = "file.delete"
 
     class Config:
         env_file = ".env"
 
 settings = Settings()
+
+# 任务类型常量
+class TaskTypes:
+    MERGE = "merge"
+    HASH_CALCULATE = "hash_calculate"
+    VIRUS_SCAN = "virus_scan"
+    THUMBNAIL = "thumbnail"
+    VIDEO_TRANSCODE = "video_transcode"
+    MARK_ACTIVE = "mark_active"
+
+# 任务状态常量
+class TaskStatus:
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
