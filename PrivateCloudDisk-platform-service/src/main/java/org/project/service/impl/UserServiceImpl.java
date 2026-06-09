@@ -8,7 +8,6 @@ import org.project.model.entity.UserEntity;
 import org.project.mapper.FolderNodeMapper;
 import org.project.mapper.UserMapper;
 import org.project.service.DirectoryTreeService;
-import org.project.service.LoginService;
 import org.project.service.UserEventPublisher;
 import org.project.service.UserService;
 import org.project.service.ex.*;
@@ -30,7 +29,6 @@ public class UserServiceImpl implements UserService {
     private final DirectoryTreeService directoryTreeService;
     private final PasswordEncoder passwordEncoder;
     private final UserEventPublisher userEventPublisher;
-    private final LoginService loginService;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
@@ -158,9 +156,6 @@ public class UserServiceImpl implements UserService {
         if(rows != 1) {
             throw new UpdateException("更新密码失败");
         }
-        // 密码修改成功后，强制用户所有设备下线
-        loginService.logoutAll(user_id);
-        log.info("用户密码修改成功，已强制所有设备下线: userId={}", user_id);
     }
     @Override
     public void uploadUserAvator(String user_id, MultipartFile avator_file) {

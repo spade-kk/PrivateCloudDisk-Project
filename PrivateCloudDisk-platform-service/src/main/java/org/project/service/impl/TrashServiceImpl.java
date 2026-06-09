@@ -68,7 +68,7 @@ public class TrashServiceImpl implements TrashService {
         // 查询回收站记录
         TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
         if (trashFile == null) {
-            throw new FileNotExistException("回收站中不存在该文件");
+            throw new FileNotExistException();
         }
         
         // 恢复文件记录
@@ -99,7 +99,7 @@ public class TrashServiceImpl implements TrashService {
         // 查询回收站记录
         TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
         if (trashFile == null) {
-            throw new FileNotExistException("回收站中不存在该文件");
+            throw new FileNotExistException();
         }
         
         // 删除回收站记录
@@ -153,7 +153,7 @@ public class TrashServiceImpl implements TrashService {
     public TrashFileEntity getTrashFileById(Long trash_id, String user_id) {
         TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
         if (trashFile == null) {
-            throw new FileNotExistException("回收站中不存在该文件");
+            throw new FileNotExistException();
         }
         return trashFile;
     }

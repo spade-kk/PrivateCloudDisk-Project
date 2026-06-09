@@ -92,7 +92,7 @@ public class UserManageServiceImpl implements UserManageService {
         // 查询用户
         UserEntity user = userMapper.findUserById(user_id);
         if (user == null) {
-            throw new UserNotFoundException("用户不存在");
+            throw new UserNotFoundException();
         }
 
         // 验证旧密码
@@ -157,7 +157,7 @@ public class UserManageServiceImpl implements UserManageService {
     public UserEntity getUserInfo(String user_id) {
         UserEntity user = userMapper.findUserById(user_id);
         if (user == null) {
-            throw new UserNotFoundException("用户不存在");
+            throw new UserNotFoundException();
         }
         return user;
     }

@@ -1,10 +1,12 @@
 package org.project.service.impl;
 
+import org.project.model.dto.NodeQueryDTO;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.NodeEntity;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
+import org.project.model.vo.PageResultVO;
 import org.project.service.DirectoryTreeService;
 import org.project.service.ex.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -121,6 +123,12 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
 
         return nodeList;
     }
+
+    @Override
+    public PageResultVO<NodeEntity> findUserNodesByNodeIdPaged(NodeQueryDTO query, String user_id) {
+        return null;
+    }
+
     @Override
     public void moveNodeByNodeId(String node_id, String target_position, String user_id) {
         // 检查节点是否存在
