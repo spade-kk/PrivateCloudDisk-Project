@@ -5,359 +5,191 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>验证码 - 私有云网盘</title>
     <style>
-        /* Reset styles */
-        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-        img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
-
-        /* Base styles */
+        body, table, td, a {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+        }
         body {
             margin: 0 !important;
             padding: 0 !important;
-            background-color: #f4f6f8;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            width: 100% !important;
+            background-color: #f3f5f8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+            "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
         }
-
-        /* Container */
-        .email-wrapper {
-            width: 100%;
-            max-width: 520px;
-            margin: 0 auto;
-            background-color: #ffffff;
-        }
-
-        /* Header */
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 35px 30px;
-            text-align: center;
-        }
-
-        .header-icon {
-            width: 56px;
-            height: 56px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 14px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-        }
-
-        .header-icon svg {
-            width: 28px;
-            height: 28px;
-            fill: #ffffff;
-        }
-
-        .header h1 {
-            color: #ffffff;
-            font-size: 20px;
-            font-weight: 600;
-            margin: 0 0 6px 0;
-        }
-
-        .header p {
-            color: rgba(255, 255, 255, 0.85);
-            font-size: 13px;
-            margin: 0;
-        }
-
-        /* Content */
-        .content {
-            padding: 35px 30px;
-        }
-
-        .purpose-badge {
-            display: inline-block;
-            padding: 6px 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #ffffff;
-            font-size: 13px;
-            font-weight: 600;
-            border-radius: 20px;
-            margin-bottom: 20px;
-            letter-spacing: 0.5px;
-        }
-
-        .description {
-            font-size: 14px;
-            color: #4a4a68;
-            line-height: 1.7;
-            margin-bottom: 25px;
-        }
-
-        /* Verification Code Box */
-        .code-container {
-            background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
-            border-radius: 16px;
-            padding: 30px;
-            text-align: center;
-            margin: 25px 0;
-            border: 2px dashed #c5c9e8;
-        }
-
-        .code-label {
-            font-size: 13px;
-            color: #6b6b8a;
-            margin-bottom: 12px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        .verification-code {
-            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 36px;
-            font-weight: 700;
-            letter-spacing: 8px;
-            color: #1a1a2e;
-            background: #ffffff;
-            padding: 16px 32px;
-            border-radius: 12px;
-            display: inline-block;
-            box-shadow: 0 2px 12px rgba(102, 126, 234, 0.15);
-            border: 1px solid #e0e3f5;
-        }
-
-        .code-hint {
-            font-size: 12px;
-            color: #8a8aa3;
-            margin-top: 12px;
-        }
-
-        /* Timer */
-        .timer-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 20px 0;
-            padding: 14px 20px;
-            background: #fff8e6;
-            border-radius: 10px;
-            border: 1px solid #ffe4a1;
-        }
-
-        .timer-icon {
-            font-size: 18px;
-            margin-right: 10px;
-        }
-
-        .timer-text {
-            font-size: 14px;
-            color: #b8860b;
-            font-weight: 500;
-        }
-
-        .timer-text strong {
-            color: #d4a017;
-            font-size: 16px;
-        }
-
-        /* Warning */
-        .warning-box {
-            background: #fff0f0;
-            border-radius: 10px;
-            padding: 18px 20px;
-            margin: 20px 0;
-            border-left: 4px solid #e74c3c;
-        }
-
-        .warning-box h4 {
-            font-size: 13px;
-            color: #c0392b;
-            margin: 0 0 8px 0;
-            display: flex;
-            align-items: center;
-            font-weight: 600;
-        }
-
-        .warning-box h4::before {
-            content: "⚠️";
-            margin-right: 8px;
-            font-size: 14px;
-        }
-
-        .warning-box p {
-            font-size: 12px;
-            color: #a05050;
-            margin: 0;
-            line-height: 1.6;
-        }
-
-        /* Steps */
-        .steps {
-            margin: 25px 0;
-        }
-
-        .steps-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a1a2e;
-            margin-bottom: 12px;
-        }
-
-        .step-item {
-            display: flex;
-            align-items: center;
-            padding: 10px 0;
-            font-size: 13px;
-            color: #4a4a68;
-        }
-
-        .step-number {
-            width: 24px;
-            height: 24px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #ffffff;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 600;
-            margin-right: 12px;
-            flex-shrink: 0;
-        }
-
-        /* Divider */
-        .divider {
-            height: 1px;
-            background: linear-gradient(90deg, transparent, #e8e8f0, transparent);
-            margin: 25px 0;
-        }
-
-        /* Footer */
-        .footer {
-            background: #f4f6f8;
-            padding: 25px 30px;
-            text-align: center;
-            border-top: 1px solid #e8e8f0;
-        }
-
-        .footer-brand {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a1a2e;
-            margin-bottom: 6px;
-        }
-
-        .footer-brand span {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .footer-contact {
-            font-size: 11px;
-            color: #8a8aa3;
-            margin-top: 10px;
-        }
-
-        .footer-contact a {
-            color: #667eea;
+        a {
+            color: #2563eb;
             text-decoration: none;
         }
-
-        /* Responsive */
         @media screen and (max-width: 600px) {
-            .verification-code {
-                font-size: 28px;
-                letter-spacing: 6px;
-                padding: 12px 24px;
+            .container {
+                width: 100% !important;
+            }
+            .outer-padding {
+                padding: 16px !important;
+            }
+            .mobile-padding {
+                padding-left: 22px !important;
+                padding-right: 22px !important;
+            }
+            .title {
+                font-size: 20px !important;
+            }
+            .code {
+                font-size: 34px !important;
+                letter-spacing: 6px !important;
+            }
+            .code-box {
+                padding: 22px 14px !important;
             }
         }
     </style>
 </head>
-<body>
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-        <tr>
-            <td align="center" style="padding: 20px 0;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="520" class="email-wrapper" style="border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
-                    <!-- Header -->
-                    <tr>
-                        <td class="header">
-                            <div class="header-icon">
-                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-                                </svg>
-                            </div>
-                            <h1>安全验证</h1>
-                            <p>私有云网盘 · 账户安全中心</p>
-                        </td>
-                    </tr>
-
-                    <!-- Content -->
-                    <tr>
-                        <td class="content">
-                            <!-- Purpose Badge -->
-                            <div class="purpose-badge" th:text="${purposeText}">注册验证</div>
-
-                            <div class="description">
-                                您好，我们收到了您的<span th:text="${purposeText}">注册</span>请求。为了保障您的账户安全，请使用以下验证码完成身份验证。
-                            </div>
-
-                            <!-- Verification Code -->
-                            <div class="code-container">
-                                <div class="code-label">验证码</div>
-                                <div class="verification-code" th:text="${verificationCode}">123456</div>
-                                <div class="code-hint">请在输入框中输入上方 6 位数字验证码</div>
-                            </div>
-
-                            <!-- Timer -->
-                            <div class="timer-container">
-                                <span class="timer-icon">⏱️</span>
-                                <span class="timer-text">
-                                    验证码有效期：<strong th:text="${expireMinutes}">5</strong> 分钟
-                                </span>
-                            </div>
-
-                            <!-- Warning -->
-                            <div class="warning-box">
-                                <h4>安全提醒</h4>
-                                <p>请勿将验证码透露给他人。如您未发起此操作，请立即修改密码并联系管理员。验证码仅用于当前操作，过期后请重新获取。</p>
-                            </div>
-
-                            <!-- Steps -->
-                            <div class="steps">
-                                <div class="steps-title">操作步骤</div>
-                                <div class="step-item">
-                                    <span class="step-number">1</span>
-                                    <span>返回操作页面，找到验证码输入框</span>
-                                </div>
-                                <div class="step-item">
-                                    <span class="step-number">2</span>
-                                    <span>输入上方 6 位数字验证码</span>
-                                </div>
-                                <div class="step-item">
-                                    <span class="step-number">3</span>
-                                    <span>点击确认按钮完成验证</span>
-                                </div>
-                            </div>
-
-                            <div class="divider"></div>
-
-                            <div style="font-size: 12px; color: #8a8aa3; text-align: center; line-height: 1.6;">
-                                如果验证码已过期，请返回页面重新获取。<br>
-                                此邮件由系统自动发送，请勿回复。
-                            </div>
-                        </td>
-                    </tr>
-
-                    <!-- Footer -->
-                    <tr>
-                        <td class="footer">
-                            <div class="footer-brand">
-                                <span>私有云网盘</span> Private Cloud Disk
-                            </div>
-                            <div class="footer-contact">
-                                安全中心 · <a href="mailto:security@privateclouddisk.com">security@privateclouddisk.com</a>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
+<body style="margin:0; padding:0; background-color:#f3f5f8;">
+<!-- Preheader：邮件列表预览文字 -->
+<div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; line-height:1px; font-size:1px;">
+    您正在进行账号验证，请使用验证码完成操作。
+</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f3f5f8;">
+    <tr>
+        <td align="center" class="outer-padding" style="padding:32px 12px;">
+            <!-- Container -->
+            <table role="presentation" class="container" width="600" cellspacing="0" cellpadding="0" border="0"
+                   style="width:600px; max-width:600px; background-color:#ffffff; border-radius:18px; overflow:hidden; border:1px solid #e5e7eb;">
+                <!-- Header -->
+                <tr>
+                    <td class="mobile-padding" style="padding:30px 36px 22px 36px; background-color:#ffffff; border-bottom:1px solid #eef0f4;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                                <td valign="middle" width="48">
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                        <tr>
+                                            <td align="center" valign="middle"
+                                                style="width:44px; height:44px; background-color:#111827; border-radius:12px; color:#ffffff; font-size:15px; font-weight:700; letter-spacing:0.5px;">
+                                                PCD
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td valign="middle" style="padding-left:12px;">
+                                    <div style="font-size:16px; font-weight:700; color:#111827; line-height:1.4;">
+                                        私有云网盘
+                                    </div>
+                                    <div style="font-size:12px; color:#6b7280; line-height:1.5;">
+                                        Private Cloud Disk · 账户安全中心
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Main Content -->
+                <tr>
+                    <td class="mobile-padding" style="padding:34px 36px 10px 36px;">
+                        <div style="display:inline-block; padding:6px 12px; background-color:#eff6ff; border:1px solid #dbeafe; border-radius:999px; color:#2563eb; font-size:13px; font-weight:600; line-height:1.2;"
+                             th:text="${purposeText}">
+                            注册验证
+                        </div>
+                        <h1 class="title" style="margin:18px 0 10px 0; font-size:24px; line-height:1.35; color:#111827; font-weight:700;">
+                            请完成安全验证
+                        </h1>
+                        <p style="margin:0; font-size:14px; line-height:1.8; color:#4b5563;">
+                            您好，我们收到了您的
+                            <span th:text="${purposeText}">注册验证</span>
+                            请求。请在页面中输入下方验证码，以完成本次身份验证。
+                        </p>
+                    </td>
+                </tr>
+                <!-- Verification Code -->
+                <tr>
+                    <td class="mobile-padding" style="padding:22px 36px 8px 36px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                               style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:16px;">
+                            <tr>
+                                <td align="center" class="code-box" style="padding:30px 20px;">
+                                    <div style="font-size:12px; color:#6b7280; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:12px;">
+                                        Verification Code
+                                    </div>
+                                    <div class="code"
+                                         style="font-family:Consolas, Monaco, 'Courier New', monospace; font-size:40px; line-height:1.2; font-weight:700; letter-spacing:8px; color:#111827; background-color:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px 22px; display:inline-block;"
+                                         th:text="${verificationCode}">
+                                        123456
+                                    </div>
+                                    <div style="font-size:12px; color:#6b7280; line-height:1.6; margin-top:14px;">
+                                        请勿转发或泄露该验证码
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Expire Info -->
+                <tr>
+                    <td class="mobile-padding" style="padding:14px 36px 0 36px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                               style="background-color:#fff7ed; border:1px solid #fed7aa; border-radius:14px;">
+                            <tr>
+                                <td style="padding:14px 16px; font-size:13px; line-height:1.7; color:#9a3412;">
+                                    验证码有效期为
+                                    <strong style="font-size:15px; color:#c2410c;" th:text="${expireMinutes}">5</strong>
+                                    分钟。若验证码已过期，请返回页面重新获取。
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Security Notice -->
+                <tr>
+                    <td class="mobile-padding" style="padding:18px 36px 28px 36px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                               style="background-color:#f8fafc; border:1px solid #e5e7eb; border-radius:14px;">
+                            <tr>
+                                <td style="padding:16px 16px 14px 16px;">
+                                    <div style="font-size:14px; font-weight:700; color:#111827; margin-bottom:6px;">
+                                        安全提醒
+                                    </div>
+                                    <div style="font-size:13px; line-height:1.8; color:#4b5563;">
+                                        如果不是您本人发起的操作，请忽略此邮件，并建议您及时检查账号安全状态。
+                                        私有云网盘工作人员不会向您索要验证码。
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="height:1px; background-color:#eef0f4; margin:26px 0 18px 0;"></div>
+                        <p style="margin:0; font-size:12px; line-height:1.8; color:#9ca3af; text-align:center;">
+                            此邮件由系统自动发送，请勿直接回复。<br>
+                            如需帮助，请联系系统管理员或安全中心。
+                        </p>
+                    </td>
+                </tr>
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:22px 36px; background-color:#f9fafb; border-top:1px solid #eef0f4; text-align:center;">
+                        <div style="font-size:13px; color:#111827; font-weight:700; line-height:1.6;">
+                            私有云网盘 Private Cloud Disk
+                        </div>
+                        <div style="font-size:11px; color:#9ca3af; line-height:1.8; margin-top:4px;">
+                            Account Security Center
+                        </div>
+                        <div style="font-size:11px; color:#9ca3af; line-height:1.8; margin-top:8px;">
+                            © 2026 Private Cloud Disk. All rights reserved.
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            <!-- End Container -->
+        </td>
+    </tr>
+</table>
 </body>
 </html>
