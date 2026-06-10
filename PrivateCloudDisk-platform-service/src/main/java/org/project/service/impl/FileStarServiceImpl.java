@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 文件收藏服务实现
@@ -32,8 +33,8 @@ public class FileStarServiceImpl implements FileStarService {
         }
         
         FileStarEntity fileStar = new FileStarEntity();
-        fileStar.setUser_id(user_id);
-        fileStar.setFile_id(file_id);
+        fileStar.setUser_id(UUID.fromString(user_id));
+        fileStar.setFile_id(UUID.fromString(file_id));
         fileStar.setStarred_at(LocalDateTime.now());
         
         int rows = fileStarMapper.insertFileStar(fileStar);

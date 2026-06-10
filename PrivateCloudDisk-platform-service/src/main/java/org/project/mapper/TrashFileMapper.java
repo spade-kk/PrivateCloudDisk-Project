@@ -1,9 +1,11 @@
 package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.TrashFileEntity;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface TrashFileMapper {
@@ -16,22 +18,22 @@ public interface TrashFileMapper {
     /**
      * 从回收站恢复文件
      */
-    int deleteTrashFile(Long trash_id, String user_id);
+    int deleteTrashFile(@Param("trash_id") Long trash_id, @Param("user_id") UUID user_id);
     
     /**
      * 查询回收站文件
      */
-    TrashFileEntity findTrashFileById(Long trash_id, String user_id);
+    TrashFileEntity findTrashFileById(@Param("trash_id") Long trash_id, @Param("user_id") UUID user_id);
     
     /**
      * 查询用户回收站文件列表（分页）
      */
-    List<TrashFileEntity> findTrashFilesByUserId(String user_id, Integer offset, Integer limit);
+    List<TrashFileEntity> findTrashFilesByUserId(@Param("user_id") UUID user_id, @Param("offset") Integer offset, @Param("limit") Integer limit);
     
     /**
      * 统计用户回收站文件数量
      */
-    Integer countTrashFilesByUserId(String user_id);
+    Integer countTrashFilesByUserId(@Param("user_id") UUID user_id);
     
     /**
      * 查询过期的回收站文件（用于自动清理）
@@ -41,5 +43,5 @@ public interface TrashFileMapper {
     /**
      * 根据原文件ID查询回收站记录
      */
-    TrashFileEntity findTrashFileByFileId(String file_id, String user_id);
+    TrashFileEntity findTrashFileByFileId(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
 }

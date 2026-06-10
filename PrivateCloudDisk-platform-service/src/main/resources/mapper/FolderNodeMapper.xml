@@ -4,50 +4,85 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.project.mapper.FolderNodeMapper">
         <resultMap id="FolderNodeEntityMap" type="org.project.model.entity.FolderNodeEntity">
-        <id column="node_id" property="node_id"/>
-        <result column="node_parent_id" property="parent_id"/>
+        <id column="node_id" property="node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="node_parent_id" property="parent_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="node_name" property="name"/>
-        <result column="node_user_id" property="user_id"/>
+        <result column="node_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="node_create_time" property="create_time"/>
         <result column="node_status" property="status"/>
     </resultMap>
 
     <select id="findFolderNodeByIdAndUserId"  resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_id=#{node_id} and node_user_id=#{user_id};
+        select * from pcd_directory_tree_table where node_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>
 
     <select id="findRootFolderNodeByUserId" resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_user_id=#{user_id} and node_parent_id is null;
+        select * from pcd_directory_tree_table where node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_parent_id is null;
     </select>
 
     <select id="findFolderNodesByIdAndUserId"  resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_parent_id=#{node_id} and node_user_id=#{user_id};
+        select * from pcd_directory_tree_table where node_parent_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </select>
+
+    <select id="isFolderDeleted" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM pcd_directory_closure_table c
+                     JOIN pcd_directory_tree_table n
+                          ON  n.node_user_id = c.user_id
+                            AND n.node_id = c.ancestor_id
+            WHERE c.user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              AND c.descendant_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              AND n.node_status IN ('TRASHED', 'DELETED')
+            LIMIT 1
+        )
+    </select>
+
+    <select id="selectFolderEffectiveStatus" resultType="string">
+        SELECT
+            CASE MIN(
+                    CASE n.node_status
+                        WHEN 'DELETED' THEN 1
+                        WHEN 'TRASHED' THEN 2
+                        END
+                 )
+                WHEN 1 THEN  'DELETED'
+                WHEN 2 THEN  'TRASHED'
+                ELSE 'ACTIVE'
+                END AS effective_status
+        FROM pcd_directory_closure_table c
+                 JOIN pcd_directory_tree_table n
+                      ON  n.node_user_id = c.user_id
+                         AND  n.node_id = c.ancestor_id
+        WHERE c.user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND c.descendant_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND n.node_status IN ('TRASHED', 'DELETED')
     </select>
 
     <insert id="insertFolderNode" useGeneratedKeys="true" keyProperty="node_id" parameterType="org.project.model.entity.FolderNodeEntity">
         insert into pcd_directory_tree_table (node_id, node_user_id, node_parent_id, node_name, node_create_time, node_status)
-        values(#{node_id}, #{user_id}, #{parent_id}, #{name}, #{create_time}, #{status});
+        values(#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{create_time}, #{status});
     </insert>
 
     <update id="updateFolderNodeNameByIdAndUserId">
         update pcd_directory_tree_table
         set node_name = #{new_name}
-        where node_id = #{node_id} and node_user_id = #{user_id};
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
     <update id="updateFolderNodeStatusByIdAndUserId">
         update pcd_directory_tree_table
         set node_status = #{new_status}
-        where node_id = #{node_id} and node_user_id = #{user_id};
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
     <update id="updateFolderNodeParentIdByIdAndUserId">
         update pcd_directory_tree_table
-        set node_parent_id = #{new_parent_id}
-        where node_id = #{node_id} and node_user_id = #{user_id};
+        set node_parent_id = #{new_parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
     <delete id="deleteFolderNodeByIdAndUserId">
-        delete from pcd_directory_tree_table where node_id = #{node_id} and node_user_id = #{user_id};
+        delete from pcd_directory_tree_table where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </delete>
 </mapper>

@@ -1,6 +1,9 @@
 package org.project.mapper;
 
+import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.UploadsSessionEntity;
+
+import java.util.UUID;
 
 public interface UploadsMapper {
     /**
@@ -8,7 +11,7 @@ public interface UploadsMapper {
      * @param uploads_id 上传会话ID
      * @return 上传会话数据
      */
-    UploadsSessionEntity findUploadsSessionById(String uploads_id);
+    UploadsSessionEntity findUploadsSessionById(@Param("uploads_id") UUID uploads_id);
 
     /**
      * 插入用户数据
@@ -23,12 +26,12 @@ public interface UploadsMapper {
      * @param uploads_id 上传会话ID
      * @return 更新了数据行数
      */
-    int updateUploadsSessionStatusById(UploadsSessionEntity.UploadsSessionStatus newStatus, String uploads_id);
+    int updateUploadsSessionStatusById(@Param("newStatus") UploadsSessionEntity.UploadsSessionStatus newStatus, @Param("uploads_id") UUID uploads_id);
 
     /**
      * 根据上传会话ID删除上传会话数据
      * @param uploads_id 上传会话ID
      * @return 删除了数据行数
      */
-    int deleteUploadsSessionById(String uploads_id);
+    int deleteUploadsSessionById(@Param("uploads_id") UUID uploads_id);
 }

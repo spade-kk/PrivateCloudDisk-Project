@@ -3,6 +3,7 @@ package org.project.model.entity;
 import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 上传会话数据类
@@ -12,17 +13,31 @@ public class UploadsSessionEntity implements Serializable {
     public enum UploadsSessionStatus {
         uploading,
         merging,
+        merge_failed,
         completed,
-        failed
+        canceled,
+        calculating,
+        calculating_failed,
+        scanning,
+        scanning_failed,
+        processing,
+        processing_failed
     }
     public enum UploadsSessionEvent {
         Merge,
+        MergeFailed,
         Complete,
-        Fail
+        CalculateFailed,
+        Cancel,
+        Calculate,
+        Scan,
+        ScanFailed,
+        Process,
+        ProcessFailed
     }
 
-    private String uploads_id;
-    private String user_id;
+    private UUID uploads_id;
+    private UUID user_id;
     private String file_name;
     private LocalDateTime starting_time;
     private LocalDateTime endding_time;
@@ -31,6 +46,6 @@ public class UploadsSessionEntity implements Serializable {
     private Integer total_chunks;
     private String file_checksum;
     private String file_type;
-    private String node_id;
+    private UUID node_id;
     private UploadsSessionStatus status;
 }

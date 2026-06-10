@@ -38,7 +38,7 @@ public class UserManageServiceImpl implements UserManageService {
     private String avatarDir;
 
     @Override
-    public String uploadAvatar(String user_id, MultipartFile avatarFile) {
+    public String uploadAvatar(UUID user_id, MultipartFile avatarFile) {
         // 验证文件类型
         String contentType = avatarFile.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
@@ -69,7 +69,7 @@ public class UserManageServiceImpl implements UserManageService {
 
             AvatarReviewEvent event = AvatarReviewEvent.builder()
                     .eventId("avatar-review:" + user_id + ":" + System.currentTimeMillis())
-                    .userId(user_id)
+                    .userId(user_id.toString())
                     .avatarPath(filePath.toString())
                     .originalFileName(fileName)
                     .fileSize(avatarFile.getSize())
@@ -88,7 +88,7 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    public void changePassword(String user_id, String oldPassword, String newPassword) {
+    public void changePassword(UUID user_id, String oldPassword, String newPassword) {
         // 查询用户
         UserEntity user = userMapper.findUserById(user_id);
         if (user == null) {
@@ -112,7 +112,7 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    public void changeEmail(String user_id, String newEmail, String verificationCode) {
+    public void changeEmail(UUID user_id, String newEmail, String verificationCode) {
         // TODO: 验证验证码
         // if (!verifyCode(newEmail, verificationCode)) {
         //     throw new VerificationCodeException("验证码错误");
@@ -133,7 +133,7 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    public void changePhone(String user_id, String newPhone, String verificationCode) {
+    public void changePhone(UUID user_id, String newPhone, String verificationCode) {
         // TODO: 验证验证码
         // if (!verifyCode(newPhone, verificationCode)) {
         //     throw new VerificationCodeException("验证码错误");
@@ -154,7 +154,7 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    public UserEntity getUserInfo(String user_id) {
+    public UserEntity getUserInfo(UUID user_id) {
         UserEntity user = userMapper.findUserById(user_id);
         if (user == null) {
             throw new UserNotFoundException();
@@ -163,7 +163,7 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    public void updateUserInfo(String user_id, String userName) {
+    public void updateUserInfo(UUID user_id, String userName) {
         UserEntity user = new UserEntity();
         user.setId(user_id);
         user.setName(userName);

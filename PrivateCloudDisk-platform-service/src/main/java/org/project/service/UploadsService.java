@@ -3,6 +3,8 @@ package org.project.service;
 import org.project.model.entity.UploadsChunkEntity;
 import org.project.model.entity.UploadsSessionEntity;
 
+import java.util.UUID;
+
 public interface UploadsService {
     /**
      * 创建上传会话
@@ -16,15 +18,15 @@ public interface UploadsService {
      * @param node_id 目录节点ID
      * @return 上传会话ID
      */
-    String createUploadsSession(
+    UUID createUploadsSession(
                 int total_chunks,
                 long file_size,
                 String file_checksum,
                 int chunks_max_size,
                 String file_name,
                 String file_type,
-                String user_id,
-                String node_id
+                UUID user_id,
+                UUID node_id
             );
 
     /**
@@ -32,7 +34,7 @@ public interface UploadsService {
      * @param uploads_id 上传会话ID
      * @return 上传会话数据
      */
-    UploadsSessionEntity queryUploadsSessionById(String uploads_id);
+    UploadsSessionEntity queryUploadsSessionById(UUID uploads_id);
 
     /**
      * 根据上传会话ID和块索引查询块数据
@@ -40,7 +42,7 @@ public interface UploadsService {
      * @param chunk_index 块索引
      * @return 块数据
      */
-    UploadsChunkEntity queryChunkByUploadsIdAndChunkIndex(String uploads_id, int chunk_index);
+    UploadsChunkEntity queryChunkByUploadsIdAndChunkIndex(UUID uploads_id, int chunk_index);
 
     /**
      * 完成块上传
@@ -49,7 +51,7 @@ public interface UploadsService {
      * @param chunk_storage_path 块存储路径
      */
     void completeChunkUpload(
-            String uploads_id,
+            UUID uploads_id,
             int chunk_index,
             String chunk_storage_path
         );
@@ -59,18 +61,18 @@ public interface UploadsService {
      * @param uploads_id 上传会话ID
      * @param file_storage_path 文件储存路径
      */
-    void completeUploads(String uploads_id, String file_storage_path);
+    void completeUploads(UUID uploads_id, String file_storage_path);
 
     /**
      * 合并上传会话分块的通知
      * @param uploads_id 上传会话ID
      */
-    void uploadsMerging(String uploads_id);
+    void uploadsMerging(UUID uploads_id);
 
     /**
      * 检查上传会话是否有效
      * @param uploads_id 上传会话ID
      * @return 是否有效
      */
-    boolean isValidUploadsSession(String uploads_id);
+    boolean isValidUploadsSession(UUID uploads_id);
 }

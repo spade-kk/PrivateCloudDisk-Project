@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 通知发送日志实体
@@ -49,7 +50,7 @@ public class NotificationSendLogEntity {
     /**
      * 关联用户ID（可为空）
      */
-    private String userId;
+    private UUID userId;
 
     /**
      * 状态：PENDING（处理中）、SUCCESS（成功）、FAILED（失败）

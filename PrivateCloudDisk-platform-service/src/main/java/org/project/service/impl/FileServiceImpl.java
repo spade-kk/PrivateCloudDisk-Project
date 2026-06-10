@@ -5,6 +5,7 @@ import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
+import org.project.service.DirectoryTreeService;
 import org.project.service.FileService;
 import org.project.service.ex.*;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -20,19 +21,24 @@ public class FileServiceImpl implements FileService {
     @Autowired
     private FileMapper fileMapper;
     @Autowired
-    private FolderNodeMapper folderNodeMapper;
+    private DirectoryTreeService directoryTreeService;
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
     @Override
-    public String createFile(String file_name, String file_type, long file_size, String user_id, String node_id, String file_checksum, int total_chunks, String storage_path) {
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
+    public UUID createFile(String file_name, String file_type, long file_size, UUID user_id, UUID node_id, String file_checksum, int total_chunks, String storage_path) {
+        FolderNodeEntity node = directoryTreeService.findUserFolderNodeIfExist(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
+        // 检查文件名是否存在
+        FileEntity fileData = findUserFileByNameAndNodeIdIfExist(file_name, node_id, user_id);
+        if(fileData != null) {
+            throw new FileNameDuplicatedException("文件名字已存在");
+        }
 
         // 实现文件创建的逻辑
-        FileEntity fileData = new FileEntity();
+        fileData = new FileEntity();
         fileData.setName(file_name);
         fileData.setType(file_type);
         fileData.setUser_id(user_id);
@@ -44,7 +50,7 @@ public class FileServiceImpl implements FileService {
         //设置上传时间
         fileData.setUploaded_time(LocalDateTime.now());
         // 生成文件的ID
-        String file_id = UUID.randomUUID().toString();
+        UUID file_id = UUID.randomUUID();
         fileData.setId(file_id);
         // 调用Mapper插入数据
         Integer rows = fileMapper.insertFile(fileData);
@@ -56,9 +62,9 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public List<FileEntity> queryUserFilesByNodeId(String node_id, String user_id) {
+    public List<FileEntity> queryUserFilesByNodeId(UUID node_id, UUID user_id) {
         // 检查节点是否存在
-        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
+        FolderNodeEntity node = directoryTreeService.findUserFolderNodeIfExist(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
@@ -67,18 +73,18 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public FileEntity queryUserFileById(String file_id, String user_id) {
-        FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
-        if(fileData == null || !fileData.getUser_id().equals(user_id)) {
+    public FileEntity queryUserFileById(UUID file_id, UUID user_id) {
+        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        if(fileData == null) {
             throw new FileNotExistException();
         }
         return fileData;
     }
 
     @Override
-    public void updateFileName(String file_id, String file_new_name, String user_id) {
+    public void updateFileName(UUID file_id, String file_new_name, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
@@ -91,14 +97,14 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public void moveFileByFileId(String file_id, String target_node_id, String user_id) {
+    public void moveFileByFileId(UUID file_id, UUID target_node_id, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
 
-        FolderNodeEntity targetNode = folderNodeMapper.findFolderNodeByIdAndUserId(target_node_id, user_id);
+        FolderNodeEntity targetNode = directoryTreeService.findUserFolderNodeIfExist(target_node_id, user_id);
         if(targetNode == null) {
             throw new NodeNotExistException("目标节点不存在");
         }
@@ -111,16 +117,58 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public void deleteFileByFileId(String file_id, String user_id) {
+    public void deleteFileByFileId(UUID file_id, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
-        // 实现文件删除的逻辑
-        Integer rows = fileMapper.deleteUserFileById(file_id, user_id);
+        // 实现文件删除的逻辑 把文件状态设置为deleted
+        Integer rows = fileMapper.updateUserFileStatusById(file_id, FileEntity.FileStatus.deleted, user_id);
         if(rows!= 1) {
-            throw new DeleteException("文件删除失败");
+            throw new UpdateException("文件删除失败");
         }
+        // 发布消息... 文件夹子文件物理删除是异步处理业务
+    }
+
+    @Override
+    public void deleteFileToTrash(UUID file_id, UUID user_id) {
+        // 检查文件是否存在
+        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        if(fileData == null) {
+            throw new FileNotExistException();
+        }
+        // 实现文件删除的逻辑 把文件状态设置为trashed
+        Integer rows = fileMapper.updateUserFileStatusById(file_id, FileEntity.FileStatus.trashed, user_id);
+        if(rows!= 1) {
+            throw new UpdateException("文件删除移动到垃圾站失败");
+        }
+    }
+
+    @Override
+    public FileEntity findUserFileByIdIfExist(UUID file_id, UUID user_id) {
+        FileEntity fileEntity = fileMapper.findUserFileById(file_id, user_id);
+        if (fileEntity == null) return null;
+
+        if (fileMapper.isFileDeleted(file_id, user_id)) return null;
+        return fileEntity;
+    }
+
+    @Override
+    public FileEntity.FileStatus getFileValidStatus(UUID file_id, UUID user_id) {
+        FileEntity fileEntity = fileMapper.findUserFileById(file_id, user_id);
+        if(fileEntity == null) return null;
+        String effectiveStatus = fileMapper.selectFileEffectiveStatus(file_id, user_id);
+
+        return FileEntity.FileStatus.valueOf(effectiveStatus);
+    }
+
+    @Override
+    public FileEntity findUserFileByNameAndNodeIdIfExist(String file_name, UUID node_id, UUID user_id) {
+        FileEntity fileEntity = fileMapper.findUserFileByNodeIdAndName(node_id, file_name, user_id);
+        if (fileEntity == null) return null;
+
+        if (fileMapper.isFileDeleted(fileEntity.getId(), user_id)) return null;
+        return fileEntity;
     }
 }

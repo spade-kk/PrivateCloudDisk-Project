@@ -3,6 +3,7 @@ package org.project.model.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.io.Serializable;
+import java.util.UUID;
 
 /**
  * 用户数据类
@@ -13,7 +14,7 @@ public class UserEntity implements Serializable {
     @JsonIgnore
     private String password;
     private String email;
-    private String id;
+    private UUID id;
     private String phone_number;
     private String account;
     private String image_path;

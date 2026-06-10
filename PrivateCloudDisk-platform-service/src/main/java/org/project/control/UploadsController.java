@@ -10,6 +10,8 @@ import org.project.util.ClientIpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/business/uploads")
 public class UploadsController extends BaseController {
@@ -35,16 +37,16 @@ public class UploadsController extends BaseController {
                 ClientIpUtil.resolveClientIp(request)
         );
 
-        String uploads_id = uploadsService.createUploadsSession(
+        UUID uploads_id = uploadsService.createUploadsSession(
                 createUploadsSessionRequest.getTotal_chunks(),
                 createUploadsSessionRequest.getFile_size(),
                 createUploadsSessionRequest.getFile_checksum(),
                 createUploadsSessionRequest.getChunks_max_size(),
                 createUploadsSessionRequest.getFile_name(),
                 createUploadsSessionRequest.getFile_type(),
-                user_id,
-                createUploadsSessionRequest.getNode_id());
+                UUID.fromString(user_id),
+                UUID.fromString(createUploadsSessionRequest.getNode_id()));
 
-        return new JsonResult<String>(OK, uploads_id);
+        return new JsonResult<String>(OK, uploads_id.toString());
     }
 }

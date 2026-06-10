@@ -1,6 +1,8 @@
 package org.project.model.entity;
 import lombok.Data;
 
+import java.util.UUID;
+
 /**
  * 节点数据类
  */
@@ -15,7 +17,7 @@ public class NodeEntity {
     /**
      * 节点ID
      */
-    private String node_id;
+    private UUID node_id;
      /**
      * 节点类型
      */

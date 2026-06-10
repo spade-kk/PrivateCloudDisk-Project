@@ -32,7 +32,7 @@ public class TrashServiceImpl implements TrashService {
     private final RabbitTemplate rabbitTemplate;
     
     @Override
-    public void moveToTrash(String file_id, String user_id) {
+    public void moveToTrash(UUID file_id, UUID user_id) {
         // 查询文件信息
         FileEntity file = fileMapper.findUserFileById(file_id, user_id);
         if (file == null) {
@@ -64,7 +64,7 @@ public class TrashServiceImpl implements TrashService {
     }
     
     @Override
-    public void restoreFromTrash(Long trash_id, String user_id) {
+    public void restoreFromTrash(Long trash_id, UUID user_id) {
         // 查询回收站记录
         TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
         if (trashFile == null) {
@@ -95,7 +95,7 @@ public class TrashServiceImpl implements TrashService {
     }
     
     @Override
-    public void permanentDelete(Long trash_id, String user_id) {
+    public void permanentDelete(Long trash_id, UUID user_id) {
         // 查询回收站记录
         TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
         if (trashFile == null) {
@@ -111,8 +111,8 @@ public class TrashServiceImpl implements TrashService {
         // 发送异步删除消息
         FileDeleteMessageDTO message = FileDeleteMessageDTO.builder()
                 .messageId(UUID.randomUUID().toString())
-                .fileId(trashFile.getFile_id())
-                .userId(user_id)
+                .fileId(trashFile.getFile_id().toString())
+                .userId(user_id.toString())
                 .storagePath(trashFile.getStorage_path())
                 .fileSize(trashFile.getFile_size())
                 .fromTrash(true)
@@ -128,7 +128,7 @@ public class TrashServiceImpl implements TrashService {
     }
     
     @Override
-    public void emptyTrash(String user_id) {
+    public void emptyTrash(UUID user_id) {
         List<TrashFileEntity> trashFiles = trashFileMapper.findTrashFilesByUserId(user_id, 0, Integer.MAX_VALUE);
         
         for (TrashFileEntity trashFile : trashFiles) {
@@ -139,18 +139,18 @@ public class TrashServiceImpl implements TrashService {
     }
     
     @Override
-    public List<TrashFileEntity> getTrashFiles(String user_id, Integer page, Integer pageSize) {
+    public List<TrashFileEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize) {
         int offset = (page - 1) * pageSize;
         return trashFileMapper.findTrashFilesByUserId(user_id, offset, pageSize);
     }
     
     @Override
-    public Integer countTrashFiles(String user_id) {
+    public Integer countTrashFiles(UUID user_id) {
         return trashFileMapper.countTrashFilesByUserId(user_id);
     }
     
     @Override
-    public TrashFileEntity getTrashFileById(Long trash_id, String user_id) {
+    public TrashFileEntity getTrashFileById(Long trash_id, UUID user_id) {
         TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();

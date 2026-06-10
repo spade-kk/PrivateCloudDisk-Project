@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.project.mapper.DirectoryClosureMapper">
+    <insert id="insertSelf">
+        INSERT INTO pcd_directory_closure_table (
+        ancestor_id,
+        descendant_id,
+        depth,
+        user_id
+        )
+        VALUES (
+        #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+        #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+        0,
+        #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        )
+    </insert>
+
+    <insert id="insertRelationsFromParent">
+        INSERT INTO pcd_directory_closure_table (
+        ancestor_id,
+        descendant_id,
+        depth,
+        user_id
+        )
+        SELECT
+        ancestor_id,
+        #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+        depth + 1,
+        #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        FROM pcd_directory_closure_table
+        WHERE descendant_id = #{parentId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </insert>
+
+    <select id="isDescendant" resultType="int">
+        SELECT COUNT(1)
+        FROM pcd_directory_closure_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ancestor_id = #{ancestorId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND descendant_id = #{descendantId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <select id="getMaxDepthToNode" resultType="int">
+        SELECT COALESCE(MAX(depth), 0)
+        FROM pcd_directory_closure_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND descendant_id = #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <select id="selectDescendantIds" resultType="java.util.UUID">
+        SELECT descendant_id
+        FROM pcd_directory_closure_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ancestor_id = #{ancestorId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY depth ASC
+    </select>
+
+    <!--
+        移动目录时删除旧的“外部祖先 -> 子树节点”关系。
+        保留子树内部关系，例如 movingNode -> child。
+    -->
+    <delete id="deleteExternalRelationsForMove">
+        DELETE c
+        FROM pcd_directory_closure_table c
+        JOIN (
+        SELECT descendant_id
+        FROM pcd_directory_closure_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ancestor_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ) subtree
+        ON subtree.descendant_id = c.descendant_id
+        JOIN (
+        SELECT ancestor_id
+        FROM pcd_directory_closure_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND descendant_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ancestor_id != #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ) old_ancestors
+        ON old_ancestors.ancestor_id = c.ancestor_id
+    </delete>
+
+    <!--
+        移动目录时插入新的“新父级祖先 -> 子树节点”关系。
+        公式：
+        新祖先到子树节点深度 = 新祖先到新父级深度 + 子树根到子树节点深度 + 1
+    -->
+    <insert id="insertRelationsForMove">
+        INSERT INTO pcd_directory_closure_table (
+        user_id,
+        ancestor_id,
+        descendant_id,
+        depth
+        )
+        SELECT
+        supertree.user_id,
+        supertree.ancestor_id,
+        subtree.descendant_id,
+        supertree.depth + subtree.depth + 1
+        FROM pcd_directory_closure_table supertree
+        JOIN pcd_directory_closure_table subtree
+        WHERE supertree.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND subtree.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND supertree.descendant_id = #{newParentId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND subtree.ancestor_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </insert>
+
+    <!--
+        最终删除目录子树时，删除所有 descendant 属于该子树的闭包记录。
+        注意：这个 SQL 应该在删除 file_info 和 directory_node 之后执行。
+    -->
+    <delete id="deleteClosureRowsBySubtree">
+        DELETE c
+        FROM pcd_directory_closure_table c
+        JOIN (
+        SELECT descendant_id
+        FROM pcd_directory_closure_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ancestor_id = #{rootNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ) subtree
+        ON subtree.descendant_id = c.descendant_id
+    </delete>
+
+</mapper>

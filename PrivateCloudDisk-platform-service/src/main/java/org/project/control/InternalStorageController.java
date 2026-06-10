@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @Validated
 @RequestMapping("/business/internal/storage")
@@ -45,7 +47,7 @@ public class InternalStorageController extends BaseController {
 
     @GetMapping("test2")
     public JsonResult<Void> test2() {
-        userService.findRootFolderNodeByUserId("415d3064-a465-4813-8f42-d6f1aa9b87c0");
+        userService.findRootFolderNodeByUserId(UUID.fromString("415d3064-a465-4813-8f42-d6f1aa9b87c0"));
         return new JsonResult<>(OK);
     }
 
@@ -57,7 +59,7 @@ public class InternalStorageController extends BaseController {
             @Pattern(regexp = "^[0-9]+$", message = "chunk_index必须是一个非负的正整数且从1开始")
             @PathVariable String chunk_index,
             @RequestParam String storage_path ) {
-        uploadsService.completeChunkUpload(uploads_id, Integer.parseInt(chunk_index), storage_path);
+        uploadsService.completeChunkUpload(UUID.fromString(uploads_id), Integer.parseInt(chunk_index), storage_path);
         return new JsonResult<>(OK);
     }
 
@@ -66,7 +68,7 @@ public class InternalStorageController extends BaseController {
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uploads_id必须是有效的UUID格式")
             @PathVariable String uploads_id ) {
-        UploadsSessionEntity uploadsSessionData = uploadsService.queryUploadsSessionById(uploads_id);
+        UploadsSessionEntity uploadsSessionData = uploadsService.queryUploadsSessionById(UUID.fromString(uploads_id));
         return new JsonResult<>(OK, VoMapper.toUploadsSessionInternalVO(uploadsSessionData));
     }
 
@@ -86,7 +88,7 @@ public class InternalStorageController extends BaseController {
             @NotNull(message = "chunk_index 不能为空")
             @Min(value = 0, message = "chunk_index 不能为负数")
             @PathVariable Integer chunk_index ) {
-        UploadsChunkEntity chunkData = uploadsService.queryChunkByUploadsIdAndChunkIndex(uploads_id, chunk_index);
+        UploadsChunkEntity chunkData = uploadsService.queryChunkByUploadsIdAndChunkIndex(UUID.fromString(uploads_id), chunk_index);
         return new JsonResult<>(OK, VoMapper.toUploadsChunkInternalVO(chunkData));
     }
 
@@ -106,7 +108,7 @@ public class InternalStorageController extends BaseController {
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uploads_id必须是有效的UUID格式")
             @PathVariable String uploads_id ) {
-        uploadsService.uploadsMerging(uploads_id);
+        uploadsService.uploadsMerging(UUID.fromString(uploads_id));
         return new JsonResult<>(OK);
     }
 
@@ -116,7 +118,7 @@ public class InternalStorageController extends BaseController {
                     message = "uploads_id必须是有效的UUID格式")
             @RequestParam String uploads_id,
             @RequestParam String file_storage_path ) {
-        uploadsService.completeUploads(uploads_id, file_storage_path);
+        uploadsService.completeUploads(UUID.fromString(uploads_id), file_storage_path);
         return new JsonResult<>(OK);
     }
 
@@ -128,7 +130,7 @@ public class InternalStorageController extends BaseController {
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uid必须是有效的UUID格式")
             @RequestParam String uid ) {
-        FileEntity fileData = fileService.queryUserFileById(file_id, uid);
+        FileEntity fileData = fileService.queryUserFileById(UUID.fromString(file_id), UUID.fromString(uid));
         return new JsonResult<>(OK, VoMapper.toInternalFileMetadataVO(fileData));
     }
 }

@@ -10,7 +10,7 @@ USE private_cloud_disk;
 
 CREATE TABLE pcd_user_info_table (
     user_name               VARCHAR(120)    NOT NULL        COMMENT '用户名',
-    user_id                 VARCHAR(36)     NOT NULL PRIMARY KEY,
+    user_id                 BINARY(16)     NOT NULL PRIMARY KEY,
     user_phone_number       VARCHAR(50)     NOT NULL UNIQUE,
     user_image_path         VARCHAR(512)                    COMMENT '用户头像路径',
     user_password           VARCHAR(70)     NOT NULL        COMMENT '用户密码',
@@ -19,8 +19,8 @@ CREATE TABLE pcd_user_info_table (
 ) COMMENT='用户信息表';
 
 CREATE TABLE pcd_user_device_table (
-    device_id               VARCHAR(36)     NOT NULL PRIMARY KEY COMMENT '服务端生成的设备ID',
-    device_user_id          VARCHAR(36)     NOT NULL             COMMENT '所属用户ID',
+    device_id               BINARY(16)     NOT NULL PRIMARY KEY COMMENT '服务端生成的设备ID',
+    device_user_id          BINARY(16)     NOT NULL             COMMENT '所属用户ID',
     device_client_type      VARCHAR(50)     NOT NULL             COMMENT '客户端类型，例如 WEB/IOS/MACOS/WECHAT/PC',
     device_client_name      VARCHAR(120)                         COMMENT '客户端展示名称',
     device_platform         VARCHAR(120)                         COMMENT '系统或平台信息',
@@ -34,10 +34,10 @@ CREATE TABLE pcd_user_device_table (
 ) COMMENT='用户登录设备表';
 
 CREATE TABLE pcd_login_session_table (
-    login_session_id             VARCHAR(36) NOT NULL PRIMARY KEY COMMENT '服务端签发的登录会话ID，即sid',
-    login_session_user_id        VARCHAR(36) NOT NULL             COMMENT '登录用户ID',
-    login_session_device_id      VARCHAR(36)                      COMMENT '关联设备ID',
-    login_session_token_jti      VARCHAR(36)                      COMMENT '登录JWT jti',
+    login_session_id             BINARY(16) NOT NULL PRIMARY KEY COMMENT '服务端签发的登录会话ID，即sid',
+    login_session_user_id        BINARY(16) NOT NULL             COMMENT '登录用户ID',
+    login_session_device_id      BINARY(16)                      COMMENT '关联设备ID',
+    login_session_token_jti      BINARY(16)                      COMMENT '登录JWT jti',
     login_session_client_ip      VARCHAR(64)                      COMMENT '登录IP',
     login_session_user_agent     VARCHAR(512)                     COMMENT '登录User-Agent',
     login_session_started_at     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -53,7 +53,7 @@ CREATE TABLE pcd_login_session_table (
 
 CREATE TABLE pcd_login_audit_table (
     audit_id                 BIGINT       NOT NULL PRIMARY KEY AUTO_INCREMENT,
-    audit_user_id            VARCHAR(36)                       COMMENT '匹配到的用户ID，失败时可为空',
+    audit_user_id            BINARY(16)                       COMMENT '匹配到的用户ID，失败时可为空',
     audit_account            VARCHAR(100)                      COMMENT '登录账号',
     audit_phone_number       VARCHAR(50)                       COMMENT '登录手机号',
     audit_success            TINYINT(1)   NOT NULL             COMMENT '是否登录成功',
@@ -72,19 +72,21 @@ CREATE TABLE pcd_file_info_table (
     file_uploaded_time      TIMESTAMP       NOT NULL DEFAULT NOW()  COMMENT '文件上传时间',
     file_size               BIGINT          NOT NULL                COMMENT '文件大小',
     file_type               VARCHAR(60)     NOT NULL                COMMENT '文件类型',
-    file_author_id          VARCHAR(36)     NOT NULL                COMMENT '文件作者ID',
+    file_author_id          BINARY(16)     NOT NULL                COMMENT '文件作者ID',
     FOREIGN KEY (file_author_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
-    file_id                 VARCHAR(36)     NOT NULL PRIMARY KEY,
+    file_id                 BINARY(16)     NOT NULL PRIMARY KEY,
     file_checksum           VARCHAR(256)    NOT NULL                COMMENT '文件校验值',
     file_total_chunks       INT             NOT NULL                COMMENT '文件切片数目', --新增字段
-    file_node_id            VARCHAR(36)     NOT NULL                COMMENT '文件所在目录节点ID',
-    file_storage_path       VARCHAR(512)    NOT NULL                COMMENT '文件存储路径'
+    file_node_id            BINARY(16)     NOT NULL                COMMENT '文件所在目录节点ID',
+    file_storage_path       VARCHAR(512)    NOT NULL                COMMENT '文件存储路径',
+    file_status             ENUM('active', 'deleted', 'trashed') NOT NULL DEFAULT 'active' COMMENT '文件状态'
+    UNIQUE KEY uk_file_info (file_id, file_author_id, file_node_id),
 ) COMMENT='文件信息表';
 
 CREATE TABLE pcd_sharing_Link_mange_table (
-    sharing_link_id                     VARCHAR(36)     NOT NULL PRIMARY KEY,
+    sharing_link_id                     BINARY(16)     NOT NULL PRIMARY KEY,
     sharing_link_path                   VARCHAR(512)    NOT NULL                  COMMENT '分享链接路径',
-    sharing_link_file_id                VARCHAR(36)     NOT NULL                  COMMENT '分享链接关联的文件ID',
+    sharing_link_file_id                BINARY(16)     NOT NULL                  COMMENT '分享链接关联的文件ID',
     FOREIGN KEY (sharing_link_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
     sharing_link_valid_starting_time    TIMESTAMP       NOT NULL    DEFAULT NOW() COMMENT '分享链接有效开始时间',
     sharing_link_valid_endding_time     TIMESTAMP       NOT NULL                  COMMENT '分享链接有效结束时间',
@@ -112,8 +114,8 @@ CREATE TABLE pcd_sharing_Link_mange_table (
 
 -- 文件上传的上传会话表 管理单文件的上传流程 主要是用来跟踪保障整个切片上传流程正确进行
 CREATE TABLE pcd_uploads_session_table (
-    uploads_id              VARCHAR(36)     NOT NULL PRIMARY KEY,
-    uploads_user_id         VARCHAR(36)     NOT NULL                                                COMMENT '上传用户ID',
+    uploads_id              BINARY(16)     NOT NULL PRIMARY KEY,
+    uploads_user_id         BINARY(16)     NOT NULL                                                COMMENT '上传用户ID',
     FOREIGN KEY (uploads_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     uploads_total_chunks    INT             NOT NULL                                                COMMENT '上传切片总数',
     uploads_starting_time   TIMESTAMP       NOT NULL                            DEFAULT NOW()       COMMENT '上传开始时间',
@@ -123,12 +125,12 @@ CREATE TABLE pcd_uploads_session_table (
     uploads_chunks_max_size INT             NOT NULL                                                COMMENT '切片最大大小',
     uploads_file_name       VARCHAR(150)    NOT NULL                                                COMMENT '文件名称',
     uploads_file_type       VARCHAR(60)     NOT NULL                                                COMMENT '文件类型',
-    uploads_node_id         VARCHAR(36)     NOT NULL                                                COMMENT '文件所在目录节点ID',
-    uploads_status          ENUM('uploading', 'merging', 'completed', 'failed') DEFAULT 'uploading' COMMENT '上传状态'
+    uploads_node_id         BINARY(16)     NOT NULL                                                COMMENT '文件所在目录节点ID',
+    uploads_status          ENUM('uploading', 'merging', 'completed', 'merge_failed', 'scan_failed', 'process_failed', 'scaning', 'processing') DEFAULT 'uploading' COMMENT '上传状态'
 ) COMMENT='文件上传会话表';
 
 CREATE TABLE pcd_upload_chunks_table (
-    chunk_uploads_id    VARCHAR(36)  NOT NULL                                                COMMENT '关联上传会话ID',
+    chunk_uploads_id    BINARY(16)  NOT NULL                                                COMMENT '关联上传会话ID',
     FOREIGN KEY (chunk_uploads_id) REFERENCES pcd_uploads_session_table(uploads_id) ON DELETE CASCADE,
     chunk_index         INT          NOT NULL                                                COMMENT '切片索引',
     chunk_status        ENUM('pending' ,'uploading', 'uploaded', 'failed') DEFAULT 'pending' COMMENT '切片状态',
@@ -139,16 +141,17 @@ CREATE TABLE pcd_upload_chunks_table (
 
 -- 有点类似于文件夹的元数据表 准确来说是每一条表记录加上关联字段构成了一个目录结构表
 -- 可以准确的描述整个文件夹的嵌套结构 利用node_id代替物化路径 提高了安全性和简化了客户端
--- node_status 节点的状态能够解决高并发的服务器环境下导致的异常 类似于逻辑锁 操作时锁定节点
+-- node_status 节点的状态能够解决高并发的服务器环境下导致的异常 类似于逻辑锁 操作时锁定节点 node-parent表
 CREATE TABLE pcd_directory_tree_table (
-    node_id          VARCHAR(36)     NOT NULL PRIMARY KEY,
-    node_user_id     VARCHAR(36)     NOT NULL          COMMENT '所属用户ID',
+    node_id          BINARY(16)     NOT NULL PRIMARY KEY,
+    node_user_id     BINARY(16)     NOT NULL          COMMENT '所属用户ID',
     FOREIGN KEY (node_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
-    node_parent_id   VARCHAR(36)                       COMMENT '父节点ID，根节点为NULL',
+    node_parent_id   BINARY(16)                       COMMENT '父节点ID，根节点为NULL',
     FOREIGN KEY (node_parent_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
     node_name        VARCHAR(200)    NOT NULL          COMMENT '节点名称',
     node_create_time TIMESTAMP       NOT NULL          COMMENT '节点创建时间'      DEFAULT NOW(),
     node_status      ENUM('lock', 'active', 'pending') COMMENT '节点状态'         DEFAULT 'active'
+    UNIQUE KEY uk_directory_tree (node_id, node_user_id, node_parent_id),
 ) COMMENT='节点目录树表';
 
 ALTER TABLE pcd_file_info_table
@@ -159,9 +162,25 @@ ALTER TABLE pcd_uploads_session_table
     ADD CONSTRAINT fk_uploads_session_directory_tree
     FOREIGN KEY (uploads_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE;
 
+-- 闭包表 用于高效查询目录树的祖先和后代关系 适合频繁查询目录层级关系的场景
+-- 注意维护 不要太深层次的目录树 否则会导致闭包表过大 影响性能
+CREATE TABLE pcd_directory_closure_table (
+    user_id          BINARY(16)     NOT NULL          COMMENT '所属用户ID',
+    FOREIGN KEY (user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    ancestor_id      BINARY(16)     NOT NULL          COMMENT '祖先节点ID',
+    FOREIGN KEY (ancestor_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
+    descendant_id    BINARY(16)     NOT NULL          COMMENT '后代节点ID',
+    FOREIGN KEY (descendant_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
+    depth            INT             NOT NULL          COMMENT '祖先节点与后代节点的深度，父子关系为1，祖孙关系为2，以此类推',
+    PRIMARY KEY (ancestor_id, descendant_id),
+    UNIQUE KEY uk_descendant (user_id, descendant_id, ancestor_id),
+    KEY idx_depth (depth)
+) COMMENT='目录树闭包表';
+
+
 CREATE TABLE pcd_user_quota_table (
     quota_id              BIGINT          PRIMARY KEY AUTO_INCREMENT,
-    quota_user_id         VARCHAR(36)     NOT NULL UNIQUE COMMENT '用户ID，关联用户表',
+    quota_user_id         BINARY(16)     NOT NULL UNIQUE COMMENT '用户ID，关联用户表',
     FOREIGN KEY (quota_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     quota_total_capacity  BIGINT          NOT NULL DEFAULT 10737418240 COMMENT '总额度（字节），默认10GB = 10*1024^3',
     quota_used_capacity   BIGINT          NOT NULL DEFAULT 0 COMMENT '已用容量（字节）',
@@ -174,7 +193,7 @@ CREATE TABLE pcd_user_quota_table (
 
 CREATE TABLE pcd_user_quota_log_table (
     quota_log_id            BIGINT        PRIMARY KEY AUTO_INCREMENT,
-    quota_log_user_id       VARCHAR(36)   NOT NULL COMMENT '用户ID，关联用户表',
+    quota_log_user_id       BINARY(16)   NOT NULL COMMENT '用户ID，关联用户表',
     FOREIGN KEY (quota_log_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     quota_log_change_type   VARCHAR(20)   NOT NULL COMMENT '变更类型：EXPAND-扩容，REDUCE-缩容，FILE_UPLOAD-文件上传，FILE_DELETE-文件删除',
     quota_log_change_bytes  BIGINT        NOT NULL COMMENT '变更字节数（正为增加，负为减少）',
@@ -190,9 +209,9 @@ CREATE TABLE pcd_user_quota_log_table (
 -- 文件收藏表
 CREATE TABLE pcd_file_star_table (
     star_id             BIGINT          PRIMARY KEY AUTO_INCREMENT,
-    star_user_id        VARCHAR(36)     NOT NULL COMMENT '用户ID',
+    star_user_id        BINARY(16)     NOT NULL COMMENT '用户ID',
     FOREIGN KEY (star_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
-    star_file_id        VARCHAR(36)     NOT NULL COMMENT '文件ID',
+    star_file_id        BINARY(16)     NOT NULL COMMENT '文件ID',
     FOREIGN KEY (star_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
     star_starred_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
     UNIQUE KEY uk_user_file (star_user_id, star_file_id),
@@ -200,22 +219,21 @@ CREATE TABLE pcd_file_star_table (
 ) COMMENT='文件收藏表';
 
 -- 回收站文件表
-CREATE TABLE pcd_trash_file_table (
+CREATE TABLE pcd_trash_target_table (
     trash_id                BIGINT          PRIMARY KEY AUTO_INCREMENT,
-    trash_file_id           VARCHAR(36)     NOT NULL COMMENT '原文件ID',
-    trash_user_id           VARCHAR(36)     NOT NULL COMMENT '用户ID',
+    trash_target_id         BINARY(16)     NOT NULL COMMENT '原目标ID',
+    trash_target_type       ENUM('file', 'folder') NOT NULL COMMENT '目标类型',
+    trash_user_id           BINARY(16)     NOT NULL COMMENT '用户ID',
     FOREIGN KEY (trash_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     trash_file_name         VARCHAR(150)    NOT NULL COMMENT '文件名称',
     trash_file_type         VARCHAR(60)     NOT NULL COMMENT '文件类型',
     trash_file_size         BIGINT          NOT NULL COMMENT '文件大小',
-    trash_original_node_id  VARCHAR(36)     NOT NULL COMMENT '原节点ID',
-    trash_storage_path      VARCHAR(512)    NOT NULL COMMENT '文件存储路径',
-    trash_file_checksum     VARCHAR(256)    NOT NULL COMMENT '文件校验值',
+    trash_original_node_id  BINARY(16)     NOT NULL COMMENT '原节点ID',
     trash_deleted_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '删除时间',
     trash_expires_at        DATETIME        NOT NULL COMMENT '过期时间（自动彻底删除时间）',
     INDEX idx_user_deleted (trash_user_id, trash_deleted_at),
     INDEX idx_expires (trash_expires_at)
-) COMMENT='回收站文件表';
+) COMMENT='回收站表';
 
 -- =====================================================================
 -- 通知发送日志表 pcd_notification_send_log_table
@@ -228,7 +246,7 @@ CREATE TABLE `pcd_notification_send_log_table` (
     `event_id`    VARCHAR(255) NOT NULL                COMMENT '事件唯一ID（由发布方生成）',
     `channel`     VARCHAR(20)  NOT NULL                COMMENT '通道：EMAIL（邮件）、SMS（短信）',
     `receiver`    VARCHAR(255) NOT NULL                COMMENT '接收者：邮箱地址或手机号',
-    `user_id`     VARCHAR(255) DEFAULT NULL            COMMENT '关联用户ID（可为空）',
+    `user_id`     BINARY(16) DEFAULT NULL            COMMENT '关联用户ID（可为空）',
     `status`      VARCHAR(20)  NOT NULL                COMMENT '状态：PENDING、SUCCESS、FAILED',
     `retry_count` INT          NOT NULL DEFAULT 0      COMMENT '重试次数',
     `error_message` VARCHAR(1000) DEFAULT NULL         COMMENT '错误信息（失败时记录，截断至1000字符）',

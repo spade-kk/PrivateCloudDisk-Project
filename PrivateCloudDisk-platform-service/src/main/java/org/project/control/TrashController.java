@@ -5,10 +5,12 @@ import org.project.control.result.JsonResult;
 import org.project.model.entity.TrashFileEntity;
 import org.project.model.vo.TrashFileVO;
 import org.project.model.vo.VoMapper;
+import org.project.service.DirectoryTreeService;
 import org.project.service.TrashService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 回收站控制器
@@ -19,6 +21,7 @@ import java.util.List;
 public class TrashController extends BaseController {
     
     private final TrashService trashService;
+    private final DirectoryTreeService directoryTreeService;
     
     /**
      * 将文件移动到回收站
@@ -27,7 +30,7 @@ public class TrashController extends BaseController {
     public JsonResult<Void> moveToTrash(
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
-        trashService.moveToTrash(file_id, user_id);
+        directoryTreeService.deleteFolderNodeToTrashByNodeId(UUID.fromString(file_id), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
     
@@ -38,7 +41,7 @@ public class TrashController extends BaseController {
     public JsonResult<Void> restoreFromTrash(
             @PathVariable Long trash_id,
             @RequestHeader("X-User-Id") String user_id) {
-        trashService.restoreFromTrash(trash_id, user_id);
+        trashService.restoreFromTrash(trash_id, UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
     
@@ -49,7 +52,7 @@ public class TrashController extends BaseController {
     public JsonResult<Void> permanentDelete(
             @PathVariable Long trash_id,
             @RequestHeader("X-User-Id") String user_id) {
-        trashService.permanentDelete(trash_id, user_id);
+        trashService.permanentDelete(trash_id, UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
     
@@ -58,7 +61,7 @@ public class TrashController extends BaseController {
      */
     @DeleteMapping("/")
     public JsonResult<Void> emptyTrash(@RequestHeader("X-User-Id") String user_id) {
-        trashService.emptyTrash(user_id);
+        trashService.emptyTrash(UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
     
@@ -70,7 +73,7 @@ public class TrashController extends BaseController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestHeader("X-User-Id") String user_id) {
-        List<TrashFileEntity> trashFiles = trashService.getTrashFiles(user_id, page, pageSize);
+        List<TrashFileEntity> trashFiles = trashService.getTrashFiles(UUID.fromString(user_id), page, pageSize);
         return new JsonResult<>(OK, VoMapper.toTrashFileVOList(trashFiles));
     }
     
@@ -79,7 +82,7 @@ public class TrashController extends BaseController {
      */
     @GetMapping("/count")
     public JsonResult<Integer> countTrashFiles(@RequestHeader("X-User-Id") String user_id) {
-        Integer count = trashService.countTrashFiles(user_id);
+        Integer count = trashService.countTrashFiles(UUID.fromString(user_id));
         return new JsonResult<>(OK, count);
     }
     
@@ -90,7 +93,7 @@ public class TrashController extends BaseController {
     public JsonResult<TrashFileVO> getTrashFileById(
             @PathVariable Long trash_id,
             @RequestHeader("X-User-Id") String user_id) {
-        TrashFileEntity trashFile = trashService.getTrashFileById(trash_id, user_id);
+        TrashFileEntity trashFile = trashService.getTrashFileById(trash_id, UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toTrashFileVO(trashFile));
     }
 }

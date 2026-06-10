@@ -8,6 +8,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 通知发送日志Repository - 实现消费者幂等性
@@ -110,7 +111,7 @@ public class NotificationSendLogRepository {
                 .eventId(eventId)
                 .channel(channel)
                 .receiver(receiver)
-                .userId(userId)
+                .userId(UUID.fromString(userId))
                 .status(NotificationSendLogEntity.STATUS_PENDING)
                 .retryCount(0)
                 .createdAt(LocalDateTime.now())

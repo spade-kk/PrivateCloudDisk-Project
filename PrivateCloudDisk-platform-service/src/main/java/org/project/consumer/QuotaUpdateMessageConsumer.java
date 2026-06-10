@@ -9,6 +9,8 @@ import org.project.model.entity.QuotaEntity;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 /**
  * 配额更新消息消费者
  * 负责处理配额更新任务
@@ -29,7 +31,7 @@ public class QuotaUpdateMessageConsumer {
                 message.getMessageId(), message.getUserId(), message.getUpdateType());
         
         try {
-            QuotaEntity quota = quotaMapper.findQuotaByUserId(message.getUserId());
+            QuotaEntity quota = quotaMapper.findQuotaByUserId(UUID.fromString(message.getUserId()));
             if (quota == null) {
                 log.warn("用户配额不存在: userId={}", message.getUserId());
                 return;

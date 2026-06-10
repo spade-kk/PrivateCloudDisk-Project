@@ -8,6 +8,8 @@ import org.project.model.vo.VoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/business/quotas")
 public class QuotaController extends BaseController {
@@ -16,7 +18,7 @@ public class QuotaController extends BaseController {
 
     @GetMapping("/me")
     public JsonResult<QuotaVO> queryMyQuota(@RequestHeader("X-User-Id") String user_id) {
-        QuotaEntity quota = quotaMapper.findQuotaByUserId(user_id);
+        QuotaEntity quota = quotaMapper.findQuotaByUserId(UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toQuotaVO(quota));
     }
 }

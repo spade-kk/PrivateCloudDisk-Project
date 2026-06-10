@@ -21,6 +21,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @Validated
@@ -33,7 +34,7 @@ public class NodeController extends BaseController {
 
     @GetMapping("/root")
     public JsonResult<FolderNodeVO> findRootNode(@RequestHeader("X-User-Id") String user_id) {
-        FolderNodeEntity rootFolderNode = userService.findRootFolderNodeByUserId(user_id);
+        FolderNodeEntity rootFolderNode = userService.findRootFolderNodeByUserId(UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toFolderNodeVO(rootFolderNode));
     }
 
@@ -43,7 +44,7 @@ public class NodeController extends BaseController {
                     message = "node_id必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id) {
-        FolderNodeEntity node = directoryTreeService.queryFolderNodeById(node_id, user_id);
+        FolderNodeEntity node = directoryTreeService.queryUserFolderNodeById(UUID.fromString(node_id), UUID.fromString(user_id));
 
         return new JsonResult<>(OK, VoMapper.toFolderNodeVO(node));
     }
@@ -54,7 +55,7 @@ public class NodeController extends BaseController {
                     message = "node_id必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id ) {
-        List<NodeEntity> nodeList = directoryTreeService.findUserNodesByNodeId(node_id, user_id);
+        List<NodeEntity> nodeList = directoryTreeService.findUserNodesByNodeId(UUID.fromString(node_id), UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toNodeVOList(nodeList));
     }
     
@@ -83,7 +84,7 @@ public class NodeController extends BaseController {
         query.setPage(page);
         query.setPageSize(pageSize);
         
-        PageResultVO<NodeEntity> result = directoryTreeService.findUserNodesByNodeIdPaged(query, user_id);
+        PageResultVO<NodeEntity> result = directoryTreeService.findUserNodesByNodeIdPaged(query, UUID.fromString(user_id));
         
         List<NodeVO> voList = VoMapper.toNodeVOList(result.getItems());
         PageResultVO<NodeVO> voResult = new PageResultVO<>(
@@ -100,7 +101,7 @@ public class NodeController extends BaseController {
     public JsonResult<Void> createFolderNode(
             @Valid @RequestBody CreateFolderNodeRequest request,
             @RequestHeader("X-User-Id") String user_id) {
-        directoryTreeService.createFolderNode(user_id, request.getNode_id(), request.getFolder_name());
+        directoryTreeService.createFolderNode(UUID.fromString(user_id), UUID.fromString(request.getNode_id()), request.getFolder_name());
         return new JsonResult<>(OK);
     }
 
@@ -110,7 +111,7 @@ public class NodeController extends BaseController {
                     message = "node_id必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id ) {
-        directoryTreeService.deleteNodeByNodeId(node_id, user_id);
+        directoryTreeService.deleteFolderNodeByNodeId(UUID.fromString(node_id), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 
@@ -121,7 +122,7 @@ public class NodeController extends BaseController {
             @PathVariable String node_id,
             @Valid @RequestBody MoveNodeRequest request,
             @RequestHeader("X-User-Id") String user_id ) {
-        directoryTreeService.moveNodeByNodeId(node_id, request.getTarget_position(), user_id);
+        directoryTreeService.moveNodeByNodeId(UUID.fromString(node_id), UUID.fromString(request.getTarget_position()), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 
@@ -132,7 +133,7 @@ public class NodeController extends BaseController {
             @PathVariable String node_id,
             @Valid @RequestBody RenameNodeRequest request,
             @RequestHeader("X-User-Id") String user_id ) {
-        directoryTreeService.updateNodeNameByNodeId(node_id, request.getNew_node_name(), user_id);
+        directoryTreeService.updateNodeNameByNodeId(UUID.fromString(node_id), request.getNew_node_name(), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 }

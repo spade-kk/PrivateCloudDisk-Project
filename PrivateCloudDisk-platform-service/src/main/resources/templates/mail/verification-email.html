@@ -23,171 +23,125 @@
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
-            background-color: #f3f5f8;
+            background-color: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
             "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
         }
         a {
             color: #2563eb;
-            text-decoration: none;
+            text-decoration: underline;
         }
         @media screen and (max-width: 600px) {
             .container {
                 width: 100% !important;
             }
-            .outer-padding {
-                padding: 16px !important;
-            }
             .mobile-padding {
-                padding-left: 22px !important;
-                padding-right: 22px !important;
-            }
-            .title {
-                font-size: 20px !important;
+                padding-left: 28px !important;
+                padding-right: 28px !important;
             }
             .code {
-                font-size: 34px !important;
-                letter-spacing: 6px !important;
+                font-size: 48px !important;
+                letter-spacing: 3px !important;
             }
-            .code-box {
-                padding: 22px 14px !important;
+            .title {
+                font-size: 22px !important;
             }
         }
     </style>
 </head>
-<body style="margin:0; padding:0; background-color:#f3f5f8;">
-<!-- Preheader：邮件列表预览文字 -->
+<body style="margin:0; padding:0; background-color:#ffffff;">
+<!-- 邮件预览文字 -->
 <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; line-height:1px; font-size:1px;">
-    您正在进行账号验证，请使用验证码完成操作。
+    您正在创建私有云网盘账号，请使用此验证码完成验证。
 </div>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f3f5f8;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;">
     <tr>
-        <td align="center" class="outer-padding" style="padding:32px 12px;">
-            <!-- Container -->
-            <table role="presentation" class="container" width="600" cellspacing="0" cellpadding="0" border="0"
-                   style="width:600px; max-width:600px; background-color:#ffffff; border-radius:18px; overflow:hidden; border:1px solid #e5e7eb;">
+        <td align="center">
+            <table role="presentation" class="container" width="680" cellspacing="0" cellpadding="0" border="0"
+                   style="width:680px; max-width:680px; background-color:#ffffff;">
                 <!-- Header -->
                 <tr>
-                    <td class="mobile-padding" style="padding:30px 36px 22px 36px; background-color:#ffffff; border-bottom:1px solid #eef0f4;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                    <td class="mobile-padding" style="padding:48px 56px 24px 56px;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                             <tr>
-                                <td valign="middle" width="48">
-                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                                        <tr>
-                                            <td align="center" valign="middle"
-                                                style="width:44px; height:44px; background-color:#111827; border-radius:12px; color:#ffffff; font-size:15px; font-weight:700; letter-spacing:0.5px;">
-                                                PCD
-                                            </td>
-                                        </tr>
-                                    </table>
+                                <td valign="middle">
+                                    <div style="width:42px; height:42px; border-radius:12px; background-color:#0f2d73; color:#ffffff; font-size:15px; font-weight:700; line-height:42px; text-align:center;">
+                                        PCD
+                                    </div>
                                 </td>
                                 <td valign="middle" style="padding-left:12px;">
-                                    <div style="font-size:16px; font-weight:700; color:#111827; line-height:1.4;">
+                                    <div style="font-size:21px; line-height:1.2; color:#0f2d73; font-weight:700;">
                                         私有云网盘
                                     </div>
-                                    <div style="font-size:12px; color:#6b7280; line-height:1.5;">
-                                        Private Cloud Disk · 账户安全中心
+                                    <div style="font-size:13px; line-height:1.5; color:#64748b; margin-top:2px;">
+                                        Private Cloud Disk
                                     </div>
                                 </td>
                             </tr>
                         </table>
                     </td>
                 </tr>
-                <!-- Main Content -->
+                <!-- Main -->
                 <tr>
-                    <td class="mobile-padding" style="padding:34px 36px 10px 36px;">
-                        <div style="display:inline-block; padding:6px 12px; background-color:#eff6ff; border:1px solid #dbeafe; border-radius:999px; color:#2563eb; font-size:13px; font-weight:600; line-height:1.2;"
-                             th:text="${purposeText}">
-                            注册验证
+                    <td class="mobile-padding" style="padding:18px 56px 0 56px;">
+                        <p style="margin:0 0 26px 0; font-size:17px; line-height:1.8; color:#1f2937;">
+                            您好
+                            <strong style="font-weight:700; color:#111827;" th:text="${username}">用户</strong>！
+                        </p>
+                        <p style="margin:0 0 30px 0; font-size:17px; line-height:1.8; color:#1f2937;">
+                            感谢您使用私有云网盘。您正在进行
+                            <strong style="font-weight:700; color:#111827;" th:text="${purposeText}">账号注册</strong>
+                            操作，请使用以下一次性验证码完成验证：
+                        </p>
+                        <!-- Code -->
+                        <div class="code"
+                             style="font-family:Consolas, Monaco, 'Courier New', monospace; font-size:56px; line-height:1.2; letter-spacing:4px; font-weight:500; color:#000000; margin:0 0 30px 0;"
+                             th:text="${verificationCode}">
+                            695C6V
                         </div>
-                        <h1 class="title" style="margin:18px 0 10px 0; font-size:24px; line-height:1.35; color:#111827; font-weight:700;">
-                            请完成安全验证
-                        </h1>
-                        <p style="margin:0; font-size:14px; line-height:1.8; color:#4b5563;">
-                            您好，我们收到了您的
-                            <span th:text="${purposeText}">注册验证</span>
-                            请求。请在页面中输入下方验证码，以完成本次身份验证。
+                        <p style="margin:0 0 28px 0; font-size:16px; line-height:1.9; color:#374151;">
+                            请返回浏览器或客户端，在验证码输入框中输入此验证码。
+                            此验证码将在
+                            <strong style="color:#111827;" th:text="${expireMinutes}">15</strong>
+                            分钟后失效。
+                        </p>
+                        <p style="margin:0 0 30px 0; font-size:16px; line-height:1.9; color:#374151;">
+                            如果您没有发起此操作，请忽略此邮件。为了保障账号安全，建议您及时检查账号登录记录或修改密码。
+                        </p>
+                        <p style="margin:0 0 8px 0; font-size:16px; line-height:1.8; color:#374151;">
+                            谢谢您，
+                        </p>
+                        <p style="margin:0; font-size:16px; line-height:1.8; color:#374151;">
+                            私有云网盘团队
                         </p>
                     </td>
                 </tr>
-                <!-- Verification Code -->
+                <!-- Divider -->
                 <tr>
-                    <td class="mobile-padding" style="padding:22px 36px 8px 36px;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                               style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:16px;">
-                            <tr>
-                                <td align="center" class="code-box" style="padding:30px 20px;">
-                                    <div style="font-size:12px; color:#6b7280; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:12px;">
-                                        Verification Code
-                                    </div>
-                                    <div class="code"
-                                         style="font-family:Consolas, Monaco, 'Courier New', monospace; font-size:40px; line-height:1.2; font-weight:700; letter-spacing:8px; color:#111827; background-color:#ffffff; border:1px solid #e5e7eb; border-radius:14px; padding:16px 22px; display:inline-block;"
-                                         th:text="${verificationCode}">
-                                        123456
-                                    </div>
-                                    <div style="font-size:12px; color:#6b7280; line-height:1.6; margin-top:14px;">
-                                        请勿转发或泄露该验证码
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-                <!-- Expire Info -->
-                <tr>
-                    <td class="mobile-padding" style="padding:14px 36px 0 36px;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                               style="background-color:#fff7ed; border:1px solid #fed7aa; border-radius:14px;">
-                            <tr>
-                                <td style="padding:14px 16px; font-size:13px; line-height:1.7; color:#9a3412;">
-                                    验证码有效期为
-                                    <strong style="font-size:15px; color:#c2410c;" th:text="${expireMinutes}">5</strong>
-                                    分钟。若验证码已过期，请返回页面重新获取。
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-                <!-- Security Notice -->
-                <tr>
-                    <td class="mobile-padding" style="padding:18px 36px 28px 36px;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                               style="background-color:#f8fafc; border:1px solid #e5e7eb; border-radius:14px;">
-                            <tr>
-                                <td style="padding:16px 16px 14px 16px;">
-                                    <div style="font-size:14px; font-weight:700; color:#111827; margin-bottom:6px;">
-                                        安全提醒
-                                    </div>
-                                    <div style="font-size:13px; line-height:1.8; color:#4b5563;">
-                                        如果不是您本人发起的操作，请忽略此邮件，并建议您及时检查账号安全状态。
-                                        私有云网盘工作人员不会向您索要验证码。
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-                        <div style="height:1px; background-color:#eef0f4; margin:26px 0 18px 0;"></div>
-                        <p style="margin:0; font-size:12px; line-height:1.8; color:#9ca3af; text-align:center;">
-                            此邮件由系统自动发送，请勿直接回复。<br>
-                            如需帮助，请联系系统管理员或安全中心。
-                        </p>
+                    <td class="mobile-padding" style="padding:38px 56px 0 56px;">
+                        <div style="height:1px; background-color:#e5e7eb; line-height:1px; font-size:1px;">&nbsp;</div>
                     </td>
                 </tr>
                 <!-- Footer -->
                 <tr>
-                    <td style="padding:22px 36px; background-color:#f9fafb; border-top:1px solid #eef0f4; text-align:center;">
-                        <div style="font-size:13px; color:#111827; font-weight:700; line-height:1.6;">
-                            私有云网盘 Private Cloud Disk
-                        </div>
-                        <div style="font-size:11px; color:#9ca3af; line-height:1.8; margin-top:4px;">
-                            Account Security Center
-                        </div>
-                        <div style="font-size:11px; color:#9ca3af; line-height:1.8; margin-top:8px;">
-                            © 2026 Private Cloud Disk. All rights reserved.
-                        </div>
+                    <td class="mobile-padding" style="padding:28px 56px 56px 56px;">
+                        <p style="margin:0 0 16px 0; font-size:13px; line-height:1.8; color:#6b7280;">
+                            此邮件发送至
+                            <span th:text="${email}">user@example.com</span>，
+                            用于通知您的私有云网盘账号正在进行安全验证。
+                        </p>
+                        <p style="margin:0 0 8px 0; font-size:13px; line-height:1.8; color:#6b7280;">
+                            © <span th:text="${currentYear}">2026</span> Private Cloud Disk. All rights reserved.
+                        </p>
+                        <p style="margin:0; font-size:13px; line-height:1.8; color:#6b7280;">
+                            此邮件由系统自动发送，请勿直接回复。
+                            如需帮助，请联系
+                            <a th:href="'mailto:' + ${supportEmail}" href="mailto:support@privateclouddisk.com"
+                               th:text="${supportEmail}">support@privateclouddisk.com</a>
+                        </p>
                     </td>
                 </tr>
             </table>
-            <!-- End Container -->
         </td>
     </tr>
 </table>

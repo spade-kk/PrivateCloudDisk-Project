@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 回收站文件实体
@@ -17,10 +18,10 @@ public class TrashFileEntity implements Serializable {
     private Long trash_id;
     
     /** 原文件ID */
-    private String file_id;
+    private UUID file_id;
     
     /** 用户ID */
-    private String user_id;
+    private UUID user_id;
     
     /** 文件名称 */
     private String file_name;
@@ -32,7 +33,7 @@ public class TrashFileEntity implements Serializable {
     private Long file_size;
     
     /** 原节点ID */
-    private String original_node_id;
+    private UUID original_node_id;
     
     /** 文件存储路径 */
     private String storage_path;

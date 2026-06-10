@@ -3,6 +3,7 @@ package org.project.model.entity;
 import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 分块数据类
@@ -19,7 +20,7 @@ public class UploadsChunkEntity implements Serializable {
         failed
     }
 
-    private String uploads_id;
+    private UUID uploads_id;
     private Integer chunk_index;
     private ChunkStatus chunk_status;
     private String chunk_storage_path;

@@ -9,7 +9,7 @@
         <result column="event_id" property="eventId"/>
         <result column="channel" property="channel"/>
         <result column="receiver" property="receiver"/>
-        <result column="user_id" property="userId"/>
+        <result column="user_id" property="userId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="status" property="status"/>
         <result column="retry_count" property="retryCount"/>
         <result column="error_message" property="errorMessage"/>
@@ -33,7 +33,7 @@
         insert into pcd_notification_send_log_table
             (event_id, channel, receiver, user_id, status, retry_count, error_message, created_at, updated_at)
         values
-            (#{eventId}, #{channel}, #{receiver}, #{userId}, #{status}, #{retryCount},
+            (#{eventId}, #{channel}, #{receiver}, #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{status}, #{retryCount},
              #{errorMessage}, #{createdAt}, #{updatedAt});
     </insert>
 

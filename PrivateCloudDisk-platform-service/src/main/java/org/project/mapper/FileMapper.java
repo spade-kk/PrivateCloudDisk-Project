@@ -1,9 +1,11 @@
 package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.FileEntity;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface FileMapper {
@@ -20,7 +22,7 @@ public interface FileMapper {
      * @param user_id 用户Uid
      * @return 文件元数据列表
      */
-    List<FileEntity> findUserFilesByNodeId(String node_id, String user_id);
+    List<FileEntity> findUserFilesByNodeId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
      * 根据文件ID查询文件元数据
@@ -28,8 +30,7 @@ public interface FileMapper {
      * @param user_id 用户Uid
      * @return 文件元数据
      */
-    FileEntity findUserFileById(String file_id, String user_id);
-
+    FileEntity findUserFileById(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
     /**
      * 根据用户Uid父目录节点ID和文件名字查询文件元数据
      * @param node_id 节点ID
@@ -37,26 +38,49 @@ public interface FileMapper {
      * @param user_id 用户Uid
      * @return 文件元数据
      */
-    FileEntity findUserFileByNodeIdAndName(String node_id, String name, String user_id);
+    FileEntity findUserFileByNodeIdAndName(@Param("node_id") UUID node_id, @Param("name") String name, @Param("user_id") UUID user_id);
+    /**
+     *
+     * @param file_id
+     * @param user_id
+     * @return
+     */
+    boolean isFileDeleted(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
+    /**
+     *
+     * @param file_id
+     * @param user_id
+     * @return
+     */
+    String selectFileEffectiveStatus(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
     /**
      * 更新用户文件名称
      * @param file_new_name 新文件名
      * @param user_id 用户Uid
      * @return 受变动行数
      */
-    int updateUserFileNameById(String file_id, String file_new_name, String user_id);
+    int updateUserFileNameById(@Param("file_id") UUID file_id, @Param("file_new_name") String file_new_name, @Param("user_id") UUID user_id);
     /**
      * 更新用户文件父目录节点ID
      * @param target_node_id 目标节点ID
      * @param user_id 用户Uid
      * @return 受变动行数
      */
-    int updateUserFileParentNodeIdById(String file_id, String target_node_id, String user_id);
+    int updateUserFileParentNodeIdById(@Param("file_id") UUID file_id, @Param("target_node_id") UUID target_node_id, @Param("user_id") UUID user_id);
+
+    /**
+     * 更新文件状态为指定状态
+     * @param file_id 文件ID
+     * @param status 目标状态
+     * @param user_id 用户Uid
+     * @return 受变动行数
+     */
+    int updateUserFileStatusById(@Param("file_id") UUID file_id, @Param("status") FileEntity.FileStatus status, @Param("user_id") UUID user_id);
     /**
      * 删除用户文件
      * @param file_id 文件ID
      * @param user_id 用户Uid
      * @return 受变动行数
      */
-    int deleteUserFileById(String file_id, String user_id);
+    int deleteUserFileById(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
 }

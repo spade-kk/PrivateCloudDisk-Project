@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 文件收藏实体
@@ -17,10 +18,10 @@ public class FileStarEntity implements Serializable {
     private Long star_id;
     
     /** 用户ID */
-    private String user_id;
-    
+    private UUID user_id;
+
     /** 文件ID */
-    private String file_id;
+    private UUID file_id;
     
     /** 收藏时间 */
     private LocalDateTime starred_at;

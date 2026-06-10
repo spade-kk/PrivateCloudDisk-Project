@@ -15,7 +15,10 @@ export const useSelectionStore = defineStore('selection', () => {
     }
   }
 
-  function clearSelection() { selectedIds.value.clear() }
+  function clearSelection() { 
+      selectedIds.value.clear()
+      selectedTypes.value.clear()
+   }
 
   return { selectedIds, selectedTypes, toggleSelect, clearSelection }
 })

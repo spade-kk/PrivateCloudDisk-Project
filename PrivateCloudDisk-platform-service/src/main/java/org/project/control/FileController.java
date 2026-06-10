@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @Validated
 @RequestMapping("/business")
@@ -26,7 +28,7 @@ public class FileController extends BaseController {
                     message = "file_id必须是有效的UUID格式")
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id ) {
-        FileEntity fileData = fileService.queryUserFileById(file_id, user_id);
+        FileEntity fileData = fileService.queryUserFileById(UUID.fromString(file_id), UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toFileVO(fileData));
     }
 
@@ -37,7 +39,7 @@ public class FileController extends BaseController {
             @PathVariable String file_id,
             @Valid @RequestBody RenameFileRequest request,
             @RequestHeader("X-User-Id") String user_id ) {
-        fileService.updateFileName(file_id, request.getFile_new_name(), user_id);
+        fileService.updateFileName(UUID.fromString(file_id), request.getFile_new_name(), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 
@@ -48,7 +50,7 @@ public class FileController extends BaseController {
             @PathVariable String file_id,
             @Valid @RequestBody MoveFileRequest request,
             @RequestHeader("X-User-Id") String user_id ) {
-        fileService.moveFileByFileId(file_id, request.getTarget_node_id(), user_id);
+        fileService.moveFileByFileId(UUID.fromString(file_id), UUID.fromString(request.getTarget_node_id()), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 
@@ -58,7 +60,7 @@ public class FileController extends BaseController {
                     message = "file_id必须是有效的UUID格式")
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id ) {
-        fileService.deleteFileByFileId(file_id, user_id);
+        fileService.deleteFileByFileId(UUID.fromString(file_id), UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 }

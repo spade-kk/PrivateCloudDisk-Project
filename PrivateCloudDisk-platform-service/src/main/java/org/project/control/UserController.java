@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 处理用户模块的请求
@@ -53,7 +54,7 @@ public class UserController extends BaseController {
         try {
             captchaVerifier.verify(loginRequest.getCaptcha_token(), "login", clientIp);
             UserEntity userData = userService.login(loginRequest.getAccount(), loginRequest.getPhone_number(), loginRequest.getPassword());
-            String token = jwtUtil.generateAccessToken(userData.getId());
+            String token = jwtUtil.generateAccessToken(userData.getId().toString());
             apiAbuseProtectionService.recordLoginSuccess(loginRequest, clientIp);
             return new JsonResult<String>(OK, token);
         } catch (ServiceException e) {
@@ -90,7 +91,7 @@ public class UserController extends BaseController {
      */
     @DeleteMapping("/me")
     public JsonResult<Void> deleteUserByUserId(@RequestHeader("X-User-Id") String user_id) {
-        userService.deleteUserByUserId(user_id);
+        userService.deleteUserByUserId(UUID.fromString(user_id));
         return new JsonResult<>(OK);
     }
 
@@ -104,7 +105,7 @@ public class UserController extends BaseController {
     public JsonResult<Void> updateUserInfoByUserId( @RequestHeader("X-User-Id") String user_id,
                                                      @Valid @RequestBody updateUserInfoRequest updateUserInfoRequest ) {
         userService.updateUserInfo(
-                user_id,
+                UUID.fromString(user_id),
                 updateUserInfoRequest.getNew_email(),
                 updateUserInfoRequest.getNew_phone_number(),
                 updateUserInfoRequest.getNew_name()
@@ -119,7 +120,7 @@ public class UserController extends BaseController {
      */
     @GetMapping("/me")
     public JsonResult<UserProfileVO> queryUserInfoByUserId(@RequestHeader("X-User-Id") String user_id) {
-        UserEntity userData = userService.findUserInfoByUserId(user_id);
+        UserEntity userData = userService.findUserInfoByUserId(UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toUserProfileVO(userData));
     }
 
@@ -132,7 +133,7 @@ public class UserController extends BaseController {
     @PostMapping("/me/password")
     public JsonResult<Void> updateUserPassword(@RequestHeader("X-User-Id") String user_id,
                                                @Valid @RequestBody ChangeUserPasswordRequest changeUserPasswordRequest ) {
-        userService.updateUserPassword( user_id,
+        userService.updateUserPassword( UUID.fromString(user_id),
                 changeUserPasswordRequest.getUser_password(),
                 changeUserPasswordRequest.getNew_password());
         return new JsonResult<>(OK);
@@ -146,7 +147,7 @@ public class UserController extends BaseController {
     @PutMapping("/me/avatar")
     public JsonResult<Void> uploadAvatarByUserId (@RequestHeader("X-User-Id") String user_id,
                                                   MultipartFile avator_file ) {
-        userService.uploadUserAvator(user_id, avator_file);
+        userService.uploadUserAvator(UUID.fromString(user_id), avator_file);
         return new JsonResult<>(OK);
     }
 

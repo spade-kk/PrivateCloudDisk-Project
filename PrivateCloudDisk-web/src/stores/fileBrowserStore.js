@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToastStore } from './toastStore'
-import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, renameFileApi, deleteFileApi, deleteNodeApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi } from '@/api/index'
+import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, moveNodeApi, renameFileApi, deleteFileApi, deleteNodeApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi } from '@/api/index'
 
 export const useFileBrowserStore = defineStore('fileBrowser', () => {
   const toastStore = useToastStore()
@@ -117,7 +117,7 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
 
   async function moveFolder(nodeId, targetNodeId) {
     try {
-      const res = await moveFileApi(nodeId, targetNodeId) // 复用移动文件接口
+      const res = await moveNodeApi(nodeId, targetNodeId) // 复用移动文件接口
       if (res.code === 200) {
         refresh()
         return { success: true }

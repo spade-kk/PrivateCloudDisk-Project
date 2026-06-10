@@ -13,6 +13,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.UUID;
+
 /**
  * 用户管理控制器
  */
@@ -31,7 +33,7 @@ public class UserManageController extends BaseController {
     public JsonResult<String> uploadAvatar(
             @RequestParam("avatar") MultipartFile avatarFile,
             @RequestHeader("X-User-Id") String user_id) {
-        String avatarPath = userManageService.uploadAvatar(user_id, avatarFile);
+        String avatarPath = userManageService.uploadAvatar(UUID.fromString(user_id), avatarFile);
         return new JsonResult<>(OK, avatarPath);
     }
     
@@ -43,7 +45,7 @@ public class UserManageController extends BaseController {
             @RequestHeader("X-User-Id") String user_id,
             @RequestParam("oldPassword") @NotBlank String oldPassword,
             @RequestParam("newPassword") @NotBlank String newPassword) {
-        userManageService.changePassword(user_id, oldPassword, newPassword);
+        userManageService.changePassword(UUID.fromString(user_id), oldPassword, newPassword);
         return new JsonResult<>(OK);
     }
     
@@ -55,7 +57,7 @@ public class UserManageController extends BaseController {
             @RequestHeader("X-User-Id") String user_id,
             @RequestParam("newEmail") @Email String newEmail,
             @RequestParam("verificationCode") @NotBlank String verificationCode) {
-        userManageService.changeEmail(user_id, newEmail, verificationCode);
+        userManageService.changeEmail(UUID.fromString(user_id), newEmail, verificationCode);
         return new JsonResult<>(OK);
     }
     
@@ -67,7 +69,7 @@ public class UserManageController extends BaseController {
             @RequestHeader("X-User-Id") String user_id,
             @RequestParam("newPhone") @Pattern(regexp = "^1[3-9]\\d{9}$") String newPhone,
             @RequestParam("verificationCode") @NotBlank String verificationCode) {
-        userManageService.changePhone(user_id, newPhone, verificationCode);
+        userManageService.changePhone(UUID.fromString(user_id), newPhone, verificationCode);
         return new JsonResult<>(OK);
     }
     
@@ -76,7 +78,7 @@ public class UserManageController extends BaseController {
      */
     @GetMapping("/info")
     public JsonResult<UserProfileVO> getUserInfo(@RequestHeader("X-User-Id") String user_id) {
-        UserEntity user = userManageService.getUserInfo(user_id);
+        UserEntity user = userManageService.getUserInfo(UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toUserProfileVO(user));
     }
     
@@ -87,7 +89,7 @@ public class UserManageController extends BaseController {
     public JsonResult<Void> updateUserInfo(
             @RequestHeader("X-User-Id") String user_id,
             @RequestParam("userName") @NotBlank String userName) {
-        userManageService.updateUserInfo(user_id, userName);
+        userManageService.updateUserInfo(UUID.fromString(user_id), userName);
         return new JsonResult<>(OK);
     }
     

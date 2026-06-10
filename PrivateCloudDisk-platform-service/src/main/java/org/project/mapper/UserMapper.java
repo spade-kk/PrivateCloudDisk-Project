@@ -4,6 +4,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.UserEntity;
 
+import java.util.UUID;
+
 @Mapper
 public interface UserMapper {
     /**
@@ -11,20 +13,20 @@ public interface UserMapper {
      * @param acccount 用户账号
      * @return 用户数据
      */
-    UserEntity findUserByAccount(String acccount);
+    UserEntity findUserByAccount(@Param("account") String acccount);
 
     /**
      * 通过用户手机号查询用户信息
      * @param phone_number 用户手机号
      * @return 用户数据
      */
-    UserEntity findUserByPhoneNumber(String phone_number);
+    UserEntity findUserByPhoneNumber(@Param("phone_number") String phone_number);
     /**
      * 通过用户ID查询用户信息
      * @param user_id 用户ID
      * @return 用户数据
      */
-    UserEntity findUserById(String user_id);
+    UserEntity findUserById(@Param("user_id") UUID user_id);
 
     /**
      * 插入用户数据
@@ -44,27 +46,27 @@ public interface UserMapper {
      * @param new_password 新密码
      * @return 更新了数据行数
      */
-    int updateUserPassword(@Param("user_id") String user_id, @Param("new_password") String new_password);
+    int updateUserPassword(@Param("user_id") UUID user_id, @Param("new_password") String new_password);
     /**
      * 删除用户
      * @param user_id 用户ID
      * @return 删除了数据行数
      */
-    int deleteUserById(String user_id);
+    int deleteUserById(@Param("user_id") UUID user_id);
     
     /**
      * 通过用户邮箱查询用户信息
      * @param email 用户邮箱
      * @return 用户数据
      */
-    UserEntity findUserByEmail(String email);
+    UserEntity findUserByEmail(@Param("email") String email);
     
     /**
      * 通过用户手机号查询用户信息（别名方法）
      * @param phone 用户手机号
      * @return 用户数据
      */
-    default UserEntity findUserByPhone(String phone) {
+    default UserEntity findUserByPhone(@Param("phone") String phone) {
         return findUserByPhoneNumber(phone);
     }
     

@@ -289,7 +289,7 @@ const handleMoveCopy = async (targetFolderId) => {
   try {
     //await client.post(`/v1/nodes/batch-${action}`, { items, targetFolderId })
     ids.forEach(async (id) => {
-      const type = selectionStore.selectedTypes.value.get(id)
+      const type = selectionStore.selectedTypes.get(id)
       let result = null
       if (type === 'FILE') {
         if (action === 'move') result = await fileBrowserStore.moveFile(id, targetFolderId)
@@ -315,7 +315,7 @@ const batchDelete = async () => {
   try {
     // 批量删除API
     ids.forEach(async (id) => {
-      const type = selectionStore.selectedTypes.value.get(id)
+      const type = selectionStore.selectedTypes.get(id)
       if (type === 'FILE') {
         result = await fileBrowserStore.deleteFileNode(id)
       } else {

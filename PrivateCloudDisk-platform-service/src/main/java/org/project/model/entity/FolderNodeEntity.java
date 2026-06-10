@@ -3,6 +3,7 @@ package org.project.model.entity;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.UUID;
 
 /**
  * 文件夹节点数据类
@@ -12,17 +13,22 @@ public class FolderNodeEntity implements Serializable {
     public enum NodeStatus {
         lock,
         active,
-        pending
+        pending,
+        deleted,
+        trashed
     }
     public enum NodeEvent {
         Lock,
         Unlock,
-        Active
+        Active,
+        Delete,
+        Trash,
+        Restore
     }
 
-    private String node_id;
-    private String user_id;
-    private String parent_id;
+    private UUID node_id;
+    private UUID user_id;
+    private UUID parent_id;
     private String name;
     private String create_time;
     private NodeStatus status;

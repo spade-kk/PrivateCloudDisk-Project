@@ -16,11 +16,11 @@ public final class VoMapper {
         }
         TrashFileVO vo = new TrashFileVO();
         vo.setTrash_id(entity.getTrash_id());
-        vo.setFile_id(entity.getFile_id());
+        vo.setFile_id(entity.getFile_id().toString());
         vo.setFile_name(entity.getFile_name());
         vo.setFile_type(entity.getFile_type());
         vo.setFile_size(entity.getFile_size());
-        vo.setOriginal_node_id(entity.getOriginal_node_id());
+        vo.setOriginal_node_id(entity.getOriginal_node_id().toString());
         vo.setDeleted_at(entity.getDeleted_at());
         vo.setExpires_at(entity.getExpires_at());
         return vo;
@@ -39,7 +39,7 @@ public final class VoMapper {
         }
         FileStarVO vo = new FileStarVO();
         vo.setStar_id(entity.getStar_id());
-        vo.setFile_id(entity.getFile_id());
+        vo.setFile_id(entity.getFile_id().toString());
         vo.setStarred_at(entity.getStarred_at());
         return vo;
     }
@@ -58,12 +58,12 @@ public final class VoMapper {
             return null;
         }
         FileVO vo = new FileVO();
-        vo.setId(entity.getId());
+        vo.setId(entity.getId().toString());
         vo.setName(entity.getName());
         vo.setType(entity.getType());
         vo.setSize(entity.getSize());
         vo.setUploaded_time(entity.getUploaded_time());
-        vo.setNode_id(entity.getNode_id());
+        vo.setNode_id(entity.getNode_id().toString());
         vo.setTotal_chunks(entity.getTotal_chunks());
         return vo;
     }
@@ -73,8 +73,9 @@ public final class VoMapper {
             return null;
         }
         FolderNodeVO vo = new FolderNodeVO();
-        vo.setNode_id(entity.getNode_id());
-        vo.setParent_id(entity.getParent_id());
+        vo.setNode_id(entity.getNode_id().toString());
+        if(entity.getParent_id() == null) vo.setParent_id(null);
+        else vo.setParent_id(entity.getParent_id().toString());
         vo.setName(entity.getName());
         vo.setCreate_time(entity.getCreate_time());
         return vo;
@@ -85,7 +86,7 @@ public final class VoMapper {
             return null;
         }
         NodeVO vo = new NodeVO();
-        vo.setNode_id(entity.getNode_id());
+        vo.setNode_id(entity.getNode_id().toString());
         vo.setNode_type(entity.getNode_type());
         vo.setNode_name(entity.getNode_name());
         vo.setNode_size(entity.getNode_size());
@@ -104,7 +105,7 @@ public final class VoMapper {
             return null;
         }
         UserProfileVO vo = new UserProfileVO();
-        vo.setId(entity.getId());
+        vo.setId(entity.getId().toString());
         vo.setAccount(entity.getAccount());
         vo.setPhone_number(entity.getPhone_number());
         vo.setEmail(entity.getEmail());
@@ -118,14 +119,14 @@ public final class VoMapper {
             return null;
         }
         InternalFileMetadataVO vo = new InternalFileMetadataVO();
-        vo.setId(entity.getId());
+        vo.setId(entity.getId().toString());
         vo.setName(entity.getName());
         vo.setType(entity.getType());
         vo.setSize(entity.getSize());
-        vo.setUser_id(entity.getUser_id());
+        vo.setUser_id(entity.getUser_id().toString());
         vo.setUploaded_time(entity.getUploaded_time());
         vo.setChecksum(entity.getChecksum());
-        vo.setNode_id(entity.getNode_id());
+        vo.setNode_id(entity.getNode_id().toString());
         vo.setTotal_chunks(entity.getTotal_chunks());
         vo.setStorage_path(entity.getStorage_path());
         return vo;
@@ -136,8 +137,8 @@ public final class VoMapper {
             return null;
         }
         UploadsSessionInternalVO vo = new UploadsSessionInternalVO();
-        vo.setUploads_id(entity.getUploads_id());
-        vo.setUser_id(entity.getUser_id());
+        vo.setUploads_id(entity.getUploads_id().toString());
+        vo.setUser_id(entity.getUser_id().toString());
         vo.setFile_name(entity.getFile_name());
         vo.setStarting_time(entity.getStarting_time());
         vo.setEndding_time(entity.getEndding_time());
@@ -146,7 +147,7 @@ public final class VoMapper {
         vo.setTotal_chunks(entity.getTotal_chunks());
         vo.setFile_checksum(entity.getFile_checksum());
         vo.setFile_type(entity.getFile_type());
-        vo.setNode_id(entity.getNode_id());
+        vo.setNode_id(entity.getNode_id().toString());
         vo.setStatus(entity.getStatus());
         return vo;
     }
@@ -156,7 +157,7 @@ public final class VoMapper {
             return null;
         }
         UploadsChunkInternalVO vo = new UploadsChunkInternalVO();
-        vo.setUploads_id(entity.getUploads_id());
+        vo.setUploads_id(entity.getUploads_id().toString());
         vo.setChunk_index(entity.getChunk_index());
         vo.setChunk_status(entity.getChunk_status());
         vo.setChunk_storage_path(entity.getChunk_storage_path());
@@ -169,7 +170,7 @@ public final class VoMapper {
             return null;
         }
         QuotaVO vo = new QuotaVO();
-        vo.setUser_id(entity.getUser_id());
+        vo.setUser_id(entity.getUser_id().toString());
         vo.setTotal_capacity(entity.getTotal_capacity());
         vo.setUsed_capacity(entity.getUsed_capacity());
         vo.setFile_count(entity.getFile_count());

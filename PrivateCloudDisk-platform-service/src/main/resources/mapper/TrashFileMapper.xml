@@ -6,12 +6,12 @@
     
     <resultMap id="TrashFileEntityMap" type="org.project.model.entity.TrashFileEntity">
         <id column="trash_id" property="trash_id"/>
-        <result column="trash_file_id" property="file_id"/>
-        <result column="trash_user_id" property="user_id"/>
+        <result column="trash_file_id" property="file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="trash_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="trash_file_name" property="file_name"/>
         <result column="trash_file_type" property="file_type"/>
         <result column="trash_file_size" property="file_size"/>
-        <result column="trash_original_node_id" property="original_node_id"/>
+        <result column="trash_original_node_id" property="original_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="trash_storage_path" property="storage_path"/>
         <result column="trash_file_checksum" property="file_checksum"/>
         <result column="trash_deleted_at" property="deleted_at"/>
@@ -24,32 +24,40 @@
             trash_file_size, trash_original_node_id, trash_storage_path, 
             trash_file_checksum, trash_deleted_at, trash_expires_at
         ) VALUES (
-            #{file_id}, #{user_id}, #{file_name}, #{file_type}, 
-            #{file_size}, #{original_node_id}, #{storage_path}, 
+            #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{file_name}, #{file_type},
+            #{file_size}, #{original_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{storage_path},
             #{file_checksum}, #{deleted_at}, #{expires_at}
         )
     </insert>
     
     <delete id="deleteTrashFile">
         DELETE FROM pcd_trash_file_table 
-        WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id}
+        WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </delete>
     
     <select id="findTrashFileById" resultMap="TrashFileEntityMap">
         SELECT * FROM pcd_trash_file_table 
-        WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id}
+        WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
     
+<!--    <select id="findTrashFilesByUserId" resultMap="TrashFileEntityMap">-->
+<!--        SELECT * FROM pcd_trash_file_table -->
+<!--        WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}-->
+<!--        ORDER BY trash_deleted_at DESC-->
+<!--        LIMIT #{limit} OFFSET #{offset}-->
+<!--    </select>-->
+
     <select id="findTrashFilesByUserId" resultMap="TrashFileEntityMap">
-        SELECT * FROM pcd_trash_file_table 
-        WHERE trash_user_id = #{user_id}
-        ORDER BY trash_deleted_at DESC
-        LIMIT #{limit} OFFSET #{offset}
+        SELECT * FROM pcd_file_info_table
+        WHERE file_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            AND file_status = 'trashed'
+        ORDER BY file_uploaded_time DESC
+            LIMIT #{limit} OFFSET #{offset}
     </select>
     
     <select id="countTrashFilesByUserId" resultType="int">
         SELECT COUNT(*) FROM pcd_trash_file_table 
-        WHERE trash_user_id = #{user_id}
+        WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
     
     <select id="findExpiredTrashFiles" resultMap="TrashFileEntityMap">
@@ -59,7 +67,7 @@
     
     <select id="findTrashFileByFileId" resultMap="TrashFileEntityMap">
         SELECT * FROM pcd_trash_file_table 
-        WHERE trash_file_id = #{file_id} AND trash_user_id = #{user_id}
+        WHERE trash_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
     
 </mapper>

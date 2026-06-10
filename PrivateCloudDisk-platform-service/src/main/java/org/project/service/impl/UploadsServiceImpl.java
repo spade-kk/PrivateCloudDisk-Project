@@ -30,8 +30,8 @@ public class UploadsServiceImpl implements UploadsService {
     private FileService fileService;
 
     @Override
-    public String createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, String user_id, String node_id) {
-        FolderNodeEntity folderNode = directoryTreeService.queryFolderNodeById(node_id, user_id);
+    public UUID createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, UUID user_id, UUID node_id) {
+        FolderNodeEntity folderNode = directoryTreeService.findUserFolderNodeIfExist(node_id, user_id);
         if(folderNode == null) {
             throw new NodeNotExistException("节点不存在");
         }
@@ -57,7 +57,7 @@ public class UploadsServiceImpl implements UploadsService {
 
         uploadsSessionData.setStatus(UploadsSessionEntity.UploadsSessionStatus.uploading);
         // 生成上传会话的ID
-        String uploads_id = UUID.randomUUID().toString();
+        UUID uploads_id = UUID.randomUUID();
         uploadsSessionData.setUploads_id(uploads_id);
         //设置创建上传会话的时间 失效时间为30分钟后
         uploadsSessionData.setStarting_time(LocalDateTime.now());
@@ -72,7 +72,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public boolean isValidUploadsSession(String uploads_id) {
+    public boolean isValidUploadsSession(UUID uploads_id) {
         UploadsSessionEntity uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
         if(uploadsSessionData == null) {
             return false;
@@ -85,7 +85,7 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Override
     @Cacheable(cacheNames = "uploadsSession", key = "#uploads_id")
-    public UploadsSessionEntity queryUploadsSessionById(String uploads_id) {
+    public UploadsSessionEntity queryUploadsSessionById(UUID uploads_id) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -94,7 +94,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public UploadsChunkEntity queryChunkByUploadsIdAndChunkIndex(String uploads_id, int chunk_index) {
+    public UploadsChunkEntity queryChunkByUploadsIdAndChunkIndex(UUID uploads_id, int chunk_index) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -105,7 +105,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public void uploadsMerging(String uploads_id) {
+    public void uploadsMerging(UUID uploads_id) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -130,7 +130,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public void completeChunkUpload(String uploads_id, int chunk_index, String chunk_storage_path) {
+    public void completeChunkUpload(UUID uploads_id, int chunk_index, String chunk_storage_path) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -155,7 +155,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public void completeUploads(String uploads_id, String file_storage_path) {
+    public void completeUploads(UUID uploads_id, String file_storage_path) {
         // 实现完成上传的逻辑
         if(!isValidUploadsSession(uploads_id)) {
                 throw new InvalidUploadsSessionException("上传会话无效");
@@ -166,7 +166,7 @@ public class UploadsServiceImpl implements UploadsService {
             throw new UploadsSessionStatusException("上传会话状态错误");
         }
         // 调用文件服务创建文件
-        String file_id = fileService.createFile(
+        UUID file_id = fileService.createFile(
                 uploadsSessionData.getFile_name(),
                 uploadsSessionData.getFile_type(),
                 uploadsSessionData.getFile_size(),

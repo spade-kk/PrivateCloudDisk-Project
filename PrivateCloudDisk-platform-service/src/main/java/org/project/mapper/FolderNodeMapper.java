@@ -1,9 +1,11 @@
 package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.FolderNodeEntity;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface FolderNodeMapper {
@@ -20,14 +22,14 @@ public interface FolderNodeMapper {
      * @param user_id 用户ID
      * @return 文件夹节点数据
      */
-    FolderNodeEntity findFolderNodeByIdAndUserId(String node_id, String user_id);
+    FolderNodeEntity findFolderNodeByIdAndUserId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
      * 根据用户ID查询用户根目录节点数据
      * @param user_id 用户ID
      * @return 用户根目录节点数据
      */
-    FolderNodeEntity findRootFolderNodeByUserId(String user_id);
+    FolderNodeEntity findRootFolderNodeByUserId(@Param("user_id") UUID user_id);
 
      /**
      * 根据节点ID查询文件夹节点下的子文件夹节点数据
@@ -35,7 +37,23 @@ public interface FolderNodeMapper {
      * @param user_id 用户ID
      * @return 子文件夹节点数据列表
      */
-    List<FolderNodeEntity> findFolderNodesByIdAndUserId(String node_id, String user_id);
+    List<FolderNodeEntity> findFolderNodesByIdAndUserId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
+
+    /**
+     *
+     * @param node_id
+     * @param user_id
+     * @return
+     */
+    boolean isFolderDeleted(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
+
+    /**
+     *
+     * @param node_id
+     * @param user_id
+     * @return
+     */
+    String selectFolderEffectiveStatus(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
      * 根据节点ID更新文件夹节点名称
@@ -44,7 +62,7 @@ public interface FolderNodeMapper {
      * @param user_id 用户ID
      * @return 更新影响的行数
      */
-    int updateFolderNodeNameByIdAndUserId(String new_name, String node_id, String user_id);
+    int updateFolderNodeNameByIdAndUserId(@Param("new_name") String new_name, @Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
      * 根据节点ID更新文件夹节点状态
@@ -53,7 +71,7 @@ public interface FolderNodeMapper {
      * @param user_id 用户ID
      * @return 更新影响的行数
      */
-    int updateFolderNodeStatusByIdAndUserId(FolderNodeEntity.NodeStatus new_status, String node_id, String user_id);
+    int updateFolderNodeStatusByIdAndUserId(@Param("new_status") FolderNodeEntity.NodeStatus new_status, @Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
      * 根据节点ID更新文件夹节点父节点ID
@@ -62,12 +80,12 @@ public interface FolderNodeMapper {
      * @param user_id 用户ID
      * @return 更新影响的行数
      */
-    int updateFolderNodeParentIdByIdAndUserId(String new_parent_id, String node_id, String user_id);
+    int updateFolderNodeParentIdByIdAndUserId(@Param("new_parent_id") UUID new_parent_id, @Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
     /**
      * 根据节点ID删除文件夹节点数据
      * @param node_id 节点ID
      * @param user_id 用户ID
      * @return 删除影响的行数
      */
-    int deleteFolderNodeByIdAndUserId(String node_id, String user_id);
+    int deleteFolderNodeByIdAndUserId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 }

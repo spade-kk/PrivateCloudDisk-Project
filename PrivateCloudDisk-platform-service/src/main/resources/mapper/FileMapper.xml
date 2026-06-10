@@ -4,44 +4,103 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.project.mapper.FileMapper">
     <resultMap id="FileEntityMap" type="org.project.model.entity.FileEntity">
-        <id column="file_id" property="id"/>
+        <id column="file_id" property="id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="file_name" property="name"/>
         <result column="file_uploaded_time" property="uploaded_time"/>
         <result column="file_size" property="size"/>
         <result column="file_type" property="type"/>
-        <result column="file_author_id" property="user_id"/>
+        <result column="file_author_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="file_checksum" property="checksum"/>
-        <result column="file_node_id" property="node_id"/>
+        <result column="file_node_id" property="node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="file_total_chunks" property="total_chunks"/>
         <result column="file_storage_path" property="storage_path"/>
+        <result column="file_status" property="status" />
     </resultMap>
 
     <insert id="insertFile" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.FileEntity">
         insert into pcd_file_info_table(file_id, file_name, file_uploaded_time, file_size, file_type, file_author_id, file_checksum, file_node_id, file_total_chunks, file_storage_path)
-        values(#{id}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id}, #{checksum}, #{node_id}, #{total_chunks}, #{storage_path});
+        values(#{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{checksum}, #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{total_chunks}, #{storage_path});
     </insert>
 
     <select id="findUserFilesByNodeId" resultMap="FileEntityMap">
-        select * from pcd_file_info_table where file_node_id = #{node_id} and file_author_id = #{user_id};
+        select * from pcd_file_info_table where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>
 
-    <select id="findUserFileById" resultMap="FileEntityMap" parameterType="string">
-        select * from pcd_file_info_table where file_author_id = #{user_id} and file_id = #{file_id};
+    <select id="findUserFileById" resultMap="FileEntityMap" parameterType="java.util.UUID">
+        select * from pcd_file_info_table where file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>
 
     <select id="findUserFileByNodeIdAndName" resultMap="FileEntityMap">
-        select * from pcd_file_info_table where file_node_id = #{node_id} and file_name = #{name} and file_author_id = #{user_id};
+        select * from pcd_file_info_table where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_name = #{name} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>
 
-    <update id="updateUserFileNameById" parameterType="string">
-        update pcd_file_info_table set file_name = #{file_new_name} where file_id = #{file_id} and file_author_id = #{user_id};
+    <select id="isFileDeleted" resultType="boolean">
+        SELECT
+            CASE
+                WHEN f.file_status IN ('TRASHED', 'DELETED') THEN TRUE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM pcd_directory_closure_table c
+                             JOIN pcd_directory_tree_table n
+                                  ON n.node_user_id = c.user_id
+                                      AND n.node_id = c.ancestor_id
+                    WHERE c.user_id = f.file_author_id
+                      AND c.descendant_id = f.file_node_id
+                      AND n.file_status IN ('TRASHED', 'DELETED')
+                    LIMIT 1
+                ) THEN TRUE
+                ELSE FALSE
+                END AS deleted
+        FROM pcd_file_info_table f
+        WHERE f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <select id="selectFileEffectiveStatus" resultType="string">
+        SELECT
+            CASE MIN(
+                    CASE
+                        WHEN f.file_status = 'DELETED'
+                            OR n.node_status = 'DELETED'
+                            THEN 1
+
+                        WHEN f.file_status = 'TRASHED'
+                            OR n.node_status = 'TRASHED'
+                            THEN 2
+
+                        ELSE 3
+                        END
+                 )
+                WHEN 1 THEN 'DELETED'
+                WHEN 2 THEN 'TRASHED'
+                ELSE 'ACTIVE'
+                END AS effective_status
+        FROM pcd_file_info_table f
+                 LEFT JOIN pcd_directory_closure_table c
+                           ON c.user_id = f.file_author_id
+                               AND c.descendant_id = f.file_node_id
+                 LEFT JOIN pcd_directory_tree_table n
+                           ON n.node_user_id = c.user_id
+                               AND n.node_id = c.ancestor_id
+                               AND n.node_status IN ('TRASHED', 'DELETED')
+        WHERE f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        GROUP BY f.file_id, f.file_status
+    </select>
+
+    <update id="updateUserFileNameById" parameterType="java.util.UUID">
+        update pcd_file_info_table set file_name = #{file_new_name} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
-    <update id="updateUserFileParentNodeIdById" parameterType="string">
-        update pcd_file_info_table set file_node_id = #{target_node_id} where file_id = #{file_id} and file_author_id = #{user_id};
+    <update id="updateUserFileParentNodeIdById" parameterType="java.util.UUID">
+        update pcd_file_info_table set file_node_id = #{target_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
-    <delete id="deleteUserFileById" parameterType="string">
-        delete from pcd_file_info_table where file_id = #{file_id} and file_author_id = #{user_id};
+    <update id="updateUserFileStatusById" parameterType="java.util.UUID">a
+        update pcd_file_info_table set file_status = #{status} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </update>
+
+    <delete id="deleteUserFileById" parameterType="java.util.UUID">
+        delete from pcd_file_info_table where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </delete>
 </mapper>

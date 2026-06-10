@@ -6,14 +6,14 @@
     
     <resultMap id="FileStarEntityMap" type="org.project.model.entity.FileStarEntity">
         <id column="star_id" property="star_id"/>
-        <result column="star_user_id" property="user_id"/>
-        <result column="star_file_id" property="file_id"/>
+        <result column="star_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="star_file_id" property="file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="star_starred_at" property="starred_at"/>
     </resultMap>
     
     <insert id="insertFileStar" parameterType="org.project.model.entity.FileStarEntity">
         INSERT INTO pcd_file_star_table (star_user_id, star_file_id, star_starred_at)
-        VALUES (#{user_id}, #{file_id}, #{starred_at})
+        VALUES (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{starred_at})
     </insert>
     
     <delete id="deleteFileStar">
@@ -23,25 +23,25 @@
     
     <select id="findFileStarByUserIdAndFileId" resultMap="FileStarEntityMap">
         SELECT * FROM pcd_file_star_table 
-        WHERE star_user_id = #{user_id} AND star_file_id = #{file_id}
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} AND star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
     
     <select id="findStarredFileIdsByUserId" resultType="string">
         SELECT star_file_id FROM pcd_file_star_table 
-        WHERE star_user_id = #{user_id}
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         ORDER BY star_starred_at DESC
     </select>
     
     <select id="findStarredFilesByUserId" resultMap="FileStarEntityMap">
         SELECT * FROM pcd_file_star_table 
-        WHERE star_user_id = #{user_id}
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         ORDER BY star_starred_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
     
     <select id="countStarredFilesByUserId" resultType="int">
         SELECT COUNT(*) FROM pcd_file_star_table 
-        WHERE star_user_id = #{user_id}
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
     
 </mapper>

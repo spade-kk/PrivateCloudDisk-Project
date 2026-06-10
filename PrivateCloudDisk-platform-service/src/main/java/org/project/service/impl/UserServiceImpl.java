@@ -87,7 +87,7 @@ public class UserServiceImpl implements UserService {
         String elevenDigitsNumber = String.format("%011d", Math.floorMod(SECURE_RANDOM.nextLong(), 100_000_000_000L));
         String account = "pcd_" + elevenDigitsNumber;
 
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         userData.setAccount(account);
         userData.setId(id);
 
@@ -103,7 +103,7 @@ public class UserServiceImpl implements UserService {
         // 发布用户注册事件（异步发送欢迎邮件/短信）
         UserRegisteredEvent registeredEvent = UserRegisteredEvent.builder()
                 .eventId("user-registered:" + userData.getId() + ":" + System.currentTimeMillis())
-                .userId(userData.getId())
+                .userId(userData.getId().toString())
                 .userAccount(userData.getAccount())
                 .userName(userData.getName())
                 .email(userData.getEmail())
@@ -120,7 +120,7 @@ public class UserServiceImpl implements UserService {
 
     @Cacheable(cacheNames = "rootFolderNode", key = "#user_id")
     @Override
-    public FolderNodeEntity findRootFolderNodeByUserId(String user_id) {
+    public FolderNodeEntity findRootFolderNodeByUserId(UUID user_id) {
         // 检查用户是否存在
         UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
@@ -136,12 +136,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserEntity findUserInfoByUserId(String user_id) {
+    public UserEntity findUserInfoByUserId(UUID user_id) {
         return userMapper.findUserById(user_id);
     }
 
     @Override
-    public void updateUserPassword(String user_id, String user_password, String new_password) {
+    public void updateUserPassword(UUID user_id, String user_password, String new_password) {
         // 检查用户是否存在
         UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
@@ -158,7 +158,7 @@ public class UserServiceImpl implements UserService {
         }
     }
     @Override
-    public void uploadUserAvator(String user_id, MultipartFile avator_file) {
+    public void uploadUserAvator(UUID user_id, MultipartFile avator_file) {
         // 检查用户是否存在
         UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
@@ -170,7 +170,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void updateUserInfo(String user_id, String new_email, String new_phone_number, String new_name) {
+    public void updateUserInfo(UUID user_id, String new_email, String new_phone_number, String new_name) {
         // 检查用户是否存在
         UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
@@ -186,7 +186,7 @@ public class UserServiceImpl implements UserService {
         }
     }
     @Override
-    public void deleteUserByUserId(String user_id) {
+    public void deleteUserByUserId(UUID user_id) {
         // 检查用户是否存在
         UserEntity userData = userMapper.findUserById(user_id);
         if(userData == null) {
