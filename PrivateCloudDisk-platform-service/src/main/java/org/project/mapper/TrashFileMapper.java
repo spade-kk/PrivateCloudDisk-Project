@@ -2,7 +2,7 @@ package org.project.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.project.model.entity.TrashFileEntity;
+import org.project.model.entity.TrashTargetEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -11,37 +11,37 @@ import java.util.UUID;
 public interface TrashFileMapper {
     
     /**
-     * 添加文件到回收站
+     * 添加目标到回收站
      */
-    int insertTrashFile(TrashFileEntity trashFile);
+    int insertTrashTarget(TrashTargetEntity trashTarget);
     
     /**
-     * 从回收站恢复文件
+     * 从回收站恢复目标
      */
-    int deleteTrashFile(@Param("trash_id") Long trash_id, @Param("user_id") UUID user_id);
+    int deleteTrashTarget(@Param("trash_id") Long trash_id, @Param("user_id") UUID user_id);
     
     /**
-     * 查询回收站文件
+     * 查询回收站目标
      */
-    TrashFileEntity findTrashFileById(@Param("trash_id") Long trash_id, @Param("user_id") UUID user_id);
+    TrashTargetEntity findTrashTargetById(@Param("trash_id") Long trash_id, @Param("user_id") UUID user_id);
     
     /**
-     * 查询用户回收站文件列表（分页）
+     * 查询用户回收站目标列表（分页）
      */
-    List<TrashFileEntity> findTrashFilesByUserId(@Param("user_id") UUID user_id, @Param("offset") Integer offset, @Param("limit") Integer limit);
+    List<TrashTargetEntity> findTrashTargetsByUserId(@Param("user_id") UUID user_id, @Param("offset") Integer offset, @Param("limit") Integer limit);
     
     /**
-     * 统计用户回收站文件数量
+     * 统计用户回收站目标数量
      */
-    Integer countTrashFilesByUserId(@Param("user_id") UUID user_id);
+    Integer countTrashTargetsByUserId(@Param("user_id") UUID user_id);
     
     /**
-     * 查询过期的回收站文件（用于自动清理）
+     * 查询过期的回收站目标（用于自动清理）
      */
-    List<TrashFileEntity> findExpiredTrashFiles();
+    List<TrashTargetEntity> findExpiredTrashTargets();
     
     /**
-     * 根据原文件ID查询回收站记录
+     * 根据原目标ID查询回收站目标记录
      */
-    TrashFileEntity findTrashFileByFileId(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
+    TrashTargetEntity findTrashTargetByTargetId(@Param("target_id") UUID target_id, @Param("user_id") UUID user_id);
 }

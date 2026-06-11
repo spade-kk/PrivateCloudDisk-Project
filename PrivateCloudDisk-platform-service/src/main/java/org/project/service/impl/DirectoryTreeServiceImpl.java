@@ -1,5 +1,6 @@
 package org.project.service.impl;
 
+import jakarta.mail.Folder;
 import org.project.mapper.DirectoryClosureMapper;
 import org.project.model.dto.NodeQueryDTO;
 import org.project.model.entity.FileEntity;
@@ -213,14 +214,19 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     @Override
     @Transactional
     public void deleteFolderNodeByNodeId(UUID node_id, UUID user_id) {
-        // 检查节点是否存在
-        FolderNodeEntity node = findUserFolderNodeIfExist(node_id, user_id);
-        if(node == null) {
+
+        FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndUserId(node_id, user_id);
+        if(node == null){
             throw new NodeNotExistException("节点不存在");
         }
 
-        FolderNodeEntity.NodeStatus status = node.getStatus();
-        if(status == FolderNodeEntity.NodeStatus.lock) {
+        FolderNodeEntity.NodeStatus actualStatus = node.getStatus();
+        String validStatus = folderNodeMapper.selectFolderEffectiveStatus(node_id, user_id);
+        if(actualStatus == FolderNodeEntity.NodeStatus.deleted || FolderNodeEntity.NodeStatus.valueOf(validStatus) == FolderNodeEntity.NodeStatus.deleted) {
+            return;
+        }
+
+        if(actualStatus == FolderNodeEntity.NodeStatus.lock) {
             throw new NodeStatusException("文件夹被Locked 这个文件夹可能现在正在有文件上传");
         }
 //
@@ -275,6 +281,11 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
 
         if(node == null) return null;
 
+        //先查自己节点的真实状态
+        FolderNodeEntity.NodeStatus actualStatus = node.getStatus();
+        if(actualStatus == FolderNodeEntity.NodeStatus.trashed || actualStatus == FolderNodeEntity.NodeStatus.deleted) {
+            return null;
+        }
         boolean isDeleted = folderNodeMapper.isFolderDeleted(node_id, user_id);
         if(isDeleted) {
             return null;
@@ -298,6 +309,14 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         //有效状态取决与祖父节点目录的状态 受祖父目录节点状态的影响 有效节点状态是可以被继承的
         //查询祖父节点状态 如果祖父节点状态为trashed deleted 则当前节点状态为trashed deleted
         //通过目录闭包关系查询祖父节点状态 因为祖父节点的查询涉及到跨级目录查询 所以需要使用目录闭包关系
+        //如果节点的祖父节点状态为trashed 那么节点有效状态也为trashed 如果祖父节点状态有一个为deleted
+        //那么节点有效状态为deleted 但是如果自己节点的真实状态为trashed 则节点有效状态为trashed 这个叫回收站隔离
+        //放入回收站的文件夹 不能被查询 CURD 操作 同样的它也被回收站隔离了失去了正常状态 也失去了目录结构继承关系 不会受到
+        //父节点deleted的影响
+        FolderNodeEntity.NodeStatus actualStatus = node.getStatus();
+        if(actualStatus == FolderNodeEntity.NodeStatus.trashed || actualStatus == FolderNodeEntity.NodeStatus.deleted) {
+            return actualStatus;
+        }
         String validStatus = folderNodeMapper.selectFolderEffectiveStatus(node_id, user_id);
         //Deleted > Trashed > Active
         return FolderNodeEntity.NodeStatus.valueOf(validStatus);

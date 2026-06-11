@@ -11,3 +11,4 @@ pydantic-settings
 aio-pika
 pika
 python-dotenv
+pyclamd

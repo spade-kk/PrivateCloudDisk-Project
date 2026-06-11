@@ -47,6 +47,7 @@ public class FileServiceImpl implements FileService {
         fileData.setNode_id(node_id);
         fileData.setTotal_chunks(total_chunks);
         fileData.setStorage_path(storage_path);
+        fileData.setStatus(FileEntity.FileStatus.active);
         //设置上传时间
         fileData.setUploaded_time(LocalDateTime.now());
         // 生成文件的ID

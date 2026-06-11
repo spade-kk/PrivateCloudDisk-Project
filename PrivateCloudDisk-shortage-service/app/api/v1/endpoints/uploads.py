@@ -258,7 +258,6 @@ async def complete_uploads_internal(
 
     # 3. 获取上传会话详情
     upload_session = result["data"]
-    file_id = upload_session.get("file_id")
     file_name = upload_session.get("file_name")
     file_type = upload_session.get("file_type")
     file_size = upload_session.get("file_size")
@@ -270,22 +269,21 @@ async def complete_uploads_internal(
     task_id = str(uuid.uuid4())
     
     # 5. 初始化任务状态
-    await redis_client.hset(f"task:{task_id}", mapping={
+    await redis_client.hset(f"task:{task_id}:{TaskTypes.MERGE}", mapping={
         "task_id": task_id,
-        "file_id": file_id,
         "user_id": user_id,
+        "uploads_id": uploads_id,
         "status": TaskStatus.PENDING,
         "created_at": time.time(),
         "current_step": TaskTypes.MERGE
     })
-    await redis_client.expire(f"task:{task_id}", 86400 * 3)  # 3天过期
+    await redis_client.expire(f"task:{task_id}:{TaskTypes.MERGE}", 86400 * 3)  # 3天过期
 
     # 6. 发送合并任务消息（只发送合并任务，后续任务由消费者链式触发）
     merge_message = {
         "message_id": str(uuid.uuid4()),
         "task_id": task_id,
         "task_type": TaskTypes.MERGE,
-        "file_id": file_id,
         "user_id": user_id,
         "file_name": file_name,
         "file_type": file_type,

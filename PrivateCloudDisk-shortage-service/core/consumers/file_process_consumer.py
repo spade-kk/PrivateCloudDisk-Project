@@ -40,7 +40,6 @@ class FileProcessConsumer:
             
             # 获取消息属性
             task_type = message_data.get("task_type")
-            file_id = message_data.get("file_id")
             uploads_id = message_data.get("uploads_id")
             user_id = message_data.get("user_id")
             file_name = message_data.get("file_name")
@@ -51,6 +50,8 @@ class FileProcessConsumer:
             total_chunks = message_data.get("total_chunks")
             file_checksum = message_data.get("file_checksum")
             retry_count = message_data.get("retry_count", 0)
+            file_id = message_data.get("file_id", None)
+            task_id = message_data.get("task_id")
             
             # 根据任务类型处理
             success = False
@@ -60,9 +61,10 @@ class FileProcessConsumer:
                 match task_type:
                     case TaskTypes.MERGE:
                         result = await FileProcessConsumer._handle_merge(
-                            uploads_id, file_id, user_id, total_chunks, file_name, file_checksum
+                            uploads_id, user_id, total_chunks, file_name, file_checksum
                         )
                         success = result.get("success", False)
+                        file_id = result.get("file_id")
                     
                     case TaskTypes.HASH_CALCULATE:
                         result = await FileProcessConsumer._handle_hash_calculate(
@@ -103,11 +105,11 @@ class FileProcessConsumer:
                     logger.info(f"任务处理成功: message_id={message_data.get('message_id')}, task_type={task_type}")
                     
                     # 更新任务状态
-                    await FileProcessConsumer._update_task_status(file_id, task_type, TaskStatus.COMPLETED, result)
+                    await FileProcessConsumer._update_task_status(task_id, task_type, TaskStatus.COMPLETED, result)
                     
                     # 发送下一个任务
                     await FileProcessConsumer._send_next_task(
-                        file_id, user_id, file_name, file_type, file_size, 
+                        task_id, task_type, file_id, user_id, file_name, file_type, file_size, 
                         storage_path, node_id, result
                     )
                 else:
@@ -126,10 +128,10 @@ class FileProcessConsumer:
             await message.ack()
     
     @staticmethod
-    async def _handle_merge(uploads_id: str, file_id: str, user_id: str, 
+    async def _handle_merge(uploads_id: str,  user_id: str, 
                            total_chunks: int, file_name: str, expected_checksum: str) -> Dict[str, Any]:
         """处理文件合并任务"""
-        logger.info(f"开始合并文件: uploads_id={uploads_id}, file_id={file_id}")
+        logger.info(f"开始合并文件: uploads_id={uploads_id}, file_name={file_name}")
         
         try:
             session_dir = f"{settings.file_upload_dir}/{uploads_id}"
@@ -161,17 +163,29 @@ class FileProcessConsumer:
                 os.remove(final_path)
                 return {"success": False, "error": f"文件校验失败，期望: {expected_checksum[:8]}..., 实际: {actual_checksum[:8]}..."}
             
-            logger.info(f"文件合并完成: file_id={file_id}, checksum={actual_checksum}")
+            logger.info(f"文件合并完成: file_name={file_name}, checksum={actual_checksum}")
             
+            import requests
+            response = requests.post(
+            f"{settings.business_service_url}/api/v1/business/internal/storage/files",
+            params = {
+                "uploads_id": uploads_id,
+                "file_storage_path": final_path
+                }
+            )
+            result = response.json()
+            file_id = result["data"]
+
             return {
                 "success": True,
+                "file_id": file_id,
                 "storage_path": final_path,
                 "checksum": actual_checksum,
                 "file_size": os.path.getsize(final_path)
             }
         
         except Exception as e:
-            logger.error(f"文件合并失败: file_id={file_id}, error={str(e)}")
+            logger.error(f"文件合并失败: file_name={file_name}, error={str(e)}")
             return {"success": False, "error": str(e)}
     
     @staticmethod
@@ -206,51 +220,90 @@ class FileProcessConsumer:
             logger.error(f"哈希计算失败: file_id={file_id}, error={str(e)}")
             return {"success": False, "error": str(e)}
     
-    @staticmethod
-    async def _handle_virus_scan(file_id: str, user_id: str, storage_path: str, 
-                                file_name: str) -> Dict[str, Any]:
-        """处理病毒扫描任务"""
-        logger.info(f"开始病毒扫描: file_id={file_id}, file_name={file_name}")
+    # @staticmethod
+    # async def _handle_virus_scan(file_id: str, user_id: str, storage_path: str, 
+    #                             file_name: str) -> Dict[str, Any]:
+    #     """处理病毒扫描任务"""
+    #     logger.info(f"开始病毒扫描: file_id={file_id}, file_name={file_name}")
         
+    #     try:
+    #         if not os.path.exists(storage_path):
+    #             return {"success": False, "error": f"文件不存在: {storage_path}"}
+            
+    #         # 使用ClamAV进行病毒扫描
+    #         # 注意：需要安装clamav并配置
+    #         try:
+    #             result = subprocess.run(
+    #                 ["clamscan", "--stdout", "--no-summary", storage_path],
+    #                 capture_output=True,
+    #                 text=True,
+    #                 timeout=300  # 5分钟超时
+    #             )
+                
+    #             if result.returncode == 0:
+    #                 # 扫描通过，无病毒
+    #                 logger.info(f"病毒扫描通过: file_id={file_id}")
+    #                 return {"success": True, "infected": False}
+    #             elif result.returncode == 1:
+    #                 # 发现病毒
+    #                 logger.warning(f"病毒扫描发现威胁: file_id={file_id}, result={result.stdout}")
+    #                 return {"success": False, "error": "文件包含病毒", "infected": True}
+    #             else:
+    #                 # 扫描出错
+    #                 logger.error(f"病毒扫描出错: file_id={file_id}, error={result.stderr}")
+    #                 return {"success": False, "error": f"扫描出错: {result.stderr}"}
+            
+    #         except FileNotFoundError:
+    #             # ClamAV未安装，跳过扫描
+    #             logger.warning("ClamAV未安装，跳过病毒扫描")
+    #             return {"success": True, "infected": False, "skipped": True}
+    #         except subprocess.TimeoutExpired:
+    #             logger.error(f"病毒扫描超时: file_id={file_id}")
+    #             return {"success": False, "error": "扫描超时"}
+        
+    #     except Exception as e:
+    #         logger.error(f"病毒扫描失败: file_id={file_id}, error={str(e)}")
+    #         return {"success": False, "error": str(e)}
+    
+    @staticmethod
+    async def _handle_virus_scan(file_id: str, user_id: str, storage_path: str,
+                                file_name: str) -> Dict[str, Any]:
+        import pyclamd
+        logger.info(f"开始病毒扫描: file_id={file_id}, file_name={file_name}")
+
         try:
             if not os.path.exists(storage_path):
                 return {"success": False, "error": f"文件不存在: {storage_path}"}
-            
-            # 使用ClamAV进行病毒扫描
-            # 注意：需要安装clamav并配置
-            try:
-                result = subprocess.run(
-                    ["clamscan", "--stdout", "--no-summary", storage_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=300  # 5分钟超时
-                )
-                
-                if result.returncode == 0:
-                    # 扫描通过，无病毒
-                    logger.info(f"病毒扫描通过: file_id={file_id}")
-                    return {"success": True, "infected": False}
-                elif result.returncode == 1:
-                    # 发现病毒
-                    logger.warning(f"病毒扫描发现威胁: file_id={file_id}, result={result.stdout}")
-                    return {"success": False, "error": "文件包含病毒", "infected": True}
-                else:
-                    # 扫描出错
-                    logger.error(f"病毒扫描出错: file_id={file_id}, error={result.stderr}")
-                    return {"success": False, "error": f"扫描出错: {result.stderr}"}
-            
-            except FileNotFoundError:
-                # ClamAV未安装，跳过扫描
-                logger.warning("ClamAV未安装，跳过病毒扫描")
-                return {"success": True, "infected": False, "skipped": True}
-            except subprocess.TimeoutExpired:
-                logger.error(f"病毒扫描超时: file_id={file_id}")
-                return {"success": False, "error": "扫描超时"}
-        
+
+            #如果路径path为相对路径改为绝对路径 不管怎么样都要做一次转换保证业务进行
+            storage_path = os.path.abspath(storage_path)
+
+            # 尝试连接 clamd 服务
+            cd = pyclamd.ClamdUnixSocket('/opt/homebrew/var/run/clamav/clamd.sock')  # 使用 Unix Socket
+            # 或者使用 TCP： cd = pyclamd.ClamdNetworkSocket('127.0.0.1', 3310)
+
+            if not cd.ping():
+                logger.error("无法连接到 clamd 服务")
+                return {"success": False, "error": "clamd 服务不可用"}
+
+            # 扫描文件（返回结果可能是 None=无病毒, 或 {'文件路径': ('病毒名', '状态')}）
+            scan_result = cd.scan_file(storage_path)
+
+            if scan_result is None:
+                logger.info(f"病毒扫描通过: file_id={file_id}")
+                return {"success": True, "infected": False}
+            else:
+                virus_name = scan_result[storage_path][0]
+                logger.warning(f"发现病毒: {virus_name} 在文件: {file_id}")
+                return {"success": False, "error": f"文件包含病毒: {virus_name}", "infected": True}
+
+        except pyclamd.ConnectionError:
+            logger.warning("clamd 服务未运行，跳过病毒扫描")
+            return {"success": True, "infected": False, "skipped": True}
         except Exception as e:
             logger.error(f"病毒扫描失败: file_id={file_id}, error={str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     @staticmethod
     async def _handle_thumbnail(file_id: str, user_id: str, storage_path: str, 
                                file_name: str, file_type: str) -> Dict[str, Any]:
@@ -440,14 +493,13 @@ class FileProcessConsumer:
             return {"success": False, "error": str(e)}
     
     @staticmethod
-    async def _update_task_status(file_id: str, task_type: str, status: str, result: Dict[str, Any]):
+    async def _update_task_status(task_id: str, task_type: str, status: str, result: Dict[str, Any]):
         """更新任务状态到Redis"""
         try:
-            task_key = f"task:{file_id}:{task_type}"
+            task_key = f"task:{task_id}:{task_type}"
             await redis_client.hset(task_key, mapping={
                 "status": status,
-                "updated_at": datetime.now().isoformat(),
-                **result
+                "updated_at": datetime.now().isoformat() # **result
             })
             await redis_client.expire(task_key, 86400 * 7)  # 7天过期
         except Exception as e:
@@ -479,12 +531,12 @@ class FileProcessConsumer:
             return None
     
     @staticmethod
-    async def _send_next_task(file_id: str, user_id: str, file_name: str, 
+    async def _send_next_task(task_id:str, task_type, file_id: str, user_id: str, file_name: str, 
                              file_type: str, file_size: int, storage_path: str, 
                              node_id: str, previous_result: Dict[str, Any]):
         """发送下一个任务消息"""
         next_task = await FileProcessConsumer._get_next_task(
-            previous_result.get("task_type") or TaskTypes.MERGE, file_type
+            task_type or previous_result.get("task_type") or TaskTypes.MERGE, file_type
         )
         
         if next_task:
@@ -493,6 +545,7 @@ class FileProcessConsumer:
             
             message = {
                 "message_id": str(os.urandom(16).hex()),
+                "task_id": task_id,
                 "task_type": next_task,
                 "file_id": file_id,
                 "user_id": user_id,
@@ -541,6 +594,7 @@ class FileProcessConsumer:
             
             # 更新任务状态为失败
             await FileProcessConsumer._update_task_status(
+                message_data.get("task_id"),
                 message_data.get("file_id"),
                 message_data.get("task_type"),
                 TaskStatus.FAILED,

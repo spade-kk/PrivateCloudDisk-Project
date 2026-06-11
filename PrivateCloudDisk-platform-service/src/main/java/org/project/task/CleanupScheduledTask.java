@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.mapper.TrashFileMapper;
 import org.project.mapper.UploadsMapper;
-import org.project.model.entity.TrashFileEntity;
+import org.project.model.entity.TrashTargetEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -46,27 +46,27 @@ public class CleanupScheduledTask {
      */
     @Scheduled(cron = "0 0 3 * * ?")
     public void cleanupExpiredTrashFiles() {
-        log.info("开始清理过期的回收站文件...");
+        log.info("开始清理过期的回收站目标...");
         try {
-            List<TrashFileEntity> expiredFiles = trashFileMapper.findExpiredTrashFiles();
-            log.info("发现{}个过期的回收站文件", expiredFiles.size());
+            List<TrashTargetEntity> expiredFiles = trashFileMapper.findExpiredTrashTargets();
+            log.info("发现{}个过期的回收站目标", expiredFiles.size());
             
-            for (TrashFileEntity trashFile : expiredFiles) {
+            for (TrashTargetEntity trashFile : expiredFiles) {
                 try {
                     // TODO: 删除存储中的文件
                     // 删除回收站记录
-                    trashFileMapper.deleteTrashFile(trashFile.getTrash_id(), trashFile.getUser_id());
-                    log.info("已删除过期回收站文件: trashId={}, fileId={}", 
-                            trashFile.getTrash_id(), trashFile.getFile_id());
+                    trashFileMapper.deleteTrashTarget(trashFile.getTrash_id(), trashFile.getUser_id());
+                    log.info("已删除过期回收站目标: trashId={}, targetId={}",
+                            trashFile.getTrash_id(), trashFile.getTarget_id());
                 } catch (Exception e) {
-                    log.error("删除过期回收站文件失败: trashId={}, error={}", 
+                    log.error("删除过期回收站目标失败: trashId={}, error={}",
                             trashFile.getTrash_id(), e.getMessage());
                 }
             }
             
-            log.info("过期回收站文件清理完成");
+            log.info("过期回收站目标清理完成");
         } catch (Exception e) {
-            log.error("清理过期回收站文件失败: {}", e.getMessage(), e);
+            log.error("清理过期回收站目标失败: {}", e.getMessage(), e);
         }
     }
     

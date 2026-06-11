@@ -7,7 +7,7 @@ import org.project.mapper.FileMapper;
 import org.project.mapper.TrashFileMapper;
 import org.project.model.dto.message.FileDeleteMessageDTO;
 import org.project.model.entity.FileEntity;
-import org.project.model.entity.TrashFileEntity;
+import org.project.model.entity.TrashTargetEntity;
 import org.project.service.TrashService;
 import org.project.service.ex.DeleteException;
 import org.project.service.ex.FileNotExistException;
@@ -32,7 +32,7 @@ public class TrashServiceImpl implements TrashService {
     private final RabbitTemplate rabbitTemplate;
     
     @Override
-    public void moveToTrash(UUID file_id, UUID user_id) {
+    public void moveToTrash(UUID file_id, UUID user_id, String target_type) {
         // 查询文件信息
         FileEntity file = fileMapper.findUserFileById(file_id, user_id);
         if (file == null) {
@@ -40,46 +40,43 @@ public class TrashServiceImpl implements TrashService {
         }
         
         // 创建回收站记录
-        TrashFileEntity trashFile = new TrashFileEntity();
-        trashFile.setFile_id(file_id);
+        TrashTargetEntity trashFile = new TrashTargetEntity();
+        trashFile.setTarget_id(file_id);
         trashFile.setUser_id(user_id);
-        trashFile.setFile_name(file.getName());
-        trashFile.setFile_type(file.getType());
-        trashFile.setFile_size(file.getSize());
+        trashFile.setTarget_name(file.getName());
+        trashFile.setTarget_type(TrashTargetEntity.TargetType.valueOf(target_type));
+        trashFile.setTarget_size(file.getSize());
         trashFile.setOriginal_node_id(file.getNode_id());
-        trashFile.setStorage_path(file.getStorage_path());
-        trashFile.setFile_checksum(file.getChecksum());
         trashFile.setDeleted_at(LocalDateTime.now());
         trashFile.setExpires_at(LocalDateTime.now().plusDays(30)); // 30天后自动删除
         
-        int rows = trashFileMapper.insertTrashFile(trashFile);
+        int rows = trashFileMapper.insertTrashTarget(trashFile);
         if (rows != 1) {
-            throw new InsertException("移动文件到回收站失败");
+            throw new InsertException("移动目标到回收站失败");
         }
         
         // 删除原文件记录
         fileMapper.deleteUserFileById(file_id, user_id);
         
-        log.info("文件已移动到回收站: userId={}, fileId={}", user_id, file_id);
+        log.info("目标已移动到回收站: userId={}, targetId={}, targetType={}",
+                user_id, trashFile.getTarget_id(), trashFile.getTarget_type());
     }
     
     @Override
     public void restoreFromTrash(Long trash_id, UUID user_id) {
         // 查询回收站记录
-        TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
+        TrashTargetEntity trashFile = trashFileMapper.findTrashTargetById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();
         }
         
         // 恢复文件记录
         FileEntity file = new FileEntity();
-        file.setId(trashFile.getFile_id());
-        file.setName(trashFile.getFile_name());
+        file.setId(trashFile.getTarget_id());
+        file.setName(trashFile.getTarget_name());
         file.setType(trashFile.getFile_type());
-        file.setSize(trashFile.getFile_size());
+        file.setSize(trashFile.getTarget_size());
         file.setNode_id(trashFile.getOriginal_node_id());
-        file.setStorage_path(trashFile.getStorage_path());
-        file.setChecksum(trashFile.getFile_checksum());
         file.setUser_id(user_id);
         file.setUploaded_time(LocalDateTime.now());
         
@@ -89,21 +86,22 @@ public class TrashServiceImpl implements TrashService {
         }
         
         // 删除回收站记录
-        trashFileMapper.deleteTrashFile(trash_id, user_id);
-        
-        log.info("文件已从回收站恢复: userId={}, fileId={}", user_id, trashFile.getFile_id());
+        trashFileMapper.deleteTrashTarget(trash_id, user_id);
+
+        log.info("目标已从回收站恢复: userId={}, targetId={}, targetType={}",
+                user_id, trashFile.getTarget_id(), trashFile.getTarget_type());
     }
     
     @Override
     public void permanentDelete(Long trash_id, UUID user_id) {
         // 查询回收站记录
-        TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
+        TrashTargetEntity trashFile = trashFileMapper.findTrashTargetById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();
         }
         
         // 删除回收站记录
-        int rows = trashFileMapper.deleteTrashFile(trash_id, user_id);
+        int rows = trashFileMapper.deleteTrashTarget(trash_id, user_id);
         if (rows != 1) {
             throw new DeleteException("删除回收站记录失败");
         }
@@ -111,10 +109,9 @@ public class TrashServiceImpl implements TrashService {
         // 发送异步删除消息
         FileDeleteMessageDTO message = FileDeleteMessageDTO.builder()
                 .messageId(UUID.randomUUID().toString())
-                .fileId(trashFile.getFile_id().toString())
+                .fileId(trashFile.getTarget_id().toString())
                 .userId(user_id.toString())
-                .storagePath(trashFile.getStorage_path())
-                .fileSize(trashFile.getFile_size())
+                .fileSize(trashFile.getTarget_size())
                 .fromTrash(true)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -124,14 +121,15 @@ public class TrashServiceImpl implements TrashService {
                 RabbitMQConifgure.FILE_DELETE_ROUTING_KEY,
                 message);
         
-        log.info("文件已彻底删除: userId={}, fileId={}", user_id, trashFile.getFile_id());
+        log.info("目标已彻底删除: userId={}, targetId={}, targetType={}",
+                user_id, trashFile.getTarget_id(), trashFile.getTarget_type());
     }
     
     @Override
     public void emptyTrash(UUID user_id) {
-        List<TrashFileEntity> trashFiles = trashFileMapper.findTrashFilesByUserId(user_id, 0, Integer.MAX_VALUE);
+        List<TrashTargetEntity> trashFiles = trashFileMapper.findTrashTargetsByUserId(user_id, 0, Integer.MAX_VALUE);
         
-        for (TrashFileEntity trashFile : trashFiles) {
+        for (TrashTargetEntity trashFile : trashFiles) {
             permanentDelete(trashFile.getTrash_id(), user_id);
         }
         
@@ -139,19 +137,19 @@ public class TrashServiceImpl implements TrashService {
     }
     
     @Override
-    public List<TrashFileEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize) {
+    public List<TrashTargetEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize) {
         int offset = (page - 1) * pageSize;
-        return trashFileMapper.findTrashFilesByUserId(user_id, offset, pageSize);
+        return trashFileMapper.findTrashTargetsByUserId(user_id, offset, pageSize);
     }
     
     @Override
     public Integer countTrashFiles(UUID user_id) {
-        return trashFileMapper.countTrashFilesByUserId(user_id);
+        return trashFileMapper.countTrashTargetsByUserId(user_id);
     }
     
     @Override
-    public TrashFileEntity getTrashFileById(Long trash_id, UUID user_id) {
-        TrashFileEntity trashFile = trashFileMapper.findTrashFileById(trash_id, user_id);
+    public TrashTargetEntity getTrashFileById(Long trash_id, UUID user_id) {
+        TrashTargetEntity trashFile = trashFileMapper.findTrashTargetById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();
         }

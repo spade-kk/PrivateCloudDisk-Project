@@ -13,6 +13,7 @@ import org.project.service.ex.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -155,7 +156,8 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public void completeUploads(UUID uploads_id, String file_storage_path) {
+    @Transactional
+    public UUID completeUploads(UUID uploads_id, String file_storage_path) {
         // 实现完成上传的逻辑
         if(!isValidUploadsSession(uploads_id)) {
                 throw new InvalidUploadsSessionException("上传会话无效");
@@ -177,7 +179,9 @@ public class UploadsServiceImpl implements UploadsService {
                 file_storage_path
         );
 
-        // 删除上传会话数据
+        // 删除上传会话数据 会自动把关联的分块数据也删除
         uploadsMapper.deleteUploadsSessionById(uploads_id);
+
+        return file_id;
     }
 }

@@ -60,8 +60,9 @@ public interface UploadsService {
      * 完成上传会话
      * @param uploads_id 上传会话ID
      * @param file_storage_path 文件储存路径
+     * @return  file_id 生成文件事务记录的id
      */
-    void completeUploads(UUID uploads_id, String file_storage_path);
+    UUID completeUploads(UUID uploads_id, String file_storage_path);
 
     /**
      * 合并上传会话分块的通知

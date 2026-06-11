@@ -1,6 +1,6 @@
 package org.project.service;
 
-import org.project.model.entity.TrashFileEntity;
+import org.project.model.entity.TrashTargetEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -15,7 +15,7 @@ public interface TrashService {
      * @param file_id 文件ID
      * @param user_id 用户ID
      */
-    void moveToTrash(UUID file_id, UUID user_id);
+    void moveToTrash(UUID file_id, UUID user_id, String target_type);
     
     /**
      * 从回收站恢复文件
@@ -44,7 +44,7 @@ public interface TrashService {
      * @param pageSize 每页数量
      * @return 回收站文件列表
      */
-    List<TrashFileEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize);
+    List<TrashTargetEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize);
     
     /**
      * 统计回收站文件数量
@@ -59,5 +59,5 @@ public interface TrashService {
      * @param user_id 用户ID
      * @return 回收站文件
      */
-    TrashFileEntity getTrashFileById(Long trash_id, UUID user_id);
+    TrashTargetEntity getTrashFileById(Long trash_id, UUID user_id);
 }

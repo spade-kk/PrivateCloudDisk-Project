@@ -10,27 +10,28 @@ public final class VoMapper {
     
     // ==================== 新增方法 ====================
     
-    public static TrashFileVO toTrashFileVO(TrashFileEntity entity) {
+    public static TrashTargetVO toTrashTargetVO(TrashTargetEntity entity) {
         if(entity == null) {
             return null;
         }
-        TrashFileVO vo = new TrashFileVO();
+        TrashTargetVO vo = new TrashTargetVO();
         vo.setTrash_id(entity.getTrash_id());
-        vo.setFile_id(entity.getFile_id().toString());
-        vo.setFile_name(entity.getFile_name());
+        vo.setTarget_id(entity.getTarget_id().toString());
+        vo.setTarget_name(entity.getTarget_name());
+        vo.setTarget_type(entity.getTarget_type());
         vo.setFile_type(entity.getFile_type());
-        vo.setFile_size(entity.getFile_size());
+        vo.setTarget_size(entity.getTarget_size());
         vo.setOriginal_node_id(entity.getOriginal_node_id().toString());
         vo.setDeleted_at(entity.getDeleted_at());
         vo.setExpires_at(entity.getExpires_at());
         return vo;
     }
     
-    public static List<TrashFileVO> toTrashFileVOList(List<TrashFileEntity> entities) {
+    public static List<TrashTargetVO> toTrashTargetVOList(List<TrashTargetEntity> entities) {
         if(entities == null) {
             return List.of();
         }
-        return entities.stream().map(VoMapper::toTrashFileVO).toList();
+        return entities.stream().map(VoMapper::toTrashTargetVO).toList();
     }
     
     public static FileStarVO toFileStarVO(FileStarEntity entity) {

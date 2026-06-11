@@ -46,7 +46,7 @@
                                       AND n.node_id = c.ancestor_id
                     WHERE c.user_id = f.file_author_id
                       AND c.descendant_id = f.file_node_id
-                      AND n.file_status IN ('TRASHED', 'DELETED')
+                      AND n.node_status IN ('TRASHED', 'DELETED')
                     LIMIT 1
                 ) THEN TRUE
                 ELSE FALSE

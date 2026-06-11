@@ -113,13 +113,13 @@ public class InternalStorageController extends BaseController {
     }
 
     @PostMapping({"files", "files/", "file/complete"})
-    public JsonResult<Void> file_complete(
+    public JsonResult<String> file_complete(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uploads_id必须是有效的UUID格式")
             @RequestParam String uploads_id,
             @RequestParam String file_storage_path ) {
-        uploadsService.completeUploads(UUID.fromString(uploads_id), file_storage_path);
-        return new JsonResult<>(OK);
+        UUID file_id = uploadsService.completeUploads(UUID.fromString(uploads_id), file_storage_path);
+        return new JsonResult<>(OK, file_id.toString());
     }
 
     @GetMapping({"files/{file_id}", "files/{file_id}/info", "file/{file_id}/info"})

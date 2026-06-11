@@ -2,8 +2,8 @@ package org.project.control;
 
 import lombok.RequiredArgsConstructor;
 import org.project.control.result.JsonResult;
-import org.project.model.entity.TrashFileEntity;
-import org.project.model.vo.TrashFileVO;
+import org.project.model.entity.TrashTargetEntity;
+import org.project.model.vo.TrashTargetVO;
 import org.project.model.vo.VoMapper;
 import org.project.service.DirectoryTreeService;
 import org.project.service.TrashService;
@@ -31,6 +31,7 @@ public class TrashController extends BaseController {
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
         directoryTreeService.deleteFolderNodeToTrashByNodeId(UUID.fromString(file_id), UUID.fromString(user_id));
+        trashService.moveToTrash(UUID.fromString(file_id), UUID.fromString(user_id), "folder");
         return new JsonResult<>(OK);
     }
     
@@ -69,12 +70,12 @@ public class TrashController extends BaseController {
      * 获取回收站文件列表
      */
     @GetMapping("/")
-    public JsonResult<List<TrashFileVO>> getTrashFiles(
+    public JsonResult<List<TrashTargetVO>> getTrashTargets(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestHeader("X-User-Id") String user_id) {
-        List<TrashFileEntity> trashFiles = trashService.getTrashFiles(UUID.fromString(user_id), page, pageSize);
-        return new JsonResult<>(OK, VoMapper.toTrashFileVOList(trashFiles));
+        List<TrashTargetEntity> trashTargets = trashService.getTrashFiles(UUID.fromString(user_id), page, pageSize);
+        return new JsonResult<>(OK, VoMapper.toTrashTargetVOList(trashTargets));
     }
     
     /**
@@ -90,10 +91,10 @@ public class TrashController extends BaseController {
      * 获取回收站文件详情
      */
     @GetMapping("/{trash_id}")
-    public JsonResult<TrashFileVO> getTrashFileById(
+    public JsonResult<TrashTargetVO> getTrashTargetById(
             @PathVariable Long trash_id,
             @RequestHeader("X-User-Id") String user_id) {
-        TrashFileEntity trashFile = trashService.getTrashFileById(trash_id, UUID.fromString(user_id));
-        return new JsonResult<>(OK, VoMapper.toTrashFileVO(trashFile));
+        TrashTargetEntity trashTarget = trashService.getTrashFileById(trash_id, UUID.fromString(user_id));
+        return new JsonResult<>(OK, VoMapper.toTrashTargetVO(trashTarget));
     }
 }
