@@ -96,8 +96,12 @@
         update pcd_file_info_table set file_node_id = #{target_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
-    <update id="updateUserFileStatusById" parameterType="java.util.UUID">a
+    <update id="updateUserFileStatusById" parameterType="java.util.UUID">
         update pcd_file_info_table set file_status = #{status} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </update>
+
+    <update id="updateUserFileStoragePath">
+        update pcd_file_info_table set file_storage_path = #{storage_path} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
     <delete id="deleteUserFileById" parameterType="java.util.UUID">

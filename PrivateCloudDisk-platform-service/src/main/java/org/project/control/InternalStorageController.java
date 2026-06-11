@@ -104,22 +104,24 @@ public class InternalStorageController extends BaseController {
     }
 
     @PostMapping({"uploads/{uploads_id}/merge", "uploads/{uploads_id}/merging"})
-    public JsonResult<Void> uploads_merging(
+    public JsonResult<String> uploads_merging(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uploads_id必须是有效的UUID格式")
             @PathVariable String uploads_id ) {
-        uploadsService.uploadsMerging(UUID.fromString(uploads_id));
-        return new JsonResult<>(OK);
+        UUID file_id = uploadsService.uploadsMerging(UUID.fromString(uploads_id));
+        return new JsonResult<>(OK, file_id.toString());
     }
 
     @PostMapping({"files", "files/", "file/complete"})
-    public JsonResult<String> file_complete(
+    public JsonResult<Void> file_complete(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uploads_id必须是有效的UUID格式")
             @RequestParam String uploads_id,
-            @RequestParam String file_storage_path ) {
-        UUID file_id = uploadsService.completeUploads(UUID.fromString(uploads_id), file_storage_path);
-        return new JsonResult<>(OK, file_id.toString());
+            @RequestParam String file_storage_path,
+            @RequestParam String file_id,
+            @RequestParam String uid ) {
+        uploadsService.completeUploads(UUID.fromString(uploads_id), UUID.fromString(file_id), file_storage_path, UUID.fromString(uid));
+        return new JsonResult<>(OK);
     }
 
     @GetMapping({"files/{file_id}", "files/{file_id}/info", "file/{file_id}/info"})
@@ -132,5 +134,11 @@ public class InternalStorageController extends BaseController {
             @RequestParam String uid ) {
         FileEntity fileData = fileService.queryUserFileById(UUID.fromString(file_id), UUID.fromString(uid));
         return new JsonResult<>(OK, VoMapper.toInternalFileMetadataVO(fileData));
+    }
+
+    @PostMapping("files/{file_id}/activate")
+    public JsonResult<Void> file_status_to_active(@PathVariable String file_id, @RequestParam String uid) {
+        uploadsService.activateFileStatus(UUID.fromString(file_id), UUID.fromString(uid));
+        return new JsonResult<>(OK);
     }
 }

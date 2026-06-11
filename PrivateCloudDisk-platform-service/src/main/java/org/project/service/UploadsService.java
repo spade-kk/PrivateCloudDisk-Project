@@ -59,16 +59,18 @@ public interface UploadsService {
     /**
      * 完成上传会话
      * @param uploads_id 上传会话ID
+     * @param file_id
      * @param file_storage_path 文件储存路径
-     * @return  file_id 生成文件事务记录的id
+     * @param user_id
      */
-    UUID completeUploads(UUID uploads_id, String file_storage_path);
+    void completeUploads(UUID uploads_id, UUID file_id, String file_storage_path, UUID user_id);
 
     /**
      * 合并上传会话分块的通知
      * @param uploads_id 上传会话ID
+     * @return  file_id 生成文件事务记录的id
      */
-    void uploadsMerging(UUID uploads_id);
+    UUID uploadsMerging(UUID uploads_id);
 
     /**
      * 检查上传会话是否有效
@@ -76,4 +78,11 @@ public interface UploadsService {
      * @return 是否有效
      */
     boolean isValidUploadsSession(UUID uploads_id);
+
+    /**
+     *
+     * @param file_id
+     * @param user_id
+     */
+    void activateFileStatus(UUID file_id, UUID user_id);
 }

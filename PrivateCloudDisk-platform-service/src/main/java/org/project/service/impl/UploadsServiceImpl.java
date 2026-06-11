@@ -1,5 +1,7 @@
 package org.project.service.impl;
 
+import org.project.mapper.FileMapper;
+import org.project.mapper.FolderNodeMapper;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.UploadsChunkEntity;
@@ -29,6 +31,10 @@ public class UploadsServiceImpl implements UploadsService {
     private DirectoryTreeService directoryTreeService;
     @Autowired
     private FileService fileService;
+    @Autowired
+    private FileMapper fileMapper;
+    @Autowired
+    private FolderNodeMapper folderNodeMapper;
 
     @Override
     public UUID createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, UUID user_id, UUID node_id) {
@@ -44,6 +50,8 @@ public class UploadsServiceImpl implements UploadsService {
                 throw new FileNameDuplicatedException("同目录下已存在同名文件");
             }
         }
+        //Lock Parent Node
+        folderNodeMapper.updateFolderNodeStatusByIdAndUserId(FolderNodeEntity.NodeStatus.lock, node_id, user_id);
 
         // 实现创建上传会话的逻辑
         UploadsSessionEntity uploadsSessionData = new UploadsSessionEntity();
@@ -106,7 +114,7 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    public void uploadsMerging(UUID uploads_id) {
+    public UUID uploadsMerging(UUID uploads_id) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
         }
@@ -126,8 +134,21 @@ public class UploadsServiceImpl implements UploadsService {
                 throw new UploadsSessionNotCompleteException("上传会话分块未全部上传完成");
             }
         }
+        // 调用文件服务创建文件
+        UUID file_id = fileService.createMergingFile(
+                uploadsSessionData.getFile_name(),
+                uploadsSessionData.getFile_type(),
+                uploadsSessionData.getFile_size(),
+                uploadsSessionData.getUser_id(),
+                uploadsSessionData.getNode_id(),
+                uploadsSessionData.getFile_checksum(),
+                uploadsSessionData.getTotal_chunks()
+        );
+
         // 更新上传会话的状态为合并中
         uploadsMapper.updateUploadsSessionStatusById(UploadsSessionEntity.UploadsSessionStatus.merging, uploads_id);
+
+        return file_id;
     }
 
     @Override
@@ -157,7 +178,7 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Override
     @Transactional
-    public UUID completeUploads(UUID uploads_id, String file_storage_path) {
+    public void completeUploads(UUID uploads_id, UUID file_id, String file_storage_path, UUID user_id) {
         // 实现完成上传的逻辑
         if(!isValidUploadsSession(uploads_id)) {
                 throw new InvalidUploadsSessionException("上传会话无效");
@@ -168,20 +189,25 @@ public class UploadsServiceImpl implements UploadsService {
             throw new UploadsSessionStatusException("上传会话状态错误");
         }
         // 调用文件服务创建文件
-        UUID file_id = fileService.createFile(
-                uploadsSessionData.getFile_name(),
-                uploadsSessionData.getFile_type(),
-                uploadsSessionData.getFile_size(),
-                uploadsSessionData.getUser_id(),
-                uploadsSessionData.getNode_id(),
-                uploadsSessionData.getFile_checksum(),
-                uploadsSessionData.getTotal_chunks(),
-                file_storage_path
-        );
+        fileService.mergedFile(file_id, file_storage_path, user_id);
 
         // 删除上传会话数据 会自动把关联的分块数据也删除
         uploadsMapper.deleteUploadsSessionById(uploads_id);
+    }
 
-        return file_id;
+    @Transactional
+    public void activateFileStatus(UUID file_id, UUID user_id) {
+        FileEntity fileData = fileService.findUserFileByIdIfExist(file_id, user_id);
+        if(fileData == null) {
+            throw new FileNotExistException();
+        }
+
+        if(!fileData.getStatus().equals(FileEntity.FileStatus.merged)) {
+            throw new FileStatusException("激活失败文件状态异常");
+        }
+
+        //Active Node Unlock
+        folderNodeMapper.updateFolderNodeStatusByIdAndUserId(FolderNodeEntity.NodeStatus.active, fileData.getNode_id(), user_id);
+        fileMapper.updateUserFileStatusById(file_id, FileEntity.FileStatus.active, user_id);
     }
 }

@@ -13,27 +13,15 @@ public class UploadsSessionEntity implements Serializable {
     public enum UploadsSessionStatus {
         uploading,
         merging,
-        merge_failed,
         completed,
         canceled,
-        calculating,
-        calculating_failed,
-        scanning,
-        scanning_failed,
-        processing,
-        processing_failed
+        failed
     }
     public enum UploadsSessionEvent {
         Merge,
-        MergeFailed,
+        Fail,
         Complete,
-        CalculateFailed,
-        Cancel,
-        Calculate,
-        Scan,
-        ScanFailed,
-        Process,
-        ProcessFailed
+        Cancel
     }
 
     private UUID uploads_id;

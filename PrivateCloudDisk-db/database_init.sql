@@ -67,6 +67,9 @@ CREATE TABLE pcd_login_audit_table (
     INDEX idx_login_audit_ip_time (audit_client_ip, audit_created_at)
 ) COMMENT='登录审计表';
 
+/* 文件上传分三大业务模块部分 第一文件内容完整数据上传到服务器 服务器处理上传的文件完整数据对它们进行整合标记文件为活跃更新用户网盘配额 文件正式可以访问可以下载可以CRUD
+  第三文件上传整合完全落地服务器资源后 文件资源增强业务比方说智能文件处理基于文件内容的搜索索引建立文件智能打标签 略缩图视频转码等 
+  而上传会话只负责第一部分模块的进行 对整个操作进行跟踪有状态的跟踪保证文件每一个分块 文件全部数据都提交到服务器 */
 CREATE TABLE pcd_file_info_table (
     file_name               VARCHAR(150)    NOT NULL                COMMENT '文件名称',
     file_uploaded_time      TIMESTAMP       NOT NULL DEFAULT NOW()  COMMENT '文件上传时间',
@@ -79,7 +82,7 @@ CREATE TABLE pcd_file_info_table (
     file_total_chunks       INT             NOT NULL                COMMENT '文件切片数目', --新增字段
     file_node_id            BINARY(16)     NOT NULL                COMMENT '文件所在目录节点ID',
     file_storage_path       VARCHAR(512)    NOT NULL                COMMENT '文件存储路径',
-    file_status             ENUM('active', 'deleted', 'trashed') NOT NULL DEFAULT 'active' COMMENT '文件状态'
+    file_status             ENUM('marging', 'merged',  'scaning', 'merge_failed', 'scan_failed', 'dangrous', 'active', 'deleted', 'trashed') NOT NULL DEFAULT 'active' COMMENT '文件状态'
     UNIQUE KEY uk_file_info (file_id, file_author_id, file_node_id),
 ) COMMENT='文件信息表';
 
@@ -125,8 +128,8 @@ CREATE TABLE pcd_uploads_session_table (
     uploads_chunks_max_size INT             NOT NULL                                                COMMENT '切片最大大小',
     uploads_file_name       VARCHAR(150)    NOT NULL                                                COMMENT '文件名称',
     uploads_file_type       VARCHAR(60)     NOT NULL                                                COMMENT '文件类型',
-    uploads_node_id         BINARY(16)     NOT NULL                                                COMMENT '文件所在目录节点ID',
-    uploads_status          ENUM('uploading', 'merging', 'completed', 'merge_failed', 'scan_failed', 'process_failed', 'scaning', 'processing') DEFAULT 'uploading' COMMENT '上传状态'
+    uploads_node_id         BINARY(16)     NOT NULL                                                 COMMENT '文件所在目录节点ID',
+    uploads_status          ENUM('uploading', 'completed', 'failed') DEFAULT 'uploading'            COMMENT '上传状态'
 ) COMMENT='文件上传会话表';
 
 CREATE TABLE pcd_upload_chunks_table (

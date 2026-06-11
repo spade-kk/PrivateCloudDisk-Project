@@ -99,6 +99,9 @@ def setup_logging(
     logging.getLogger("aiormq").setLevel(logging.WARNING)
     logging.getLogger("uvicorn").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    # 抑制 OpenSearch 库在服务不可用时的噪音日志
+    logging.getLogger("opensearch").setLevel(logging.ERROR)
+    logging.getLogger("opensearchpy").setLevel(logging.ERROR)
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -26,7 +26,7 @@ public class FileServiceImpl implements FileService {
     private RabbitTemplate rabbitTemplate;
 
     @Override
-    public UUID createFile(String file_name, String file_type, long file_size, UUID user_id, UUID node_id, String file_checksum, int total_chunks, String storage_path) {
+    public UUID createMergingFile(String file_name, String file_type, long file_size, UUID user_id, UUID node_id, String file_checksum, int total_chunks) {
         FolderNodeEntity node = directoryTreeService.findUserFolderNodeIfExist(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
@@ -46,8 +46,8 @@ public class FileServiceImpl implements FileService {
         fileData.setChecksum(file_checksum);
         fileData.setNode_id(node_id);
         fileData.setTotal_chunks(total_chunks);
-        fileData.setStorage_path(storage_path);
-        fileData.setStatus(FileEntity.FileStatus.active);
+        fileData.setStorage_path(null);
+        fileData.setStatus(FileEntity.FileStatus.merging);
         //设置上传时间
         fileData.setUploaded_time(LocalDateTime.now());
         // 生成文件的ID
@@ -60,6 +60,20 @@ public class FileServiceImpl implements FileService {
         }
 
         return file_id;
+    }
+
+    @Override
+    public void mergedFile(UUID file_id, String storage_path, UUID user_id) {
+        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        if(fileData == null) {
+            throw new FileNotExistException();
+        }
+
+        Integer rows1 = fileMapper.updateUserFileStatusById(file_id, FileEntity.FileStatus.merged, user_id);
+        Integer rows2 = fileMapper.updateUserFileStoragePath(file_id, storage_path, user_id);
+        if(rows1 != 1 || rows2 != 1) {
+            throw new UpdateException("文件合并完成状态更新失败");
+        }
     }
 
     @Override

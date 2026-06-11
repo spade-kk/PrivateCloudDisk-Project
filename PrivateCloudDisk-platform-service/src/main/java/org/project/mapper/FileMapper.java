@@ -76,6 +76,15 @@ public interface FileMapper {
      * @return 受变动行数
      */
     int updateUserFileStatusById(@Param("file_id") UUID file_id, @Param("status") FileEntity.FileStatus status, @Param("user_id") UUID user_id);
+
+    /**
+     *
+     * @param file_id
+     * @param storage_path
+     * @param user_id
+     * @return
+     */
+    int updateUserFileStoragePath(@Param("file_id") UUID file_id, @Param("storage_path") String storage_path, @Param("user_id") UUID user_id);
     /**
      * 删除用户文件
      * @param file_id 文件ID

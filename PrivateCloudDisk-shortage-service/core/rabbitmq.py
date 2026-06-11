@@ -2,152 +2,352 @@ import json
 import logging
 import asyncio
 import aio_pika
-from aio_pika import Message, ExchangeType
+import aio_pika.exceptions
+from aio_pika import Message, ExchangeType, DeliveryMode
 from core.config import settings
 from app.core.logging_config import get_logger
 
 logger = get_logger("core.rabbitmq")
 
+
 class RabbitMQService:
-    """RabbitMQ消息队列服务"""
-    
+    """RabbitMQ 消息队列服务 (支持 DLX/DLQ)"""
+
     def __init__(self):
         self.connection = None
         self.channel = None
         self.exchanges = {}
-    
+
     async def connect(self):
-        """建立RabbitMQ连接"""
+        """建立 RabbitMQ 连接"""
         try:
-            logger.info(f"开始建立RabbitMQ连接 - host: {settings.rabbitmq_host}, port: {settings.rabbitmq_port}, vhost: {settings.rabbitmq_vhost}")
-            
-            # 使用URL格式连接
-            connection_url = f"amqp://{settings.rabbitmq_username}:{settings.rabbitmq_password}@{settings.rabbitmq_host}:{settings.rabbitmq_port}/{settings.rabbitmq_vhost}"
-            
-            logger.debug(f"RabbitMQ连接URL: amqp://{settings.rabbitmq_username}:******@{settings.rabbitmq_host}:{settings.rabbitmq_port}/{settings.rabbitmq_vhost}")
-            
+            connection_url = (
+                f"amqp://{settings.rabbitmq_username}:{settings.rabbitmq_password}"
+                f"@{settings.rabbitmq_host}:{settings.rabbitmq_port}/{settings.rabbitmq_vhost}"
+            )
+
             self.connection = await aio_pika.connect_robust(
                 connection_url,
-                heartbeat=60
+                heartbeat=60,
             )
-            logger.debug("RabbitMQ连接对象创建成功")
-            
             self.channel = await self.connection.channel()
-            logger.debug("RabbitMQ通道创建成功")
-            
             await self.channel.set_qos(prefetch_count=1)
-            logger.debug("RabbitMQ QoS设置完成 - prefetch_count: 1")
-            
-            # 声明交换机
-            await self._declare_exchanges()
-            logger.debug("RabbitMQ交换机和队列声明完成")
-            
-            logger.info("✅ RabbitMQ连接成功")
+
+            await self._declare_all()
+            logger.info("RabbitMQ 连接成功")
         except Exception as e:
-            logger.error(f"❌ RabbitMQ连接失败: {str(e)}", exc_info=True)
+            logger.error(f"RabbitMQ 连接失败: {e}", exc_info=True)
             raise
-    
-    async def _declare_exchanges(self):
-        """声明所有交换机"""
-        logger.debug("开始声明RabbitMQ交换机和队列")
-        
-        # 文件处理交换机
-        logger.debug(f"声明交换机: {settings.file_process_exchange}, type: DIRECT, durable: True")
-        file_process_exchange = await self.channel.declare_exchange(
+
+    async def _declare_all(self):
+        """
+        声明所有交换机、队列、绑定关系
+
+        架构:
+        ┌─────────────────────────────────────────────────────┐
+        │  pcd.file.process.exchange (DIRECT)                 │
+        │  ├── pcd.file.process.queue                         │
+        │  │   └── DLX → pcd.file.process.dlx                 │
+        │  └── pcd.security.quarantine.queue (病毒隔离专用)      │
+        │                                                      │
+        │  pcd.file.process.dlx (DIRECT)                      │
+        │  └── pcd.file.process.dlq                           │
+        │                                                      │
+        │  pcd.file.delete.exchange (DIRECT)                  │
+        │  ├── pcd.file.delete.queue                          │
+        │  │   └── DLX → pcd.file.delete.dlx                  │
+        │  └── pcd.file.delete.dlq                            │
+        │                                                      │
+        │  pcd.content.index.exchange (DIRECT)                │
+        │  └── pcd.content.index.queue                        │
+        │      └── DLX → pcd.content.index.dlx                │
+        │                                                      │
+        │  pcd.content.index.dlx (DIRECT)                     │
+        │  └── pcd.content.index.dlq                          │
+        └─────────────────────────────────────────────────────┘
+        """
+        # ========== 文件处理交换机 ==========
+        fp_exchange = await self.channel.declare_exchange(
             settings.file_process_exchange,
             ExchangeType.DIRECT,
-            durable=True
+            durable=True,
         )
-        self.exchanges[settings.file_process_exchange] = file_process_exchange
-        logger.debug(f"交换机 {settings.file_process_exchange} 声明成功")
-        
-        # 文件删除交换机
-        logger.debug(f"声明交换机: {settings.file_delete_exchange}, type: DIRECT, durable: True")
-        file_delete_exchange = await self.channel.declare_exchange(
+        self.exchanges[settings.file_process_exchange] = fp_exchange
+
+        # ========== 文件处理死信交换机 ==========
+        fp_dlx = await self.channel.declare_exchange(
+            settings.file_process_dlx,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.file_process_dlx] = fp_dlx
+
+        # ========== 文件删除交换机 ==========
+        fd_exchange = await self.channel.declare_exchange(
             settings.file_delete_exchange,
             ExchangeType.DIRECT,
-            durable=True
+            durable=True,
         )
-        self.exchanges[settings.file_delete_exchange] = file_delete_exchange
-        logger.debug(f"交换机 {settings.file_delete_exchange} 声明成功")
-        
-        # 声明队列并绑定
-        # 文件处理队列
-        logger.debug(f"声明队列: {settings.file_process_queue}, durable: True, TTL: 7天")
-        file_process_queue = await self.channel.declare_queue(
+        self.exchanges[settings.file_delete_exchange] = fd_exchange
+
+        # ========== 文件删除死信交换机 ==========
+        fd_dlx = await self.channel.declare_exchange(
+            settings.file_delete_dlx,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.file_delete_dlx] = fd_dlx
+
+        # ========== 文件处理主队列 (绑定 DLX) ==========
+        fp_queue = await self._declare_queue_safe(
             settings.file_process_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天 TTL
+                "x-dead-letter-exchange": settings.file_process_dlx,
+                "x-dead-letter-routing-key": settings.file_process_dlq_routing_key,
+            },
+        )
+        await fp_queue.bind(
+            fp_exchange,
+            routing_key=settings.file_process_routing_key,
+        )
+
+        # ========== 文件处理死信队列 (DLQ) ==========
+        fp_dlq = await self.channel.declare_queue(
+            settings.file_process_dlq,
             durable=True,
-            arguments={"x-message-ttl": 604800000}  # 7天
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天 TTL (死信保留更久)
+            },
         )
-        await file_process_queue.bind(
-            file_process_exchange,
-            routing_key=settings.file_process_routing_key
+        await fp_dlq.bind(
+            fp_dlx,
+            routing_key=settings.file_process_dlq_routing_key,
         )
-        logger.debug(f"队列 {settings.file_process_queue} 绑定到交换机 {settings.file_process_exchange}, routing_key: {settings.file_process_routing_key}")
-        
-        # 文件删除队列
-        logger.debug(f"声明队列: {settings.file_delete_queue}, durable: True, TTL: 3天")
-        file_delete_queue = await self.channel.declare_queue(
+
+        # ========== 安全隔离队列 ==========
+        sq_queue = await self.channel.declare_queue(
+            settings.security_quarantine_queue,
+            durable=True,
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
+        )
+        await sq_queue.bind(
+            fp_exchange,
+            routing_key=settings.security_quarantine_routing_key,
+        )
+
+        # ========== 文件删除主队列 (绑定 DLX) ==========
+        fd_queue = await self._declare_queue_safe(
             settings.file_delete_queue,
+            arguments={
+                "x-message-ttl": 259200000,  # 3 天
+                "x-dead-letter-exchange": settings.file_delete_dlx,
+                "x-dead-letter-routing-key": settings.file_delete_dlq_routing_key,
+            },
+        )
+        await fd_queue.bind(
+            fd_exchange,
+            routing_key=settings.file_delete_routing_key,
+        )
+
+        # ========== 文件删除死信队列 ==========
+        fd_dlq = await self.channel.declare_queue(
+            settings.file_delete_dlq,
             durable=True,
-            arguments={"x-message-ttl": 259200000}  # 3天
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
         )
-        await file_delete_queue.bind(
-            file_delete_exchange,
-            routing_key=settings.file_delete_routing_key
+        await fd_dlq.bind(
+            fd_dlx,
+            routing_key=settings.file_delete_dlq_routing_key,
         )
-        logger.debug(f"队列 {settings.file_delete_queue} 绑定到交换机 {settings.file_delete_exchange}, routing_key: {settings.file_delete_routing_key}")
-        
-        logger.info(f"✅ RabbitMQ交换机和队列声明完成 - 交换机: {list(self.exchanges.keys())}")
-    
-    async def publish_message(self, exchange_name: str, routing_key: str, message: dict):
-        """发布消息到指定队列"""
+
+        # ========== 内容索引交换机 ==========
+        ci_exchange = await self.channel.declare_exchange(
+            settings.content_index_exchange,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.content_index_exchange] = ci_exchange
+
+        # ========== 内容索引死信交换机 ==========
+        ci_dlx = await self.channel.declare_exchange(
+            settings.content_index_dlx,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.content_index_dlx] = ci_dlx
+
+        # ========== 内容索引主队列 (绑定 DLX) ==========
+        ci_queue = await self._declare_queue_safe(
+            settings.content_index_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天 TTL
+                "x-dead-letter-exchange": settings.content_index_dlx,
+                "x-dead-letter-routing-key": settings.content_index_dlq_routing_key,
+            },
+        )
+        await ci_queue.bind(
+            ci_exchange,
+            routing_key=settings.content_index_routing_key,
+        )
+
+        # ========== 内容索引死信队列 ==========
+        ci_dlq = await self.channel.declare_queue(
+            settings.content_index_dlq,
+            durable=True,
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
+        )
+        await ci_dlq.bind(
+            ci_dlx,
+            routing_key=settings.content_index_dlq_routing_key,
+        )
+
+        logger.info(
+            f"RabbitMQ 拓扑声明完成: "
+            f"exchanges={len(self.exchanges)}, "
+            f"DLX={settings.file_process_dlx}, "
+            f"DLQ={settings.file_process_dlq}"
+        )
+
+    async def _declare_queue_safe(
+        self, queue_name: str, arguments: dict
+    ) -> aio_pika.Queue:
+        """
+        安全声明队列：先被动检查是否存在，不存在则创建带 DLX 参数
+
+        策略：
+        1. passive=True 检查队列是否存在 → 存在则直接返回（不修改参数）
+        2. 若不存在 → 创建新队列并附带 DLX 参数
+
+        Args:
+            queue_name: 队列名称
+            arguments: 期望的队列参数 (仅新建时使用)
+
+        Returns:
+            aio_pika.Queue 实例
+        """
+        try:
+            # 先被动检查队列是否存在（不修改任何参数）
+            queue = await self.channel.declare_queue(
+                queue_name,
+                durable=True,
+                passive=True,
+            )
+            logger.info(f"队列已存在，沿用已有配置: {queue_name}")
+            return queue
+        except Exception:
+            # 队列不存在，等待 channel 重连后创建
+            await asyncio.sleep(0.5)
+            queue = await self.channel.declare_queue(
+                queue_name,
+                durable=True,
+                arguments=arguments,
+            )
+            logger.info(f"队列创建成功: {queue_name} (含 DLX/参数)")
+            return queue
+
+    async def publish_message(
+        self,
+        exchange_name: str,
+        routing_key: str,
+        message: dict,
+        delay_seconds: int = 0,
+    ) -> None:
+        """
+        发布消息
+
+        Args:
+            exchange_name: 交换机名称
+            routing_key: 路由键
+            message: 消息体字典
+            delay_seconds: 延迟秒数 (用于指数退避重试，0 表示立即)
+        """
         try:
             if exchange_name not in self.exchanges:
-                logger.error(f"❌ 交换机 {exchange_name} 不存在")
                 raise ValueError(f"Exchange {exchange_name} not found")
-            
+
             exchange = self.exchanges[exchange_name]
-            message_body = json.dumps(message).encode("utf-8")
-            message_id = message.get('message_id', 'N/A')
-            task_id = message.get('task_id', 'N/A')
-            file_id = message.get('file_id', 'N/A')
-            
-            logger.debug(f"准备发布消息 - exchange: {exchange_name}, routing_key: {routing_key}, message_id: {message_id}, task_id: {task_id}, file_id: {file_id}")
-            
+            message_body = json.dumps(message, ensure_ascii=False).encode("utf-8")
+
+            msg_kwargs = {
+                "body": message_body,
+                "content_type": "application/json",
+                "delivery_mode": DeliveryMode.PERSISTENT,
+                "message_id": message.get("message_id", ""),
+                "headers": {
+                    "x-retry-count": message.get("retry_count", 0),
+                    "x-task-type": message.get("task_type", ""),
+                    "x-failure-reason": message.get("failure_reason", ""),
+                },
+            }
+
+            if delay_seconds > 0:
+                # 使用 TTL 实现延迟消息
+                msg_kwargs["expiration"] = str(delay_seconds * 1000)
+
             await exchange.publish(
-                Message(
-                    body=message_body,
-                    content_type="application/json",
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT
-                ),
-                routing_key=routing_key
+                Message(**msg_kwargs),
+                routing_key=routing_key,
             )
-            
-            logger.info(f"📤 消息发布成功 - exchange: {exchange_name}, routing_key: {routing_key}, message_id: {message_id}, task_id: {task_id}")
+
+            logger.debug(
+                f"消息已发布: exchange={exchange_name}, rk={routing_key}, "
+                f"message_id={message.get('message_id', 'N/A')[:8]}..., "
+                f"delay={delay_seconds}s"
+            )
         except Exception as e:
-            logger.error(f"❌ 消息发布失败 - exchange: {exchange_name}, routing_key: {routing_key}, error: {str(e)}", exc_info=True)
+            logger.error(f"消息发布失败: {e}", exc_info=True)
             raise
-    
+
+    async def publish_to_dlq(
+        self,
+        exchange_name: str,
+        routing_key: str,
+        message: dict,
+    ) -> None:
+        """
+        发布消息到死信队列 (DLQ)
+        用于重试耗尽后，将消息路由到 DLQ 等待人工处理
+        """
+        logger.warning(
+            f"发布到 DLQ: message_id={message.get('message_id', 'N/A')[:8]}..., "
+            f"task_type={message.get('task_type')}, "
+            f"failure_reason={message.get('failure_reason')}"
+        )
+        await self.publish_message(exchange_name, routing_key, message)
+
+    async def publish_security_event(self, message: dict) -> None:
+        """发布安全事件到隔离队列"""
+        await self.publish_message(
+            settings.file_process_exchange,
+            settings.security_quarantine_routing_key,
+            message,
+        )
+
     async def consume(self, queue_name: str, callback):
         """消费指定队列的消息"""
         try:
-            logger.debug(f"准备启动消费者 - queue: {queue_name}")
-            
-            # 使用 passive=True 检查队列是否存在（队列已在 _declare_exchanges 中创建）
-            queue = await self.channel.declare_queue(queue_name, durable=True, passive=True)
+            queue = await self.channel.declare_queue(
+                queue_name, durable=True, passive=True,
+            )
             await queue.consume(callback)
-            
-            logger.info(f"✅ 消费者启动成功 - queue: {queue_name}")
+            logger.info(f"消费者启动: queue={queue_name}")
         except Exception as e:
-            logger.error(f"❌ 消费者启动失败 - queue: {queue_name}, error: {str(e)}", exc_info=True)
+            logger.error(f"消费者启动失败: queue={queue_name}, error={e}", exc_info=True)
             raise
-    
+
     async def close(self):
         """关闭连接"""
         if self.connection:
             await self.connection.close()
-            logger.info("RabbitMQ连接已关闭")
+            logger.info("RabbitMQ 连接已关闭")
 
-# 全局RabbitMQ服务实例
+
+# 全局单例
 rabbitmq_service = RabbitMQService()

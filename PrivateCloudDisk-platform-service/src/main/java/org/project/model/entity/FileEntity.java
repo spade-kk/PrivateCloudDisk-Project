@@ -14,8 +14,15 @@ public class FileEntity implements Serializable {
     public enum FileStatus {
         active,
         deleted,
-        trashed
+        trashed,
+        merging,
+        merged,
+        merge_failed,
+        scanning,
+        scan_failed,
+        reject
     }
+
     private UUID id;
     private String name;
     private String type;

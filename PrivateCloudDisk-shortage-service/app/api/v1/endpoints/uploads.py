@@ -256,6 +256,8 @@ async def complete_uploads_internal(
             detail="合并状态申请失败"
         )
 
+    file_id = merging_result["data"]
+
     # 3. 获取上传会话详情
     upload_session = result["data"]
     file_name = upload_session.get("file_name")
@@ -271,6 +273,7 @@ async def complete_uploads_internal(
     # 5. 初始化任务状态
     await redis_client.hset(f"task:{task_id}:{TaskTypes.MERGE}", mapping={
         "task_id": task_id,
+        "file_id": file_id,
         "user_id": user_id,
         "uploads_id": uploads_id,
         "status": TaskStatus.PENDING,
@@ -283,6 +286,7 @@ async def complete_uploads_internal(
     merge_message = {
         "message_id": str(uuid.uuid4()),
         "task_id": task_id,
+        "file_id": file_id,
         "task_type": TaskTypes.MERGE,
         "user_id": user_id,
         "file_name": file_name,
@@ -302,13 +306,14 @@ async def complete_uploads_internal(
         merge_message
     )
 
-    logger.info(f"合并任务已提交: task_id={task_id}, file_id={file_id}")
+    logger.info(f"合并任务已提交: task_id={task_id}, file_name={file_name}, file_id={file_id}")
 
     # 7. 返回任务ID
     return JSONResponse({
         "code": 200,
         "data": {
             "task_id": task_id,
+            "file_id": file_id,
             "status": "processing",
             "message": "文件合并任务已提交，正在处理中"
         },

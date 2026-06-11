@@ -15,19 +15,19 @@ public interface FileService {
      * @param node_id 节点ID
      * @param file_checksum 文件校验和
      * @param file_total_chunks 文件总切片数量
-     * @param file_storage_path 文件储存路径
      * @return file_id 创建文件的id
      */
-    UUID createFile(
+    UUID createMergingFile(
                 String file_name,
                 String file_type,
                 long file_size,
                 UUID user_id,
                 UUID node_id,
                 String file_checksum,
-                int file_total_chunks,
-                String file_storage_path
+                int file_total_chunks
         );
+
+    void mergedFile(UUID file_id, String shortage_path, UUID user_id);
 
     /**
      * 根据节点ID查询节点用户云盘下所有文件元数据

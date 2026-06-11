@@ -12,3 +12,11 @@ aio-pika
 pika
 python-dotenv
 pyclamd
+httpx
+opensearch-py
+openpyxl
+python-docx
+pypdf
+python-pptx
+Pillow
+pytesseract
