@@ -55,6 +55,9 @@ dependencies {
     // Jackson JSON 处理（已存在于boot，但这里显式声明以便于消息转换）
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    //OpenSearch依赖
+    implementation 'org.opensearch.client:opensearch-rest-high-level-client:2.10.0'
+
 
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

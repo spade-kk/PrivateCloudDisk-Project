@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Mapper
-public interface TrashFileMapper {
+public interface TrashTargetMapper {
     
     /**
      * 添加目标到回收站

@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="org.project.mapper.TrashFileMapper">
+<mapper namespace="org.project.mapper.TrashTargetMapper">
     
     <resultMap id="TrashTargetEntityMap" type="org.project.model.entity.TrashTargetEntity">
         <id column="trash_id" property="trash_id"/>

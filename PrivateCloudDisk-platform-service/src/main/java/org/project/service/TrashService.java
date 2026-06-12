@@ -44,7 +44,7 @@ public interface TrashService {
      * @param pageSize 每页数量
      * @return 回收站文件列表
      */
-    List<TrashTargetEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize);
+    List<TrashTargetEntity> getTrashTargets(UUID user_id, Integer page, Integer pageSize);
     
     /**
      * 统计回收站文件数量

@@ -2,13 +2,12 @@ package org.project.task;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.project.mapper.TrashFileMapper;
+import org.project.mapper.TrashTargetMapper;
 import org.project.mapper.UploadsMapper;
 import org.project.model.entity.TrashTargetEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -20,7 +19,7 @@ import java.util.List;
 public class CleanupScheduledTask {
     
     private final UploadsMapper uploadsMapper;
-    private final TrashFileMapper trashFileMapper;
+    private final TrashTargetMapper trashTargetMapper;
     
     /**
      * 清理过期的上传会话
@@ -48,14 +47,14 @@ public class CleanupScheduledTask {
     public void cleanupExpiredTrashFiles() {
         log.info("开始清理过期的回收站目标...");
         try {
-            List<TrashTargetEntity> expiredFiles = trashFileMapper.findExpiredTrashTargets();
+            List<TrashTargetEntity> expiredFiles = trashTargetMapper.findExpiredTrashTargets();
             log.info("发现{}个过期的回收站目标", expiredFiles.size());
             
             for (TrashTargetEntity trashFile : expiredFiles) {
                 try {
                     // TODO: 删除存储中的文件
                     // 删除回收站记录
-                    trashFileMapper.deleteTrashTarget(trashFile.getTrash_id(), trashFile.getUser_id());
+                    trashTargetMapper.deleteTrashTarget(trashFile.getTrash_id(), trashFile.getUser_id());
                     log.info("已删除过期回收站目标: trashId={}, targetId={}",
                             trashFile.getTrash_id(), trashFile.getTarget_id());
                 } catch (Exception e) {

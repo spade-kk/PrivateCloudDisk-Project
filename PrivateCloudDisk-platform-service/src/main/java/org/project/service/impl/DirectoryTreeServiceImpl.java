@@ -1,7 +1,7 @@
 package org.project.service.impl;
 
-import jakarta.mail.Folder;
 import org.project.mapper.DirectoryClosureMapper;
+import org.project.mapper.TrashTargetMapper;
 import org.project.model.dto.NodeQueryDTO;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
@@ -257,8 +257,6 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         if(status == FolderNodeEntity.NodeStatus.lock) {
             throw new NodeStatusException("文件夹被Locked 这个文件夹可能现在正在有文件上传");
         }
-//        // 删除闭包关系
-//        directoryClosureMapper.deleteClosureRowsBySubtree(node_id);
 
         Integer rows = folderNodeMapper.updateFolderNodeStatusByIdAndUserId(
                 FolderNodeEntity.NodeStatus.trashed,

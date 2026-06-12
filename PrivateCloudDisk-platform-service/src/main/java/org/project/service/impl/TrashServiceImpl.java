@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
 import org.project.mapper.FileMapper;
-import org.project.mapper.TrashFileMapper;
+import org.project.mapper.TrashTargetMapper;
 import org.project.model.dto.message.FileDeleteMessageDTO;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.TrashTargetEntity;
@@ -27,7 +27,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TrashServiceImpl implements TrashService {
     
-    private final TrashFileMapper trashFileMapper;
+    private final TrashTargetMapper trashTargetMapper;
     private final FileMapper fileMapper;
     private final RabbitTemplate rabbitTemplate;
     
@@ -50,7 +50,7 @@ public class TrashServiceImpl implements TrashService {
         trashFile.setDeleted_at(LocalDateTime.now());
         trashFile.setExpires_at(LocalDateTime.now().plusDays(30)); // 30天后自动删除
         
-        int rows = trashFileMapper.insertTrashTarget(trashFile);
+        int rows = trashTargetMapper.insertTrashTarget(trashFile);
         if (rows != 1) {
             throw new InsertException("移动目标到回收站失败");
         }
@@ -65,7 +65,7 @@ public class TrashServiceImpl implements TrashService {
     @Override
     public void restoreFromTrash(Long trash_id, UUID user_id) {
         // 查询回收站记录
-        TrashTargetEntity trashFile = trashFileMapper.findTrashTargetById(trash_id, user_id);
+        TrashTargetEntity trashFile = trashTargetMapper.findTrashTargetById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();
         }
@@ -86,7 +86,7 @@ public class TrashServiceImpl implements TrashService {
         }
         
         // 删除回收站记录
-        trashFileMapper.deleteTrashTarget(trash_id, user_id);
+        trashTargetMapper.deleteTrashTarget(trash_id, user_id);
 
         log.info("目标已从回收站恢复: userId={}, targetId={}, targetType={}",
                 user_id, trashFile.getTarget_id(), trashFile.getTarget_type());
@@ -95,13 +95,13 @@ public class TrashServiceImpl implements TrashService {
     @Override
     public void permanentDelete(Long trash_id, UUID user_id) {
         // 查询回收站记录
-        TrashTargetEntity trashFile = trashFileMapper.findTrashTargetById(trash_id, user_id);
+        TrashTargetEntity trashFile = trashTargetMapper.findTrashTargetById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();
         }
         
         // 删除回收站记录
-        int rows = trashFileMapper.deleteTrashTarget(trash_id, user_id);
+        int rows = trashTargetMapper.deleteTrashTarget(trash_id, user_id);
         if (rows != 1) {
             throw new DeleteException("删除回收站记录失败");
         }
@@ -127,7 +127,7 @@ public class TrashServiceImpl implements TrashService {
     
     @Override
     public void emptyTrash(UUID user_id) {
-        List<TrashTargetEntity> trashFiles = trashFileMapper.findTrashTargetsByUserId(user_id, 0, Integer.MAX_VALUE);
+        List<TrashTargetEntity> trashFiles = trashTargetMapper.findTrashTargetsByUserId(user_id, 0, Integer.MAX_VALUE);
         
         for (TrashTargetEntity trashFile : trashFiles) {
             permanentDelete(trashFile.getTrash_id(), user_id);
@@ -137,19 +137,19 @@ public class TrashServiceImpl implements TrashService {
     }
     
     @Override
-    public List<TrashTargetEntity> getTrashFiles(UUID user_id, Integer page, Integer pageSize) {
+    public List<TrashTargetEntity> getTrashTargets(UUID user_id, Integer page, Integer pageSize) {
         int offset = (page - 1) * pageSize;
-        return trashFileMapper.findTrashTargetsByUserId(user_id, offset, pageSize);
+        return trashTargetMapper.findTrashTargetsByUserId(user_id, offset, pageSize);
     }
     
     @Override
     public Integer countTrashFiles(UUID user_id) {
-        return trashFileMapper.countTrashTargetsByUserId(user_id);
+        return trashTargetMapper.countTrashTargetsByUserId(user_id);
     }
     
     @Override
     public TrashTargetEntity getTrashFileById(Long trash_id, UUID user_id) {
-        TrashTargetEntity trashFile = trashFileMapper.findTrashTargetById(trash_id, user_id);
+        TrashTargetEntity trashFile = trashTargetMapper.findTrashTargetById(trash_id, user_id);
         if (trashFile == null) {
             throw new FileNotExistException();
         }

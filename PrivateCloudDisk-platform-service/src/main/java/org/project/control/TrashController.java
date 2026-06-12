@@ -6,6 +6,7 @@ import org.project.model.entity.TrashTargetEntity;
 import org.project.model.vo.TrashTargetVO;
 import org.project.model.vo.VoMapper;
 import org.project.service.DirectoryTreeService;
+import org.project.service.FileService;
 import org.project.service.TrashService;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +23,7 @@ public class TrashController extends BaseController {
     
     private final TrashService trashService;
     private final DirectoryTreeService directoryTreeService;
+    private final FileService fileService;
     
     /**
      * 将文件移动到回收站
@@ -30,8 +32,8 @@ public class TrashController extends BaseController {
     public JsonResult<Void> moveToTrash(
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
-        directoryTreeService.deleteFolderNodeToTrashByNodeId(UUID.fromString(file_id), UUID.fromString(user_id));
-        trashService.moveToTrash(UUID.fromString(file_id), UUID.fromString(user_id), "folder");
+        fileService.deleteFileToTrash(UUID.fromString(file_id), UUID.fromString(user_id));
+        trashService.moveToTrash(UUID.fromString(file_id), UUID.fromString(user_id), "file");
         return new JsonResult<>(OK);
     }
     
@@ -74,7 +76,7 @@ public class TrashController extends BaseController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestHeader("X-User-Id") String user_id) {
-        List<TrashTargetEntity> trashTargets = trashService.getTrashFiles(UUID.fromString(user_id), page, pageSize);
+        List<TrashTargetEntity> trashTargets = trashService.getTrashTargets(UUID.fromString(user_id), page, pageSize);
         return new JsonResult<>(OK, VoMapper.toTrashTargetVOList(trashTargets));
     }
     
