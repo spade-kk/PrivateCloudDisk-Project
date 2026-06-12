@@ -69,6 +69,7 @@ const collapsed = ref(false)
 
 const menuItems = [
   { path: '/', name: '我的网盘', icon: 'fa fa-cloud' },
+  { path: '/search', name: '文件搜索', icon: 'fa fa-search' },
   { path: '/starred', name: '收藏夹', icon: 'fa fa-star' },
   { path: '/notifications', name: '消息中心', icon: 'fa fa-bell' },
   { path: '/shares', name: '分享管理', icon: 'fa fa-share-alt' },

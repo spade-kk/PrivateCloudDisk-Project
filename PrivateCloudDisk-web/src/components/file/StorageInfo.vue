@@ -16,11 +16,15 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useStorageStore } from '@/stores/storageStore'
 
 const storageStore = useStorageStore()
 const usedFormatted = computed(() => storageStore.formatUsed())
 const totalFormatted = computed(() => storageStore.formatTotal())
 const percent = computed(() => storageStore.percent)
+
+onMounted(() => {
+  storageStore.fetchStorageInfo()
+})
 </script>

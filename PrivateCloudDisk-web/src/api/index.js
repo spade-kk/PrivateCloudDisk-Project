@@ -6,3 +6,4 @@ export * from './modules/files';
 export * from './modules/downloads';
 export * from './modules/preview';
 export * from './modules/trash';
+export * from './modules/search';

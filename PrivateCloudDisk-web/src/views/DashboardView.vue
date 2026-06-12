@@ -24,9 +24,8 @@
         </button>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center md:ml-auto md:justify-end">
-        <div class="relative w-full sm:w-72 md:w-64 lg:w-72">
-          <input v-model="fileBrowserStore.searchKeyword" type="text" class="w-full rounded-lg border px-10 py-2" placeholder="搜索...">
-          <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
+        <div class="w-full sm:w-80 md:w-80 lg:w-96">
+          <SmartSearchBox mode="compact" />
         </div>
         <div class="grid grid-cols-2 rounded-lg border p-1 sm:flex">
           <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-primary text-white' : 'text-neutral-600'" class="touch-button rounded px-3 py-1.5"> <i class="fa fa-th"></i> </button>
@@ -112,7 +111,7 @@
 
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useFileBrowserStore } from '@/stores/fileBrowserStore'
 import { useUploaderStore } from '@/stores/uploaderStore'
@@ -137,8 +136,10 @@ import MoveCopyDialog from '@/components/file/MoveCopyDialog.vue'
 import FileDetailDrawer from '@/components/file/FileDetailDrawer.vue'
 import FilePreview from '@/components/file/FilePreview.vue'
 import WorkspaceOverview from '@/components/dashboard/WorkspaceOverview.vue'
+import SmartSearchBox from '@/components/search/SmartSearchBox.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const fileBrowserStore = useFileBrowserStore()
 const uploaderStore = useUploaderStore()
@@ -170,9 +171,18 @@ const filteredNodes = computed(() => fileBrowserStore.filteredNodes)
 watch(() => authStore.isLoggedIn, async (loggedIn) => {
   if (loggedIn) {
     await fileBrowserStore.loadRoot()
+    if (route.query.node) {
+      await fileBrowserStore.loadChildren(route.query.node)
+    }
     await storageStore.fetchStorageInfo()
   }
 }, { immediate: true })
+
+watch(() => route.query.node, async (nodeId) => {
+  if (authStore.isLoggedIn && nodeId) {
+    await fileBrowserStore.loadChildren(nodeId)
+  }
+})
 
 // 监听上传完成，自动合并
 watch(() => uploaderStore.chunksStatus, (newVal) => {

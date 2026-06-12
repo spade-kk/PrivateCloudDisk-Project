@@ -279,8 +279,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToastStore } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useUserStore } from '@/stores/userStore'
 import {
-  getMyUserInfoApi,
   updateMyUserInfoApi,
   changeMyUserPasswordApi,
   uploadUserAvatarApi,
@@ -291,6 +291,7 @@ import { getMyUserQuotaInfoApi } from '@/api/modules/quotas'
 const router = useRouter()
 const toast = useToastStore()
 const auth = useAuthStore()
+const userStore = useUserStore()
 
 const userInfo = ref({ name: '', email: '', phone_number: '', account: '', image_path: '', file_count: 0 })
 const quota = ref({ used_capacity: 0, total_capacity: 0, file_count: 0 })
@@ -339,6 +340,7 @@ const saveProfile = async () => {
     const res = await updateMyUserInfoApi(editForm.value.email, editForm.value.name, editForm.value.phone_number)
     if (res.code === 200) {
       Object.assign(userInfo.value, editForm.value)
+      userStore.mergeProfile(editForm.value)
       isEditing.value = false
       toast.showToast('个人信息已更新', 'success')
     } else {
@@ -357,6 +359,7 @@ const handleAvatarUpload = async (e) => {
     const res = await uploadUserAvatarApi(file)
     if (res.code === 200) {
       userInfo.value.image_path = res.data || URL.createObjectURL(file)
+      userStore.mergeProfile({ image_path: userInfo.value.image_path })
       toast.showToast('头像已更新', 'success')
     } else { toast.showToast(res.message || '上传失败', 'error') }
   } catch { toast.showToast('上传失败', 'error') }
@@ -386,7 +389,7 @@ const deleteAccount = async () => {
   deleting.value = true
   try {
     const res = await deleteMyUserApi()
-    if (res.code === 200) { toast.showToast('账号已注销', 'success'); auth.logout(); router.push('/login') }
+    if (res.code === 200) { toast.showToast('账号已注销', 'success'); userStore.clearProfile(); auth.logout(); router.push('/login') }
     else { toast.showToast(res.message || '注销失败', 'error') }
   } catch (e) { toast.showToast(e?.message || '注销失败', 'error') }
   finally { deleting.value = false; showDeleteConfirm.value = false; deleteConfirmText.value = '' }
@@ -418,17 +421,14 @@ const formatPhone = (phone) => {
 // ── 初始化 ──
 onMounted(async () => {
   try {
-    const [u, q] = await Promise.all([getMyUserInfoApi(), getMyUserQuotaInfoApi()])
-    if (u.code === 200 && u.data) {
-      const d = u.data
-      userInfo.value = {
-        name: d.name || '',
-        email: d.email || '',
-        phone_number: d.phone_number || '',
-        account: d.account || '',
-        image_path: d.image_path || '',
-        file_count: d.file_count || 0,
-      }
+    const [profileData, q] = await Promise.all([userStore.fetchProfile({ force: true }), getMyUserQuotaInfoApi()])
+    userInfo.value = {
+      name: profileData.name || '',
+      email: profileData.email || '',
+      phone_number: profileData.phone_number || '',
+      account: profileData.account || '',
+      image_path: profileData.image_path || '',
+      file_count: profileData.file_count || 0,
     }
     if (q.code === 200 && q.data) {
       quota.value = {

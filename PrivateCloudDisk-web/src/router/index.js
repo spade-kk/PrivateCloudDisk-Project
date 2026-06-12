@@ -20,6 +20,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'Dashboard', component: () => import('@/views/DashboardView.vue') },
+      { path: 'search', name: 'Search', component: () => import('@/views/SearchView.vue') },
       { path: 'starred', name: 'Starred', component: () => import('@/views/StarredView.vue') },
       { path: 'notifications', name: 'Notifications', component: () => import('@/views/NotificationsView.vue') },
       { path: 'shares', name: 'Shares', component: () => import('@/views/SharesView.vue') },

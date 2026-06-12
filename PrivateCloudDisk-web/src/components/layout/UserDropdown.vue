@@ -10,10 +10,11 @@
       class="flex min-h-10 items-center gap-2 rounded-lg px-1.5 transition hover:bg-neutral-100 focus:outline-none"
       title="用户菜单"
     >
-      <div class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/10">
-        <i class="fa fa-user"></i>
+      <div class="user-avatar h-9 w-9">
+        <img v-if="profile.image_path" :src="profile.image_path" alt="avatar" />
+        <span v-else>{{ userStore.initials }}</span>
       </div>
-      <span class="hidden max-w-24 truncate text-sm text-neutral-700 md:inline">{{ username }}</span>
+      <span class="hidden max-w-28 truncate text-sm text-neutral-700 md:inline">{{ userStore.displayName }}</span>
       <i class="hidden text-xs text-neutral-400 transition md:inline" :class="open ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
     </button>
 
@@ -24,14 +25,30 @@
       >
         <div class="border-b border-neutral-200 px-4 py-3">
           <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <i class="fa fa-user"></i>
+            <div class="user-avatar h-11 w-11">
+              <img v-if="profile.image_path" :src="profile.image_path" alt="avatar" />
+              <span v-else>{{ userStore.initials }}</span>
             </div>
             <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-neutral-700">{{ username }}</p>
-              <p class="text-xs text-neutral-400">CloudDrive 用户</p>
+              <p class="truncate text-sm font-semibold text-neutral-700">{{ userStore.displayName }}</p>
+              <p class="truncate text-xs text-neutral-400">{{ userStore.subtitle }}</p>
             </div>
           </div>
+          <div class="mt-3 grid gap-1.5 rounded-lg bg-neutral-50 p-2 text-xs text-neutral-500">
+            <p class="flex min-w-0 items-center gap-2">
+              <i class="fa fa-at w-3 text-center text-neutral-400"></i>
+              <span class="truncate">{{ profile.account || '账号加载中' }}</span>
+            </p>
+            <p class="flex min-w-0 items-center gap-2">
+              <i class="fa fa-envelope-o w-3 text-center text-neutral-400"></i>
+              <span class="truncate">{{ profile.email || '邮箱未绑定' }}</span>
+            </p>
+            <p class="flex min-w-0 items-center gap-2">
+              <i class="fa fa-mobile w-3 text-center text-neutral-400"></i>
+              <span class="truncate">{{ maskedPhone }}</span>
+            </p>
+          </div>
+          <p v-if="userStore.error" class="mt-2 text-[11px] text-warning">资料暂未同步，已使用占位信息</p>
         </div>
 
         <div class="py-1">
@@ -62,19 +79,26 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
+import { useUserStore } from '@/stores/userStore'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const userStore = useUserStore()
 const open = ref(false)
 const panelRef = ref(null)
 const isHoverDevice = ref(false)
 
-const username = computed(() => authStore.user?.name || '用户')
+const profile = computed(() => userStore.profile)
+const maskedPhone = computed(() => {
+  const phone = profile.value.phone_number
+  if (!phone) return '手机号未绑定'
+  return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+})
 const menuItems = [
   { path: '/profile', name: '个人中心', icon: 'fa fa-user-circle' },
   { path: '/transfers', name: '传输记录', icon: 'fa fa-exchange' },
@@ -104,6 +128,7 @@ function handlePointerDown(event) {
 
 const logout = () => {
   open.value = false
+  userStore.clearProfile()
   authStore.logout()
   toastStore.showToast('已退出登录', 'success')
   router.push('/login')
@@ -111,8 +136,14 @@ const logout = () => {
 
 onMounted(() => {
   syncPointerMode()
+  if (authStore.isLoggedIn) userStore.fetchProfile()
   window.addEventListener('resize', syncPointerMode)
   document.addEventListener('pointerdown', handlePointerDown)
+})
+
+watch(() => authStore.isLoggedIn, (loggedIn) => {
+  if (loggedIn) userStore.fetchProfile({ force: true })
+  else userStore.clearProfile()
 })
 
 onBeforeUnmount(() => {
@@ -120,3 +151,24 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handlePointerDown)
 })
 </script>
+
+<style scoped>
+.user-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(22, 93, 255, 0.1);
+  color: #165dff;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(22, 93, 255, 0.12);
+}
+
+.user-avatar img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+</style>

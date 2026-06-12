@@ -10,17 +10,12 @@ export const useStorageStore = defineStore('storage', () => {
 
   async function fetchStorageInfo() {
     try {
-      // 实际接口地址请根据后端调整
-      // const res = await getMyUserQuotaInfoApi()
-      // if (res.code === 200) {
-      //   used.value = res.used
-      //   total.value = res.total
-      //   percent.value = (used.value / total.value) * 100
-      // }
-      // 模拟数据
-      used.value = 42 * 1024 * 1024 * 1024 // 42GB
-      total.value = 100 * 1024 * 1024 * 1024
-      percent.value = (used.value / total.value) * 100
+      const res = await getMyUserQuotaInfoApi()
+      if (res.code === 200 && res.data) {
+        used.value = res.data.used_capacity || 0
+        total.value = res.data.total_capacity || total.value
+        percent.value = total.value ? Math.min(100, (used.value / total.value) * 100) : 0
+      }
     } catch (error) {
       console.error('获取存储信息失败', error)
     }

@@ -17,7 +17,10 @@ public class FileSearchController extends BaseController {
     private FileSearchService searchService;
 
     @GetMapping("/advanced-search")
-    public JsonResult<FileSearchVo> searchFiles(FileSearchRequest request) {
+    public JsonResult<FileSearchVo> searchFiles(
+            FileSearchRequest request,
+            @RequestHeader("X-User-Id") String user_id) {
+        request.setUserId(user_id);
         FileSearchVo result = searchService.search(request);
         return new JsonResult<>(OK, result);
     }
