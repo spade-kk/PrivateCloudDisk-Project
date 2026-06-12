@@ -43,6 +43,49 @@
         where quota_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
+    <!-- 增加已用容量 (不涉及文件数) -->
+    <update id="increaseQuotaUsedCapacity">
+        UPDATE pcd_user_quota_table
+        SET quota_used_capacity = quota_used_capacity + #{size},
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_used_capacity + #{size} &lt;= quota_total_capacity
+          AND quota_version = #{version}
+    </update>
+
+    <!-- 增加已用容量且增加文件数 -->
+    <update id="increaseQuotaUsedCapacityByFileSize">
+        UPDATE pcd_user_quota_table
+        SET quota_used_capacity = quota_used_capacity + #{size},
+            quota_file_count = quota_file_count + 1,
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_used_capacity + #{size} &lt;= quota_total_capacity
+          AND quota_version = #{version}
+    </update>
+
+    <!-- 减少已用容量 (不涉及文件数) -->
+    <update id="decreaseQuotaUsedCapacity">
+        UPDATE pcd_user_quota_table
+        SET quota_used_capacity = quota_used_capacity - #{size},
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_used_capacity >= #{size}
+          AND quota_version = #{version}
+    </update>
+
+    <!-- 减少已用容量且减少文件数 -->
+    <update id="decreaseQuotaUsedCapacityByFileSize">
+        UPDATE pcd_user_quota_table
+        SET quota_used_capacity = quota_used_capacity - #{size},
+            quota_file_count = quota_file_count - 1,
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_used_capacity >= #{size}
+          AND quota_file_count >= 1
+          AND quota_version = #{version}
+    </update>
+
     <delete id="deleteQuotaByUserId">
         delete from pcd_user_quota_table where quota_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </delete>

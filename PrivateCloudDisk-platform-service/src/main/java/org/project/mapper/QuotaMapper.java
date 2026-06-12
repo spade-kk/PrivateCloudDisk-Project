@@ -56,4 +56,33 @@ public interface QuotaMapper {
      * @return 受变动行数
      */
     int deleteQuotaByUserId(@Param("user_id") UUID user_id);
+    /**
+     *
+     * @param size
+     * @param user_id
+     * @return
+     */
+    int increaseQuotaUsedCapacity(@Param("size") Long size, @Param("user_id") UUID user_id);
+    /**
+     *
+     * @param size
+     * @param user_id
+     * @return
+     */
+    int increaseQuotaUsedCapacityByFileSize(@Param("size") Long size, @Param("user_id") UUID user_id);
+    /**
+     *
+     * @param size
+     * @param user_id
+     * @return
+     */
+    int decreaseQuotaUsedCapacity(@Param("size") Long size, @Param("user_id") UUID user_id);
+
+    /**
+     *
+     * @param size
+     * @param user_id
+     * @return
+     */
+    int decreaseQuotaUsedCapacityByFileSize(@Param("size") Long size, @Param("user_id") UUID user_id);
 }

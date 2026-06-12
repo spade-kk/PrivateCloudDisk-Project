@@ -17,6 +17,7 @@ async def _get_client() -> httpx.AsyncClient:
     global _client
     if _client is None:
         _client = httpx.AsyncClient(
+            http2=False,
             timeout=httpx.Timeout(30.0),
             limits=httpx.Limits(max_keepalive_connections=10),
         )
@@ -54,6 +55,16 @@ class NotificationService:
         except Exception as e:
             logger.error(f"通知业务服务创建文件记录失败: uploads_id={uploads_id}, error={e}")
             raise
+        # import requests
+        # responese = requests.post(f"{settings.business_service_url}/api/v1/business/internal/storage/files", params={
+        #             "uploads_id": uploads_id,
+        #             "file_storage_path": storage_path,
+        #             "file_id": file_id,
+        #             "uid": user_id
+        #         })
+        # result = responese.json()
+        # if result["code"]!=200:
+        #     raise
 
     @staticmethod
     async def notify_file_activate(file_id: str, user_id: str) -> bool:

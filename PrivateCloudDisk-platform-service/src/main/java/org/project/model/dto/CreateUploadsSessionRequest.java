@@ -2,6 +2,7 @@ package org.project.model.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -28,6 +29,7 @@ public class CreateUploadsSessionRequest {
     @NotBlank
     String file_name;
     @NotBlank
+    @Size(max = 120, message = "文件名类型不能超过120个字符")
     String file_type;
     @NotBlank
     String node_id;

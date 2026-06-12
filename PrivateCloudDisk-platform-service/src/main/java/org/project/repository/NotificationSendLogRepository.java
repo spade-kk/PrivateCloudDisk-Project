@@ -111,7 +111,7 @@ public class NotificationSendLogRepository {
                 .eventId(eventId)
                 .channel(channel)
                 .receiver(receiver)
-                .userId(UUID.fromString(userId))
+                .userId(userId != null ? UUID.fromString(userId) : null)
                 .status(NotificationSendLogEntity.STATUS_PENDING)
                 .retryCount(0)
                 .createdAt(LocalDateTime.now())

@@ -224,9 +224,17 @@ class ContentIndexPipeline:
         content_doc = {
             "file_id": file_id,
             "user_id": user_id,
+            "node_id": node_id,
             "filename": file_name,
             "file_ext": ext,
+            "file_type": file_type,
+            "file_category": ContentIndexPipeline._categorize(file_type),
+            "size_bytes": file_size,
+            "status": "active",
             "created_at": created_at,
+            "updated_at": created_at,
+            "tags": extraction.tags,
+            "summary": extraction.content_text[:500] if extraction.content_text else None,
             "content_text": extraction.content_text,
             "content_chunks": [
                 {

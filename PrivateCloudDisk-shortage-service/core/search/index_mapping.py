@@ -83,6 +83,7 @@ FILE_CONTENT_INDEX_BODY = {
         "properties": {
             "file_id": {"type": "keyword"},
             "user_id": {"type": "keyword"},
+            "node_id": {"type": "keyword"},
             "filename": {
                 "type": "text",
                 "analyzer": "pcd_text_analyzer",
@@ -91,8 +92,18 @@ FILE_CONTENT_INDEX_BODY = {
                 },
             },
             "file_ext": {"type": "keyword"},
+            "file_type": {"type": "keyword"},
+            "file_category": {"type": "keyword"},
+            "size_bytes": {"type": "long"},
+            "status": {"type": "keyword"},
             "created_at": {"type": "date"},
+            "updated_at": {"type": "date"},
             "indexed_at": {"type": "date"},
+            "tags": {"type": "keyword"},
+            "summary": {
+                "type": "text",
+                "analyzer": "pcd_text_analyzer",
+            },
 
             "content_text": {
                 "type": "text",

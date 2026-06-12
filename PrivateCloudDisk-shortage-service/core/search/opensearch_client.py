@@ -62,6 +62,10 @@ async def ensure_indices() -> bool:
             )
             logger.info(f"文件基本信息索引已创建: {settings.opensearch_file_index}")
         else:
+            await client.indices.put_mapping(
+                index=settings.opensearch_file_index,
+                body={"properties": FILE_BASIC_INDEX_BODY["mappings"]["properties"]},
+            )
             logger.debug(f"文件基本信息索引已存在: {settings.opensearch_file_index}")
 
         # 文件内容索引
@@ -73,6 +77,10 @@ async def ensure_indices() -> bool:
             )
             logger.info(f"文件内容索引已创建: {settings.opensearch_content_index}")
         else:
+            await client.indices.put_mapping(
+                index=settings.opensearch_content_index,
+                body={"properties": FILE_CONTENT_INDEX_BODY["mappings"]["properties"]},
+            )
             logger.debug(f"文件内容索引已存在: {settings.opensearch_content_index}")
 
         return True
