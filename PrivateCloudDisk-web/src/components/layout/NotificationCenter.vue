@@ -13,10 +13,10 @@
     >
       <i class="fa fa-bell text-lg"></i>
       <span
-        v-if="unreadCount"
+        v-if="totalUnread"
         class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] leading-none text-white ring-2 ring-white"
       >
-        {{ unreadCount > 9 ? '9+' : unreadCount }}
+        {{ totalUnread > 9 ? '9+' : totalUnread }}
       </span>
     </button>
 
@@ -28,7 +28,9 @@
         <div class="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
           <div>
             <div class="font-semibold text-neutral-700">消息通知</div>
-            <div class="mt-0.5 text-xs text-neutral-400">{{ unreadCount }} 条未读消息</div>
+            <div class="mt-0.5 text-xs text-neutral-400">
+              {{ unreadCount }} 条系统通知 · {{ chatUnreadCount }} 条私信
+            </div>
           </div>
           <button
             @click="notificationStore.markAllAsRead"
@@ -67,7 +69,7 @@
           class="flex items-center justify-center gap-2 border-t border-neutral-200 px-4 py-3 text-sm text-primary transition hover:bg-primary/5"
           @click="open = false"
         >
-          <span>查看全部消息</span>
+          <span>进入协作消息中心</span>
           <i class="fa fa-angle-right"></i>
         </router-link>
       </div>
@@ -88,6 +90,8 @@ const open = ref(false)
 const isHoverDevice = ref(false)
 
 const unreadCount = computed(() => notificationStore.unreadCount)
+const chatUnreadCount = computed(() => notificationStore.chatUnreadCount)
+const totalUnread = computed(() => unreadCount.value + chatUnreadCount.value)
 const recentNotifications = computed(() => notificationStore.recentNotifications)
 
 function syncPointerMode() {
@@ -129,6 +133,7 @@ function typeMeta(type) {
 
 onMounted(() => {
   syncPointerMode()
+  notificationStore.bootstrap()
   window.addEventListener('resize', syncPointerMode)
   document.addEventListener('pointerdown', handlePointerDown)
 })
