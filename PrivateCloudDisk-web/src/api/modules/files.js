@@ -1,4 +1,4 @@
-import { get, post, patch } from '@/utils/request'
+import { del, get, post, patch } from '@/utils/request'
 
 /**
  * 获取文件信息

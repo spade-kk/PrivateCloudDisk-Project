@@ -5,3 +5,4 @@ export * from './modules/quotas';
 export * from './modules/files';
 export * from './modules/downloads';
 export * from './modules/preview';
+export * from './modules/trash';

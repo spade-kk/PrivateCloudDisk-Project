@@ -23,7 +23,10 @@
     </insert>
 
     <select id="findUserFilesByNodeId" resultMap="FileEntityMap">
-        select * from pcd_file_info_table where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        select * from pcd_file_info_table
+        where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and file_status not in ('trashed', 'deleted');
     </select>
 
     <select id="findUserFileById" resultMap="FileEntityMap" parameterType="java.util.UUID">

@@ -11,21 +11,22 @@ import java.util.UUID;
 public interface TrashService {
     
     /**
-     * 将文件移动到回收站
-     * @param file_id 文件ID
+     * 将目标移动到回收站
+     * @param target_id 文件或文件夹ID
      * @param user_id 用户ID
+     * @param target_type 目标类型
      */
-    void moveToTrash(UUID file_id, UUID user_id, String target_type);
+    void moveToTrash(UUID target_id, UUID user_id, TrashTargetEntity.TargetType target_type);
     
     /**
-     * 从回收站恢复文件
+     * 从回收站恢复目标
      * @param trash_id 回收站记录ID
      * @param user_id 用户ID
      */
     void restoreFromTrash(Long trash_id, UUID user_id);
     
     /**
-     * 彻底删除回收站文件
+     * 彻底删除回收站目标
      * @param trash_id 回收站记录ID
      * @param user_id 用户ID
      */
@@ -38,26 +39,26 @@ public interface TrashService {
     void emptyTrash(UUID user_id);
     
     /**
-     * 获取回收站文件列表（分页）
+     * 获取回收站目标列表（分页）
      * @param user_id 用户ID
      * @param page 页码
      * @param pageSize 每页数量
-     * @return 回收站文件列表
+     * @return 回收站目标列表
      */
     List<TrashTargetEntity> getTrashTargets(UUID user_id, Integer page, Integer pageSize);
     
     /**
-     * 统计回收站文件数量
+     * 统计回收站目标数量
      * @param user_id 用户ID
      * @return 文件数量
      */
-    Integer countTrashFiles(UUID user_id);
+    Integer countTrashTargets(UUID user_id);
     
     /**
-     * 获取回收站文件详情
+     * 获取回收站目标详情
      * @param trash_id 回收站记录ID
      * @param user_id 用户ID
-     * @return 回收站文件
+     * @return 回收站目标
      */
-    TrashTargetEntity getTrashFileById(Long trash_id, UUID user_id);
+    TrashTargetEntity getTrashTargetById(Long trash_id, UUID user_id);
 }

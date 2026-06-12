@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.project.mapper.TrashTargetMapper;
 import org.project.mapper.UploadsMapper;
 import org.project.model.entity.TrashTargetEntity;
+import org.project.service.TrashService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ public class CleanupScheduledTask {
     
     private final UploadsMapper uploadsMapper;
     private final TrashTargetMapper trashTargetMapper;
+    private final TrashService trashService;
     
     /**
      * 清理过期的上传会话
@@ -52,9 +54,7 @@ public class CleanupScheduledTask {
             
             for (TrashTargetEntity trashFile : expiredFiles) {
                 try {
-                    // TODO: 删除存储中的文件
-                    // 删除回收站记录
-                    trashTargetMapper.deleteTrashTarget(trashFile.getTrash_id(), trashFile.getUser_id());
+                    trashService.permanentDelete(trashFile.getTrash_id(), trashFile.getUser_id());
                     log.info("已删除过期回收站目标: trashId={}, targetId={}",
                             trashFile.getTrash_id(), trashFile.getTarget_id());
                 } catch (Exception e) {

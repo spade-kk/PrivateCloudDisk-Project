@@ -5,8 +5,6 @@ import org.project.control.result.JsonResult;
 import org.project.model.entity.TrashTargetEntity;
 import org.project.model.vo.TrashTargetVO;
 import org.project.model.vo.VoMapper;
-import org.project.service.DirectoryTreeService;
-import org.project.service.FileService;
 import org.project.service.TrashService;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,18 +20,26 @@ import java.util.UUID;
 public class TrashController extends BaseController {
     
     private final TrashService trashService;
-    private final DirectoryTreeService directoryTreeService;
-    private final FileService fileService;
     
     /**
      * 将文件移动到回收站
      */
-    @PostMapping("/{file_id}")
-    public JsonResult<Void> moveToTrash(
+    @PostMapping({"/files/{file_id}", "/files/{file_id}/", "/{file_id}"})
+    public JsonResult<Void> moveFileToTrash(
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
-        fileService.deleteFileToTrash(UUID.fromString(file_id), UUID.fromString(user_id));
-        trashService.moveToTrash(UUID.fromString(file_id), UUID.fromString(user_id), "file");
+        trashService.moveToTrash(UUID.fromString(file_id), UUID.fromString(user_id), TrashTargetEntity.TargetType.file);
+        return new JsonResult<>(OK);
+    }
+
+    /**
+     * 将文件夹移动到回收站
+     */
+    @PostMapping({"/folders/{node_id}", "/folders/{node_id}/"})
+    public JsonResult<Void> moveFolderToTrash(
+            @PathVariable String node_id,
+            @RequestHeader("X-User-Id") String user_id) {
+        trashService.moveToTrash(UUID.fromString(node_id), UUID.fromString(user_id), TrashTargetEntity.TargetType.folder);
         return new JsonResult<>(OK);
     }
     
@@ -69,7 +75,7 @@ public class TrashController extends BaseController {
     }
     
     /**
-     * 获取回收站文件列表
+     * 获取回收站目标列表
      */
     @GetMapping("/")
     public JsonResult<List<TrashTargetVO>> getTrashTargets(
@@ -81,22 +87,22 @@ public class TrashController extends BaseController {
     }
     
     /**
-     * 统计回收站文件数量
+     * 统计回收站目标数量
      */
     @GetMapping("/count")
-    public JsonResult<Integer> countTrashFiles(@RequestHeader("X-User-Id") String user_id) {
-        Integer count = trashService.countTrashFiles(UUID.fromString(user_id));
+    public JsonResult<Integer> countTrashTargets(@RequestHeader("X-User-Id") String user_id) {
+        Integer count = trashService.countTrashTargets(UUID.fromString(user_id));
         return new JsonResult<>(OK, count);
     }
     
     /**
-     * 获取回收站文件详情
+     * 获取回收站目标详情
      */
     @GetMapping("/{trash_id}")
     public JsonResult<TrashTargetVO> getTrashTargetById(
             @PathVariable Long trash_id,
             @RequestHeader("X-User-Id") String user_id) {
-        TrashTargetEntity trashTarget = trashService.getTrashFileById(trash_id, UUID.fromString(user_id));
+        TrashTargetEntity trashTarget = trashService.getTrashTargetById(trash_id, UUID.fromString(user_id));
         return new JsonResult<>(OK, VoMapper.toTrashTargetVO(trashTarget));
     }
 }

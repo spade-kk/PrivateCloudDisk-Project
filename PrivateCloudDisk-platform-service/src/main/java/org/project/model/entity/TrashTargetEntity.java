@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 回收站文件实体
+ * 回收站目标实体
  */
 @Data
 public class TrashTargetEntity implements Serializable {
@@ -15,26 +15,26 @@ public class TrashTargetEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public enum TargetType {
-        FILE,
-        FOLDER
+        file,
+        folder
     }
 
     /** 回收站记录ID */
     private Long trash_id;
     
-    /** 原文件ID */
+    /** 原目标ID */
     private UUID target_id;
     
     /** 用户ID */
     private UUID user_id;
     
-    /** 文件名称 */
+    /** 目标名称 */
     private String target_name;
 
     /** 目标类型 */
     private TargetType target_type;
 
-    /** 文件类型 */
+    /** 文件类型，文件夹固定为 folder */
     private String file_type;
 
     /** 文件大小 文件夹大小为0 */

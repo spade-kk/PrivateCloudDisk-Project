@@ -10,57 +10,51 @@
         <result column="trash_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="trash_target_name" property="target_name"/>
         <result column="trash_target_type" property="target_type"/>
+        <result column="trash_file_type" property="file_type"/>
         <result column="trash_target_size" property="target_size"/>
         <result column="trash_original_node_id" property="original_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="trash_deleted_at" property="deleted_at"/>
         <result column="trash_expires_at" property="expires_at"/>
     </resultMap>
     
-    <insert id="insertTrashFile" parameterType="org.project.model.entity.TrashTargetEntity" useGeneratedKeys="true" keyProperty="trash_id">
+    <insert id="insertTrashTarget" parameterType="org.project.model.entity.TrashTargetEntity" useGeneratedKeys="true" keyProperty="trash_id">
         INSERT INTO pcd_trash_target_table (
             trash_target_id, trash_user_id, trash_target_name, trash_target_type,
-            trash_target_size, trash_original_node_id, trash_deleted_at, trash_expires_at
+            trash_file_type, trash_target_size, trash_original_node_id, trash_deleted_at, trash_expires_at
         ) VALUES (
             #{target_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{target_name}, #{target_type},
-            #{target_size}, #{original_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{deleted_at}, #{expires_at}
+            #{file_type}, #{target_size}, #{original_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{deleted_at}, #{expires_at}
         )
     </insert>
     
-    <delete id="deleteTrashFile">
+    <delete id="deleteTrashTarget">
         DELETE FROM pcd_trash_target_table
         WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </delete>
     
-    <select id="findTrashFileById" resultMap="TrashTargetEntityMap">
-        SELECT * FROM pcd_trash_file_table 
-        WHERE trash_target_id = #{trash_target_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    <select id="findTrashTargetById" resultMap="TrashTargetEntityMap">
+        SELECT * FROM pcd_trash_target_table
+        WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
-    
-<!--    <select id="findTrashFilesByUserId" resultMap="TrashFileEntityMap">-->
-<!--        SELECT * FROM pcd_trash_file_table -->
-<!--        WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}-->
-<!--        ORDER BY trash_deleted_at DESC-->
-<!--        LIMIT #{limit} OFFSET #{offset}-->
-<!--    </select>-->
 
-    <select id="findTrashFilesByUserId" resultMap="TrashTargetEntityMap">
+    <select id="findTrashTargetsByUserId" resultMap="TrashTargetEntityMap">
         SELECT * FROM pcd_trash_target_table
         WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         ORDER BY trash_deleted_at DESC
-            LIMIT #{limit} OFFSET #{offset}
+        LIMIT #{limit} OFFSET #{offset}
     </select>
     
-    <select id="countTrashFilesByUserId" resultType="int">
+    <select id="countTrashTargetsByUserId" resultType="int">
         SELECT COUNT(*) FROM pcd_trash_target_table
         WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
     
-    <select id="findExpiredTrashFiles" resultMap="TrashTargetEntityMap">
+    <select id="findExpiredTrashTargets" resultMap="TrashTargetEntityMap">
         SELECT * FROM pcd_trash_target_table
         WHERE trash_expires_at &lt; NOW()
     </select>
     
-    <select id="findTrashFileByFileId" resultMap="TrashTargetEntityMap">
+    <select id="findTrashTargetByTargetId" resultMap="TrashTargetEntityMap">
         SELECT * FROM pcd_trash_target_table
         WHERE trash_target_id = #{target_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>

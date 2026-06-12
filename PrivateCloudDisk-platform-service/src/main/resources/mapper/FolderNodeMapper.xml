@@ -21,7 +21,10 @@
     </select>
 
     <select id="findFolderNodesByIdAndUserId"  resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_parent_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        select * from pcd_directory_tree_table
+        where node_parent_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and node_status not in ('trashed', 'deleted');
     </select>
 
     <select id="isFolderDeleted" resultType="boolean">

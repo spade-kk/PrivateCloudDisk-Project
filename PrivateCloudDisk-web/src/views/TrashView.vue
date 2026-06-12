@@ -7,11 +7,12 @@
     </div>
     <div v-else class="overflow-hidden rounded-lg bg-white shadow-card">
       <div class="hidden grid-cols-12 bg-neutral-50 p-3 font-medium text-sm sm:grid">
-        <div class="col-span-6">名称</div>
-        <div class="col-span-3">删除时间</div>
+        <div class="col-span-5">名称</div>
+        <div class="col-span-2">类型</div>
+        <div class="col-span-2">删除时间</div>
         <div class="col-span-3 text-right">操作</div>
       </div>
-      <TrashItem v-for="item in items" :key="item.id" :item="item" @restore="restoreItem" @delete="deletePermanently" />
+      <TrashItem v-for="item in items" :key="item.trash_id" :item="item" @restore="restoreItem" @delete="deletePermanently" />
     </div>
   </div>
 </template>
@@ -28,10 +29,13 @@ const loading = ref(false)
 
 const loadTrash = async () => {
   loading.value = true
-  items.value = await trashStore.fetchTrash()
-  loading.value = false
+  try {
+    items.value = await trashStore.fetchTrash()
+  } finally {
+    loading.value = false
+  }
 }
-const restoreItem = async (id) => { await trashStore.restore(id); await loadTrash() }
-const deletePermanently = async (id) => { await trashStore.permanentDelete(id); await loadTrash() }
+const restoreItem = async (trashId) => { await trashStore.restore(trashId); await loadTrash() }
+const deletePermanently = async (trashId) => { await trashStore.permanentDelete(trashId); await loadTrash() }
 onMounted(loadTrash)
 </script>

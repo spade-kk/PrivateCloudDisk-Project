@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToastStore } from './toastStore'
-import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, moveNodeApi, renameFileApi, deleteFileApi, deleteNodeApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi } from '@/api/index'
+import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, moveNodeApi, renameFileApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi, moveFileToTrashApi, moveFolderToTrashApi } from '@/api/index'
 
 export const useFileBrowserStore = defineStore('fileBrowser', () => {
   const toastStore = useToastStore()
@@ -159,12 +159,12 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
 
   async function deleteFileNode(nodeId) {
     try {
-      const res = await deleteFileApi(nodeId)
+      const res = await moveFileToTrashApi(nodeId)
       if (res.code === 200) {
         refresh()
         return { success: true }
       }
-      return { success: false, message: res.message || '删除文件失败' }
+      return { success: false, message: res.message || '移入回收站失败' }
     } catch (error) {
       toastStore.showToast('网络错误', 'error')
       return { success: false, message: '网络错误' }
@@ -174,12 +174,12 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
 
   async function deleteFolderNode(nodeId) {
     try {
-      const res = await deleteNodeApi(nodeId)
+      const res = await moveFolderToTrashApi(nodeId)
       if (res.code === 200) {
         refresh()
         return { success: true }
       }
-      return { success: false, message: res.message || '删除文件夹失败' }
+      return { success: false, message: res.message || '移入回收站失败' }
     } catch (error) {
       toastStore.showToast('网络错误', 'error')
       return { success: false, message: '网络错误' }
