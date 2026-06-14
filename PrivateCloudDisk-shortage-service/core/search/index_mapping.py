@@ -22,22 +22,22 @@ FILE_BASIC_INDEX_BODY = {
         },
         "analysis": {
             "analyzer": {
-                # 中文分词分析器 (索引时用)
+                # 中文分词分析器 (索引时用 - ik_max_word 切分出尽可能多的词)
                 "pcd_index_analyzer": {
                     "type": "custom",
-                    "tokenizer": "standard",
+                    "tokenizer": "ik_max_word",
                     "filter": ["lowercase"],
                 },
-                # 中文分词分析器 (搜索时用)
+                # 中文分词分析器 (搜索时用 - ik_smart 做最粗粒度切分)
                 "pcd_search_analyzer": {
                     "type": "custom",
-                    "tokenizer": "standard",
+                    "tokenizer": "ik_smart",
                     "filter": ["lowercase"],
                 },
-                # 文件名 ngram 分析器 (前缀匹配)
+                # 文件名 ngram 分析器 (keyword tokenizer 保证整串作为单个 token，再切 ngram)
                 "pcd_filename_analyzer": {
                     "type": "custom",
-                    "tokenizer": "standard",
+                    "tokenizer": "keyword",
                     "filter": [
                         "lowercase",
                         "pcd_ngram_filter",
@@ -76,10 +76,11 @@ FILE_BASIC_INDEX_BODY = {
                 "fields": {
                     # 精确匹配
                     "keyword": {"type": "keyword", "ignore_above": 256},
-                    # ngram 前缀/部分匹配（文件名部分搜索）
+                    # ngram 前缀/部分匹配（索引用 ngram 切分，搜索用 ik_smart 分词）
                     "ngram": {
                         "type": "text",
                         "analyzer": "pcd_filename_analyzer",
+                        "search_analyzer": "pcd_search_analyzer",
                     },
                     # 补全建议
                     "suggest": {"type": "completion"},
@@ -192,17 +193,17 @@ FILE_CONTENT_INDEX_BODY = {
             "analyzer": {
                 "pcd_index_analyzer": {
                     "type": "custom",
-                    "tokenizer": "standard",
+                    "tokenizer": "ik_max_word",
                     "filter": ["lowercase"],
                 },
                 "pcd_search_analyzer": {
                     "type": "custom",
-                    "tokenizer": "standard",
+                    "tokenizer": "ik_smart",
                     "filter": ["lowercase"],
                 },
                 "pcd_filename_analyzer": {
                     "type": "custom",
-                    "tokenizer": "standard",
+                    "tokenizer": "keyword",
                     "filter": [
                         "lowercase",
                         "pcd_ngram_filter",
@@ -240,6 +241,7 @@ FILE_CONTENT_INDEX_BODY = {
                     "ngram": {
                         "type": "text",
                         "analyzer": "pcd_filename_analyzer",
+                        "search_analyzer": "pcd_search_analyzer",
                     },
                 },
             },

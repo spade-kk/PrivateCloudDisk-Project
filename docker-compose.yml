@@ -1,23 +1,32 @@
-# 版本定义
+# ============================================================
+# PrivateCloudDisk - Docker Compose 编排
+# 
+# 中间件 Dockerfile 统一管理在 PrivateCloudDisk-infra/ 目录下:
+#   mysql/     redis/     rabbitmq/     minio/     opensearch/     apisix/
+# ============================================================
 version: '1.0'
 
 networks:
   app-networks:
     driver: bridge
 
-# 数据卷：持久化数据（删除容器不丢数据）
+# 数据卷：持久化数据
 volumes:
   mysql-data:
   redis-data:
   rabbitmq-data:
   uploads-data:
-  opensearch-data:              # 新增 OpenSearch 数据卷
+  opensearch-data:
+  minio-data:
 
-# 定义所有服务（容器）
 services:
-  # 1. MySQL 数据库服务
+  # ============================================================
+  #                         中间件层
+  # ============================================================
+
+  # -------------------- MySQL 8.0 --------------------
   mysql:
-    image: mysql:8.0
+    build: ./PrivateCloudDisk-infra/mysql
     container_name: project-mysql
     networks:
       - app-networks
@@ -25,42 +34,80 @@ services:
       - "3306"
     environment:
       MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: private_cloud_disk # 自动创建数据库
+      MYSQL_DATABASE: private_cloud_disk
     volumes:
-      - mysql-data:/var/lib/mysql # 数据持久化（删容器不丢数据）
-      # 2. 自动执行本地SQL（初始化你的所有表+数据）
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql-data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # -------------------- Redis 7 --------------------
   redis:
-    image: redis:latest
+    build: ./PrivateCloudDisk-infra/redis
     container_name: project-redis
     networks:
       - app-networks
-    restart: always
     expose:
       - "6379"
     volumes:
       - redis-data:/data
-    hostname: redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # -------------------- RabbitMQ 3 --------------------
   rabbitmq:
-    image: rabbitmq:latest
+    build: ./PrivateCloudDisk-infra/rabbitmq
     container_name: project-rabbitmq
     networks:
       - app-networks
-    restart: always
     expose:
-      - "5672"    # 程序连接端口
-      - "15672"  # 管理面板端口
+      - "5672"
+      - "15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
-       - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # -------------------- MinIO 对象存储 --------------------
+  minio:
+    build: ./PrivateCloudDisk-infra/minio
+    container_name: project-minio
+    networks:
+      - app-networks
+    expose:
+      - "9000"
+      - "9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------- OpenSearch 2.10（含 analysis-ik） --------------------
   opensearch:
-    image: opensearchproject/opensearch:3.2.0
+    build: ./PrivateCloudDisk-infra/opensearch
     container_name: project-opensearch
     networks:
       - app-networks
@@ -80,12 +127,29 @@ services:
       - "9600"
     restart: always
 
+  # -------------------- APISIX API 网关（含 Coraza WAF） --------------------
+  apisix:
+    build: ./PrivateCloudDisk-infra/apisix
+    container_name: project-apisix
+    networks:
+      - app-networks
+    ports:
+      - "9080:9080"
+      - "9091:9091"
+    restart: always
+    depends_on:
+      - gateway-service-backend
+
+  # ============================================================
+  #                         业务服务层
+  # ============================================================
+
+  # -------------------- SpringBoot 网关服务 --------------------
   gateway-service-backend:
     build: ./PrivateCloudDisk-gateway-service
     container_name: backend-gateway-service
     networks:
       - app-networks
-    restart: always
     expose:
       - "8080"
     depends_on:
@@ -96,25 +160,26 @@ services:
       FILE_SERVICE_URL: http://file-service-backend:8000
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
+    restart: always
 
-  # 2. SpringBoot 后端业务服务
+  # -------------------- SpringBoot 业务服务 --------------------
   platform-service-backend:
-    build: ./PrivateCloudDisk-platform-service # 自动读取前端Dockerfile
+    build: ./PrivateCloudDisk-platform-service
     container_name: backend-platform-service
     networks:
       - app-networks
-    restart: always
     expose:
       - "8081"
     depends_on:
-      - mysql
-      - redis
-      - rabbitmq
-    # 开发环境热重载
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      # 连接数据库：用服务名访问（Docker内部网络）
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_DATA_REDIS_HOST: redis
@@ -124,33 +189,32 @@ services:
       SECURITY_CAPTCHA_TURNSTILE_ENABLED: ${SECURITY_CAPTCHA_TURNSTILE_ENABLED:-false}
       SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY: ${SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY:-0x4AAAAAADf7Z-kpJMtKhi_3xlpjOjBm42w}
       SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME: ${SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME:-www.hellomyservice.xyz}
-  
-  # 3. FastAPI 后端文件服务
+    restart: always
+
+  # -------------------- FastAPI 文件服务 --------------------
   file-service-backend:
     build: ./PrivateCloudDisk-shortage-service
     container_name: backend-file-service
     networks:
       - app-networks
-    restart: always
     expose:
       - "8000"
     depends_on:
       - platform-service-backend
     environment:
-      FILE_UPLOAD_DIR: /data/uploads # 文件存储目录
-      QUARANtINE_DIR: /data/uploads/quarantine
+      FILE_UPLOAD_DIR: /data/uploads
+      QUARANTINE_DIR: /data/uploads/quarantine
       REDIS_URL: redis://redis:6379/0
       BUSINESS_SERVICE_URL: http://platform-service-backend:8081
 
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
 
-      # RabbitMQ 连接信息（务必添加，否则 Service 会连不上消息队列）
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
-      #OpenSearch 链接
+
       OPENSEARCH_HOST: https://opensearch:9200
       OPENSEARCH_USERNAME: admin
       OPENSEARCH_PASSWORD: MySecureP@ssw0rd
@@ -174,42 +238,53 @@ services:
       OPERATION_TOKEN_DESTROY_IP_LIMIT: 180
       OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS: 60
     volumes:
-      - uploads-data:/data/uploads # 文件持久化（删容器不丢数据）
+      - uploads-data:/data/uploads
+    restart: always
 
-  # 5. FastAPI Worker 文件处理消费者
+  # -------------------- FastAPI Worker 文件处理消费者 --------------------
   file-service-worker:
-    build: ./PrivateCloudDisk-shortage-service          # 与 API 服务共用同一镜像
+    build: ./PrivateCloudDisk-shortage-service
     container_name: backend-file-worker
     networks:
       - app-networks
-    restart: always
-    command: python worker.py                           # 启动 Worker 而非 uvicorn
+    command: python worker.py
     depends_on:
       - rabbitmq
       - redis
       - platform-service-backend
     environment:
-      # RabbitMQ 连接信息（务必添加，否则 Worker 会连不上消息队列）
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
 
-      # 其他必要配置（与 file-service-backend 保持一致）
       FILE_UPLOAD_DIR: /data/uploads
       REDIS_URL: redis://redis:6379/0
       BUSINESS_SERVICE_URL: http://platform-service-backend:8081
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
 
-      # 如果 Worker 需要与 API 相同的令牌/速率限制等（保留原有）
+      OPENSEARCH_HOST: https://opensearch:9200
+      OPENSEARCH_USERNAME: admin
+      OPENSEARCH_PASSWORD: MySecureP@ssw0rd
+      OPENSEARCH_USE_SSL: true
+      OPENSEARCH_VERIFY_CERTS: false
+      OPENSEARCH_TIMEOUT: 30
+      OPENSEARCH_MAX_RETRIES: 3
+      OPENSEARCH_FILE_INDEX: pcd_file_basic
+      OPENSEARCH_CONTENT_INDEX: pcd_file_content
+
       MAX_CONCURRENT: 3
       OPERATION_TOKEN_EXPIRE_SECONDS: 3600
-      # ... 其他环境变量按需复制
     volumes:
-      - uploads-data:/data/uploads          # 共享文件存储卷
+      - uploads-data:/data/uploads
+    restart: always
 
-  # 4. Vue 前端服务
+  # ============================================================
+  #                         前端层
+  # ============================================================
+
+  # -------------------- Vue 前端 --------------------
   frontend:
     build:
       context: ./PrivateCloudDisk-web
@@ -223,18 +298,19 @@ services:
     container_name: private-cloud-web
     networks:
       - app-networks
-    restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      # certbot HTTP-01 验证文件目录
       - ./certbot/www:/var/www/certbot
-
-      # Let's Encrypt 证书目录
       - ./certbot/conf:/etc/letsencrypt
     depends_on:
       - gateway-service-backend
+    restart: always
+
+  # ============================================================
+  #                         证书管理
+  # ============================================================
 
   certbot:
     image: certbot/certbot:latest
@@ -244,3 +320,4 @@ services:
       - ./certbot/conf:/etc/letsencrypt
     networks:
       - app-networks
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"

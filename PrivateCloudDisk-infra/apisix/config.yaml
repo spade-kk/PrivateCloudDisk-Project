@@ -25,11 +25,11 @@ wasm:
       file: /usr/local/apisix/proxywasm/coraza-proxy-wasm.wasm
 
 plugins:
-  - real-ip
-  - ip-restriction
-  - limit-count
-  - limit-conn
-  - ua-restriction
-  - proxy-rewrite
-  - cors
-  - prometheus
+  - real-ip              # 真实 IP 获取
+  - ip-restriction       # IP 黑白名单
+  - limit-count          # 请求速率限制
+  - limit-conn           # 并发连接限制
+  - ua-restriction       # User-Agent 限制
+  - proxy-rewrite        # 代理路径重写
+  - cors                 # 跨域
+  - prometheus           # 监控指标

@@ -3,10 +3,11 @@ FROM node:22-alpine AS builder
 WORKDIR /frontend_web_app
 
 COPY package.json package-lock.json ./
-RUN npm config set registry https://registry.npmmirror.com
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set registry https://registry.npmmirror.com && \
+    npm ci
 
-COPY . .
+
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_TURNSTILE_SITE_KEY=0x4AAAAAADf7Z44g-izJGKIB
 ARG VITE_CHUNK_SIZE=5242880
@@ -19,6 +20,8 @@ ENV VITE_CHUNK_SIZE=$VITE_CHUNK_SIZE
 ENV VITE_MAX_CONCURRENT_UPLOADS=$VITE_MAX_CONCURRENT_UPLOADS
 ENV VITE_MAX_CONCURRENT_DOWNLOADS=$VITE_MAX_CONCURRENT_DOWNLOADS
 ENV VITE_UPLOAD_THRESHOLD=$VITE_UPLOAD_THRESHOLD
+
+COPY . .
 RUN npm run build
 
 # 基础镜像：Nginx

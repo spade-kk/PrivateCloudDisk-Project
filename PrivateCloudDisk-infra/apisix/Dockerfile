@@ -2,6 +2,7 @@ FROM apache/apisix:latest
 
 USER root
 
+# ========== 安装 Coraza WAF 插件 ==========
 ARG CORAZA_VERSION=0.5.0
 ARG CORAZA_ZIP=coraza-proxy-wasm-${CORAZA_VERSION}.zip
 
@@ -15,5 +16,9 @@ RUN apt-get update \
     && apt-get purge -y wget unzip \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
+
+# 复制 APISIX 配置
+COPY config.yaml /usr/local/apisix/conf/config.yaml
+COPY apisix.yaml /usr/local/apisix/conf/apisix.yaml
 
 USER apisix
