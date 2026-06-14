@@ -33,16 +33,28 @@
 
     <!-- 导航菜单 -->
     <nav class="mt-4 flex-1 overflow-y-auto py-2 lg:mt-6">
-      <router-link
-        v-for="item in menuItems"
-        :key="item.path"
-        :to="item.path"
-        class="mx-2 flex min-h-11 items-center rounded-lg px-4 py-3 text-neutral-600 transition hover:bg-primary/10 hover:text-primary"
-        :class="{ 'lg:justify-center': collapsed }"
-      >
-        <i :class="item.icon" class="h-5 w-5 shrink-0"></i>
-        <span v-if="!collapsed" class="ml-3 truncate">{{ item.name }}</span>
-      </router-link>
+      <template v-for="group in menuGroups" :key="group.label">
+        <p v-if="!collapsed && group.label" class="mx-4 mb-1 mt-4 text-[10px] font-semibold uppercase tracking-widest text-neutral-400 first:mt-0">
+          {{ group.label }}
+        </p>
+        <router-link
+          v-for="item in group.items"
+          :key="item.path"
+          :to="item.path"
+          v-slot="{ isActive }"
+        >
+          <a
+            class="mx-2 flex min-h-11 items-center rounded-lg px-4 py-3 text-neutral-600 transition hover:bg-primary/10 hover:text-primary"
+            :class="[
+              isActive ? 'bg-primary/10 text-primary font-medium' : '',
+              collapsed ? 'lg:justify-center' : ''
+            ]"
+          >
+            <i :class="item.icon" class="h-5 w-5 shrink-0"></i>
+            <span v-if="!collapsed" class="ml-3 truncate">{{ item.name }}</span>
+          </a>
+        </router-link>
+      </template>
     </nav>
 
     <!-- 折叠/展开按钮：垂直居中，右侧边缘突出 -->
@@ -67,15 +79,44 @@ defineEmits(['close'])
 
 const collapsed = ref(false)
 
-const menuItems = [
-  { path: '/', name: '我的网盘', icon: 'fa fa-cloud' },
-  { path: '/search', name: '文件搜索', icon: 'fa fa-search' },
-  { path: '/starred', name: '收藏夹', icon: 'fa fa-star' },
-  { path: '/notifications', name: '消息中心', icon: 'fa fa-bell' },
-  { path: '/shares', name: '分享管理', icon: 'fa fa-share-alt' },
-  { path: '/trash', name: '回收站', icon: 'fa fa-trash' },
-  { path: '/transfers', name: '传输记录', icon: 'fa fa-exchange' },
-  { path: '/profile', name: '个人中心', icon: 'fa fa-user-circle' },
+const menuGroups = [
+  {
+    label: '主菜单',
+    items: [
+      { path: '/', name: '我的网盘', icon: 'fa fa-cloud' },
+      { path: '/search', name: '文件搜索', icon: 'fa fa-search' },
+      { path: '/starred', name: '收藏夹', icon: 'fa fa-star' },
+      { path: '/versions', name: '版本管理', icon: 'fa fa-history' },
+      { path: '/shares', name: '分享管理', icon: 'fa fa-share-alt' },
+      { path: '/notifications', name: '消息中心', icon: 'fa fa-bell' },
+      { path: '/transfers', name: '传输记录', icon: 'fa fa-exchange' },
+      { path: '/trash', name: '回收站', icon: 'fa fa-trash' },
+    ],
+  },
+  {
+    label: '协作与管理',
+    items: [
+      { path: '/team', name: '团队协作', icon: 'fa fa-users' },
+      { path: '/admin', name: '管理后台', icon: 'fa fa-cog' },
+      { path: '/analytics', name: '数据分析', icon: 'fa fa-bar-chart' },
+    ],
+  },
+  {
+    label: '安全与审计',
+    items: [
+      { path: '/security', name: '安全中心', icon: 'fa fa-shield' },
+      { path: '/activity', name: '操作日志', icon: 'fa fa-list-alt' },
+    ],
+  },
+  {
+    label: '其他',
+    items: [
+      { path: '/settings', name: '系统设置', icon: 'fa fa-sliders' },
+      { path: '/billing', name: '套餐管理', icon: 'fa fa-credit-card' },
+      { path: '/help', name: '帮助中心', icon: 'fa fa-question-circle' },
+      { path: '/profile', name: '个人中心', icon: 'fa fa-user-circle' },
+    ],
+  },
 ]
 </script>
 

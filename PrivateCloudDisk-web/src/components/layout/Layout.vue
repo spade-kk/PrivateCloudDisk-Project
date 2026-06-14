@@ -75,7 +75,13 @@ const isDarkMode = ref(localStorage.getItem('darkMode') === 'true')
 const mobileSidebarOpen = ref(false)
 
 const currentRouteName = computed(() => {
-  const names = { Dashboard: '我的网盘', Search: '文件搜索', Starred: '收藏夹', Notifications: '消息中心', Shares: '分享管理', Trash: '回收站', Profile: '个人中心', Transfers: '传输记录' }
+  const names = {
+    Dashboard: '我的网盘', Search: '文件搜索', Starred: '收藏夹', Notifications: '消息中心',
+    Shares: '分享管理', Trash: '回收站', Profile: '个人中心', Transfers: '传输记录',
+    Versions: '版本管理', Team: '团队协作', Admin: '管理后台', Analytics: '数据分析',
+    Security: '安全中心', ApiKeys: 'API 密钥管理', ActivityLog: '操作日志',
+    Settings: '系统设置', Billing: '套餐管理', Help: '帮助中心',
+  }
   return names[route.name] || route.name
 })
 
