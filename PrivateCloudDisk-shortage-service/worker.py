@@ -201,6 +201,13 @@ class Worker:
         logger.info("收到关闭信号，开始优雅关闭...")
         self._running = False
 
+        # 关闭 OpenSearch 客户端
+        try:
+            from core.search.opensearch_client import close_opensearch_client
+            await close_opensearch_client()
+        except Exception as e:
+            logger.error(f"关闭 OpenSearch 失败: {e}")
+
         # 关闭 RabbitMQ 连接
         try:
             await rabbitmq_service.close()

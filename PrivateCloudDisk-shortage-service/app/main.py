@@ -62,6 +62,13 @@ async def lifespan(app: FastAPI):
     await redis_client.close()
     logger.info("Redis 连接已关闭")
 
+    logger.info("关闭 OpenSearch 连接...")
+    try:
+        from core.search.opensearch_client import close_opensearch_client
+        await close_opensearch_client()
+    except Exception as e:
+        logger.warning(f"关闭 OpenSearch 失败: {e}")
+
     logger.info("关闭 RabbitMQ 连接...")
     await rabbitmq_service.close()
     logger.info("RabbitMQ 连接已关闭")
