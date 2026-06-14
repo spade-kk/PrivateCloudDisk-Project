@@ -8,8 +8,5 @@ export * from './modules/preview';
 export * from './modules/trash';
 export * from './modules/search';
 export * from './modules/collaboration';
-export * from './modules/admin';
 export * from './modules/security';
-export * from './modules/activity';
 export * from './modules/settings';
-export * from './modules/analytics';

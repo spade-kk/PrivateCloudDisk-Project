@@ -86,35 +86,39 @@ const menuGroups = [
       { path: '/app', name: '我的网盘', icon: 'fa fa-cloud' },
       { path: '/app/search', name: '文件搜索', icon: 'fa fa-search' },
       { path: '/app/starred', name: '收藏夹', icon: 'fa fa-star' },
-      { path: '/app/versions', name: '版本管理', icon: 'fa fa-history' },
       { path: '/app/shares', name: '分享管理', icon: 'fa fa-share-alt' },
-      { path: '/app/notifications', name: '消息中心', icon: 'fa fa-bell' },
       { path: '/app/transfers', name: '传输记录', icon: 'fa fa-exchange' },
       { path: '/app/trash', name: '回收站', icon: 'fa fa-trash' },
     ],
   },
   {
-    label: '协作与管理',
+    label: '文件管理',
     items: [
-      { path: '/app/team', name: '团队协作', icon: 'fa fa-users' },
-      { path: '/app/admin', name: '管理后台', icon: 'fa fa-cog' },
-      { path: '/app/analytics', name: '数据分析', icon: 'fa fa-bar-chart' },
+      { path: '/app/versions', name: '版本管理', icon: 'fa fa-history' },
+      { path: '/app/storage', name: '存储空间', icon: 'fa fa-hdd-o' },
     ],
   },
   {
-    label: '安全与审计',
+    label: '协作',
+    items: [
+      { path: '/app/team', name: '团队协作', icon: 'fa fa-users' },
+    ],
+  },
+  {
+    label: '安全',
     items: [
       { path: '/app/security', name: '安全中心', icon: 'fa fa-shield' },
-      { path: '/app/activity', name: '操作日志', icon: 'fa fa-list-alt' },
+      { path: '/app/devices', name: '我的设备', icon: 'fa fa-laptop' },
     ],
   },
   {
     label: '其他',
     items: [
-      { path: '/app/settings', name: '系统设置', icon: 'fa fa-sliders' },
       { path: '/app/billing', name: '套餐管理', icon: 'fa fa-credit-card' },
-      { path: '/app/help', name: '帮助中心', icon: 'fa fa-question-circle' },
+      { path: '/app/notifications', name: '消息中心', icon: 'fa fa-bell' },
+      { path: '/app/settings', name: '系统设置', icon: 'fa fa-sliders' },
       { path: '/app/profile', name: '个人中心', icon: 'fa fa-user-circle' },
+      { path: '/app/help', name: '帮助中心', icon: 'fa fa-question-circle' },
     ],
   },
 ]
