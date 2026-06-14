@@ -33,7 +33,7 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            rust_env=False
+            trust_env=False
         ) as client:
             try:
                 resp = await client.post(
@@ -58,7 +58,7 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            rust_env=False
+            trust_env=False
         ) as client:
             try:
                 resp = await client.post(
@@ -90,7 +90,7 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            rust_env=False
+            trust_env=False
         ) as client:
             try:
                 resp = await client.patch(
@@ -114,7 +114,7 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            rust_env=False
+            trust_env=False
         ) as client:
             try:
                 resp = await client.post(
