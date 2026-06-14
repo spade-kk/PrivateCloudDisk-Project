@@ -1,0 +1,16 @@
+# ========== OpenSearch 连接 ==========
+opensearch.hosts: ["https://opensearch:9200"]
+opensearch.username: "admin"
+opensearch.password: "MySecureP@ssw0rd"
+opensearch.ssl.verificationMode: none
+
+# ========== 服务绑定 ==========
+server.host: "0.0.0.0"
+server.port: 5601
+
+# ========== 禁用遥测 ==========
+telemetry.enabled: false
+telemetry.optIn: false
+
+# ========== 日志 ==========
+logging.root.level: info

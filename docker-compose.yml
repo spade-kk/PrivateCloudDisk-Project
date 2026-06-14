@@ -127,6 +127,20 @@ services:
       - "9600"
     restart: always
 
+  # -------------------- OpenSearch Dashboards 可视化面板 --------------------
+  opensearch-dashboards:
+    build: ./PrivateCloudDisk-infra/opensearch-dashboards
+    container_name: project-opensearch-dashboards
+    networks:
+      - app-networks
+    ports:
+      - "5601:5601"
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+    depends_on:
+      - opensearch
+    restart: always
+
   # -------------------- APISIX API 网关（含 Coraza WAF） --------------------
   apisix:
     build: ./PrivateCloudDisk-infra/apisix
@@ -134,8 +148,9 @@ services:
     networks:
       - app-networks
     ports:
-      - "9080:9080"
-      - "9091:9091"
+      - "9080:9080"   # HTTP 代理端口
+      - "9443:9443"   # HTTPS 代理端口
+      - "9180:9180"   # Admin API 端口（管理接口）
     restart: always
     depends_on:
       - gateway-service-backend
