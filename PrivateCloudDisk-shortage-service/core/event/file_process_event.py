@@ -131,6 +131,7 @@ class ContentIndexEvent:
     storage_path: str = ""
     node_id: str = ""
     task_id: str = ""
+    tenant_id: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     retry_count: int = 0
     failure_reason: str = ""

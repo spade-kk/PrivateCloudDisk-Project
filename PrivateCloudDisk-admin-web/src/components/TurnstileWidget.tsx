@@ -85,7 +85,7 @@ function loadTurnstileScript(): Promise<void> {
 
 export default function TurnstileWidget({
   siteKey,
-  action = '',
+  action = 'login',
   theme = 'light',
   size = 'normal',
   onVerify,
@@ -132,8 +132,9 @@ export default function TurnstileWidget({
           onError?.(msg)
         },
       })
-    } catch {
+    } catch(e) {
       const msg = '验证组件加载失败，请刷新后重试'
+      console.log(e)
       setError(msg)
       onError?.(msg)
     } finally {

@@ -54,6 +54,7 @@ async def on_content_index_message(message):
             file_size=event.file_size,
             node_id=event.node_id,
             created_at=event.created_at,
+            tenant_id=event.tenant_id,
         )
 
         if result.success:

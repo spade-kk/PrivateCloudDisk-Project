@@ -11,6 +11,7 @@ volumes:
   redis-data:
   rabbitmq-data:
   uploads-data:
+  opensearch-data:              # 新增 OpenSearch 数据卷
 
 # 定义所有服务（容器）
 services:
@@ -57,6 +58,28 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
        - rabbitmq-data:/var/lib/rabbitmq
+
+  opensearch:
+    image: opensearchproject/opensearch:3.2.0
+    container_name: project-opensearch
+    networks:
+      - app-networks
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=MySecureP@ssw0rd
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    expose:
+      - "9200"
+      - "9600"
+    restart: always
+
   gateway-service-backend:
     build: ./PrivateCloudDisk-gateway-service
     container_name: backend-gateway-service
@@ -115,11 +138,28 @@ services:
       - platform-service-backend
     environment:
       FILE_UPLOAD_DIR: /data/uploads # 文件存储目录
+      QUARANtINE_DIR: /data/uploads/quarantine
       REDIS_URL: redis://redis:6379/0
       BUSINESS_SERVICE_URL: http://platform-service-backend:8081
 
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
+
+      # RabbitMQ 连接信息（务必添加，否则 Service 会连不上消息队列）
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      #OpenSearch 链接
+      OPENSEARCH_HOST: https://opensearch:9200
+      OPENSEARCH_USERNAME: admin
+      OPENSEARCH_PASSWORD: MySecureP@ssw0rd
+      OPENSEARCH_USE_SSL: true
+      OPENSEARCH_VERIFY_CERTS: false
+      OPENSEARCH_TIMEOUT: 30
+      OPENSEARCH_MAX_RETRIES: 3
+      OPENSEARCH_FILE_INDEX: pcd_file_basic
+      OPENSEARCH_CONTENT_INDEX: pcd_file_content
 
       MAX_CONCURRENT: 3
       OPERATION_TOKEN_EXPIRE_SECONDS: 3600
@@ -135,6 +175,39 @@ services:
       OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS: 60
     volumes:
       - uploads-data:/data/uploads # 文件持久化（删容器不丢数据）
+
+  # 5. FastAPI Worker 文件处理消费者
+  file-service-worker:
+    build: ./PrivateCloudDisk-shortage-service          # 与 API 服务共用同一镜像
+    container_name: backend-file-worker
+    networks:
+      - app-networks
+    restart: always
+    command: python worker.py                           # 启动 Worker 而非 uvicorn
+    depends_on:
+      - rabbitmq
+      - redis
+      - platform-service-backend
+    environment:
+      # RabbitMQ 连接信息（务必添加，否则 Worker 会连不上消息队列）
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+
+      # 其他必要配置（与 file-service-backend 保持一致）
+      FILE_UPLOAD_DIR: /data/uploads
+      REDIS_URL: redis://redis:6379/0
+      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+      PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
+      PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
+
+      # 如果 Worker 需要与 API 相同的令牌/速率限制等（保留原有）
+      MAX_CONCURRENT: 3
+      OPERATION_TOKEN_EXPIRE_SECONDS: 3600
+      # ... 其他环境变量按需复制
+    volumes:
+      - uploads-data:/data/uploads          # 共享文件存储卷
 
   # 4. Vue 前端服务
   frontend:

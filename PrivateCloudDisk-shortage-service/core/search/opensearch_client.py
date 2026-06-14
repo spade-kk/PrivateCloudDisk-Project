@@ -84,11 +84,12 @@ async def ensure_indices() -> bool:
             logger.debug(f"文件内容索引已存在: {settings.opensearch_content_index}")
 
         return True
-    except Exception:
+    except Exception as e:
         logger.warning(
             "OpenSearch 服务不可用，跳过索引初始化 "
             "(文件内容搜索功能暂不可用，其他功能不受影响)"
         )
+        logger.warning(e)
         return False
 
 
