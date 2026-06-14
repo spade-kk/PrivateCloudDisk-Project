@@ -2,9 +2,9 @@
   <div class="app-shell flex overflow-hidden bg-neutral-100" :class="{ dark: isDarkMode }">
     <Sidebar :mobile-open="mobileSidebarOpen" @close="mobileSidebarOpen = false" />
     <div class="app-content flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header class="z-20 shrink-0 bg-white shadow-sm">
-        <div class="flex min-h-[64px] items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-6">
-          <div class="flex min-w-0 items-center gap-3">
+      <header class="console-header z-20 shrink-0 bg-white shadow-sm">
+        <div class="flex min-h-[68px] items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-6">
+          <div class="flex min-w-0 items-center gap-3 lg:gap-5">
             <button
               @click="mobileSidebarOpen = true"
               class="icon-button mobile-only shrink-0"
@@ -12,38 +12,40 @@
             >
               <i class="fa fa-bars"></i>
             </button>
-            <h2 class="truncate text-base font-semibold text-neutral-700 sm:text-lg">{{ currentRouteName }}</h2>
+            <router-link to="/app" class="hidden shrink-0 items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-neutral-50 lg:flex">
+              <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-info text-white shadow-sm shadow-primary/20">
+                <i class="fa fa-cloud"></i>
+              </span>
+              <span class="leading-tight">
+                <span class="block text-sm font-bold text-neutral-800">CloudDrive</span>
+                <span class="block text-[11px] font-medium text-primary">控制台</span>
+              </span>
+            </router-link>
+            <div class="hidden h-7 w-px bg-neutral-200 lg:block"></div>
+            <div class="min-w-0">
+              <p class="text-[11px] font-medium text-neutral-400 lg:hidden">当前模块</p>
+              <h2 class="truncate text-base font-semibold text-neutral-700 sm:text-lg">{{ currentRouteName }}</h2>
+            </div>
           </div>
           <div class="flex min-w-0 items-center justify-end gap-2 sm:gap-3 lg:gap-4">
+            <router-link to="/" class="hidden items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary lg:inline-flex">
+              <i class="fa fa-globe"></i>
+              官网
+            </router-link>
+            <router-link to="/download" class="hidden items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary transition hover:bg-primary/15 lg:inline-flex">
+              <i class="fa fa-download"></i>
+              客户端
+            </router-link>
             <button @click="toggleDarkMode" class="icon-button shrink-0" title="切换深色模式">
               <i :class="isDarkMode ? 'fa fa-sun-o' : 'fa fa-moon-o'"></i>
             </button>
             <StorageInfo class="hidden sm:flex" />
+            <TransferPanel />
             <NotificationCenter />
             <UserDropdown />
           </div>
         </div>
       </header>
-      <!-- <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
-      <div class="container mx-auto px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center space-x-2 cursor-pointer" @click="goHome">
-          <i class="fa fa-cloud text-primary text-2xl"></i>
-          <h1 class="text-xl font-bold">CloudDrive <span class="text-primary">私有云</span></h1>
-        </div>
-        <div class="flex items-center space-x-4">
-          <div class="flex items-center space-x-2">
-            <span class="text-neutral-600">{{ '用户' }}</span>
-            <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              <i class="fa fa-user"></i>
-            </div>
-          </div>
-          <StorageInfo />
-          <button @click="logout" class="bg-neutral-200 hover:bg-neutral-300 text-neutral-700 px-4 py-2 rounded-lg flex items-center space-x-1">
-            <i class="fa fa-sign-out"></i><span>退出</span>
-          </button>
-        </div>
-      </div>
-    </header> -->
       <main class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
         <div class="page-container">
           <router-view v-slot="{ Component, route: viewRoute }">
@@ -68,6 +70,7 @@ import { useRoute } from 'vue-router'
 import Sidebar from './Sidebar.vue'
 import UserDropdown from './UserDropdown.vue'
 import NotificationCenter from './NotificationCenter.vue'
+import TransferPanel from '../transfer/TransferPanel.vue'
 import StorageInfo from '../file/StorageInfo.vue'
 
 const route = useRoute()
@@ -85,6 +88,10 @@ const currentRouteName = computed(() => {
   return names[route.name] || route.name
 })
 
+function isConsoleNavActive(item) {
+  return item.match?.includes(route.name) || route.path === item.path
+}
+
 const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value
   localStorage.setItem('darkMode', isDarkMode.value)
@@ -100,3 +107,40 @@ watch(() => route.fullPath, () => {
   mobileSidebarOpen.value = false
 })
 </script>
+
+<style scoped>
+.console-header {
+  border-bottom: 1px solid rgba(228, 231, 237, 0.86);
+}
+
+.console-nav {
+  border: 1px solid rgba(228, 231, 237, 0.82);
+  border-radius: 12px;
+  background: rgba(245, 247, 250, 0.74);
+  padding: 4px;
+}
+
+.console-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9px;
+  color: #606266;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 10px;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.console-nav-link:hover {
+  background: rgba(255, 255, 255, 0.88);
+  color: #165dff;
+}
+
+.console-nav-link.is-active {
+  background: #fff;
+  color: #165dff;
+  box-shadow: 0 8px 18px rgba(22, 93, 255, 0.1);
+}
+</style>

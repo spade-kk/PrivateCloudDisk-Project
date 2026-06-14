@@ -17,12 +17,20 @@ public interface FileMapper {
     int insertFile(FileEntity fileData);
 
     /**
-     * 根据用户Uid节点ID查询节点下所有文件元数据
+     * 根据用户Uid节点ID查询节点下所有Active文件元数据
      * @param node_id 节点ID
      * @param user_id 用户Uid
      * @return 文件元数据列表
      */
-    List<FileEntity> findUserFilesByNodeId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
+    List<FileEntity> findUserActiveFilesByNodeId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
+
+    /**
+     * 根据用户Uid节点ID查询节点下所有Exist文件元数据 包括正在后处理的文件
+     * @param node_id 节点ID
+     * @param user_id 用户Uid
+     * @return 文件元数据列表
+     */
+    List<FileEntity> findUserExistFilesByNodeId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
      * 根据文件ID查询文件元数据
@@ -92,4 +100,15 @@ public interface FileMapper {
      * @return 受变动行数
      */
     int deleteUserFileById(@Param("file_id") UUID file_id, @Param("user_id") UUID user_id);
+    /**
+     *
+     * @param user_id
+     * @return
+     */
+    int cleanUserFailedStatusFiles(@Param("user_id") UUID user_id);
+
+    /**
+     * @return
+     */
+    int cleanFailedStatusFiles();
 }

@@ -208,13 +208,13 @@ public class TrashServiceImpl implements TrashService {
         }
 
         FileDeleteMessageDTO message = FileDeleteMessageDTO.builder()
-                .messageId(UUID.randomUUID().toString())
-                .fileId(trashTarget.getTarget_id().toString())
-                .userId(user_id.toString())
-                .storagePath(storagePath)
-                .fileSize(trashTarget.getTarget_size())
-                .fromTrash(true)
-                .createdAt(LocalDateTime.now())
+                .message_id(UUID.randomUUID().toString())
+                .file_id(trashTarget.getTarget_id().toString())
+                .user_id(user_id.toString())
+                .storage_path(storagePath)
+                .file_size(trashTarget.getTarget_size())
+                .from_trash(true)
+                .create_at(LocalDateTime.now())
                 .build();
 
         rabbitTemplate.convertAndSend(

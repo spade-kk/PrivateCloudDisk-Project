@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 import os
 import asyncio
-import subprocess
 from dataclasses import dataclass
 from typing import Optional
 from core.config import settings, FailureReason

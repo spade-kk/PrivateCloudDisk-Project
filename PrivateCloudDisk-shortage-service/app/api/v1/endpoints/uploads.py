@@ -271,7 +271,7 @@ async def complete_uploads_internal(
     task_id = str(uuid.uuid4())
     
     # 5. 初始化任务状态
-    await redis_client.hset(f"task:{task_id}:{TaskTypes.MERGE}", mapping={
+    await redis_client.hset(f"task:{task_id}", mapping={
         "task_id": task_id,
         "file_id": file_id,
         "user_id": user_id,
@@ -280,7 +280,7 @@ async def complete_uploads_internal(
         "created_at": time.time(),
         "current_step": TaskTypes.MERGE
     })
-    await redis_client.expire(f"task:{task_id}:{TaskTypes.MERGE}", 86400 * 3)  # 3天过期
+    await redis_client.expire(f"task:{task_id}", 86400 * 3)  # 3天过期
 
     # 6. 发送合并任务消息（只发送合并任务，后续任务由消费者链式触发）
     merge_message = {

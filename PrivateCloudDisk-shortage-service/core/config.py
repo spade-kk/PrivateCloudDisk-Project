@@ -158,8 +158,8 @@ TASK_PIPELINE = [
     TaskTypes.MERGE,
     TaskTypes.HASH_CALCULATE,
     TaskTypes.VIRUS_SCAN,
+    TaskTypes.MARK_ACTIVE,
     TaskTypes.THUMBNAIL,
     TaskTypes.VIDEO_TRANSCODE,
-    TaskTypes.MARK_ACTIVE,
     TaskTypes.CONTENT_INDEX,
 ]

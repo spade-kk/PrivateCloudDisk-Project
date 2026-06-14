@@ -2,6 +2,9 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
+import { cookie } from '@/utils/cookie'
+
+const TOKEN_COOKIE_KEY = 'cloud_drive_token'
 
 export class ApiError extends Error {
   constructor(message, options = {}) {
@@ -21,9 +24,17 @@ function notifyNetworkError(message, config = {}) {
   }
 }
 
+/**
+ * 从 cookie 直接读取 token，不依赖 Pinia store
+ * 确保在任何时机（含 store 未初始化时）都能正确附加 Authorization header
+ */
+function getTokenFromCookie() {
+  return cookie.get(TOKEN_COOKIE_KEY)
+}
+
 // 创建 Axios 实例
 const service = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1', // 环境变量
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json;charset=utf-8' },
 });
@@ -31,9 +42,20 @@ const service = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   (config) => {
-    const authStore = useAuthStore();
-    if (authStore.token) {
-      config.headers.Authorization = `Bearer ${authStore.token}`;
+    // 优先从 cookie 读取 token（不依赖 Pinia store 初始化顺序）
+    const token = getTokenFromCookie()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (typeof config.headers?.delete === 'function') {
+        config.headers.delete('Content-Type')
+        config.headers.delete('content-type')
+      } else {
+        delete config.headers['Content-Type']
+        delete config.headers['content-type']
+      }
     }
     return config;
   },
@@ -46,21 +68,6 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response) => {
     const res = response.data;
-    // // 根据后端约定的结构判断业务状态码 暂时注释 不要错误拦截文件下载GET请求的 blob响应哦
-    // if (res.code !== 200) {
-    //   // 特定业务错误码处理，如 401 跳转登录
-    //   if (res.code === 401) {
-    //     // 清除 token 并跳转
-    //     window.location.href = '/login';
-    //   }
-    //   return Promise.reject(new ApiError(res.message || '请求失败', {
-    //     code: res.code,
-    //     data: res.data,
-    //     response,
-    //     isBusinessError: true,
-    //   }));
-    // }
-    // 正常返回数据（只返回有效 data）
     return res;
   },
   (error) => {
@@ -73,6 +80,14 @@ service.interceptors.response.use(
       switch (status) {
         case 401:
           message = '登录已过期，请重新登录';
+          // 401 时清除 cookie 中的 token，并跳转登录
+          cookie.remove(TOKEN_COOKIE_KEY)
+          // 兼容旧版：同时清除 localStorage 中的旧 token
+          localStorage.removeItem('cloudDriveToken')
+          // 非登录页面才跳转，避免死循环
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login';
+          }
           break;
         case 403:
           message = '没有权限访问';
@@ -111,7 +126,7 @@ service.interceptors.response.use(
 
 export default service;
 
-// 二次封装常用请求，业务调用时直接使用这些函数
+// 二次封装常用请求
 export function get(url, params, config = {}) {
   return service.get(url, { params, ...config });
 }

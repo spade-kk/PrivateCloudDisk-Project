@@ -115,7 +115,7 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
 
 
         List<NodeEntity> nodeList = new ArrayList<>();
-        List<FileEntity> fileDataList =fileMapper.findUserFilesByNodeId(node_id, user_id);
+        List<FileEntity> fileDataList =fileMapper.findUserActiveFilesByNodeId(node_id, user_id);
         List<FolderNodeEntity> folderNodeEntityList = folderNodeMapper.findFolderNodesByIdAndUserId(node_id, user_id);
 
         for(FolderNodeEntity folderNodeEntity : folderNodeEntityList) {

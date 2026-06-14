@@ -1,14 +1,31 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { CHUNK_SIZE, MAX_CONCURRENT_UPLOADS, MAX_RETRIES } from '@/utils/constants'
 import { calculateSHA256 } from '@/utils/helpers'
 import { useToastStore } from './toastStore'
 import { useFileBrowserStore } from './fileBrowserStore'
-import { createUploadsSessionApi, uploadFileChunkApi,  completeUploadSessionApi} from '@/api/index'
+import { useTransferStore } from './transferStore'
+import { createUploadsSessionApi, uploadFileChunkApi, completeUploadSessionApi, getTaskStatusApi } from '@/api/index'
+
+// 任务处理步骤 → 中文描述映射
+const STEP_LABELS = {
+  merge: '文件合并中',
+  hash_calculate: '哈希校验中',
+  virus_scan: '病毒扫描中',
+  thumbnail: '生成缩略图中',
+  video_transcode: '视频转码中',
+  mark_active: '即将完成',
+}
+
+// 轮询间隔（毫秒）
+const POLL_INTERVAL = 2000
+// 最大轮询次数（防止无限轮询，约 5 分钟）
+const MAX_POLL_COUNT = 150
 
 export const useUploaderStore = defineStore('uploader', () => {
   const toastStore = useToastStore()
   const fileBrowserStore = useFileBrowserStore()
+  const transferStore = useTransferStore()
 
   // 上传状态
   const uploadFile = ref(null)
@@ -18,42 +35,62 @@ export const useUploaderStore = defineStore('uploader', () => {
   const activeControllers = ref([])
   const uploadPaused = ref(false)
   const uploadCancelled = ref(false)
-  const uploadProgress = ref(0)
-  const uploadSpeed = ref('0 KB/s')
-  const isUploading = ref(false)
-  const uploadFileName = ref('')
+
+  // 传输记录 ID（关联 transferStore）
+  const transferRecordId = ref(null)
+
+  // 异步任务处理状态
+  const isProcessing = ref(false)
+  const processingStatus = ref('')
+  const taskId = ref(null)
+
+  // 轮询
+  let pollTimer = null
+  let pollCount = 0
+
   const fileChecksum = ref('')
   let startTime = 0
-  let lastLoadedBytes = 0
   let speedTimer = null
 
-  // 并发控制
   const concurrentUploads = MAX_CONCURRENT_UPLOADS
 
-  // 更新进度和速度
-  function updateProgress() {
-    const completed = chunksStatus.value.filter(c => c.status === 'success').length
-    uploadProgress.value = totalChunks.value ? (completed / totalChunks.value) * 100 : 0
+  // 计算已上传字节数 & 速度
+  let lastCompletedBytes = 0
+  let lastSpeedTime = 0
+
+  function getCompletedBytes() {
+    return chunksStatus.value.reduce((sum, c) => {
+      if (c.status !== 'success') return sum
+      return sum + Math.max(0, (c.end || 0) - (c.start || 0))
+    }, 0)
   }
 
-  function updateSpeed() {
-    if (!isUploading.value || uploadPaused.value || uploadCancelled.value) return
-    const completed = chunksStatus.value.filter(c => c.status === 'success').length
-    const loadedBytes = completed * CHUNK_SIZE
-    const elapsed = (Date.now() - startTime) / 1000
-    if (elapsed > 0 && loadedBytes > 0) {
-      const speedBps = loadedBytes / elapsed
-      uploadSpeed.value = speedBps > 1048576
-        ? `${(speedBps / 1048576).toFixed(1)} MB/s`
-        : `${(speedBps / 1024).toFixed(1)} KB/s`
-    }
+  function calcSpeed() {
+    const now = Date.now()
+    const completed = getCompletedBytes()
+    if (!lastSpeedTime) { lastSpeedTime = now; lastCompletedBytes = completed; return '0 KB/s' }
+    const elapsed = (now - lastSpeedTime) / 1000
+    if (elapsed <= 0) return '0 KB/s'
+    const speedBps = (completed - lastCompletedBytes) / elapsed
+    lastSpeedTime = now
+    lastCompletedBytes = completed
+    if (speedBps > 1048576) return `${(speedBps / 1048576).toFixed(1)} MB/s`
+    return `${(speedBps / 1024).toFixed(1)} KB/s`
   }
 
-  // 启动速度监控定时器
+  function updateTransferProgress() {
+    if (transferRecordId.value == null) return
+    const completed = chunksStatus.value.filter(c => c.status === 'success').length
+    const progress = totalChunks.value ? (completed / totalChunks.value) * 100 : 0
+    transferStore.updateProgress(transferRecordId.value, progress, calcSpeed())
+  }
+
   function startSpeedMonitor() {
+    lastSpeedTime = 0
+    lastCompletedBytes = 0
     if (speedTimer) clearInterval(speedTimer)
     speedTimer = setInterval(() => {
-      updateSpeed()
+      if (!isProcessing.value) updateTransferProgress()
     }, 1000)
   }
 
@@ -64,29 +101,132 @@ export const useUploaderStore = defineStore('uploader', () => {
     }
   }
 
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+    pollCount = 0
+  }
+
+  // ============================================================
+  // 轮询查询任务状态
+  //
+  // TODO: 后续可替换为 WebSocket 推送通知
+  // WebSocket 方案：
+  //   1. 建立 WebSocket 连接后，发送 { type: "subscribe_task", task_id }
+  //   2. 服务端在任务状态变更时推送 { type: "task_update", task_id, status, current_step }
+  //   3. 前端收到 status === "completed" 时调用 handleTaskCompleted()
+  //   4. 前端收到 status === "failed" 时调用 handleTaskFailed()
+  //   这样可完全移除 pollTaskStatus() 和 pollTimer 相关逻辑
+  // ============================================================
+  async function pollTaskStatus() {
+    if (!taskId.value || !isProcessing.value) return
+
+    pollCount++
+    if (pollCount > MAX_POLL_COUNT) {
+      stopPolling()
+      isProcessing.value = false
+      processingStatus.value = ''
+      if (transferRecordId.value != null) {
+        transferStore.failRecord(transferRecordId.value, '处理超时')
+      }
+      toastStore.showToast('文件处理超时，请稍后刷新页面查看', 'warning')
+      return
+    }
+
+    try {
+      const res = await getTaskStatusApi(taskId.value)
+      if (res.code !== 200 || !res.data) return
+
+      const { status, current_step } = res.data
+
+      // 更新传输记录中的处理状态
+      const label = STEP_LABELS[current_step] || '服务器处理中'
+      processingStatus.value = label
+      if (transferRecordId.value != null) {
+        transferStore.updateProcessingStatus(transferRecordId.value, label)
+      }
+
+      if (status === 'completed') {
+        handleTaskCompleted()
+      } else if (status === 'failed') {
+        handleTaskFailed(res.data)
+      } else if (status === 'cancelled') {
+        handleTaskCancelled()
+      }
+    } catch {
+      pollCount = Math.max(0, pollCount - 1)
+    }
+  }
+
+  function handleTaskCompleted() {
+    stopPolling()
+    isProcessing.value = false
+    processingStatus.value = ''
+    if (transferRecordId.value != null) {
+      transferStore.finishRecord(transferRecordId.value)
+    }
+    toastStore.showToast('上传成功！', 'success')
+    fileBrowserStore.refresh()
+    resetUpload()
+  }
+
+  function handleTaskFailed(taskData) {
+    stopPolling()
+    isProcessing.value = false
+    processingStatus.value = ''
+    const failedStep = (taskData && taskData.current_step) ? STEP_LABELS[taskData.current_step] || taskData.current_step : '处理'
+    if (transferRecordId.value != null) {
+      transferStore.failRecord(transferRecordId.value, `${failedStep}失败`)
+    }
+    toastStore.showToast(`文件${failedStep}失败，请重试`, 'error')
+    resetUpload()
+  }
+
+  function handleTaskCancelled() {
+    stopPolling()
+    isProcessing.value = false
+    processingStatus.value = ''
+    if (transferRecordId.value != null) {
+      transferStore.cancelRecord(transferRecordId.value)
+    }
+    toastStore.showToast('文件处理已取消', 'warning')
+    resetUpload()
+  }
+
+  function startPolling() {
+    stopPolling()
+    pollCount = 0
+    pollTaskStatus()
+    pollTimer = setInterval(pollTaskStatus, POLL_INTERVAL)
+  }
+
   // 上传单个分片（带重试）
   async function uploadSingleChunk(chunkIdx) {
     const chunk = chunksStatus.value.find(c => c.index === chunkIdx)
     if (!chunk || chunk.status !== 'pending') return
 
     chunk.status = 'uploading'
-    updateProgress()
+    updateTransferProgress()
 
     const start = (chunkIdx - 1) * CHUNK_SIZE
     const end = Math.min(start + CHUNK_SIZE, uploadFile.value.size)
     const blob = uploadFile.value.slice(start, end)
-    const formData = new FormData()
-    formData.append('file', blob, uploadFile.value.name)
+    chunk.start = start
+    chunk.end = end
 
     const controller = new AbortController()
     activeControllers.value.push(controller)
 
     try {
-      const res = await uploadFileChunkApi(uploadSessionId.value, chunkIdx, blob, controller.signal);
+      const res = await uploadFileChunkApi(uploadSessionId.value, chunkIdx, blob, controller.signal)
 
       if (res.code === 200) {
         chunk.status = 'success'
         chunk.retries = 0
+        updateTransferProgress()
+        checkCompletion()
       } else {
         throw new Error(res.message || '上传失败')
       }
@@ -104,50 +244,51 @@ export const useUploaderStore = defineStore('uploader', () => {
       }
     } finally {
       activeControllers.value = activeControllers.value.filter(c => c !== controller)
-      updateProgress()
+      updateTransferProgress()
       if (!uploadPaused.value && !uploadCancelled.value) {
         scheduleChunks()
       }
     }
   }
 
-  // 调度分片上传（并发控制）
   function scheduleChunks() {
     if (uploadCancelled.value || uploadPaused.value) return
     const pending = chunksStatus.value.filter(c => c.status === 'pending')
     const uploading = chunksStatus.value.filter(c => c.status === 'uploading').length
     const slots = concurrentUploads - uploading
     if (slots <= 0) return
-    const toStart = pending.slice(0, slots)
-    toStart.forEach(chunk => uploadSingleChunk(chunk.index))
+    pending.slice(0, slots).forEach(chunk => uploadSingleChunk(chunk.index))
   }
 
-  // 开始上传
   async function startUpload(file) {
     if (!file) return
-    // 重置状态
     resetUpload()
     uploadFile.value = file
-    uploadFileName.value = file.name
-    totalChunks.value = Math.ceil(file.size / CHUNK_SIZE)
+    totalChunks.value = Math.max(1, Math.ceil(file.size / CHUNK_SIZE))
     chunksStatus.value = Array.from({ length: totalChunks.value }, (_, i) => ({
       index: i + 1,
       status: 'pending',
       retries: 0,
+      start: 0,
+      end: 0,
     }))
-    uploadProgress.value = 0
     uploadPaused.value = false
     uploadCancelled.value = false
-    isUploading.value = true
     startTime = Date.now()
+
+    // 在 transferStore 中创建上传记录
+    transferRecordId.value = transferStore.addRecord('upload', file.name, file.size)
     startSpeedMonitor()
 
     // 计算校验和
     try {
       fileChecksum.value = await calculateSHA256(file)
-    } catch (err) {
+    } catch {
       toastStore.showToast('计算文件校验和失败，无法上传', 'error')
-      cancelUpload(true)
+      if (transferRecordId.value != null) {
+        transferStore.failRecord(transferRecordId.value, '校验和计算失败')
+      }
+      resetUpload()
       return
     }
 
@@ -161,80 +302,108 @@ export const useUploaderStore = defineStore('uploader', () => {
         file.type || 'application/octet-stream',
         file.name,
         fileBrowserStore.currentNodeId
-      );
+      )
       if (res.code === 200) {
-        uploadSessionId.value = res.data
+        uploadSessionId.value = res.data?.uploads_id || res.data?.upload_id || res.data?.id || res.data
         scheduleChunks()
       } else {
         throw new Error(res.message || '创建上传会话失败')
       }
     } catch (err) {
       toastStore.showToast(err.message, 'error')
-      cancelUpload(true)
+      if (transferRecordId.value != null) {
+        transferStore.failRecord(transferRecordId.value, err.message)
+      }
+      resetUpload()
     }
   }
 
-  // 暂停上传
   function pauseUpload() {
-    if (!isUploading.value || uploadPaused.value) return
+    if (uploadCancelled.value || uploadPaused.value) return
     uploadPaused.value = true
-    // 中止所有进行中的请求
     activeControllers.value.forEach(ctrl => ctrl.abort())
     activeControllers.value = []
-    // 将 uploading 状态重置为 pending
     chunksStatus.value.forEach(c => {
       if (c.status === 'uploading') c.status = 'pending'
     })
-    updateProgress()
+    updateTransferProgress()
     stopSpeedMonitor()
-    uploadSpeed.value = '已暂停'
   }
 
-  // 恢复上传
   function resumeUpload() {
-    if (!isUploading.value || !uploadPaused.value) return
+    if (!uploadPaused.value) return
     uploadPaused.value = false
-    startTime = Date.now() - (uploadProgress.value / 100) * (Date.now() - startTime) // 粗略校准
     startSpeedMonitor()
     scheduleChunks()
   }
 
-  // 取消上传
   function cancelUpload(silent = false) {
     if (!silent && !confirm('确定要取消上传吗？')) return
+    stopPolling()
     uploadCancelled.value = true
+    isProcessing.value = false
+    processingStatus.value = ''
     activeControllers.value.forEach(ctrl => ctrl.abort())
     activeControllers.value = []
-    isUploading.value = false
     stopSpeedMonitor()
+    if (transferRecordId.value != null) {
+      transferStore.cancelRecord(transferRecordId.value)
+    }
     if (!silent) {
       toastStore.showToast('上传已取消', 'warning')
     }
     resetUpload()
   }
 
+  // ============================================================
   // 完成上传（合并文件）
+  // 合并接口返回的只是任务提交确认（task_id），不代表文件已合并完成。
+  // 此处将记录转为 processing 状态并启动轮询。
+  // ============================================================
   async function completeUpload() {
-    if (!uploadSessionId.value) return
+    if (!uploadSessionId.value || uploadCancelled.value) return
+    isProcessing.value = true
+    processingStatus.value = '提交合并请求'
+    stopSpeedMonitor()
+
+    // 传输记录进入后台处理状态
+    if (transferRecordId.value != null) {
+      transferStore.updateProgress(transferRecordId.value, 100, '')
+      // 先更新为处理中，等拿到 taskId 后再调用 enterProcessing
+    }
+
     try {
-      const res = await completeUploadSessionApi(uploadSessionId.value);
-      if (res.code === 200) {
-        toastStore.showToast('上传成功！', 'success')
-        fileBrowserStore.refresh()
-        resetUpload()
+      const res = await completeUploadSessionApi(uploadSessionId.value)
+      if (res.code === 200 && res.data?.task_id) {
+        taskId.value = res.data.task_id
+        processingStatus.value = '文件合并中'
+        if (transferRecordId.value != null) {
+          transferStore.enterProcessing(transferRecordId.value, res.data.task_id, '文件合并中')
+        }
+        startPolling()
       } else {
-        toastStore.showToast(res.message || '文件合并失败', 'error')
+        isProcessing.value = false
+        processingStatus.value = ''
+        if (transferRecordId.value != null) {
+          transferStore.failRecord(transferRecordId.value, res.message || '文件合并请求失败')
+        }
+        toastStore.showToast(res.message || '文件合并请求失败', 'error')
+        resetUpload()
       }
-    } catch (err) {
+    } catch {
+      isProcessing.value = false
+      processingStatus.value = ''
+      stopPolling()
+      if (transferRecordId.value != null) {
+        transferStore.failRecord(transferRecordId.value, '文件合并请求失败')
+      }
       toastStore.showToast('文件合并请求失败', 'error')
-    } finally {
-      isUploading.value = false
-      stopSpeedMonitor()
+      resetUpload()
     }
   }
 
-  // 重置所有上传相关状态
   function resetUpload() {
+    stopPolling()
     uploadFile.value = null
     uploadSessionId.value = null
     totalChunks.value = 0
@@ -242,42 +411,38 @@ export const useUploaderStore = defineStore('uploader', () => {
     activeControllers.value = []
     uploadPaused.value = false
     uploadCancelled.value = false
-    uploadProgress.value = 0
-    uploadSpeed.value = '0 KB/s'
-    uploadFileName.value = ''
+    isProcessing.value = false
+    processingStatus.value = ''
+    taskId.value = null
+    transferRecordId.value = null
     fileChecksum.value = ''
     startTime = 0
     stopSpeedMonitor()
   }
 
-  // 检查是否全部完成，若是则触发合并
   function checkCompletion() {
     const allSuccess = chunksStatus.value.length > 0 && chunksStatus.value.every(c => c.status === 'success')
-    if (allSuccess && !uploadCancelled.value) {
+    if (allSuccess && !uploadCancelled.value && !isProcessing.value) {
+      updateTransferProgress()
       completeUpload()
     }
   }
 
-  // 监听进度变化，当所有分片成功时自动合并
-  // 通过 watch 在 store 外部实现，此处提供一个注册方法
-  function registerProgressWatcher() {
-    // 在组件中可以使用 watch 监听 chunksStatus 的变化
-  }
-
   return {
     uploadFile,
-    uploadProgress,
-    uploadSpeed,
-    isUploading,
-    uploadFileName,
     uploadPaused,
+    isProcessing,
+    processingStatus,
+    taskId,
+    transferRecordId,
+    // 方法
     startUpload,
     pauseUpload,
     resumeUpload,
     cancelUpload,
     completeUpload,
     resetUpload,
-    checkCompletion, // 供外部调用
-    chunksStatus, // 暴露给外部用于监听
+    checkCompletion,
+    chunksStatus,
   }
 })

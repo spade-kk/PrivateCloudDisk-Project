@@ -18,15 +18,22 @@
     </resultMap>
 
     <insert id="insertFile" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.FileEntity">
-        insert into pcd_file_info_table(file_id, file_name, file_uploaded_time, file_size, file_type, file_author_id, file_checksum, file_node_id, file_total_chunks, file_storage_path)
-        values(#{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{checksum}, #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{total_chunks}, #{storage_path});
+        insert into pcd_file_info_table(file_id, file_name, file_uploaded_time, file_size, file_type, file_author_id, file_checksum, file_node_id, file_total_chunks, file_storage_path, file_status)
+        values(#{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{checksum}, #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{total_chunks}, #{storage_path}, #{status});
     </insert>
 
-    <select id="findUserFilesByNodeId" resultMap="FileEntityMap">
+    <select id="findUserActiveFilesByNodeId" resultMap="FileEntityMap">
         select * from pcd_file_info_table
         where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          and file_status not in ('trashed', 'deleted');
+          and file_status not in ('trashed', 'deleted', 'merging', 'merge_failed', 'scanning', 'reject', 'scan_failed', 'merged');
+    </select>
+
+    <select id="findUserExistFilesByNodeId" resultMap="FileEntityMap">
+        select * from pcd_file_info_table
+        where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and file_status not in ('trashed', 'deleted', 'merge_failed', 'reject', 'scan_failed');
     </select>
 
     <select id="findUserFileById" resultMap="FileEntityMap" parameterType="java.util.UUID">
@@ -109,5 +116,16 @@
 
     <delete id="deleteUserFileById" parameterType="java.util.UUID">
         delete from pcd_file_info_table where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </delete>
+
+    <delete id="cleanUserFailedStatusFiles" parameterType="java.util.UUID">
+        delete from pcd_file_info_table where file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                                          AND file_status IN ('scan_failed', 'merge_failed', 'reject')
+                                        LIMIT 1000;
+    </delete>
+
+    <delete id="cleanFailedStatusFiles">
+        delete from pcd_file_info_table where  file_status IN ('scan_failed', 'merge_failed', 'reject')
+                                                LIMIT 1000;
     </delete>
 </mapper>

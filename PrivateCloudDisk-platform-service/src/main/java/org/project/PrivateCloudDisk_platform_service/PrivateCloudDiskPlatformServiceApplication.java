@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 
 @EnableCaching
@@ -17,6 +18,7 @@ import org.springframework.context.annotation.ComponentScan;
 })
 @ComponentScan(basePackages = "org.project.*")
 @MapperScan(basePackages = "org.project.mapper")
+@EnableScheduling
 @SpringBootApplication
 public class PrivateCloudDiskPlatformServiceApplication {
 

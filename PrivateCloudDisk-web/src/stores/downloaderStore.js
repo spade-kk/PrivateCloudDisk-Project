@@ -3,49 +3,67 @@ import { ref } from 'vue'
 import { getFileContentApi, getFileContentChunkApi, createOperationTokenApi } from '@/api'
 import { CHUNK_SIZE, MAX_CONCURRENT_DOWNLOADS, UPLOAD_THRESHOLD } from '@/utils/constants'
 import { useToastStore } from './toastStore'
+import { useTransferStore } from './transferStore'
 
 export const useDownloaderStore = defineStore('downloader', () => {
   const toastStore = useToastStore()
+  const transferStore = useTransferStore()
+
   const downloading = ref(false)
   const downloadProgress = ref(0)
 
   /**
-   * 下载文件（自动选择全量或分片）
+   * 下载文件（自动选择全量或分片），同时向 transferStore 推送进度
    * @param {string} nodeId
    * @param {number} fileSize
-   * @param {Function} onProgress
+   * @param {string} fileName
    * @returns {Promise<Blob>}
    */
-  async function downloadFile(nodeId, fileSize, onProgress) {
+  async function downloadFile(nodeId, fileSize, fileName) {
     downloading.value = true
     downloadProgress.value = 0
-    try {
-      // 获取操作令牌
-      const initRes = await createOperationTokenApi(nodeId, 'download');
 
+    // 在 transferStore 中创建下载记录
+    const transferId = transferStore.addRecord('download', fileName, fileSize)
+
+    // 内部进度回调 → 更新 transferStore
+    const onProgress = (percent) => {
+      downloadProgress.value = percent
+      transferStore.updateProgress(transferId, percent, '')
+    }
+
+    try {
+      const initRes = await createOperationTokenApi(nodeId, 'download')
       if (initRes.code !== 200) {
-        console.error('获取操作令牌失败', initRes)
-        throw new Error(initRes.message || '获取下载令牌失败')
+        const msg = initRes.message || '获取下载令牌失败'
+        transferStore.failRecord(transferId, msg)
+        throw new Error(msg)
       }
       const operationToken = initRes.data.operation_token
 
+      let result
       if (fileSize < UPLOAD_THRESHOLD) {
         // 小文件全量下载
-        const res = await getFileContentApi(nodeId, operationToken, (progressEvent) => {
-          if (onProgress && progressEvent.total) {
+        result = await getFileContentApi(nodeId, operationToken, (progressEvent) => {
+          if (progressEvent.total) {
             const percent = (progressEvent.loaded / progressEvent.total) * 100
-            downloadProgress.value = percent
             onProgress(percent)
           }
         })
-        downloadProgress.value = 100
-        if (onProgress) onProgress(100)
-        return res
+        onProgress(100)
       } else {
         // 大文件分片下载
-        return await downloadLargeFile(nodeId, fileSize, operationToken, onProgress)
+        result = await downloadLargeFile(nodeId, fileSize, operationToken, onProgress)
       }
+
+      transferStore.finishRecord(transferId)
+      return result
     } catch (error) {
+      // 如果还没被标记失败，标记一下
+      const record = transferStore.records.find(r => r.id === transferId)
+      if (record && record.status !== 'failed') {
+        transferStore.failRecord(transferId, error.message || '下载失败')
+      }
       toastStore.showToast('下载失败：' + (error.message || '网络错误'), 'error')
       throw error
     } finally {
@@ -84,7 +102,6 @@ export const useDownloaderStore = defineStore('downloader', () => {
     })
     await Promise.all(workers)
 
-    // 合并 Blob
     return new Blob(chunks)
   }
 

@@ -1,0 +1,28 @@
+global_rules:
+  - id: 1
+    plugins:
+      coraza-filter:
+        conf:
+          directives_map:
+            default:
+              - SecRuleEngine On
+              - SecDebugLogLevel 3
+              - SecRequestBodyAccess On
+              - SecResponseBodyAccess Off
+              - SecRequestBodyLimit 10485760
+              - SecRequestBodyNoFilesLimit 1048576
+              - SecAuditEngine RelevantOnly
+              - SecAuditLogParts ABIJDEFHZ
+              - SecAction "id:900000,phase:1,nolog,pass,t:none,setvar:tx.paranoia_level=1,setvar:tx.blocking_paranoia_level=1,setvar:tx.inbound_anomaly_score_threshold=5,setvar:tx.outbound_anomaly_score_threshold=4"
+              - Include @crs-setup-conf
+              - Include @owasp_crs/*.conf
+          default_directives: default
+
+routes:
+  - id: 100
+    uri: /api/v1/*
+    upstream:
+      type: roundrobin
+      nodes:
+        "platform-service:8080": 1
+#END

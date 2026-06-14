@@ -86,6 +86,12 @@ class FileDeleteConsumer:
         except OSError as e:
             errors.append(f"主文件删除失败: {e}")
             logger.error(f"主文件删除失败: {e}")
+            return {
+                "success": False,
+                "deleted": deleted,
+                "errors": errors,
+                "failure_reason": FailureReason.DELETE_IO_ERROR,
+            }
 
         # 删除缩略图
         for thumb_path in event.thumbnail_paths:
@@ -137,6 +143,7 @@ class FileDeleteConsumer:
             await NotificationService.notify_file_delete_complete(
                 file_id=event.file_id,
                 deleted_files=result["deleted"],
+                user_id=event.user_id
             )
         except Exception as e:
             logger.error(f"通知业务服务删除完成失败: {e}")

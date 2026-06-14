@@ -2,6 +2,7 @@ package org.project.task;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.project.mapper.FileMapper;
 import org.project.mapper.TrashTargetMapper;
 import org.project.mapper.UploadsMapper;
 import org.project.model.entity.TrashTargetEntity;
@@ -22,6 +23,7 @@ public class CleanupScheduledTask {
     private final UploadsMapper uploadsMapper;
     private final TrashTargetMapper trashTargetMapper;
     private final TrashService trashService;
+    private final FileMapper fileMapper;
     
     /**
      * 清理过期的上传会话
@@ -84,6 +86,18 @@ public class CleanupScheduledTask {
             log.info("临时分块文件清理完成");
         } catch (Exception e) {
             log.error("清理临时分块文件失败: {}", e.getMessage(), e);
+        }
+    }
+
+    @Scheduled(fixedRate = 30000)
+    public void cleanupFailStatusFiles() {
+        log.info("开始清理失败状态文件...");
+        try {
+            /* 一次最多删除1000行数据 防止锁表 */
+            Integer rows = fileMapper.cleanFailedStatusFiles();
+            log.info("清理失败状态文件成功 已经删除[" + rows + "]行数据");
+        } catch (Exception e) {
+            log.error("理失败状态文件失败: {}", e.getMessage(), e);
         }
     }
 }

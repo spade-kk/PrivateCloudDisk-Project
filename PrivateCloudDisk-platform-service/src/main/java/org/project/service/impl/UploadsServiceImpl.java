@@ -44,7 +44,7 @@ public class UploadsServiceImpl implements UploadsService {
         }
 
         // 检查同目录下是否已存在同名文件
-        List<FileEntity> fileDataList = fileService.queryUserFilesByNodeId(node_id, user_id);
+        List<FileEntity> fileDataList = fileMapper.findUserExistFilesByNodeId(node_id, user_id);
         for (FileEntity fileData : fileDataList) {
             if(fileData.getName().equals(file_name)) {
                 throw new FileNameDuplicatedException("同目录下已存在同名文件");
@@ -188,7 +188,7 @@ public class UploadsServiceImpl implements UploadsService {
         if(uploadsSessionData.getStatus() != UploadsSessionEntity.UploadsSessionStatus.merging) {
             throw new UploadsSessionStatusException("上传会话状态错误");
         }
-        // 调用文件服务创建文件
+        // 调用文件服务更新文件状态 合并成功
         fileService.mergedFile(file_id, file_storage_path, user_id);
 
         // 删除上传会话数据 会自动把关联的分块数据也删除
@@ -197,8 +197,8 @@ public class UploadsServiceImpl implements UploadsService {
 
     @Transactional
     public void activateFileStatus(UUID file_id, UUID user_id) {
-        FileEntity fileData = fileService.findUserFileByIdIfExist(file_id, user_id);
-        if(fileData == null) {
+        FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
+        if (fileData == null || fileMapper.isFileDeleted(file_id, user_id)) {
             throw new FileNotExistException();
         }
 

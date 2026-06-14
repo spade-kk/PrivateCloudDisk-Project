@@ -1,14 +1,18 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
-    <!-- 路径导航 -->
-    <div class="responsive-panel p-3 sm:p-4">
-      <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
+    <!-- 工作区位置与状态 -->
+    <div class="responsive-panel dashboard-location-panel p-3 sm:p-4">
+      <div class="min-w-0 flex-1">
+        <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
+      </div>
+      <WorkspaceOverview
+        class="dashboard-location-overview"
+        :nodes="fileBrowserStore.nodes"
+        :selected-count="selectionStore.selectedIds.size"
+        :path-depth="fileBrowserStore.pathStack.length"
+      />
     </div>
-    <WorkspaceOverview
-      :nodes="fileBrowserStore.nodes"
-      :selected-count="selectionStore.selectedIds.size"
-      :path-depth="fileBrowserStore.pathStack.length"
-    />
+
     <!-- 原有操作栏 -->
     <div class="responsive-panel flex flex-col gap-4 p-3 sm:p-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 md:flex-nowrap">
@@ -86,24 +90,12 @@
 
     <!-- 各种弹窗/抽屉 -->
     <CreateFolderModal :visible="showCreateModal" @close="showCreateModal = false" @confirm="handleCreateFolder" />
-    <UploadConfirmModal :visible="uploadConfirmVisible" :file="selectedFile" @close="uploadConfirmVisible = false" @confirm="startUploadConfirmed" />
+    <UploadConfirmModal :visible="uploadConfirmVisible" :file="selectedFile" @close="closeUploadConfirm" @confirm="startUploadConfirmed" />
     <DownloadConfirmModal :visible="downloadModalVisible" :fileName="pendingDownload?.node_name" @close="downloadModalVisible = false" @confirm="executeDownload" />
     <RenameDialog :visible="renameVisible" :currentName="renameTarget?.node_name" @close="renameVisible = false" @confirm="handleRename" />
     <MoveCopyDialog :visible="moveVisible" :mode="moveMode" @close="moveVisible = false" @confirm="handleMoveCopy" />
     <FileDetailDrawer :visible="detailVisible" :node="detailNode" @close="detailVisible = false" />
     <FilePreview :visible="previewVisible" :node="previewNode" @close="previewVisible = false" />
-    <UploadProgressPanel 
-      :visible="uploaderStore.isUploading"
-      :minimized="uploadMinimized"
-      :progress="uploaderStore.uploadProgress"
-      :speed="uploaderStore.uploadSpeed"
-      :fileName="uploaderStore.uploadFileName"
-      :paused="uploaderStore.uploadPaused"
-      @minimize="uploadMinimized = true"
-      @restore="uploadMinimized = false"
-      @togglePause="toggleUploadPause"
-      @cancel="cancelUpload"
-    />
     <!-- 模态框组件 -->
     <!-- <LoginModal v-if="false" />  -->
   </div>
@@ -125,7 +117,6 @@ import FileListView from '@/components/file/FileListView.vue'
 import CreateFolderModal from '@/components/modals/CreateFolderModal.vue'
 import DownloadConfirmModal from '@/components/modals/DownloadConfirmModal.vue'
 import UploadConfirmModal from '@/components/modals/UploadConfirmModal.vue'
-import UploadProgressPanel from '@/components/upload/UploadProgressPanel.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import PageState from '@/components/common/PageState.vue'
@@ -162,7 +153,6 @@ const downloadModalVisible = ref(false)
 const uploadConfirmVisible = ref(false)
 const selectedFile = ref(null)
 const pendingDownload = ref(null)
-const uploadMinimized = ref(false)
 const fileInputRef = ref(null)
 
 const filteredNodes = computed(() => fileBrowserStore.filteredNodes)
@@ -183,13 +173,6 @@ watch(() => route.query.node, async (nodeId) => {
     await fileBrowserStore.loadChildren(nodeId)
   }
 })
-
-// 监听上传完成，自动合并
-watch(() => uploaderStore.chunksStatus, (newVal) => {
-  if (newVal.length > 0 && newVal.every(c => c.status === 'success')) {
-    uploaderStore.completeUpload()
-  }
-}, { deep: true })
 
 function goHome() {
   fileBrowserStore.goHome()
@@ -355,9 +338,7 @@ async function executeDownload() {
   downloadModalVisible.value = false
   const { node_id, node_name, node_size } = pendingDownload.value
   try {
-    const blob = await downloaderStore.downloadFile(node_id, node_size, (percent) => {
-      console.log(`下载进度: ${percent.toFixed(2)}%`)
-    })
+    const blob = await downloaderStore.downloadFile(node_id, node_size, node_name)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -372,7 +353,7 @@ async function executeDownload() {
 
 
 function triggerFileSelect() {
-  fileInputRef.value.click()
+  fileInputRef.value?.click()
 }
 
 function onFileSelected(e) {
@@ -383,6 +364,11 @@ function onFileSelected(e) {
   e.target.value = ''
 }
 
+function closeUploadConfirm() {
+  uploadConfirmVisible.value = false
+  selectedFile.value = null
+}
+
 // 批量操作
 const toggleSelect = (id, type) => selectionStore.toggleSelect(id, type)
 const clearSelection = () => selectionStore.clearSelection()
@@ -391,20 +377,8 @@ function startUploadConfirmed() {
   uploadConfirmVisible.value = false
   if (selectedFile.value) {
     uploaderStore.startUpload(selectedFile.value)
+    selectedFile.value = null
   }
-}
-
-function toggleUploadPause() {
-  if (uploaderStore.uploadPaused) {
-    uploaderStore.resumeUpload()
-  } else {
-    uploaderStore.pauseUpload()
-  }
-}
-
-function cancelUpload() {
-  uploaderStore.cancelUpload(false)
-  uploadMinimized.value = false
 }
 
 function logout() {
@@ -412,3 +386,26 @@ function logout() {
   router.push('/login')
 }
 </script>
+
+<style scoped>
+.dashboard-location-panel {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.dashboard-location-overview {
+  width: min(420px, 34%);
+  flex-shrink: 0;
+}
+
+@media (max-width: 1180px) {
+  .dashboard-location-panel {
+    flex-direction: column;
+  }
+
+  .dashboard-location-overview {
+    width: 100%;
+  }
+}
+</style>

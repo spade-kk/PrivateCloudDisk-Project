@@ -15,11 +15,11 @@
     @apply bg-neutral-100 text-neutral-700 min-h-screen font-inter;
     margin: 0;
     overflow-x: hidden;
-    overflow-y: hidden;
+    overflow-y: auto;
   }
   #app {
-    height: 100vh;
-    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
   button,
   input,

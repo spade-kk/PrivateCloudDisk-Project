@@ -33,20 +33,38 @@ export function createUploadsSessionApi(total_chunks, file_size, file_checksum, 
  * @returns {Promise}
  */
 export function uploadFileChunkApi(uploads_id, chunk_index, upload_file_chunk, signal) {
-  let data = {
-    chunk_index: chunk_index,
-    file: upload_file_chunk
-  };
+  const data = new FormData();
+  data.append('chunk_index', String(chunk_index));
+  data.append('file', upload_file_chunk);
   return post(`files/uploads/${uploads_id}/chunks`, data, { 
-    signal: signal, 
-    headers: { 'Content-Type': 'multipart/form-data' } 
+    signal: signal,
+    timeout: 0,
   });
 }
 /**
  * 完成上传会话，通知服务器合并文件切片
+ * 注意：此接口现在返回的是异步任务ID，不代表文件已合并完成
+ * 返回格式：{ code: 200, data: { task_id, file_id, status: "processing", message: "..." } }
  * @param {*} uploads_id -上传ID
  * @returns {Promise}
  */
 export function completeUploadSessionApi(uploads_id) {
   return post(`files/uploads/${uploads_id}/merge`);
+}
+
+/**
+ * 查询文件处理任务状态（轮询用）
+ * 返回格式：{ code: 200, data: { task_id, file_id, status, current_step, steps[] } }
+ * status: "pending" | "processing" | "completed" | "failed" | "cancelled"
+ * current_step: "merge" | "hash_calculate" | "virus_scan" | "thumbnail" | "video_transcode" | "mark_active"
+ * 
+ * TODO: 后续可替换为 WebSocket 推送通知，避免轮询开销
+ * WebSocket 方案：服务端在任务状态变更时通过 WebSocket 推送 task_id + status
+ * 前端收到通知后更新对应任务状态，status === "completed" 时刷新文件列表
+ * 
+ * @param {String} task_id -任务ID
+ * @returns {Promise}
+ */
+export function getTaskStatusApi(task_id) {
+  return get(`files/tasks/${task_id}`);
 }

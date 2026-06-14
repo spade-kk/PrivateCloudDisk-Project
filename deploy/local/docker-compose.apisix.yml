@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  apisix:
+    context: ./apisix
+    dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "9080:9080"   # HTTP 代理端口
+      - "9443:9443"   # HTTPS 代理端口
+      - "9180:9180"   # Admin API 端口（管理接口）
+    volumes:
+      - ../../PrivateCloudDisk-api-security/apisix/conf/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ../../PrivateCloudDisk-api-security/apisix/conf/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro

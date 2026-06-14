@@ -35,7 +35,7 @@ public interface FileService {
      * @param user_id 查询用户Uid
      * @return 文件元数据列表
      */
-    List<FileEntity> queryUserFilesByNodeId(UUID node_id, UUID user_id);
+    List<FileEntity> queryUserActiveFilesByNodeId(UUID node_id, UUID user_id);
 
     /**
      * 根据文件ID查询用户云盘下文件元数据
@@ -44,6 +44,14 @@ public interface FileService {
      * @return 文件元数据
      */
     FileEntity queryUserFileById(UUID file_id, UUID user_id);
+
+    /**
+     *
+     * @param file_id
+     * @param user_id
+     * @return
+     */
+    FileEntity findUserFileByIdIfActive(UUID file_id, UUID user_id);
 
     /**
      *
@@ -97,4 +105,19 @@ public interface FileService {
      * @param user_id 用户ID
      */
     void deleteFileToTrash(UUID file_id, UUID user_id);
+
+    /**
+     *
+     * @param file_id
+     * @param user_id
+     */
+    void completeDeleteFileByFileId(UUID file_id, UUID user_id);
+
+    /**
+     *
+     * @param file_id
+     * @param status
+     * @param user_id
+     */
+    void updateFileStatus(UUID file_id, String status, UUID user_id);
 }

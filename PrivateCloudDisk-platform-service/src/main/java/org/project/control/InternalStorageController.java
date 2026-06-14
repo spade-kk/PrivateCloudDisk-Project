@@ -3,6 +3,7 @@ package org.project.control;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import org.opensearch.common.recycler.Recycler;
 import org.project.config.RabbitMQConifgure;
 import org.project.control.result.JsonResult;
 import org.project.model.entity.FileEntity;
@@ -141,4 +142,17 @@ public class InternalStorageController extends BaseController {
         uploadsService.activateFileStatus(UUID.fromString(file_id), UUID.fromString(uid));
         return new JsonResult<>(OK);
     }
+
+    @PatchMapping("files/{file_id}/status")
+    public JsonResult<Void> update_file_state(@PathVariable String file_id, @RequestParam String status, @RequestParam String uid) {
+        fileService.updateFileStatus(UUID.fromString(file_id), status, UUID.fromString(uid));
+        return new JsonResult<>(OK);
+    }
+
+    @PostMapping("files/{file_id}/delete-complete")
+    public JsonResult<Void> file_delete_complete(@PathVariable String file_id, @RequestParam String uid) {
+        fileService.completeDeleteFileByFileId(UUID.fromString(file_id), UUID.fromString(uid));
+        return new JsonResult<>(OK);
+    }
+
 }

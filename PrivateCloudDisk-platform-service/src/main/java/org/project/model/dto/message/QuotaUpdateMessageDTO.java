@@ -21,23 +21,23 @@ public class QuotaUpdateMessageDTO implements Serializable {
     private static final long serialVersionUID = 1L;
     
     /** 消息ID */
-    private String messageId;
+    private String message_id;
     
     /** 用户ID */
-    private String userId;
+    private String user_id;
     
     /** 更新类型：FILE_UPLOAD-文件上传, FILE_DELETE-文件删除, RECALCULATE-重新计算 */
-    private String updateType;
+    private String update_id;
     
     /** 变更字节数（正为增加，负为减少） */
-    private Long changeBytes;
+    private Long change_bytes;
     
     /** 文件数量变更（正为增加，负为减少） */
-    private Integer changeFileCount;
+    private Integer change_file_count;
     
     /** 创建时间 */
-    private LocalDateTime createdAt;
+    private LocalDateTime create_at;
     
     /** 额外参数（JSON格式） */
-    private String extraParams;
+    private String extra_params;
 }

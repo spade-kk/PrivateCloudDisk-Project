@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.project.model.entity.FileEntity.FileStatus.*;
+
 @Service
 public class FileServiceImpl implements FileService {
     @Autowired
@@ -64,8 +66,8 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public void mergedFile(UUID file_id, String storage_path, UUID user_id) {
-        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
-        if(fileData == null) {
+        FileEntity fileEntity = fileMapper.findUserFileById(file_id, user_id);
+        if (fileEntity == null || fileMapper.isFileDeleted(file_id, user_id)) {
             throw new FileNotExistException();
         }
 
@@ -77,19 +79,19 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public List<FileEntity> queryUserFilesByNodeId(UUID node_id, UUID user_id) {
+    public List<FileEntity> queryUserActiveFilesByNodeId(UUID node_id, UUID user_id) {
         // 检查节点是否存在
         FolderNodeEntity node = directoryTreeService.findUserFolderNodeIfExist(node_id, user_id);
         if(node == null) {
             throw new NodeNotExistException("节点不存在");
         }
 
-        return fileMapper.findUserFilesByNodeId(node_id, user_id);
+        return fileMapper.findUserActiveFilesByNodeId(node_id, user_id);
     }
 
     @Override
     public FileEntity queryUserFileById(UUID file_id, UUID user_id) {
-        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfActive(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
@@ -99,7 +101,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public void updateFileName(UUID file_id, String file_new_name, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfActive(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
@@ -114,7 +116,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public void moveFileByFileId(UUID file_id, UUID target_node_id, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfActive(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
@@ -134,7 +136,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public void deleteFileByFileId(UUID file_id, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfActive(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
@@ -149,7 +151,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public void deleteFileToTrash(UUID file_id, UUID user_id) {
         // 检查文件是否存在
-        FileEntity fileData = findUserFileByIdIfExist(file_id, user_id);
+        FileEntity fileData = findUserFileByIdIfActive(file_id, user_id);
         if(fileData == null) {
             throw new FileNotExistException();
         }
@@ -158,6 +160,34 @@ public class FileServiceImpl implements FileService {
         if(rows!= 1) {
             throw new UpdateException("文件删除移动到垃圾站失败");
         }
+    }
+
+    @Override
+    public void completeDeleteFileByFileId(UUID file_id, UUID user_id) {
+        FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
+        if(fileData == null) {
+            throw new FileNotExistException();
+        }
+
+        if(!fileData.getStatus().equals(deleted)) {
+            throw new FileStatusException("complete delete file status is not deleted");
+        }
+
+        Integer rows = fileMapper.deleteUserFileById(file_id, user_id);
+        if(rows != 1) {
+            throw new DeleteException("SQL Delete Error");
+        }
+    }
+
+    @Override
+    public FileEntity findUserFileByIdIfActive(UUID file_id, UUID user_id) {
+        FileEntity fileEntity = fileMapper.findUserFileById(file_id, user_id);
+        if (fileEntity == null) return null;
+
+        if (!fileEntity.getStatus().equals(active)) return null;
+
+        if (fileMapper.isFileDeleted(file_id, user_id)) return null;
+        return fileEntity;
     }
 
     @Override
@@ -173,9 +203,14 @@ public class FileServiceImpl implements FileService {
     public FileEntity.FileStatus getFileValidStatus(UUID file_id, UUID user_id) {
         FileEntity fileEntity = fileMapper.findUserFileById(file_id, user_id);
         if(fileEntity == null) return null;
-        String effectiveStatus = fileMapper.selectFileEffectiveStatus(file_id, user_id);
 
-        return FileEntity.FileStatus.valueOf(effectiveStatus);
+        if(fileEntity.getStatus().equals(active)) {
+            String effectiveStatus = fileMapper.selectFileEffectiveStatus(file_id, user_id);
+
+            return FileEntity.FileStatus.valueOf(effectiveStatus);
+        }
+
+        return fileEntity.getStatus();
     }
 
     @Override
@@ -185,5 +220,25 @@ public class FileServiceImpl implements FileService {
 
         if (fileMapper.isFileDeleted(fileEntity.getId(), user_id)) return null;
         return fileEntity;
+    }
+
+    @Override
+    public void updateFileStatus(UUID file_id, String status, UUID user_id) {
+        FileEntity fileEntity = fileMapper.findUserFileById(file_id, user_id);
+        if (fileEntity == null || fileMapper.isFileDeleted(file_id, user_id)) {
+            throw new FileNotExistException();
+        }
+
+        if(merge_failed.equals(status) && !fileEntity.getStatus().equals(FileEntity.FileStatus.merging)) {
+            fileMapper.updateUserFileStatusById(file_id, merge_failed, user_id);
+        } else if(scan_failed.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.scanning)) {
+            fileMapper.updateUserFileStatusById(file_id, scan_failed, user_id);
+        } else if(reject.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.scanning)) {
+            fileMapper.updateUserFileStatusById(file_id, reject, user_id);
+        } else if(FileEntity.FileStatus.scanning.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.merged)) {
+            fileMapper.updateUserFileStatusById(file_id, scanning, user_id);
+        }
+
+        throw new FileStatusException("File State Error");
     }
 }

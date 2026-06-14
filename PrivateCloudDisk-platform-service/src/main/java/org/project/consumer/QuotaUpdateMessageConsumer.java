@@ -28,16 +28,16 @@ public class QuotaUpdateMessageConsumer {
     @RabbitListener(queues = RabbitMQConifgure.QUOTA_UPDATE_QUEUE)
     public void consumeQuotaUpdateMessage(QuotaUpdateMessageDTO message) {
         log.info("收到配额更新消息: messageId={}, userId={}, updateType={}", 
-                message.getMessageId(), message.getUserId(), message.getUpdateType());
+                message.getMessage_id(), message.getUser_id(), message.getUpdate_id());
         
         try {
-            QuotaEntity quota = quotaMapper.findQuotaByUserId(UUID.fromString(message.getUserId()));
+            QuotaEntity quota = quotaMapper.findQuotaByUserId(UUID.fromString(message.getUser_id()));
             if (quota == null) {
-                log.warn("用户配额不存在: userId={}", message.getUserId());
+                log.warn("用户配额不存在: userId={}", message.getUser_id());
                 return;
             }
             
-            switch (message.getUpdateType()) {
+            switch (message.getUpdate_id()) {
                 case "FILE_UPLOAD":
                     handleFileUpload(quota, message);
                     break;
@@ -48,12 +48,12 @@ public class QuotaUpdateMessageConsumer {
                     handleRecalculate(quota, message);
                     break;
                 default:
-                    log.warn("未知的配额更新类型: {}", message.getUpdateType());
+                    log.warn("未知的配额更新类型: {}", message.getUpdate_id());
             }
             
         } catch (Exception e) {
             log.error("处理配额更新消息失败: messageId={}, error={}", 
-                    message.getMessageId(), e.getMessage(), e);
+                    message.getMessage_id(), e.getMessage(), e);
         }
     }
     
@@ -61,8 +61,8 @@ public class QuotaUpdateMessageConsumer {
      * 处理文件上传的配额更新
      */
     private void handleFileUpload(QuotaEntity quota, QuotaUpdateMessageDTO message) {
-        Long newUsedCapacity = quota.getUsed_capacity() + message.getChangeBytes();
-        Integer newFileCount = quota.getFile_count() + message.getChangeFileCount();
+        Long newUsedCapacity = quota.getUsed_capacity() + message.getChange_bytes();
+        Integer newFileCount = quota.getFile_count() + message.getChange_file_count();
         
         quota.setUsed_capacity(newUsedCapacity);
         quota.setFile_count(newFileCount);
@@ -77,8 +77,8 @@ public class QuotaUpdateMessageConsumer {
      * 处理文件删除的配额更新
      */
     private void handleFileDelete(QuotaEntity quota, QuotaUpdateMessageDTO message) {
-        Long newUsedCapacity = quota.getUsed_capacity() + message.getChangeBytes();
-        Integer newFileCount = quota.getFile_count() + message.getChangeFileCount();
+        Long newUsedCapacity = quota.getUsed_capacity() + message.getChange_bytes();
+        Integer newFileCount = quota.getFile_count() + message.getChange_file_count();
         
         // 确保不会出现负数
         newUsedCapacity = Math.max(0, newUsedCapacity);

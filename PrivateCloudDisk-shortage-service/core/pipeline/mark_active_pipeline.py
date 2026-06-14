@@ -48,8 +48,7 @@ class MarkActivePipeline:
                 await NotificationService.notify_file_status(
                     file_id=file_id,
                     status="active",
-                    thumbnails=thumbnails,
-                    transcoded=transcoded,
+                    user_id=user_id
                 )
 
             logger.info(f"文件已标记为活跃: file_id={file_id}")

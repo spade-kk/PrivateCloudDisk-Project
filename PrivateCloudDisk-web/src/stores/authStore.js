@@ -2,12 +2,16 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { loginApi } from '@/api/index'
 import { getMyUserInfoApi } from '@/api/modules/users'
+import { cookie } from '@/utils/cookie'
+
+const TOKEN_COOKIE_KEY = 'cloud_drive_token'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('cloudDriveToken') || '')
+  // 初始化时从 cookie 读取 token（而非 localStorage）
+  const token = ref(cookie.get(TOKEN_COOKIE_KEY) || '')
   const isLoggedIn = computed(() => !!token.value)
 
-  // --- 用户资料（官网头部显示用）---
+  // --- 用户资料（控制台头部显示用）---
   const user = ref({
     name: '',
     account: '',
@@ -47,11 +51,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(phoneNumber, password, captchaToken = '') {
     try {
-      const res = await loginApi(phoneNumber, password, captchaToken, 'login');
+      const res = await loginApi(phoneNumber, password, captchaToken, 'login')
 
       if (res.code === 200) {
         token.value = res.data
-        localStorage.setItem('cloudDriveToken', token.value)
+        // 将 token 存入 cookie（Secure + SameSite，HTTPS 下更安全）
+        cookie.set(TOKEN_COOKIE_KEY, token.value, { days: 7 })
         // 登录成功后预加载用户信息
         fetchUserInfo()
         return { success: true }
@@ -68,6 +73,9 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     token.value = ''
     user.value = { name: '', account: '', email: '', phone_number: '', image_path: '' }
+    // 清除 cookie 中的 token
+    cookie.remove(TOKEN_COOKIE_KEY)
+    // 兼容旧版：同时清除 localStorage 中的旧 token
     localStorage.removeItem('cloudDriveToken')
   }
 

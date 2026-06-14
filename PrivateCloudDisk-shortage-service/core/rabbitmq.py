@@ -1,6 +1,15 @@
+"""
+RabbitMQ 消息队列服务 - 支持多队列独立并发控制
+
+核心改进：
+- 每个队列独立 prefetch_count，避免重型任务阻塞其他消息
+- 支持并发消息处理（asyncio 协程级并发）
+- 独立 Worker 进程专用，与 FastAPI 主进程完全解耦
+"""
 import json
-import logging
 import asyncio
+import time
+import logging
 import aio_pika
 import aio_pika.exceptions
 from aio_pika import Message, ExchangeType, DeliveryMode
@@ -11,7 +20,7 @@ logger = get_logger("core.rabbitmq")
 
 
 class RabbitMQService:
-    """RabbitMQ 消息队列服务 (支持 DLX/DLQ)"""
+    """RabbitMQ 消息队列服务 (支持 DLX/DLQ + 独立并发控制)"""
 
     def __init__(self):
         self.connection = None
@@ -30,8 +39,8 @@ class RabbitMQService:
                 connection_url,
                 heartbeat=60,
             )
+            # 创建一个专用 channel 用于声明拓扑
             self.channel = await self.connection.channel()
-            await self.channel.set_qos(prefetch_count=1)
 
             await self._declare_all()
             logger.info("RabbitMQ 连接成功")
@@ -117,7 +126,7 @@ class RabbitMQService:
             settings.file_process_dlq,
             durable=True,
             arguments={
-                "x-message-ttl": 2592000000,  # 30 天 TTL (死信保留更久)
+                "x-message-ttl": 2592000000,  # 30 天 TTL
             },
         )
         await fp_dlq.bind(
@@ -185,7 +194,7 @@ class RabbitMQService:
         ci_queue = await self._declare_queue_safe(
             settings.content_index_queue,
             arguments={
-                "x-message-ttl": 604800000,  # 7 天 TTL
+                "x-message-ttl": 604800000,  # 7 天
                 "x-dead-letter-exchange": settings.content_index_dlx,
                 "x-dead-letter-routing-key": settings.content_index_dlq_routing_key,
             },
@@ -218,22 +227,8 @@ class RabbitMQService:
     async def _declare_queue_safe(
         self, queue_name: str, arguments: dict
     ) -> aio_pika.Queue:
-        """
-        安全声明队列：先被动检查是否存在，不存在则创建带 DLX 参数
-
-        策略：
-        1. passive=True 检查队列是否存在 → 存在则直接返回（不修改参数）
-        2. 若不存在 → 创建新队列并附带 DLX 参数
-
-        Args:
-            queue_name: 队列名称
-            arguments: 期望的队列参数 (仅新建时使用)
-
-        Returns:
-            aio_pika.Queue 实例
-        """
+        """安全声明队列：先被动检查是否存在，不存在则创建带 DLX 参数"""
         try:
-            # 先被动检查队列是否存在（不修改任何参数）
             queue = await self.channel.declare_queue(
                 queue_name,
                 durable=True,
@@ -242,7 +237,6 @@ class RabbitMQService:
             logger.info(f"队列已存在，沿用已有配置: {queue_name}")
             return queue
         except Exception:
-            # 队列不存在，等待 channel 重连后创建
             await asyncio.sleep(0.5)
             queue = await self.channel.declare_queue(
                 queue_name,
@@ -259,15 +253,7 @@ class RabbitMQService:
         message: dict,
         delay_seconds: int = 0,
     ) -> None:
-        """
-        发布消息
-
-        Args:
-            exchange_name: 交换机名称
-            routing_key: 路由键
-            message: 消息体字典
-            delay_seconds: 延迟秒数 (用于指数退避重试，0 表示立即)
-        """
+        """发布消息"""
         try:
             if exchange_name not in self.exchanges:
                 raise ValueError(f"Exchange {exchange_name} not found")
@@ -288,7 +274,6 @@ class RabbitMQService:
             }
 
             if delay_seconds > 0:
-                # 使用 TTL 实现延迟消息
                 msg_kwargs["expiration"] = str(delay_seconds * 1000)
 
             await exchange.publish(
@@ -298,7 +283,7 @@ class RabbitMQService:
 
             logger.debug(
                 f"消息已发布: exchange={exchange_name}, rk={routing_key}, "
-                f"message_id={message.get('message_id', 'N/A')[:8]}..., "
+                f"message_id={message.get('message_id', 'N/A')[:8]}... "
                 f"delay={delay_seconds}s"
             )
         except Exception as e:
@@ -311,10 +296,7 @@ class RabbitMQService:
         routing_key: str,
         message: dict,
     ) -> None:
-        """
-        发布消息到死信队列 (DLQ)
-        用于重试耗尽后，将消息路由到 DLQ 等待人工处理
-        """
+        """发布消息到死信队列 (DLQ)"""
         logger.warning(
             f"发布到 DLQ: message_id={message.get('message_id', 'N/A')[:8]}..., "
             f"task_type={message.get('task_type')}, "
@@ -330,16 +312,90 @@ class RabbitMQService:
             message,
         )
 
-    async def consume(self, queue_name: str, callback):
-        """消费指定队列的消息"""
+    async def consume(
+        self,
+        queue_name: str,
+        callback,
+        prefetch_count: int = 4,
+        max_concurrency: int = 8,
+    ):
+        """
+        消费指定队列的消息（支持并发控制）
+
+        核心改进：
+        - 每个队列独立的 prefetch_count，控制 RabbitMQ 预取数量
+        - 使用 Semaphore 限制协程级并发数，防止 OOM
+        - 重型任务（视频转码等）不会阻塞其他消息的消费
+
+        Args:
+            queue_name: 队列名称
+            callback: 消息处理回调函数 (async)
+            prefetch_count: RabbitMQ prefetch 数量（预取到客户端的消息数）
+            max_concurrency: 最大协程并发数（Semaphore 限制）
+        """
         try:
-            queue = await self.channel.declare_queue(
+            # 为每个消费者创建独立的 channel，实现独立的 prefetch 控制
+            consumer_channel = await self.connection.channel()
+            await consumer_channel.set_qos(prefetch_count=prefetch_count)
+
+            queue = await consumer_channel.declare_queue(
                 queue_name, durable=True, passive=True,
             )
-            await queue.consume(callback)
-            logger.info(f"消费者启动: queue={queue_name}")
+
+            # 并发信号量
+            semaphore = asyncio.Semaphore(max_concurrency)
+
+            async def concurrent_handler(raw_message):
+                """包装回调：加并发控制 + 详细日志，确保消息处理完后 ACK/NACK"""
+                msg_id = (
+                    raw_message.message_id[:8]
+                    if raw_message.message_id else "?"
+                )
+
+                # 等待 Semaphore (即等待处理槽位)
+                acquire_start = time.monotonic()
+                async with semaphore:
+                    wait_ms = (time.monotonic() - acquire_start) * 1000
+                    available = semaphore._value  # 剩余可用槽位
+                    logger.info(
+                        f"[MQ-RECV] queue={queue_name} "
+                        f"msg_id={msg_id} "
+                        f"slots_avail={available}/{max_concurrency} "
+                        f"wait_ms={wait_ms:.1f}"
+                    )
+
+                    try:
+                        await callback(raw_message)
+                    except Exception as e:
+                        logger.error(
+                            f"[MQ-ERR] queue={queue_name} "
+                            f"msg_id={msg_id} "
+                            f"error={e}",
+                            exc_info=True,
+                        )
+                        try:
+                            await raw_message.nack(requeue=True)
+                        except Exception:
+                            pass
+
+                    logger.debug(
+                        f"[MQ-DONE] queue={queue_name} "
+                        f"msg_id={msg_id} "
+                        f"slots_avail={semaphore._value + 1}/{max_concurrency}"
+                    )
+
+            await queue.consume(concurrent_handler)
+
+            logger.info(
+                f"消费者启动: queue={queue_name}, "
+                f"prefetch={prefetch_count}, "
+                f"max_concurrency={max_concurrency}"
+            )
         except Exception as e:
-            logger.error(f"消费者启动失败: queue={queue_name}, error={e}", exc_info=True)
+            logger.error(
+                f"消费者启动失败: queue={queue_name}, error={e}",
+                exc_info=True,
+            )
             raise
 
     async def close(self):

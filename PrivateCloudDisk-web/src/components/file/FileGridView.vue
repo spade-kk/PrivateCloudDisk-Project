@@ -1,41 +1,42 @@
 <template>
-  <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 sm:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] sm:gap-4 xl:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+  <div class="finder-grid">
     <div
       v-for="node in nodes"
       :key="node.node_id"
-      class="group relative min-h-[150px] cursor-pointer rounded-lg bg-white p-3 shadow-card transition-all duration-200 hover:-translate-y-1 hover:shadow-hover sm:min-h-[166px]"
-      :class="{ 'ring-2 ring-primary': isSelected(node.node_id) }"
+      class="finder-item group"
+      :class="{ 'is-selected': isSelected(node.node_id) }"
+      @click="$emit('itemClick', node)"
     >
       <!-- 复选框 -->
-      <div class="absolute top-2 left-2 z-10" @click.stop>
+      <div class="finder-control finder-checkbox" @click.stop>
         <input
           type="checkbox"
           :checked="isSelected(node.node_id)"
           @change="toggleSelect(node.node_id, node.node_type)"
-          class="w-4 h-4 text-primary rounded border-neutral-300 focus:ring-primary"
+          class="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary"
         />
       </div>
       <!-- 星标按钮 -->
-      <div class="absolute top-2 right-2 z-10" @click.stop>
-        <button @click="$emit('star', node)" class="text-neutral-300 hover:text-warning transition">
+      <div class="finder-control finder-star" @click.stop>
+        <button @click="$emit('star', node)" class="rounded-full px-1.5 py-1 text-neutral-300 transition hover:bg-white/80 hover:text-warning">
           <i :class="isStarred(node.node_id) ? 'fa fa-star text-warning' : 'fa fa-star-o'"></i>
         </button>
       </div>
       <!-- 内容 -->
-      <div class="flex h-full flex-col items-center justify-center pt-4" @click="$emit('itemClick', node)">
-        <div class="mb-3 flex h-14 w-14 items-center justify-center rounded-lg bg-neutral-50 sm:h-16 sm:w-16">
+      <div class="finder-content">
+        <div class="finder-icon">
           <i :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary text-3xl' : 'text-2xl sm:text-3xl']"></i>
         </div>
-        <h3 class="text-ellipsis-1 w-full text-center text-sm font-medium text-neutral-700 sm:text-base">{{ node.node_name }}</h3>
-        <p class="text-xs text-neutral-400 mt-1">{{ node.node_type === 'FOLDER' ? '文件夹' : getFileExtension(node.node_name) }}</p>
+        <h3 class="finder-name text-ellipsis-2">{{ node.node_name }}</h3>
+        <p class="finder-meta">{{ node.node_type === 'FOLDER' ? '文件夹' : getFileExtension(node.node_name) }}</p>
       </div>
       <!-- 操作菜单（悬浮显示） -->
-      <div class="absolute bottom-2 right-2 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
-        <div class="flex space-x-1 bg-white rounded shadow p-1">
-          <button @click.stop="$emit('action', node, 'download')" class="text-primary text-xs p-1 hover:bg-neutral-100 rounded" title="下载"><i class="fa fa-download"></i></button>
-          <button @click.stop="$emit('action', node, 'rename')" class="text-neutral-500 text-xs p-1 hover:bg-neutral-100 rounded" title="重命名"><i class="fa fa-pencil"></i></button>
-          <button @click.stop="$emit('action', node, 'delete')" class="text-danger text-xs p-1 hover:bg-neutral-100 rounded" title="删除"><i class="fa fa-trash"></i></button>
-          <button @click.stop="$emit('action', node, 'detail')" class="text-neutral-500 text-xs p-1 hover:bg-neutral-100 rounded" title="详情"><i class="fa fa-info-circle"></i></button>
+      <div class="finder-actions" @click.stop>
+        <div class="flex items-center gap-0.5 rounded-full border border-neutral-200/80 bg-white/95 p-1 shadow-card backdrop-blur">
+          <button @click="$emit('action', node, 'download')" class="finder-action-btn text-primary" title="下载"><i class="fa fa-download"></i></button>
+          <button @click="$emit('action', node, 'rename')" class="finder-action-btn text-neutral-500" title="重命名"><i class="fa fa-pencil"></i></button>
+          <button @click="$emit('action', node, 'delete')" class="finder-action-btn text-danger" title="删除"><i class="fa fa-trash"></i></button>
+          <button @click="$emit('action', node, 'detail')" class="finder-action-btn text-neutral-500" title="详情"><i class="fa fa-info-circle"></i></button>
         </div>
       </div>
     </div>
@@ -61,13 +62,184 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
 </script>
 
 <style scoped>
-.text-ellipsis-1 {
+.finder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 124px));
+  justify-content: space-between;
+  gap: 30px 24px;
+  padding: 6px 2px 18px;
+}
+
+.finder-item {
+  position: relative;
+  min-height: 132px;
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 12px 8px 10px;
+  color: #303133;
+  outline: 1px solid transparent;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    outline-color 160ms ease,
+    transform 160ms ease;
+}
+
+.finder-item:hover,
+.finder-item.is-selected {
+  background: rgba(22, 93, 255, 0.06);
+}
+
+.finder-item:hover {
+  transform: translateY(-1px);
+  outline-color: rgba(22, 93, 255, 0.08);
+}
+
+.finder-item.is-selected {
+  background: rgba(22, 93, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(22, 93, 255, 0.2);
+}
+
+.finder-content {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+.finder-icon {
+  display: flex;
+  height: 64px;
+  width: 64px;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 8px 10px rgba(31, 41, 55, 0.08));
+}
+
+.finder-name {
+  margin-top: 8px;
+  width: 100%;
+  min-height: 36px;
+  color: #303133;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  word-break: break-word;
+}
+
+.finder-meta {
+  margin-top: 2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #909399;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.finder-control {
+  position: absolute;
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.finder-checkbox {
+  left: 8px;
+  top: 8px;
+}
+
+.finder-star {
+  right: 7px;
+  top: 5px;
+}
+
+.finder-actions {
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  z-index: 20;
+  opacity: 1;
+  transform: translateX(-50%);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.finder-action-btn {
+  display: inline-flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 12px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.finder-action-btn:hover {
+  background: #f5f7fa;
+}
+
+.text-ellipsis-2 {
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.group:hover .group-hover\:opacity-100 {
-  opacity: 1;
+
+@media (hover: hover) and (pointer: fine) {
+  .finder-control,
+  .finder-actions {
+    opacity: 0;
+  }
+
+  .finder-item:hover .finder-control,
+  .finder-item:hover .finder-actions,
+  .finder-item.is-selected .finder-control,
+  .finder-item.is-selected .finder-actions {
+    opacity: 1;
+  }
+
+  .finder-actions {
+    transform: translateX(-50%) translateY(4px);
+  }
+
+  .finder-item:hover .finder-actions,
+  .finder-item.is-selected .finder-actions {
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  .finder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 132px));
+    gap: 38px 28px;
+    padding: 10px 4px 24px;
+  }
+
+  .finder-item {
+    min-height: 146px;
+    padding-top: 14px;
+  }
+
+  .finder-icon {
+    height: 72px;
+    width: 72px;
+  }
+
+  .finder-name {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .finder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 18px 12px;
+  }
 }
 </style>

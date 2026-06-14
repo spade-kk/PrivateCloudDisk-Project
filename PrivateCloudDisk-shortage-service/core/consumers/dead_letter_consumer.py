@@ -140,6 +140,17 @@ class DeadLetterConsumer:
         if os.path.exists(final_path):
             os.remove(final_path)
 
+        if data.get("failure_reason", FailureReason.UNKNOWN) == FailureReason.MERGE_IO_ERROR:
+            try:
+                await NotificationService.notify_file_status(
+                    file_id=data.get("file_id", ""),
+                    status="merge_failed",
+                    user_id=data.get("user_id"),
+                    error_message=f"合并 I/O 错误"
+                )
+            except Exception as e:
+                logger.error(f"通知业务服务失败: {e}")
+
         await self._log_dlq_action(data, "CLEANUP_RESIDUALS", "已清理合并残留文件")
         return True
 
@@ -150,6 +161,18 @@ class DeadLetterConsumer:
             data, "DISK_FULL_ALERT",
             f"磁盘空间不足，需要至少 {settings.min_free_disk_bytes / (1024*1024):.0f}MB",
         )
+
+        # 通知业务服务上传失败
+        try:
+            await NotificationService.notify_file_status(
+                file_id=data.get("file_id", ""),
+                status="merge_failed",
+                 user_id=data.get("user_id"),
+                error_message=f"磁盘空间不足"
+            )
+        except Exception as e:
+            logger.error(f"通知业务服务失败: {e}")
+
         # 也清理残留文件
         await self._handle_merge_error(data)
         return True
@@ -158,15 +181,14 @@ class DeadLetterConsumer:
         """分片缺失 → 清理残留，通知业务服务"""
         logger.warning(f"DLQ: 分片缺失, 标记上传会话为 incomplete")
 
-        # 通知业务服务上传失败
+        # 通知业务服务合并失败
         try:
-            uploads_id = data.get("uploads_id", "")
-            import httpx
-            async with httpx.AsyncClient(timeout=30) as client:
-                await client.patch(
-                    f"{settings.business_service_url}/api/v1/business/internal/uploads/{uploads_id}/status",
-                    json={"status": "incomplete", "error": "分片文件缺失"},
-                )
+            await NotificationService.notify_file_status(
+                file_id=data.get("file_id", ""),
+                status="merge_failed",
+                user_id=data.get("user_id"),
+                error_message=f"分片缺失"
+            )
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
 
@@ -185,6 +207,16 @@ class DeadLetterConsumer:
             logger.warning(f"DLQ: 已删除校验失败的文件: {storage_path}")
 
         await self._log_dlq_action(data, "DELETE_CORRUPTED", "已删除校验失败的文件")
+        try:
+            await NotificationService.notify_file_status(
+                file_id=data.get("file_id", ""),
+                status="merge_failed",
+                user_id=data.get("user_id"),
+                error_message=f"校验和不匹配"
+            )
+        except Exception as e:
+            logger.error(f"通知业务服务失败: {e}")
+
         return True
 
     # ========== Hash ==========
@@ -193,6 +225,17 @@ class DeadLetterConsumer:
         """Hash 计算错误 → 记录日志"""
         logger.error(f"DLQ: Hash 计算失败, file_id={data.get('file_id')}")
         await self._log_dlq_action(data, "LOG_ERROR", data.get("error", "Hash 计算失败"))
+
+        try:
+            await NotificationService.notify_file_status(
+                file_id=data.get("file_id", ""),
+                status="merge_failed",
+                user_id=data.get("user_id"),
+                error_message=f"Hash 计算失败"
+            )
+        except Exception as e:
+            logger.error(f"通知业务服务失败: {e}")
+
         return True
 
     # ========== 病毒扫描 ==========
@@ -206,11 +249,12 @@ class DeadLetterConsumer:
         try:
             await NotificationService.notify_file_status(
                 file_id=data.get("file_id", ""),
-                status="processing",
-                error_message="病毒扫描器暂时不可用，等待重试",
+                status="scan_failed",
+                user_id=data.get("user_id"),
+                error_message="病毒扫描器暂时不可用，等待重试"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"通知业务服务失败: {e}")
 
         return True
 
@@ -218,6 +262,16 @@ class DeadLetterConsumer:
         """病毒扫描器不可用 → 告警"""
         logger.critical(f"DLQ: ClamAV 服务不可用，需要部署/启动!")
         await self._log_dlq_action(data, "SCANNER_MISSING", "ClamAV 服务不可用，请部署并启动")
+        # 通知业务服务标记文件状态
+        try:
+            await NotificationService.notify_file_status(
+                file_id=data.get("file_id", ""),
+                status="scan_failed",
+                user_id=data.get("user_id"),
+                error_message="病毒扫描器暂时不可用，等待重试"
+            )
+        except Exception as e:
+            logger.error(f"通知业务服务失败: {e}")
         return True
 
     # ========== 缩略图/转码 (降级处理) ==========
@@ -232,15 +286,6 @@ class DeadLetterConsumer:
         task_type = data.get("task_type", "")
 
         logger.warning(f"DLQ: 非核心功能降级, file_id={file_id}, task_type={task_type}")
-
-        try:
-            await NotificationService.notify_file_status(
-                file_id=file_id,
-                status="degraded",
-                error_message=f"{task_type} 处理失败，文件可正常使用但缺少非核心功能",
-            )
-        except Exception as e:
-            logger.error(f"通知业务服务失败: {e}")
 
         await self._log_dlq_action(data, "DEGRADED", f"{task_type} 非核心功能降级")
         return True
@@ -269,11 +314,6 @@ class DeadLetterConsumer:
                 await NotificationService.notify_file_activate(
                     file_id=file_id,
                     user_id=data.get("user_id", ""),
-                )
-            else:
-                await NotificationService.notify_file_status(
-                    file_id=file_id,
-                    status="active",
                 )
             return True
         except Exception as e:

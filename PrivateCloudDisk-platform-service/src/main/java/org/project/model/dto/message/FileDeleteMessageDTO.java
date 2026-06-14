@@ -21,26 +21,26 @@ public class FileDeleteMessageDTO implements Serializable {
     private static final long serialVersionUID = 1L;
     
     /** 消息ID */
-    private String messageId;
+    private String message_id;
     
     /** 文件ID */
-    private String fileId;
+    private String file_id;
     
     /** 用户ID */
-    private String userId;
+    private String user_id;
     
     /** 文件存储路径 */
-    private String storagePath;
+    private String storage_path;
     
     /** 文件大小 */
-    private Long fileSize;
+    private Long file_size;
     
     /** 是否为回收站删除 */
-    private Boolean fromTrash;
+    private Boolean from_trash;
     
     /** 创建时间 */
-    private LocalDateTime createdAt;
+    private LocalDateTime create_at;
     
     /** 额外参数（JSON格式） */
-    private String extraParams;
+    private String extra_param;
 }

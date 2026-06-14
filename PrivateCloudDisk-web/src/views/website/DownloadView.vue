@@ -1,20 +1,89 @@
 <template>
   <div>
     <!-- Hero -->
-    <section class="bg-gradient-to-br from-primary/5 via-white to-info/5 py-20 sm:py-28">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="mx-auto max-w-3xl text-center">
-          <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">客户端下载</span>
-          <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">
+    <section class="download-hero">
+      <div class="client-stage" aria-hidden="true">
+        <div class="client-window desktop-window">
+          <div class="window-topbar">
+            <span class="dot bg-danger"></span>
+            <span class="dot bg-warning"></span>
+            <span class="dot bg-success"></span>
+            <span class="ml-auto text-[10px] font-semibold text-neutral-400">CloudDrive Desktop</span>
+          </div>
+          <div class="desktop-body">
+            <aside class="desktop-sidebar">
+              <span v-for="item in ['我的文件', '团队空间', '共享链接', '同步任务']" :key="item">{{ item }}</span>
+            </aside>
+            <div class="desktop-content">
+              <div class="desktop-toolbar">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="desktop-grid">
+                <div v-for="n in 8" :key="n" class="mock-file">
+                  <i :class="n % 3 === 0 ? 'fa fa-file-text-o text-secondary' : 'fa fa-folder text-primary'"></i>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="client-window tablet-window">
+          <div class="window-topbar compact">
+            <span class="dot bg-danger"></span>
+            <span class="dot bg-warning"></span>
+            <span class="dot bg-success"></span>
+          </div>
+          <div class="tablet-body">
+            <div v-for="n in 6" :key="n" class="tablet-card">
+              <i class="fa fa-folder text-primary"></i>
+              <span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone-frame">
+          <div class="phone-speaker"></div>
+          <div class="phone-screen">
+            <div class="phone-header"></div>
+            <div v-for="n in 5" :key="n" class="phone-row">
+              <i :class="n % 2 === 0 ? 'fa fa-file-o text-secondary' : 'fa fa-folder text-primary'"></i>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-overlay"></div>
+      <div class="relative z-10 mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+        <div class="max-w-3xl">
+          <span class="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-primary shadow-sm ring-1 ring-primary/10 backdrop-blur">客户端下载</span>
+          <h1 class="mt-5 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">
             全平台客户端
           </h1>
-          <p class="mt-4 text-lg text-neutral-500">选择适合您设备的客户端，开始体验 CloudDrive。所有客户端均支持端到端加密传输。</p>
+          <p class="mt-4 max-w-2xl text-lg leading-8 text-neutral-500">选择适合您设备的客户端，开始体验 CloudDrive。Windows、macOS、Linux、iOS 与 Android 保持一致的企业级同步、预览和加密传输体验。</p>
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a href="#desktop-clients" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90">
+              <i class="fa fa-desktop"></i> 下载桌面端
+            </a>
+            <a href="#mobile-clients" class="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white/80 px-5 py-3 text-sm font-semibold text-neutral-700 backdrop-blur transition hover:border-primary hover:text-primary">
+              <i class="fa fa-mobile"></i> 查看移动端
+            </a>
+          </div>
+          <div class="mt-10 grid max-w-2xl grid-cols-3 gap-3">
+            <div v-for="item in heroStats" :key="item.label" class="rounded-xl border border-white/70 bg-white/70 p-3 backdrop-blur">
+              <p class="text-base font-bold text-neutral-800">{{ item.value }}</p>
+              <p class="mt-1 text-xs text-neutral-400">{{ item.label }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Desktop Clients -->
-    <section class="py-20 sm:py-24">
+    <section id="desktop-clients" class="py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">桌面客户端</h2>
         <p class="mt-2 text-center text-sm text-neutral-400">适用于 Windows、macOS 和 Linux 操作系统</p>
@@ -47,7 +116,7 @@
     </section>
 
     <!-- Mobile Clients -->
-    <section class="border-t border-neutral-100 bg-neutral-50/50 py-20 sm:py-24">
+    <section id="mobile-clients" class="border-t border-neutral-100 bg-neutral-50/50 py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">移动客户端</h2>
         <p class="mt-2 text-center text-sm text-neutral-400">随时随地访问您的文件，支持 iOS 和 Android</p>
@@ -225,6 +294,12 @@
 </template>
 
 <script setup>
+const heroStats = [
+  { label: '桌面与移动系统', value: '5 平台' },
+  { label: '断点续传与同步', value: '实时' },
+  { label: '传输链路加密', value: 'E2E' },
+]
+
 const desktopClients = [
   {
     os: 'Windows', icon: 'fa fa-windows', iconClass: 'text-primary', bgClass: 'bg-primary/10',
@@ -283,3 +358,282 @@ const sysRequirements = [
   { label: '操作系统', desktop: 'Windows 10+ / macOS 11+ / Linux 内核 5.4+', mobile: 'iOS 15+ / Android 8.0+' },
 ]
 </script>
+
+<style scoped>
+.download-hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(228, 231, 237, 0.85);
+  background:
+    radial-gradient(circle at 78% 22%, rgba(54, 207, 201, 0.18), transparent 30%),
+    radial-gradient(circle at 20% 18%, rgba(22, 93, 255, 0.13), transparent 28%),
+    linear-gradient(135deg, #f8fbff 0%, #ffffff 46%, #eef7ff 100%);
+}
+
+.client-stage {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 1;
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.86) 34%, rgba(255, 255, 255, 0.28) 68%, rgba(255, 255, 255, 0.1) 100%),
+    linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.32) 100%);
+}
+
+.client-window,
+.phone-frame {
+  position: absolute;
+  border: 1px solid rgba(22, 93, 255, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 30px 80px rgba(31, 41, 55, 0.18);
+  backdrop-filter: blur(16px);
+}
+
+.desktop-window {
+  right: max(24px, calc((100vw - 1180px) / 2));
+  bottom: -38px;
+  width: min(680px, 52vw);
+  height: 390px;
+  overflow: hidden;
+  border-radius: 18px;
+  transform: rotate(-1.4deg);
+}
+
+.tablet-window {
+  right: min(54vw, 560px);
+  bottom: 38px;
+  width: 340px;
+  height: 235px;
+  overflow: hidden;
+  border-radius: 24px;
+  transform: rotate(4deg);
+}
+
+.phone-frame {
+  right: max(18px, calc((100vw - 1180px) / 2 + 34px));
+  bottom: 64px;
+  width: 144px;
+  height: 278px;
+  border-radius: 32px;
+  padding: 12px 10px;
+  transform: rotate(7deg);
+}
+
+.window-topbar {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid rgba(228, 231, 237, 0.85);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0 14px;
+}
+
+.window-topbar.compact {
+  height: 30px;
+}
+
+.dot {
+  height: 10px;
+  width: 10px;
+  border-radius: 999px;
+}
+
+.desktop-body {
+  display: grid;
+  height: calc(100% - 38px);
+  grid-template-columns: 154px minmax(0, 1fr);
+}
+
+.desktop-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-right: 1px solid rgba(228, 231, 237, 0.72);
+  background: rgba(245, 247, 250, 0.7);
+  padding: 18px 14px;
+}
+
+.desktop-sidebar span {
+  border-radius: 10px;
+  color: #606266;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+.desktop-sidebar span:first-child {
+  background: rgba(22, 93, 255, 0.1);
+  color: #165dff;
+}
+
+.desktop-content {
+  padding: 18px;
+}
+
+.desktop-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.desktop-toolbar span {
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(22, 93, 255, 0.08);
+}
+
+.desktop-toolbar span:nth-child(1) {
+  width: 108px;
+}
+
+.desktop-toolbar span:nth-child(2) {
+  width: 78px;
+  background: rgba(54, 207, 201, 0.12);
+}
+
+.desktop-toolbar span:nth-child(3) {
+  margin-left: auto;
+  width: 138px;
+  background: rgba(245, 247, 250, 0.95);
+}
+
+.desktop-grid,
+.tablet-body {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px 14px;
+}
+
+.mock-file,
+.tablet-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-radius: 14px;
+  padding: 10px 8px;
+}
+
+.mock-file i,
+.tablet-card i {
+  font-size: 28px;
+  filter: drop-shadow(0 8px 10px rgba(31, 41, 55, 0.08));
+}
+
+.mock-file span,
+.tablet-card span,
+.phone-row span,
+.phone-header {
+  display: block;
+  border-radius: 999px;
+  background: rgba(192, 198, 207, 0.42);
+}
+
+.mock-file span {
+  height: 7px;
+  width: 72%;
+}
+
+.tablet-body {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 18px;
+}
+
+.tablet-card {
+  background: rgba(245, 247, 250, 0.74);
+}
+
+.tablet-card span {
+  height: 6px;
+  width: 70%;
+}
+
+.phone-speaker {
+  height: 4px;
+  width: 42px;
+  margin: 0 auto 10px;
+  border-radius: 999px;
+  background: rgba(144, 147, 153, 0.35);
+}
+
+.phone-screen {
+  height: calc(100% - 14px);
+  overflow: hidden;
+  border-radius: 23px;
+  background: linear-gradient(180deg, rgba(245, 247, 250, 0.95), rgba(255, 255, 255, 0.96));
+  padding: 14px 10px;
+}
+
+.phone-header {
+  height: 26px;
+  margin-bottom: 14px;
+  background: rgba(22, 93, 255, 0.12);
+}
+
+.phone-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+}
+
+.phone-row i {
+  width: 18px;
+  text-align: center;
+}
+
+.phone-row span {
+  height: 7px;
+  flex: 1;
+}
+
+@media (max-width: 1024px) {
+  .desktop-window {
+    right: -160px;
+    width: 660px;
+    opacity: 0.75;
+  }
+
+  .tablet-window {
+    right: 260px;
+    opacity: 0.68;
+  }
+
+  .phone-frame {
+    right: 18px;
+    opacity: 0.75;
+  }
+
+  .hero-overlay {
+    background: rgba(255, 255, 255, 0.82);
+  }
+}
+
+@media (max-width: 640px) {
+  .desktop-window {
+    bottom: -74px;
+    right: -310px;
+    width: 590px;
+    height: 330px;
+  }
+
+  .tablet-window {
+    display: none;
+  }
+
+  .phone-frame {
+    bottom: 34px;
+    right: -24px;
+    transform: rotate(5deg) scale(0.9);
+  }
+}
+</style>

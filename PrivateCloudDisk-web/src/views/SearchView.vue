@@ -190,7 +190,7 @@ function runSearch(payload = {}) {
   const nextPage = payload.page ?? 1
 
   router.push({
-    path: '/search',
+    path: '/app/search',
     query: {
       q: nextKeyword || undefined,
       category: nextFilters.file_category || undefined,
