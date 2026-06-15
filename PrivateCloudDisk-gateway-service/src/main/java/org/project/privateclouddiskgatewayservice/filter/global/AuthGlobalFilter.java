@@ -1,8 +1,13 @@
 package org.project.privateclouddiskgatewayservice.filter.global;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.project.privateclouddiskgatewayservice.dto.ApiErrorResponse;
 import org.project.privateclouddiskgatewayservice.utils.JwtUtil;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -19,17 +24,24 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * JWT 认证全局过滤器（WebFlux 响应式版本）
  * <p>
- * 职责：
- * 1. 检查请求是否在白名单中（直接放行）
- * 2. 从请求头提取 Bearer Token
- * 3. 验证 JWT 签名和有效期
- * 4. 将用户信息注入请求头，透传给下游服务
+ * 过滤器职责与优先级（Order = -100，在所有路由匹配之前执行）：
+ * <ol>
+ *   <li>剥离客户端伪造的内部请求头（防注入）</li>
+ *   <li>检查请求是否在白名单中（直接放行，跳过认证）</li>
+ *   <li>从 Authorization 头提取 Bearer Token</li>
+ *   <li>验证 JWT 签名、有效期和格式</li>
+ *   <li>将用户信息注入请求头，透传给下游服务</li>
+ * </ol>
+ * <p>
+ * 安全设计：未认证请求直接返回 401，不进入路由匹配。
+ * 这防止了攻击者通过探测不同路径的响应码来枚举 API 端点。
  */
 @Slf4j
 @Component
@@ -38,46 +50,87 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
 
-    // 白名单路径配置（包含路径和允许的HTTP方法，*表示所有方法）
+    // Jackson ObjectMapper（线程安全，可复用）
+    private static final tools.jackson.databind.ObjectMapper OBJECT_MAPPER =
+            new tools.jackson.databind.ObjectMapper();
+
+    // ═══════════════════════════════════════════════
+    // 白名单路径配置
+    // ═══════════════════════════════════════════════
     private record ExcludedPath(String pathPattern, String method) {}
 
     private static final List<ExcludedPath> EXCLUDED_PATHS = Arrays.asList(
-            new ExcludedPath("/api/v1/business/users/login", "POST"),      // 登录接口 (仅POST)
-            new ExcludedPath("/api/v1/business/users/", "POST"),   // 注册接口 (仅POST)
-            new ExcludedPath("/api/v1/business/users/email/verification-code", "POST"),   // 邮箱验证码接口 (仅POST)
-            new ExcludedPath("/api/v1/business/internal/**", "*")       // 业务服务内部通信接口 (所有方法)
+            new ExcludedPath("/api/v1/business/users/login", "POST"),                  // 登录
+            new ExcludedPath("/api/v1/business/users/", "POST"),                       // 注册
+            new ExcludedPath("/api/v1/business/users/email/verification-code", "POST"),// 邮箱验证码
+            new ExcludedPath("/api/v1/business/internal/**", "*")                      // 内部服务通信
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
+    // ═══════════════════════════════════════════════
+    // 核心过滤逻辑
+    // ═══════════════════════════════════════════════
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // 步骤0: 安全加固 — 剥离客户端可能伪造的内部请求头
         ServerHttpRequest sanitizedRequest = removeClientSuppliedInternalHeaders(exchange.getRequest());
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
+
         String requestPath = sanitizedRequest.getURI().getPath();
         String requestMethod = sanitizedRequest.getMethod().name();
-        log.debug("网关拦截请求: {} {}", requestMethod, requestPath);
 
-        // 1. 白名单路径直接放行
+        // ═══════════════════════════════════════════════
+        // 步骤1: 白名单路径 — 直接放行，不执行认证
+        // ═══════════════════════════════════════════════
         if (isExcludedPath(requestMethod, requestPath)) {
-            log.debug("白名单路径，直接放行: {}", requestPath);
+            log.debug("白名单路径放行: {} {}", requestMethod, requestPath);
             return chain.filter(sanitizedExchange);
         }
 
-        // 2. 从请求头中提取 JWT token
+        // ═══════════════════════════════════════════════
+        // 步骤2: 提取 Authorization 头
+        // ═══════════════════════════════════════════════
         String authHeader = sanitizedRequest.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.warn("请求缺少 Authorization 头: {}", requestPath);
-            return unauthorizedResponse(sanitizedExchange, "缺少认证令牌");
+
+        if (authHeader == null) {
+            log.warn("认证失败 - 缺少 Authorization 头: {} {}", requestMethod, requestPath);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "缺少认证令牌，请先登录"
+            );
         }
 
-        String token = authHeader.substring(7);
+        if (!authHeader.startsWith("Bearer ")) {
+            log.warn("认证失败 - Authorization 头格式错误 (非 Bearer): {} {}",
+                    requestMethod, requestPath);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌格式错误"
+            );
+        }
 
+        String token = authHeader.substring(7).trim();
+
+        if (token.isEmpty()) {
+            log.warn("认证失败 - Bearer Token 为空: {} {}", requestMethod, requestPath);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌不能为空"
+            );
+        }
+
+        // ═══════════════════════════════════════════════
+        // 步骤3: 验证并解析 JWT
+        // ═══════════════════════════════════════════════
         try {
-            // 3. 验证并解析 JWT
             String userId = jwtUtil.getUserIdFromToken(token);
 
-            // 4. 验证成功，将用户信息注入请求头，透传给下游服务
+            // 步骤4: 将用户信息注入请求头，透传给下游服务
             ServerHttpRequest mutatedRequest = sanitizedRequest.mutate()
                     .headers(headers -> {
                         headers.set("X-User-Id", userId);
@@ -85,18 +138,74 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                     })
                     .build();
 
-            log.info("认证通过: 用户ID={}, 请求路径={}", userId, requestPath);
+            log.info("认证通过: userId={}, {} {}", userId, requestMethod, requestPath);
             return chain.filter(sanitizedExchange.mutate().request(mutatedRequest).build());
 
+        } catch (ExpiredJwtException e) {
+            log.warn("认证失败 - JWT 已过期: {} {}, 过期时间: {}",
+                    requestMethod, requestPath, e.getClaims().getExpiration());
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌已过期，请重新登录"
+            );
+
+        } catch (SignatureException e) {
+            log.warn("认证失败 - JWT 签名无效 (可能被篡改): {} {}", requestMethod, requestPath);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌无效"
+            );
+
+        } catch (MalformedJwtException e) {
+            log.warn("认证失败 - JWT 格式错误: {} {}", requestMethod, requestPath);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌格式无效"
+            );
+
+        } catch (UnsupportedJwtException e) {
+            log.warn("认证失败 - 不支持的 JWT 类型: {} {}", requestMethod, requestPath);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌类型不支持"
+            );
+
         } catch (JwtException e) {
-            log.warn("JWT 验证失败: {}, 原因: {}", requestPath, e.getMessage());
-            return unauthorizedResponse(sanitizedExchange, "令牌无效或已过期");
+            // 其他 JWT 异常
+            log.warn("认证失败 - JWT 验证异常: {} {}, 原因: {}",
+                    requestMethod, requestPath, e.getMessage());
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.UNAUTHORIZED,
+                    "认证令牌验证失败"
+            );
+
         } catch (Exception e) {
-            log.error("认证过程发生内部错误: {}", requestPath, e);
-            return errorResponse(sanitizedExchange, "认证服务内部错误");
+            // JWT 解析过程中不可预期的内部错误（如公钥加载失败）
+            log.error("认证过程内部错误: {} {}, 异常类型: {}",
+                    requestMethod, requestPath, e.getClass().getSimpleName(), e);
+            return writeErrorResponse(
+                    sanitizedExchange,
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "认证服务暂时不可用"
+            );
         }
     }
 
+    // ═══════════════════════════════════════════════
+    // 辅助方法
+    // ═══════════════════════════════════════════════
+
+    /**
+     * 剥离客户端请求中可能伪造的内部请求头
+     * <p>
+     * 防止攻击者通过设置 X-User-Id 等头来伪造身份。
+     * 只有经过本过滤器认证的请求才会被注入这些头。
+     */
     private ServerHttpRequest removeClientSuppliedInternalHeaders(ServerHttpRequest request) {
         return request.mutate()
                 .headers(headers -> {
@@ -109,51 +218,86 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 判断请求路径和方法是否在白名单中
+     * 判断请求路径和方法是否在认证白名单中
      */
     private boolean isExcludedPath(String requestMethod, String requestPath) {
         return EXCLUDED_PATHS.stream()
-                .anyMatch(excluded -> pathMatcher.match(excluded.pathPattern(), requestPath) &&
-                        ("*".equals(excluded.method()) || excluded.method().equals(requestMethod)));
+                .anyMatch(excluded ->
+                        pathMatcher.match(excluded.pathPattern(), requestPath)
+                        && ("*".equals(excluded.method()) || excluded.method().equals(requestMethod))
+                );
     }
 
     /**
-     * 返回 401 未授权响应
-     */
-    private Mono<Void> unauthorizedResponse(ServerWebExchange exchange, String message) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String body = String.format(
-                "{\"code\":401,\"message\":\"%s\",\"timestamp\":\"%s\"}",
-                message, java.time.LocalDateTime.now()
-        );
-        DataBuffer buffer = response.bufferFactory()
-                .wrap(body.getBytes(StandardCharsets.UTF_8));
-        return response.writeWith(Mono.just(buffer));
-    }
-
-    /**
-     * 返回 500 服务器内部错误响应
-     */
-    private Mono<Void> errorResponse(ServerWebExchange exchange, String message) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String body = String.format(
-                "{\"code\":500,\"message\":\"%s\",\"timestamp\":\"%s\"}",
-                message, java.time.LocalDateTime.now()
-        );
-        DataBuffer buffer = response.bufferFactory()
-                .wrap(body.getBytes(StandardCharsets.UTF_8));
-        return response.writeWith(Mono.just(buffer));
-    }
-
-    /**
-     * 设置过滤器执行顺序
+     * 统一写入 JSON 错误响应
      * <p>
-     * 数值越小优先级越高。负数确保在大多数内置过滤器之前执行，
-     * 实现认证优先处理。
+     * 使用 ApiErrorResponse DTO 和 Jackson 序列化，保证：
+     * - 响应格式与 GlobalExceptionHandler 一致
+     * - JSON 转义正确（防止响应注入）
+     * - 包含 timestamp 便于问题定位
+     */
+    private Mono<Void> writeErrorResponse(ServerWebExchange exchange,
+                                           HttpStatus status,
+                                           String message) {
+        ServerHttpResponse response = exchange.getResponse();
+
+        // 防止重复写入（如果响应已提交）
+        if (response.isCommitted()) {
+            log.warn("响应已提交，无法写入错误信息: {} {}", status.value(), message);
+            return Mono.empty();
+        }
+
+        response.setStatusCode(status);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
+        ApiErrorResponse errorBody = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(status.value())
+                .error(status.getReasonPhrase())
+                .message(message)
+                .path(exchange.getRequest().getURI().getPath())
+                .build();
+
+        try {
+            byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(errorBody);
+            DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            // Jackson 序列化失败（极端情况），返回手写 JSON
+            log.error("错误响应序列化失败", e);
+            String fallback = String.format(
+                    "{\"code\":%d,\"message\":\"%s\",\"timestamp\":\"%s\"}",
+                    status.value(),
+                    escapeJson(message),
+                    LocalDateTime.now()
+            );
+            DataBuffer buffer = response.bufferFactory()
+                    .wrap(fallback.getBytes(StandardCharsets.UTF_8));
+            return response.writeWith(Mono.just(buffer));
+        }
+    }
+
+    /**
+     * 对消息中的 JSON 特殊字符进行转义
+     * <p>
+     * 仅在 Jackson 序列化失败时作为兜底使用
+     */
+    private String escapeJson(String value) {
+        if (value == null) return "";
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+
+    /**
+     * 过滤器执行顺序
+     * <p>
+     * -100 确保在所有内置过滤器和路由匹配之前执行。
+     * 这样做的好处：未认证请求在进入路由匹配前就被拦截，
+     * 攻击者无法通过不同路径的响应差异来枚举 API 端点。
      */
     @Override
     public int getOrder() {
