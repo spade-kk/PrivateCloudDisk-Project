@@ -41,6 +41,7 @@
               :file-name="previewStore.currentFile?.node_name || ''"
               :file-size="previewStore.fileSizeFormatted"
               :file-extension="previewStore.fileExtension"
+              :file-id="previewStore.currentFile?.node_id || ''"
               :loading="previewStore.loading"
               @retry="handleRetry"
             />

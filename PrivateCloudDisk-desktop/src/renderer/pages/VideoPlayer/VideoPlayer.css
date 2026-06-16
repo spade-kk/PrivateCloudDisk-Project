@@ -1,0 +1,526 @@
+/**
+ * pages/VideoPlayer/VideoPlayer.css
+ * 企业级视频播放器样式 — 对标 Bilibili / YouTube 设计
+ */
+
+/* ==================== 页面布局 ==================== */
+
+.vp-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0a0a0a;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+/* ==================== 顶部返回栏 ==================== */
+
+.vp-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #141414;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.vp-back-btn {
+  color: #999 !important;
+  font-size: 14px;
+}
+
+.vp-back-btn:hover {
+  color: #fff !important;
+}
+
+.vp-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vp-file-info {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+}
+
+/* ==================== 播放器容器 ==================== */
+
+.vp-container {
+  position: relative;
+  flex: 1;
+  background: #000;
+  cursor: pointer;
+  min-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.vp-container.vp-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+}
+
+/* ==================== 视频元素 ==================== */
+
+.vp-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* ==================== 中央大播放按钮 ==================== */
+
+.vp-center-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.vp-center-play:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.vp-center-play:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+/* ==================== 缓冲中遮罩 ==================== */
+
+.vp-buffering-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* ==================== 错误遮罩 ==================== */
+
+.vp-error-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 10;
+}
+
+.vp-error-content {
+  text-align: center;
+  max-width: 400px;
+  padding: 32px;
+}
+
+.vp-error-text {
+  color: #ff4d4f;
+  font-size: 15px;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+/* ==================== 加载页面 ==================== */
+
+.vp-loading-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #0a0a0a;
+}
+
+/* ==================== 底部控制栏 ==================== */
+
+.vp-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.7) 40%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  padding: 36px 16px 10px;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.vp-controls-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.vp-controls-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* 鼠标悬停时始终显示控制栏 */
+.vp-container:hover .vp-controls {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ==================== 进度条 ==================== */
+
+.vp-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 18px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* 进度条背景 (不可见但可交互) */
+.vp-progress-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  transition: height 0.15s ease;
+}
+
+.vp-progress-bar:hover::before {
+  height: 6px;
+}
+
+/* 缓冲区域 */
+.vp-progress-buffered {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  transition: height 0.15s ease;
+  pointer-events: none;
+}
+
+.vp-progress-bar:hover .vp-progress-buffered {
+  height: 6px;
+}
+
+/* 已播放区域 */
+.vp-progress-played {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  background: #1677ff;
+  border-radius: 2px;
+  transition: height 0.15s ease;
+  pointer-events: none;
+}
+
+.vp-progress-bar:hover .vp-progress-played {
+  height: 6px;
+}
+
+/* 进度滑块 */
+.vp-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: #1677ff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.vp-progress-bar:hover .vp-progress-thumb {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* 悬停时间提示 */
+.vp-progress-tooltip {
+  position: absolute;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 3;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+}
+
+/* ==================== 控制按钮行 ==================== */
+
+.vp-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+}
+
+.vp-controls-left,
+.vp-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ==================== 控制按钮 ==================== */
+
+.vp-btn {
+  color: #e0e0e0 !important;
+  font-size: 18px !important;
+  padding: 4px 6px !important;
+  height: auto !important;
+  line-height: 1 !important;
+  border-radius: 4px !important;
+  transition: color 0.15s, background 0.15s !important;
+}
+
+.vp-btn:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.vp-btn:active {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+.vp-speed-btn {
+  font-size: 13px !important;
+  min-width: 64px;
+  text-align: center;
+}
+
+/* ==================== 音量控制 ==================== */
+
+.vp-volume-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.vp-volume-slider {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.vp-volume-control:hover .vp-volume-slider {
+  width: 80px;
+}
+
+.vp-slider {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.vp-slider .ant-slider-rail {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.vp-slider .ant-slider-track {
+  background: #1677ff !important;
+}
+
+.vp-slider .ant-slider-handle {
+  border-color: #1677ff !important;
+  background: #fff !important;
+}
+
+.vp-slider .ant-slider-handle:focus {
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.2) !important;
+}
+
+/* ==================== 时间显示 ==================== */
+
+.vp-time-display {
+  font-size: 13px;
+  color: #e0e0e0;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+  margin-left: 8px;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+.vp-time-separator {
+  color: #666;
+  margin: 0 2px;
+}
+
+.vp-time-duration {
+  color: #888;
+}
+
+/* ==================== 视频信息面板 ==================== */
+
+.vp-info-panel {
+  padding: 16px 20px;
+  background: #141414;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.vp-info-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.vp-info-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  color: #888;
+}
+
+.vp-info-meta span {
+  white-space: nowrap;
+}
+
+/* ==================== 右键菜单覆盖 ==================== */
+
+.vp-container .ant-dropdown-menu {
+  background: rgba(30, 30, 30, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 4px !important;
+  backdrop-filter: blur(16px);
+}
+
+.vp-container .ant-dropdown-menu-item {
+  color: #e0e0e0 !important;
+  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+}
+
+.vp-container .ant-dropdown-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.vp-container .ant-dropdown-menu-item-selected {
+  background: rgba(22, 119, 255, 0.2) !important;
+  color: #1677ff !important;
+}
+
+.vp-container .ant-dropdown-menu-item-divider {
+  background: rgba(255, 255, 255, 0.08) !important;
+  margin: 4px 0 !important;
+}
+
+/* ==================== 响应式适配 ==================== */
+
+@media (max-width: 768px) {
+  .vp-top-bar {
+    padding: 8px 12px;
+  }
+
+  .vp-title {
+    font-size: 14px;
+  }
+
+  .vp-controls {
+    padding: 24px 8px 8px;
+  }
+
+  .vp-controls-row {
+    height: 32px;
+  }
+
+  .vp-btn {
+    font-size: 16px !important;
+    padding: 2px 4px !important;
+  }
+
+  .vp-volume-slider {
+    display: none; /* 移动端隐藏音量滑块 */
+  }
+
+  .vp-time-display {
+    font-size: 11px;
+  }
+
+  .vp-info-panel {
+    padding: 12px;
+  }
+
+  .vp-info-title {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .vp-speed-btn {
+    display: none;
+  }
+
+  .vp-time-display {
+    margin-left: 4px;
+  }
+}
+
+/* ==================== 触屏优化 ==================== */
+
+@media (hover: none) and (pointer: coarse) {
+  .vp-container .vp-controls {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .vp-progress-bar {
+    height: 24px;
+  }
+
+  .vp-progress-bar::before {
+    height: 5px;
+  }
+
+  .vp-progress-played,
+  .vp-progress-buffered {
+    height: 5px;
+  }
+
+  .vp-progress-thumb {
+    width: 18px;
+    height: 18px;
+    opacity: 1;
+  }
+}

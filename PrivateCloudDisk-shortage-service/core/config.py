@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     content_index_dlq_routing_key: str = "content.index.dlq"
     content_index_max_retries: int = 3
 
+    # ========== OpenAPI 文档开关 ==========
+    # 生产环境设为 false 关闭 /docs /redoc /openapi.json
+    enable_docs: bool = True
+
     class Config:
         env_file = ".env"
 

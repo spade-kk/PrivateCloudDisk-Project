@@ -1,0 +1,51 @@
+/* pages/Search/Search.css */
+.search-page {
+  height: 100%;
+  background: var(--bg-white);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.search-page-header {
+  padding: 20px 24px 0;
+}
+
+.search-main-input {
+  margin-bottom: 8px;
+}
+
+.search-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.search-results {
+  flex: 1;
+  padding: 0 24px;
+  overflow: auto;
+}
+
+.result-summary {
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.search-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-name-cell em {
+  color: var(--danger-color);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.search-icon { color: var(--text-secondary); font-size: 16px; }
+
+.search-table { }

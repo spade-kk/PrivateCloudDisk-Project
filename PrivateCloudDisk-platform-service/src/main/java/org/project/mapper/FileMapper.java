@@ -86,6 +86,14 @@ public interface FileMapper {
     int updateUserFileStatusById(@Param("file_id") UUID file_id, @Param("status") FileEntity.FileStatus status, @Param("user_id") UUID user_id);
 
     /**
+     * 递归查询文件夹下所有活跃文件（通过目录闭包表查询所有子孙节点下的文件）
+     * @param nodeId 文件夹节点ID
+     * @param userId 用户ID
+     * @return 文件元数据列表
+     */
+    List<FileEntity> findActiveFilesByDescendantNodes(@Param("nodeId") UUID nodeId, @Param("userId") UUID userId);
+
+    /**
      *
      * @param file_id
      * @param storage_path

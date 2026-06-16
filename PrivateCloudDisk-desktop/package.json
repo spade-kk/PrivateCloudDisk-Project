@@ -1,0 +1,47 @@
+{
+  "name": "privateclouddisk-desktop",
+  "version": "1.0.0",
+  "description": "PrivateCloudDisk 企业私有云盘桌面客户端 (macOS / Windows)",
+  "main": "src/main/main.js",
+  "author": "PrivateCloudDisk Team",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "build:renderer": "vite build",
+    "build:electron": "npm run build:renderer && electron-builder",
+    "build:mac": "npm run build:renderer && electron-builder --mac",
+    "build:win": "npm run build:renderer && electron-builder --win",
+    "build:linux": "npm run build:renderer && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "antd": "^5.12.5",
+    "axios": "^1.6.2",
+    "better-sqlite3": "^9.4.3",
+    "chokidar": "^3.5.3",
+    "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.10",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.7",
+    "hls.js": "^1.6.16",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.0",
+    "uuid": "^9.0.0",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.10",
+    "wait-on": "^7.2.0"
+  }
+}

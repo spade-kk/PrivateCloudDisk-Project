@@ -1,0 +1,51 @@
+/* pages/FileDetail/FileDetail.css */
+.file-detail-page {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.detail-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-layout {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.detail-main-card {
+  text-align: center;
+}
+
+.detail-file-icon {
+  padding: 32px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.detail-actions {
+  margin-bottom: 24px;
+}
+
+.detail-info {
+  text-align: left;
+}
+
+.detail-loading, .detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}

@@ -1,0 +1,79 @@
+{
+  "name": "PrivateCloudDisk",
+  "appid": "__UNI__PCD001",
+  "description": "PrivateCloudDisk 企业私有云盘跨平台客户端",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {
+      "Payment": {},
+      "VideoPlayer": {},
+      "Fingerprint": {}
+    },
+    "distribute": {
+      "android": {
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>",
+          "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>",
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+          "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
+          "<uses-permission android:name=\"android.permission.CAMERA\"/>",
+          "<uses-permission android:name=\"android.permission.BIOMETRIC\"/>"
+        ],
+        "abiFilters": ["armeabi-v7a", "arm64-v8a", "x86"]
+      },
+      "ios": {
+        "privacyDescription": {
+          "NSPhotoLibraryAddUsageDescription": "用于保存文件到相册",
+          "NSPhotoLibraryUsageDescription": "用于选择图片上传到云盘",
+          "NSCameraUsageDescription": "用于拍照后上传到云盘"
+        }
+      }
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "postcss": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "permission": {
+      "scope.userLocation": {
+        "desc": "位置信息用于日志记录"
+      }
+    }
+  },
+  "h5": {
+    "title": "PrivateCloudDisk",
+    "router": {
+      "mode": "history"
+    },
+    "devServer": {
+      "port": 8080,
+      "disableHostCheck": true,
+      "proxy": {
+        "/api": {
+          "target": "http://localhost:8081",
+          "changeOrigin": true
+        }
+      }
+    }
+  },
+  "uniStatistics": {
+    "enable": false
+  },
+  "vueVersion": "3"
+}

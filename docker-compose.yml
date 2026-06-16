@@ -127,20 +127,6 @@ services:
       - "9600"
     restart: always
 
-  # -------------------- APISIX API 网关（含 Coraza WAF） --------------------
-  apisix:
-    build: ./PrivateCloudDisk-infra/apisix
-    container_name: project-apisix
-    networks:
-      - app-networks
-    ports:
-      - "9080:9080"   # HTTP 代理端口
-      - "9443:9443"   # HTTPS 代理端口
-      - "9180:9180"   # Admin API 端口（管理接口）
-    restart: always
-    depends_on:
-      - gateway-service-backend
-
   # ============================================================
   #                         业务服务层
   # ============================================================
@@ -151,8 +137,8 @@ services:
     container_name: backend-gateway-service
     networks:
       - app-networks
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
     depends_on:
       - platform-service-backend
       - file-service-backend
@@ -169,8 +155,8 @@ services:
     container_name: backend-platform-service
     networks:
       - app-networks
-    expose:
-      - "8081"
+    ports:
+      - "8081:8081"
     depends_on:
       mysql:
         condition: service_healthy
@@ -190,6 +176,8 @@ services:
       SECURITY_CAPTCHA_TURNSTILE_ENABLED: ${SECURITY_CAPTCHA_TURNSTILE_ENABLED:-false}
       SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY: ${SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY:-0x4AAAAAADf7Z-kpJMtKhi_3xlpjOjBm42w}
       SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME: ${SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME:-www.hellomyservice.xyz}
+      SPRINGDOC_API_DOCS_ENABLED: true
+      SPRINGDOC_SWAGGER_UI_ENABLED: true
     restart: always
 
   # -------------------- FastAPI 文件服务 --------------------
@@ -203,6 +191,9 @@ services:
     depends_on:
       - platform-service-backend
     environment:
+      # OpenAPI 文档：生产环境默认关闭，调试时设为 true
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
+
       FILE_UPLOAD_DIR: /data/uploads
       QUARANTINE_DIR: /data/uploads/quarantine
       REDIS_URL: redis://redis:6379/0

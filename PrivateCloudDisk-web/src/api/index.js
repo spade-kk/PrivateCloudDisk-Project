@@ -10,3 +10,4 @@ export * from './modules/search';
 export * from './modules/collaboration';
 export * from './modules/security';
 export * from './modules/settings';
+export * from './modules/video';

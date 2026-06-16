@@ -1,0 +1,9 @@
+/* components/SearchBar.css */
+.search-bar-input {
+  width: 260px;
+  border-radius: 20px !important;
+}
+
+.search-bar-input .ant-input-prefix {
+  color: var(--text-placeholder);
+}

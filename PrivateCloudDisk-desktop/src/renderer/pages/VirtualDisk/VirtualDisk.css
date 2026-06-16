@@ -1,0 +1,108 @@
+/* VirtualDisk.css - 虚拟磁盘管理页面样式 */
+
+.vd-page {
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f5f5f5;
+}
+
+.vd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.vd-content {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.vd-left {
+  width: 380px;
+  flex-shrink: 0;
+}
+
+.vd-right {
+  flex: 1;
+  min-width: 0;
+}
+
+.vd-card {
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.vd-card + .vd-card {
+  margin-top: 16px;
+}
+
+/* 挂载控制 */
+.mount-control {
+  text-align: center;
+}
+
+.mount-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.mount-path {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+/* 统计网格 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  text-align: center;
+  border-radius: 6px;
+}
+
+.stat-card .ant-statistic-title {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.stat-card .ant-statistic-content {
+  font-size: 20px;
+}
+
+/* 缓存使用率 */
+.cache-usage {
+  margin-top: 8px;
+}
+
+/* 事件日志 */
+.events-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.event-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.event-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-events {
+  text-align: center;
+  padding: 32px 0;
+  color: #ccc;
+}

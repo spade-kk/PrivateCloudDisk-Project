@@ -75,6 +75,7 @@ const routes = [
       { path: 'billing', name: 'Billing', component: () => import('@/views/billing/BillingView.vue') },
       { path: 'help', name: 'Help', component: () => import('@/views/help/HelpView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
+      { path: 'video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { requiresAuth: true } },
       // 控制台 404 兜底
       { path: ':pathMatch(.*)*', name: 'AppNotFound', component: () => import('@/views/website/NotFoundView.vue') },
     ],

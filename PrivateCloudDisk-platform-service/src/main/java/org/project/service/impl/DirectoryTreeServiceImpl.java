@@ -290,6 +290,17 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         }
         return node;
     }
+
+    @Override
+    public List<FileEntity> findActiveFilesRecursive(UUID nodeId, UUID userId) {
+        // 检查节点是否存在
+        FolderNodeEntity node = findUserFolderNodeIfExist(nodeId, userId);
+        if (node == null) {
+            throw new NodeNotExistException("节点不存在");
+        }
+        return fileMapper.findActiveFilesByDescendantNodes(nodeId, userId);
+    }
+
     //获取指定文件夹节点的实际状态
     @Override
     public FolderNodeEntity.NodeStatus getFolderNodeActualStatus(UUID node_id, UUID user_id) {

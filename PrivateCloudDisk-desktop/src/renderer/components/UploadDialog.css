@@ -1,0 +1,110 @@
+/* components/UploadDialog.css */
+.upload-dialog {
+  padding: 8px 0;
+}
+
+.file-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  margin-top: 12px;
+  background: var(--bg-color);
+  border-radius: var(--radius-sm);
+}
+
+.file-preview-name {
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-preview-size {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: 12px;
+}
+
+.upload-progress-area {
+  text-align: center;
+}
+
+.upload-progress-area h4 {
+  margin-bottom: 16px;
+}
+
+.chunk-info {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 8px 0;
+}
+
+.upload-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.task-status-area {
+  text-align: center;
+}
+
+.task-status-area h4 {
+  margin-bottom: 8px;
+}
+
+.task-id {
+  font-size: 12px;
+  color: var(--text-placeholder);
+  word-break: break-all;
+  margin-bottom: 16px;
+}
+
+.task-status-text {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.task-status-text.status-completed { color: var(--success-color); }
+.task-status-text.status-processing { color: var(--primary-color); }
+.task-status-text.status-failed { color: var(--danger-color); }
+
+.task-steps {
+  text-align: left;
+}
+
+.task-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-color);
+}
+
+.step-dot.completed { background: var(--success-color); }
+.step-dot.processing { background: var(--primary-color); }
+.step-dot.failed { background: var(--danger-color); }
+
+.step-name {
+  flex: 1;
+  font-size: 13px;
+}
+
+.step-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.step-status.completed { color: var(--success-color); }
+.step-status.processing { color: var(--primary-color); }
+.step-status.failed { color: var(--danger-color); }

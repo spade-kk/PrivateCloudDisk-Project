@@ -1,0 +1,80 @@
+/* components/FileList.css */
+.file-list-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-white);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.file-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar-left, .toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selection-count {
+  font-size: 13px;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.file-table {
+  flex: 1;
+  overflow: auto;
+}
+
+.file-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.file-icon {
+  font-size: 20px;
+}
+
+.file-name-text {
+  font-size: 14px;
+}
+
+.star-icon {
+  color: #fbbc04;
+  font-size: 12px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.ant-table-row:hover .row-actions {
+  opacity: 1;
+}
+
+.action-icon {
+  font-size: 15px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color 0.15s;
+}
+
+.action-icon:hover {
+  color: var(--primary-color);
+}
+
+.action-icon.danger:hover {
+  color: var(--danger-color);
+}

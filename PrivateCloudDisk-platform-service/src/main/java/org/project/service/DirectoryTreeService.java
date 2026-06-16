@@ -95,4 +95,12 @@ public interface DirectoryTreeService {
      * @param user_id 用户ID
      */
     void deleteFolderNodeToTrashByNodeId(UUID node_id, UUID user_id);
+
+    /**
+     * 递归查询文件夹下所有活跃文件（用于文件夹下载）
+     * @param nodeId 文件夹节点ID
+     * @param userId 用户ID
+     * @return 文件元数据列表
+     */
+    List<FileEntity> findActiveFilesRecursive(UUID nodeId, UUID userId);
 }

@@ -13,9 +13,10 @@ global_rules:
               - SecRequestBodyNoFilesLimit 1048576
               - SecAuditEngine RelevantOnly
               - SecAuditLogParts ABIJDEFHZ
-              - SecAction "id:900000,phase:1,nolog,pass,t:none,setvar:tx.paranoia_level=1,setvar:tx.blocking_paranoia_level=1,setvar:tx.inbound_anomaly_score_threshold=5,setvar:tx.outbound_anomaly_score_threshold=4"
-              - Include @crs-setup-conf
-              - Include @owasp_crs/*.conf
+              # 关键修改：使用容器内的绝对路径
+              - Include /usr/local/apisix/coreruleset/rules/*.conf
+              # 可选：如果需要自定义异常分数等，可以在此添加 SecAction
+              - SecAction "id:900000,phase:1,nolog,pass,t:none,setvar:tx.paranoia_level=1,setvar:tx.blocking_paranoia_level=1,setvar:tx.inbound_anomaly_score_threshold=5,setvar:tx.outbound_anomaly_score_threshold=4,setvar:tx.crs_validate_utf8_encoding=1"
           default_directives: default
 
 routes:

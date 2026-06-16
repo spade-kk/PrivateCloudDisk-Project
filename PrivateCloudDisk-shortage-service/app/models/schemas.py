@@ -2,8 +2,8 @@
 Pydantic 数据模型定义
 定义 API 请求和响应的数据结构
 """
-from typing import Literal
-from pydantic import BaseModel
+from typing import Literal, List
+from pydantic import BaseModel, Field
 
 
 class InitOperationTokenRequest(BaseModel):
@@ -37,3 +37,44 @@ class OperationTokenCancelRequest(BaseModel):
         ... )
     """
     operation_token: str
+
+
+class FolderFileItem(BaseModel):
+    """
+    文件夹下载文件项模型
+    
+    Attributes:
+        file_id: 文件唯一标识符
+        file_name: 文件名称
+        file_size: 文件大小 (bytes)
+        storage_path: 文件在存储服务中的绝对路径
+    """
+    file_id: str
+    file_name: str
+    file_size: int = Field(ge=0, description="文件大小 (bytes)")
+    storage_path: str
+
+
+class FolderDownloadRequest(BaseModel):
+    """
+    文件夹下载请求模型
+    
+    Attributes:
+        node_name: 文件夹名称（用作 zip 包内根目录名）
+        files: 文件列表
+    
+    Example:
+        >>> request = FolderDownloadRequest(
+        ...     node_name="我的文档",
+        ...     files=[
+        ...         FolderFileItem(
+        ...             file_id="uuid-1",
+        ...             file_name="报告.pdf",
+        ...             file_size=1024000,
+        ...             storage_path="/data/files/uuid-1.pdf"
+        ...         )
+        ...     ]
+        ... )
+    """
+    node_name: str = Field(..., min_length=1, max_length=255, description="文件夹名称")
+    files: List[FolderFileItem] = Field(..., min_length=1, max_length=10000, description="文件列表")

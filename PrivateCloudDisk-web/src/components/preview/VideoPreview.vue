@@ -16,6 +16,10 @@
           <span class="file-name truncate">{{ fileName }}</span>
         </div>
         <div class="toolbar-right">
+          <button @click="openFullPlayer" class="tool-btn tool-btn-primary" title="进入专属播放器">
+            <i class="fa fa-play-circle"></i>
+            <span class="btn-text">播放器</span>
+          </button>
           <button @click="toggleFullscreen" class="tool-btn" title="全屏">
             <i :class="isFullscreen ? 'fa fa-compress' : 'fa fa-expand'"></i>
           </button>
@@ -77,6 +81,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   fileUrl: {
@@ -98,11 +103,16 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false
+  },
+  fileId: {
+    type: [String, Number],
+    default: ''
   }
 })
 
 const emit = defineEmits(['retry', 'loaded', 'error', 'ended'])
 
+const router = useRouter()
 const videoRef = ref(null)
 const videoWrapper = ref(null)
 
@@ -170,6 +180,15 @@ const downloadVideo = () => {
   link.href = videoUrl.value
   link.download = props.fileName
   link.click()
+}
+
+const openFullPlayer = () => {
+  if (!props.fileId) return
+  const query = {
+    name: encodeURIComponent(props.fileName),
+    size: props.fileSize || '0'
+  }
+  router.push({ name: 'VideoPlayer', params: { fileId: props.fileId }, query })
 }
 
 const formatDuration = (seconds) => {
@@ -316,6 +335,26 @@ onUnmounted(() => {
   color: white;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(75, 108, 183, 0.3);
+}
+
+.tool-btn-primary {
+  background: linear-gradient(135deg, #165dff, #4080ff);
+  color: white;
+  width: auto;
+  padding: 0 14px;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.tool-btn-primary:hover {
+  background: linear-gradient(135deg, #4080ff, #5c9dff);
+  color: white;
+  box-shadow: 0 4px 16px rgba(22, 93, 255, 0.4);
+}
+
+.btn-text {
+  font-size: 0.82rem;
 }
 
 .video-wrapper {

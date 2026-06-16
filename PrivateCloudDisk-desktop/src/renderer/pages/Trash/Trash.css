@@ -1,0 +1,24 @@
+/* pages/Trash/Trash.css */
+.trash-page {
+  height: 100%;
+  background: var(--bg-white);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.header-left-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trash-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trash-icon { color: var(--text-secondary); font-size: 18px; }
+.trash-icon.folder { color: #1a73e8; }
+
+.trash-table { height: calc(100% - 65px); }

@@ -4,9 +4,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import org.project.control.result.JsonResult;
 import org.project.model.dto.CreateFolderNodeRequest;
+import org.project.model.dto.FolderFileInfo;
 import org.project.model.dto.MoveNodeRequest;
 import org.project.model.dto.NodeQueryDTO;
 import org.project.model.dto.RenameNodeRequest;
+import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.NodeEntity;
 import org.project.model.vo.FolderNodeVO;
@@ -47,6 +49,30 @@ public class NodeController extends BaseController {
         FolderNodeEntity node = directoryTreeService.queryUserFolderNodeById(UUID.fromString(node_id), UUID.fromString(user_id));
 
         return new JsonResult<>(OK, VoMapper.toFolderNodeVO(node));
+    }
+
+    /**
+     * 递归获取文件夹下所有文件信息（用于文件夹下载）
+     * 通过目录闭包表查询所有子孙节点下的活跃文件，返回文件元数据含存储路径
+     */
+    @GetMapping("/{node_id}/files")
+    public JsonResult<List<FolderFileInfo>> getFolderFilesRecursive(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "node_id必须是有效的UUID格式")
+            @PathVariable String node_id,
+            @RequestHeader("X-User-Id") String user_id) {
+        List<FileEntity> files = directoryTreeService.findActiveFilesRecursive(
+                UUID.fromString(node_id), UUID.fromString(user_id));
+        
+        List<FolderFileInfo> result = files.stream()
+                .map(f -> new FolderFileInfo(
+                        f.getId().toString(),
+                        f.getName(),
+                        f.getSize(),
+                        f.getStorage_path()))
+                .toList();
+        
+        return new JsonResult<>(OK, result);
     }
 
     @GetMapping("/{node_id}/children")

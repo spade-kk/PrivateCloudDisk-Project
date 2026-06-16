@@ -36,6 +36,20 @@
           and file_status not in ('trashed', 'deleted', 'merge_failed', 'reject', 'scan_failed');
     </select>
 
+    <select id="findActiveFilesByDescendantNodes" resultMap="FileEntityMap">
+        SELECT f.*
+        FROM pcd_file_info_table f
+        WHERE f.file_author_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND f.file_node_id IN (
+              SELECT descendant_id
+              FROM pcd_directory_closure_table
+              WHERE ancestor_id = #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          )
+          AND f.file_status NOT IN ('trashed', 'deleted', 'merging', 'merge_failed', 'scanning', 'reject', 'scan_failed', 'merged')
+        ORDER BY f.file_name ASC
+    </select>
+
     <select id="findUserFileById" resultMap="FileEntityMap" parameterType="java.util.UUID">
         select * from pcd_file_info_table where file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>

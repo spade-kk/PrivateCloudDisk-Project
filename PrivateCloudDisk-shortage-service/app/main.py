@@ -8,17 +8,67 @@ FastAPI 主进程仅负责 HTTP API，不运行消费者。
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from app.api.v1.router import api_router
 from app.middleware.timing import add_process_time_header
 from app.core.redis_client import redis_client
 from app.core.logging_config import setup_logging, get_logger
 from core.rabbitmq import rabbitmq_service
+from core.config import settings
 
 
 # 配置日志系统
 setup_logging(level=logging.INFO, enable_color=True)
 logger = get_logger("app.main")
+
+
+# ==================== OpenAPI 文档开关 ====================
+# 通过环境变量 ENABLE_DOCS 控制，生产环境默认关闭
+ENABLE_DOCS = settings.enable_docs
+
+if ENABLE_DOCS:
+    logger.info("OpenAPI 文档已启用: /docs /redoc /openapi.json")
+else:
+    logger.info("OpenAPI 文档已关闭（生产模式）")
+
+
+# ==================== OpenAPI 标签元数据 ====================
+
+TAGS_METADATA = [
+    {
+        "name": "操作凭证",
+        "description": "文件操作凭证的申请与销毁，支持 download / preview / stream 三种操作类型。\n\n"
+                       "申请凭证后返回 JWT Token，后续操作需携带此 Token 进行鉴权。",
+        "externalDocs": {
+            "description": "操作凭证设计文档",
+            "url": "https://privateclouddisk.local/docs/operation-tokens",
+        },
+    },
+    {
+        "name": "文件上传",
+        "description": "文件分片上传接口，支持断点续传。\n\n"
+                       "**流程：** 创建上传会话 → 上传分片 → 触发合并 → 查询任务状态。\n"
+                       "分片大小建议 5MB~10MB，单个文件最大支持 5GB。",
+    },
+    {
+        "name": "文件下载",
+        "description": "基于 Opaque Token 的安全文件下载接口。\n\n"
+                       "先通过下载授权接口获取 grant_token，再携带 token 进行 Range 下载。\n"
+                       "支持并发控制、速率限制、可撤销授权。",
+    },
+    {
+        "name": "文件操作",
+        "description": "文件操作接口，包括文件下载和缩略图获取。\n\n"
+                       "缩略图基于 libvips 高性能处理，支持 JPEG/PNG/WebP 格式。",
+    },
+    {
+        "name": "任务状态",
+        "description": "异步任务状态查询接口。\n\n"
+                       "可查询合并、哈希计算、病毒扫描、缩略图生成、视频转码等任务进度。\n"
+                       "任务状态包括：pending / processing / completed / failed。",
+    },
+]
 
 
 # ==================== 应用生命周期管理 ====================
@@ -36,6 +86,7 @@ async def lifespan(app: FastAPI):
     关闭阶段：
     1. 关闭 Redis 连接
     2. 关闭 RabbitMQ 连接
+    3. 关闭 OpenSearch 连接
     """
     logger.info("=" * 60)
     logger.info("PrivateCloudDisk 文件服务启动中...")
@@ -78,29 +129,107 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
 
 
+# ==================== 自定义 OpenAPI Schema（安全方案注入） ====================
+
+def custom_openapi():
+    """
+    生成自定义 OpenAPI Schema，注入安全方案定义。
+
+    安全方案：
+    - X-User-Id: API Key（Header），所有业务接口必填
+    - BearerAuth: JWT Bearer Token，操作凭证接口使用
+    """
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        tags=app.openapi_tags,
+        servers=app.servers,
+    )
+
+    # 注入安全方案定义
+    openapi_schema["components"]["securitySchemes"] = {
+        "X-User-Id": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-User-Id",
+            "description": "用户 UUID，所有业务接口必填。用于标识请求用户身份。",
+        },
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "JWT 操作凭证 Token。通过 /api/v1/operation-tokens/init 申请获取。",
+        },
+    }
+
+    # 全局安全要求（Swagger UI 中"Authorize"按钮可见）
+    openapi_schema["security"] = [
+        {"X-User-Id": []},
+        {"BearerAuth": []},
+    ]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
 # ==================== 创建 FastAPI 应用实例 ====================
 
 app = FastAPI(
     title="PrivateCloudDisk 文件服务",
     description="""
-    企业级文件服务 API
-    
-    功能模块：
-    - 文件上传：分片上传、断点续传
-    - 文件下载：Range 请求、断点续传
-    - 缩略图生成：libvips 高性能图片处理
-    - 异步处理：文件合并、病毒扫描、视频转码
-    - 任务追踪：任务状态查询
-    
-    技术特点：
-    - 多维度限流：总请求次数、每秒速率、并发连接数
-    - 操作凭证：JWT 临时凭证，支持撤销
-    - Redis 缓存：缩略图缓存、任务状态缓存
-    - RabbitMQ：异步任务队列，顺序处理
-    """,
+## 企业级文件服务 API
+
+提供文件上传、下载、缩略图生成、异步任务处理等核心能力。
+
+### 功能模块
+
+| 模块 | 说明 |
+|------|------|
+| 操作凭证 | 文件操作 Token 的申请与销毁，支持 download / preview / stream |
+| 文件上传 | 分片上传、断点续传，单文件最大 5GB |
+| 文件下载 | Opaque Token 安全下载，Range 请求、并发控制 |
+| 文件操作 | 缩略图获取（libvips 高性能处理） |
+| 任务状态 | 异步任务进度查询（合并/哈希/扫描/转码/缩略图） |
+
+### 技术架构
+
+- **多维度限流**：总请求次数、每秒速率、并发连接数三层防护
+- **操作凭证**：JWT 临时凭证，支持细粒度权限控制和即时撤销
+- **Redis 缓存**：缩略图缓存、任务状态缓存、凭证黑名单
+- **RabbitMQ**：异步任务队列，保证消息顺序处理与死信重试
+- **OpenSearch**：文件内容索引与全文搜索
+""",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # 文档端点：生产环境通过 ENABLE_DOCS=false 关闭
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_DOCS else None,
+    # 标签元数据
+    openapi_tags=TAGS_METADATA,
+    # 多环境服务器列表
+    servers=[
+        {"url": "http://localhost:8000", "description": "本地开发环境"},
+        {"url": "http://file-service-backend:8000", "description": "Docker 内部网络"},
+    ],
+    # 联系方式 & 许可证
+    contact={
+        "name": "PrivateCloudDisk Team",
+        "email": "dev@privateclouddisk.local",
+    },
+    license_info={
+        "name": "Internal Use Only",
+        "url": "https://privateclouddisk.local/license",
+    },
 )
+
+# 注入自定义 OpenAPI Schema（含安全方案）
+app.openapi = custom_openapi
 
 
 # ==================== 注册中间件 ====================
@@ -111,6 +240,23 @@ app.middleware("http")(add_process_time_header)
 # ==================== 注册路由 ====================
 
 app.include_router(api_router)
+
+
+# ==================== 健康检查端点 ====================
+
+@app.get("/health", tags=["系统"], include_in_schema=ENABLE_DOCS)
+async def health_check():
+    """
+    健康检查端点
+
+    返回服务运行状态，供 Docker healthcheck 和负载均衡器使用。
+    """
+    return {
+        "status": "healthy",
+        "service": "PrivateCloudDisk File Service",
+        "version": "1.0.0",
+        "docs_enabled": ENABLE_DOCS,
+    }
 
 
 # ==================== 服务端启动指令 ====================

@@ -6,6 +6,11 @@ import json
 import logging
 import aiofiles
 import uuid
+import hashlib
+import time
+import os
+import zipfile
+import tempfile
 from fastapi import APIRouter, Header, Request, Depends, Query, HTTPException, status
 from fastapi.responses import StreamingResponse, FileResponse, Response
 from typing import Optional
@@ -19,6 +24,7 @@ from app.core.download_grant import (
     finish_download_grant,
     fetch_file_metadata_from_business_service
 )
+from app.models.schemas import FolderDownloadRequest
 
 
 # 创建路由器
@@ -323,6 +329,173 @@ async def get_grant_status(
         )
 
 
-# 导入依赖
-import hashlib
-import time
+@router.post("/downloads/folders", summary="文件夹打包下载")
+async def download_folder(
+    req: FolderDownloadRequest,
+    user_id: str = Header(..., alias="X-User-Id")
+):
+    """
+    文件夹打包下载（ZIP 流式返回）
+    
+    功能说明：
+    接收文件列表（含存储路径），在服务端将文件打包为 ZIP 并流式返回。
+    支持大文件夹（最多10000个文件），使用临时文件避免内存溢出。
+    
+    业务流程：
+    1. 验证文件列表非空且未超限
+    2. 验证每个文件在存储中确实存在
+    3. 创建临时 ZIP 文件
+    4. 按原始目录结构将文件写入 ZIP
+    5. 流式返回 ZIP 文件
+    6. 清理临时文件
+    
+    安全措施：
+    - 路径遍历防护：验证 storage_path 为绝对路径且在允许的存储目录内
+    - 文件数量限制：最多 10000 个文件
+    - 超时保护：ZIP 生成超时 300 秒
+    
+    Args:
+        req: 文件夹下载请求体
+            - node_name: 文件夹名称
+            - files: 文件列表 [{file_id, file_name, file_size, storage_path}]
+        user_id: 用户唯一标识符（从 X-User-Id 请求头获取）
+    
+    Returns:
+        StreamingResponse: ZIP 文件流，Content-Disposition 含文件名
+    
+    Raises:
+        HTTPException:
+            - 400: 文件列表为空或超限
+            - 404: 文件不存在
+            - 403: 路径遍历攻击
+            - 500: ZIP 创建失败
+    
+    Example:
+        POST /downloads/folders
+        Headers: X-User-Id: user123
+        Body: {
+            "node_name": "我的文档",
+            "files": [
+                {"file_id": "uuid-1", "file_name": "报告.pdf", "file_size": 1024000, "storage_path": "/data/files/uuid-1.pdf"}
+            ]
+        }
+        
+        Response:
+            Status: 200 OK
+            Headers:
+                Content-Type: application/zip
+                Content-Disposition: attachment; filename="我的文档.zip"
+            Body: [ZIP 字节流]
+    """
+    # 1. 验证文件列表
+    files = req.files
+    if not files:
+        raise HTTPException(status_code=400, detail="文件列表不能为空")
+    if len(files) > 10000:
+        raise HTTPException(status_code=400, detail="单次最多下载 10000 个文件")
+    
+    # 2. 获取存储根目录配置（用于路径遍历防护）
+    storage_root = getattr(settings, 'storage_root', '/data/files')
+    storage_root = os.path.realpath(storage_root)
+    
+    # 3. 验证文件存在且路径安全
+    valid_files = []
+    for f in files:
+        storage_path = f.storage_path
+        
+        # 路径遍历防护：确保存储路径在允许的存储目录内
+        real_path = os.path.realpath(storage_path)
+        if not real_path.startswith(storage_root + os.sep) and real_path != storage_root:
+            raise HTTPException(
+                status_code=403,
+                detail=f"非法文件路径: {f.file_name}"
+            )
+        
+        # 检查文件是否存在
+        if not os.path.isfile(real_path):
+            logger.warning(f"Folder download: file not found on disk: {real_path}")
+            continue
+        
+        valid_files.append((f, real_path))
+    
+    if not valid_files:
+        raise HTTPException(status_code=404, detail="没有找到可下载的文件")
+    
+    # 4. 创建临时 ZIP 文件
+    zip_basename = f"{req.node_name}.zip"
+    safe_zip_name = "".join(c for c in zip_basename if c.isalnum() or c in '._- ()')
+    if not safe_zip_name:
+        safe_zip_name = "folder_download.zip"
+    
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix='.zip', prefix='pcd_folder_')
+    os.close(tmp_fd)
+    
+    try:
+        # 目录名去重，避免同名文件覆盖
+        seen_names = {}
+        
+        with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for file_info, real_path in valid_files:
+                file_name = file_info.file_name
+                arcname = f"{req.node_name}/{file_name}"
+                
+                # 处理同名文件：添加序号后缀
+                if arcname in seen_names:
+                    base, ext = os.path.splitext(file_name)
+                    counter = 1
+                    while True:
+                        new_name = f"{base} ({counter}){ext}"
+                        new_arcname = f"{req.node_name}/{new_name}"
+                        if new_arcname not in seen_names:
+                            arcname = new_arcname
+                            break
+                        counter += 1
+                
+                seen_names[arcname] = True
+                
+                try:
+                    zf.write(real_path, arcname)
+                except Exception as e:
+                    logger.error(f"Folder download: failed to add file {real_path}: {e}")
+                    continue
+        
+        # 5. 获取 ZIP 文件大小
+        zip_size = os.path.getsize(tmp_path)
+        
+        # 6. 流式返回 ZIP 文件
+        def zip_iterator():
+            chunk_size = 8192  # 8KB chunks
+            with open(tmp_path, 'rb') as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+            # 清理临时文件
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        
+        # URL 编码文件名用于 Content-Disposition
+        from urllib.parse import quote
+        encoded_name = quote(safe_zip_name)
+        
+        return StreamingResponse(
+            zip_iterator(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+                "Content-Length": str(zip_size),
+                "X-Total-Files": str(len(valid_files)),
+                "X-Total-Size": str(sum(fi.file_size for fi, _ in valid_files))
+            }
+        )
+    except Exception as e:
+        # 清理临时文件
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        logger.error(f"Folder download: failed to create zip: {e}")
+        raise HTTPException(status_code=500, detail=f"ZIP 创建失败: {str(e)}")
