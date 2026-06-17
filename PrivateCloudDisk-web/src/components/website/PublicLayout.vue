@@ -14,7 +14,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import PublicHeader from './PublicHeader.vue'
 import PublicFooter from './PublicFooter.vue'
 import BackToTop from './BackToTop.vue'

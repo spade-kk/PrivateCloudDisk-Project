@@ -193,7 +193,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import PageState from '@/components/common/PageState.vue'
 import { useNotificationStore } from '@/stores/notificationStore'
@@ -211,7 +211,7 @@ const friendAccount = ref('')
 const messagesRef = ref(null)
 
 const realtimeText = computed(() => {
-  const map = { online: '实时在线', connecting: '连接中', degraded: '降级模式', offline: '离线占位' }
+  const map = { online: '实时在线', connecting: '连接中', reconnecting: '重连中', degraded: '降级模式', kicked: '已被踢下线', offline: '离线占位' }
   return map[notificationStore.realtimeStatus] || '离线占位'
 })
 

@@ -1,0 +1,226 @@
+# ============================================================
+# CI/CD: 构建客户端安装包并上传到下载服务器
+# ============================================================
+# 触发条件：
+#   - 推送 tag（如 v3.2.0）→ 自动构建所有平台并上传
+#   - 手动触发（workflow_dispatch）→ 可选择平台和版本
+#
+# 构建矩阵：
+#   - Windows x64 / ARM64  → .exe / .msi
+#   - macOS   x64 / ARM64  → .dmg
+#   - Linux   x64          → .AppImage / .deb / .rpm
+#
+# 上传方式（按优先级）：
+#   1. rsync 到服务器（推荐，需要 SSH 密钥）
+#   2. HTTP API 上传（通过 uploader 服务）
+# ============================================================
+
+name: Build & Upload Client Binaries
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 3.2.0）'
+        required: true
+        type: string
+        default: '3.2.0'
+      platforms:
+        description: '目标平台（逗号分隔）'
+        required: false
+        type: string
+        default: 'windows-x64,macos-arm64,macos-x64,linux-x64'
+
+env:
+  # 下载服务器地址（通过 GitHub Secrets 配置）
+  DOWNLOAD_SERVER: ${{ secrets.DOWNLOAD_SERVER_HOST }}
+  DOWNLOAD_SERVER_USER: ${{ secrets.DOWNLOAD_SERVER_USER }}
+  DOWNLOAD_SERVER_PATH: ${{ secrets.DOWNLOAD_SERVER_PATH }}
+
+jobs:
+  # ============================================================
+  # 确定版本号
+  # ============================================================
+  set-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+    steps:
+      - name: 确定版本号
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "构建版本: ${VERSION}"
+
+  # ============================================================
+  # 构建 Windows 安装包
+  # ============================================================
+  build-windows:
+    needs: set-version
+    if: contains(inputs.platforms || 'windows-x64,windows-arm64', 'windows')
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建 Windows ${{ matrix.arch }} 安装包
+        run: |
+          $version = "${{ needs.set-version.outputs.version }}"
+          Write-Host "构建 Windows ${{ matrix.arch }} v${version}"
+          # TODO: 替换为实际构建命令
+          # cd client-desktop
+          # npm ci
+          # npm run build:win -- --arch=${{ matrix.arch }} --version=${version}
+          Write-Host "构建产物: CloudDrive-Setup-${version}-${{ matrix.arch }}.exe"
+
+      - name: 计算 SHA256
+        run: |
+          # Get-FileHash -Algorithm SHA256 "dist/CloudDrive-Setup-${{ needs.set-version.outputs.version }}-${{ matrix.arch }}.exe"
+
+      - name: 上传构建产物（GitHub Artifacts，备用）
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}-${{ needs.set-version.outputs.version }}
+          path: dist/CloudDrive-Setup-*.exe
+          retention-days: 7
+
+      - name: 上传到下载服务器（rsync）
+        if: env.DOWNLOAD_SERVER != ''
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.DOWNLOAD_SERVER_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.DOWNLOAD_SERVER_HOST }}
+          REMOTE_USER: ${{ secrets.DOWNLOAD_SERVER_USER }}
+          SOURCE: "dist/"
+          TARGET: ${{ secrets.DOWNLOAD_SERVER_PATH }}/binaries/
+          ARGS: "-avz --include='*.exe' --include='*.msi' --exclude='*'"
+
+  # ============================================================
+  # 构建 macOS 安装包
+  # ============================================================
+  build-macos:
+    needs: set-version
+    if: contains(inputs.platforms || 'macos-arm64,macos-x64', 'macos')
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建 macOS ${{ matrix.arch }} DMG
+        run: |
+          version="${{ needs.set-version.outputs.version }}"
+          echo "构建 macOS ${{ matrix.arch }} v${version}"
+          # TODO: 替换为实际构建命令
+          # cd client-desktop
+          # npm ci
+          # npm run build:mac -- --arch=${{ matrix.arch }} --version=${version}
+          echo "构建产物: CloudDrive-${version}-${{ matrix.arch }}.dmg"
+
+      - name: 代码签名（macOS 需要公证）
+        if: matrix.arch == 'arm64'
+        run: |
+          echo "对 ARM64 DMG 进行代码签名和公证..."
+          # codesign --deep --force --verify --verbose \
+          #   --sign "Developer ID Application: Your Company" \
+          #   "dist/CloudDrive-*.dmg"
+          # xcrun notarytool submit "dist/CloudDrive-*.dmg" \
+          #   --apple-id "${{ secrets.APPLE_ID }}" \
+          #   --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+          #   --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+          #   --wait
+
+      - name: 计算 SHA256
+        run: |
+          # shasum -a 256 dist/CloudDrive-*.dmg
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-${{ needs.set-version.outputs.version }}
+          path: dist/CloudDrive-*.dmg
+          retention-days: 7
+
+      - name: 上传到下载服务器（rsync）
+        if: env.DOWNLOAD_SERVER != ''
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.DOWNLOAD_SERVER_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.DOWNLOAD_SERVER_HOST }}
+          REMOTE_USER: ${{ secrets.DOWNLOAD_SERVER_USER }}
+          SOURCE: "dist/"
+          TARGET: ${{ secrets.DOWNLOAD_SERVER_PATH }}/binaries/
+          ARGS: "-avz --include='*.dmg' --include='*.pkg' --exclude='*'"
+
+  # ============================================================
+  # 构建 Linux 安装包
+  # ============================================================
+  build-linux:
+    needs: set-version
+    if: contains(inputs.platforms || 'linux-x64', 'linux')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建 Linux x86_64 安装包
+        run: |
+          version="${{ needs.set-version.outputs.version }}"
+          echo "构建 Linux x86_64 v${version}"
+          # TODO: 替换为实际构建命令
+          # cd client-desktop
+          # npm ci
+          # npm run build:linux -- --version=${version}
+          # 产物：
+          #   CloudDrive-${version}-x86_64.AppImage
+          #   clouddrive_${version}_amd64.deb
+          #   clouddrive-${version}-1.x86_64.rpm
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64-${{ needs.set-version.outputs.version }}
+          path: |
+            dist/CloudDrive-*.AppImage
+            dist/clouddrive_*.deb
+            dist/clouddrive-*.rpm
+          retention-days: 7
+
+      - name: 上传到下载服务器（rsync）
+        if: env.DOWNLOAD_SERVER != ''
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.DOWNLOAD_SERVER_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.DOWNLOAD_SERVER_HOST }}
+          REMOTE_USER: ${{ secrets.DOWNLOAD_SERVER_USER }}
+          SOURCE: "dist/"
+          TARGET: ${{ secrets.DOWNLOAD_SERVER_PATH }}/binaries/
+          ARGS: "-avz --include='*.AppImage' --include='*.deb' --include='*.rpm' --exclude='*'"
+
+  # ============================================================
+  # 更新版本清单
+  # ============================================================
+  update-manifest:
+    needs: [set-version, build-windows, build-macos, build-linux]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 更新版本清单并上传
+        run: |
+          VERSION="${{ needs.set-version.outputs.version }}"
+          echo "更新版本清单到 v${VERSION}"
+
+          echo "版本清单更新完成"

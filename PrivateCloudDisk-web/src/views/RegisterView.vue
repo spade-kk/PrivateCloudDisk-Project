@@ -256,10 +256,11 @@
   </main>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { post } from '@/utils/request'
+import { hashPasswordForTransport } from '@/utils/crypto'
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
@@ -457,10 +458,13 @@ async function handleRegister() {
   loading.value = true
 
   try {
+    // 客户端密码预哈希 - 密码明文永不离开浏览器
+    const hashedPassword = await hashPasswordForTransport(form.password, form.email)
+
     const response = await post('business/users/', {
       name: form.name,
       email: form.email,
-      password: form.password,
+      password: hashedPassword,
       code: form.code,
       captcha_token: captchaToken.value,
       captcha_action: 'register',

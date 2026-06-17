@@ -1,0 +1,146 @@
+// ============================================================
+// 路由配置
+// ============================================================
+// 采用 Vue Router 4 + History 模式，路由分为三大区域：
+//   1. 官网 (/)         — 公开访问，无需登录
+//   2. 登录/注册         — 认证页面
+//   3. 控制台 (/app)    — 需要登录认证，包含所有业务功能页面
+//
+// 路由守卫 (beforeEach)：
+//   检查目标路由的 meta.requiresAuth 标记，未登录时跳转登录页。
+//   使用 Pinia authStore 的 isLoggedIn 状态判断登录状态。
+// ============================================================
+
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
+
+// ============================================================
+// 路由表定义
+// ============================================================
+
+const routes: RouteRecordRaw[] = [
+  // ============================================================
+  // 官网 — 公开页面，无需登录
+  // 所有页面使用 PublicLayout 统一布局（导航栏+页脚）
+  // 包含首页、产品功能、下载、定价、关于、文档、博客等营销页面
+  // ============================================================
+  {
+    path: '/',
+    component: () => import('@/components/website/PublicLayout.vue'),
+    children: [
+      { path: '', name: 'Home', component: () => import('@/views/website/HomeView.vue') },
+      { path: 'features', name: 'Features', component: () => import('@/views/website/FeaturesView.vue') },
+      { path: 'download', name: 'Download', component: () => import('@/views/website/DownloadView.vue') },
+      { path: 'pricing', name: 'Pricing', component: () => import('@/views/website/PricingView.vue') },
+      { path: 'about', name: 'About', component: () => import('@/views/website/AboutView.vue') },
+      { path: 'contact', name: 'Contact', component: () => import('@/views/website/ContactView.vue') },
+      { path: 'docs', name: 'Docs', component: () => import('@/views/website/DocsView.vue') },
+      { path: 'solutions', name: 'Solutions', component: () => import('@/views/website/SolutionsView.vue') },
+      { path: 'case-studies', name: 'CaseStudies', component: () => import('@/views/website/CaseStudiesView.vue') },
+      { path: 'blog', name: 'Blog', component: () => import('@/views/website/BlogView.vue') },
+      { path: 'careers', name: 'Careers', component: () => import('@/views/website/CareersView.vue') },
+      { path: 'partners', name: 'Partners', component: () => import('@/views/website/PartnersView.vue') },
+      { path: 'security-center', name: 'SecurityCenter', component: () => import('@/views/website/SecurityCenterView.vue') },
+      { path: 'changelog', name: 'Changelog', component: () => import('@/views/website/ChangelogView.vue') },
+      { path: 'status', name: 'Status', component: () => import('@/views/website/StatusView.vue') },
+      { path: 'privacy', name: 'Privacy', component: () => import('@/views/website/PrivacyView.vue') },
+      { path: 'terms', name: 'Terms', component: () => import('@/views/website/TermsView.vue') },
+      { path: 'press', name: 'Press', component: () => import('@/views/website/PressView.vue') },
+      // 官网 404 兜底：匹配所有未定义的路由
+      { path: ':pathMatch(.*)*', name: 'PublicNotFound', component: () => import('@/views/website/NotFoundView.vue') },
+    ],
+  },
+
+  // ============================================================
+  // 登录 — 已登录用户显示已登录提示页，未登录用户显示登录表单
+  // LoginWrapper 组件内部根据 authStore.isLoggedIn 决定渲染内容
+  // ============================================================
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/LoginWrapper.vue'),
+  },
+
+  // ============================================================
+  // 注册 — 无论是否登录均可访问
+  // ============================================================
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/RegisterView.vue'),
+  },
+
+  // ============================================================
+  // 控制台 — 需要登录认证
+  // 所有子路由共享 Layout 布局（侧边栏+顶栏+内容区）
+  // meta.requiresAuth: true 触发路由守卫的登录检查
+  // ============================================================
+  {
+    path: '/app',
+    component: () => import('@/components/layout/Layout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      { path: '', name: 'Dashboard', component: () => import('@/views/DashboardView.vue') },
+      { path: 'search', name: 'Search', component: () => import('@/views/SearchView.vue') },
+      { path: 'starred', name: 'Starred', component: () => import('@/views/StarredView.vue') },
+      { path: 'versions', name: 'Versions', component: () => import('@/views/versions/VersionsView.vue') },
+      { path: 'shares', name: 'Shares', component: () => import('@/views/SharesView.vue') },
+      { path: 'notifications', name: 'Notifications', component: () => import('@/views/NotificationsView.vue') },
+      { path: 'transfers', name: 'Transfers', component: () => import('@/views/TransfersView.vue') },
+      { path: 'trash', name: 'Trash', component: () => import('@/views/TrashView.vue') },
+      { path: 'storage', name: 'Storage', component: () => import('@/views/StorageView.vue') },
+      { path: 'team', name: 'Team', component: () => import('@/views/team/TeamView.vue') },
+      { path: 'security', name: 'Security', component: () => import('@/views/security/SecurityView.vue') },
+      { path: 'security/api-keys', name: 'ApiKeys', component: () => import('@/views/security/ApiKeysView.vue') },
+      { path: 'devices', name: 'Devices', component: () => import('@/views/DevicesView.vue') },
+      { path: 'settings', name: 'Settings', component: () => import('@/views/settings/SettingsView.vue') },
+      { path: 'billing', name: 'Billing', component: () => import('@/views/billing/BillingView.vue') },
+      { path: 'help', name: 'Help', component: () => import('@/views/help/HelpView.vue') },
+      { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
+      // 视频播放器：通过 fileId 参数指定播放文件
+      { path: 'video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { requiresAuth: true } },
+      // 控制台 404 兜底
+      { path: ':pathMatch(.*)*', name: 'AppNotFound', component: () => import('@/views/website/NotFoundView.vue') },
+    ],
+  },
+]
+
+// ============================================================
+// 路由实例创建
+// ============================================================
+
+/**
+ * Vue Router 实例
+ *
+ * 使用 HTML5 History 模式（无需 # 号），
+ * 生产环境需配置 Nginx/Apache 将所有路由 fallback 到 index.html。
+ */
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+})
+
+// ============================================================
+// 全局路由守卫
+// ============================================================
+
+/**
+ * 前置守卫 — 登录状态检查
+ *
+ * 每次路由跳转前检查目标路由是否需要认证。
+ * 需要认证但未登录时，重定向到 /login 页面。
+ * 不需要认证的路由（官网、登录页、注册页）直接放行。
+ */
+router.beforeEach((to, _from, next) => {
+  const authStore = useAuthStore()
+
+  // 目标路由需要认证但用户未登录 → 跳转登录页
+  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+    next('/login')
+    return
+  }
+
+  next()
+})
+
+export default router

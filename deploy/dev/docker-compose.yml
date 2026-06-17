@@ -1,4 +1,12 @@
-# 版本定义
+# ============================================================
+# PrivateCloudDisk — 开发环境 Docker Compose
+# ============================================================
+# 用途：本地开发调试，支持热重载和代码挂载
+# 启动：docker compose -f deploy/dev/docker-compose.yml up -d
+# 停止：docker compose -f deploy/dev/docker-compose.yml down
+# 注意：此为开发环境，不使用 nginx 反向代理，前端直接暴露 Vite dev server
+# ============================================================
+
 version: '1'
 
 networks:
@@ -13,7 +21,11 @@ volumes:
 
 # 定义所有服务（容器）
 services:
-  # 1. MySQL 数据库服务
+  # ============================================================
+  #                         中间件层
+  # ============================================================
+
+  # -------------------- MySQL 8.0 --------------------
   mysql:
     image: mysql:8.0
     container_name: project-mysql
@@ -23,106 +35,164 @@ services:
       - "3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: private_cloud_disk # 自动创建数据库
+      MYSQL_DATABASE: private_cloud_disk
     volumes:
-      - mysql-data:/var/lib/mysql # 数据持久化（删容器不丢数据）
-      # 2. 自动执行本地SQL（初始化你的所有表+数据）
+      - mysql-data:/var/lib/mysql
+      # 自动执行初始化 SQL
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # -------------------- Redis 7 --------------------
   redis:
     image: redis:latest
     container_name: project-redis
     networks:
       - app-networks
-    restart: always
     ports:
       - "6389:6379"
     volumes:
       - redis-data:/data
     hostname: redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # -------------------- RabbitMQ 3 --------------------
   rabbitmq:
     image: rabbitmq:latest
     container_name: project-rabbitmq
     networks:
       - app-networks
-    restart: always
     ports:
-      - "5673:5672"    # 程序连接端口
-      - "15673:15672"  # 管理面板端口
+      - "5673:5672"
+      - "15673:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
-       - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # 2. SpringBoot 后端业务服务
+  # ============================================================
+  #                         业务服务层
+  # ============================================================
+
+  # -------------------- SpringBoot 后端业务服务 --------------------
   platform-service-backend:
-    build: ./PrivateCloudDisk-platform-service # 自动读取前端Dockerfile
+    build: ./PrivateCloudDisk-platform-service
     container_name: backend-platform-service
     networks:
       - app-networks
-    restart: always
     ports:
       - "8080:8080"
     depends_on:
-      - mysql
-      - redis
-      - rabbitmq
-    # 开发环境热重载
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      # 连接数据库：用服务名访问（Docker内部网络）
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: 123456
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBItMQ_PORT: 5672
+      SPRING_RABBITMQ_PORT: 5672
       SECURITY_CAPTCHA_TURNSTILE_ENABLED: ${SECURITY_CAPTCHA_TURNSTILE_ENABLED:-false}
       SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY: ${SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY:-}
       SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME: ${SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME:-}
-    # 核心：本地代码目录挂载到容器 → 改代码实时生效，不用重新build
     volumes:
+      # 开发模式：挂载本地代码目录，改代码实时生效
       - ./PrivateCloudDisk-platform-service:/backend_platform_service
       - /backend_platform_service/.gradle
       - /backend_platform_service/.idea
       - /backend_platform_service/build
       - /backend_platform_service/out
-  
-  # 3. FastAPI 后端文件服务
+    restart: always
+
+  # -------------------- FastAPI 后端文件服务 --------------------
   file-service-backend:
     build: ./PrivateCloudDisk-shortage-service
     container_name: backend-file-service
     networks:
       - app-networks
-    restart: always
     ports:
       - "8000:8000"
     depends_on:
-      - platform-service-backend
-     # 核心：本地代码目录挂载到容器 → 改代码实时生效，不用重新build
+      platform-service-backend:
+        condition: service_started
     volumes:
+      # 开发模式：挂载本地代码目录，改代码实时生效
       - ./PrivateCloudDisk-shortage-service:/backend_file_service
       - /backend_file_service/__pycache__
       - /backend_file_service/.venv
+    restart: always
 
-  # 4. Vue 前端服务
+  # ============================================================
+  #                         前端层
+  # ============================================================
+
+  # -------------------- Vue 前端（Vite 开发服务器） --------------------
+  # 开发模式：使用 Vite dev server 热重载，无需 nginx
+  # 前端访问：http://localhost:5500
   frontend:
-    build: ./PrivateCloudDisk-web # 自动读取后端Dockerfile
-    container_name: private-cloud-web
+    build:
+      context: ./PrivateCloudDisk-web
+      dockerfile: Dockerfile.dev
+    container_name: private-cloud-web-dev
     networks:
       - app-networks
-    restart: always
     ports:
       - "5500:5500"
     depends_on:
-      - platform-service-backend # 等待数据库启动后再启动后端
-      - file-service-backend
-     # 核心：本地代码目录挂载到容器 → 改代码实时生效，不用重新build
+      platform-service-backend:
+        condition: service_started
+      file-service-backend:
+        condition: service_started
     volumes:
+      # 开发模式：挂载本地源码目录，Vite HMR 实时生效
       - ./PrivateCloudDisk-web:/frontend_web_app
+      # 匿名卷：防止本地目录覆盖容器内的依赖
       - /frontend_web_app/dist
       - /frontend_web_app/node_modules
+    environment:
+      # Vite 开发服务器监听所有网络接口
+      - VITE_API_PROXY_TARGET=http://platform-service-backend:8080
+    restart: always
+    # 资源限制（开发环境适度放宽）
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5500/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

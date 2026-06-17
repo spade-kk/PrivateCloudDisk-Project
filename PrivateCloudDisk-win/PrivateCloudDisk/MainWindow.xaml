@@ -1,0 +1,143 @@
+<Window
+    x:Class="PrivateCloudDisk.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="PrivateCloudDisk"
+    SizeChanged="Window_SizeChanged">
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{x:Bind ViewModel.IsSidebarCollapsed ? 50 : 220}" MinWidth="50"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- 侧边栏 -->
+        <Border Grid.Column="0" Background="{StaticResource SidebarBgBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <Grid>
+                <StackPanel>
+                    <!-- Logo -->
+                    <StackPanel Orientation="Horizontal" Margin="16,16" HorizontalAlignment="Center"
+                                Visibility="{x:Bind ViewModel.IsSidebarCollapsed, Converter={StaticResource InverseBoolConverter}}">
+                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xF0AE;" FontSize="24"
+                                  Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                        <TextBlock Text="PrivateCloudDisk" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="8,0,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- 快捷操作 -->
+                    <StackPanel Visibility="{x:Bind ViewModel.IsSidebarCollapsed, Converter={StaticResource InverseBoolConverter}}"
+                                Margin="8,0">
+                        <Button Style="{StaticResource SidebarActionButton}"
+                                Click="UploadButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8A8;" Margin="0,0,4,0"/>
+                                <TextBlock Text="上传文件" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource SidebarActionButton}"
+                                Click="CreateFolderButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE1C5;" Margin="0,0,4,0"/>
+                                <TextBlock Text="新建文件夹" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 导航菜单 -->
+                    <NavigationView x:Name="NavView"
+                        SelectionChanged="NavView_SelectionChanged"
+                        SelectionDisplayMode="Collapsed"
+                        IsPaneOpen="False"
+                        PaneDisplayMode="Left"
+                        Background="Transparent"
+                        Margin="0,8,0,0">
+                        <NavigationView.MenuItems>
+                            <NavigationViewItem Icon="&#xE80F;" Content="首页" Tag="home"/>
+                            <NavigationViewItem Icon="&#xE710;" Content="收藏" Tag="favorites"/>
+                            <NavigationViewItem Icon="&#xE74D;" Content="回收站" Tag="trash"/>
+                            <NavigationViewItem Icon="&#xF01E;" Content="搜索" Tag="search"/>
+                            <NavigationViewItem Icon="&#xE713;" Content="个人信息" Tag="profile"/>
+                            <NavigationViewItem Icon="&#xE71C;" Content="设置" Tag="settings"/>
+                        </NavigationView.MenuItems>
+                    </NavigationView>
+                </StackPanel>
+
+                <!-- 折叠按钮 -->
+                <Border VerticalAlignment="Bottom" Padding="8" Margin="0,0,0,8">
+                    <Button Command="{x:Bind ViewModel.ToggleSidebarCommand}"
+                            Style="{StaticResource IconButton}">
+                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                                  Glyph="{x:Bind ViewModel.IsSidebarCollapsed ? '&#xE60C;' : '&#xE60E;'}"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    </Button>
+                </Border>
+
+                <!-- 配额信息 -->
+                <Border Visibility="{x:Bind ViewModel.IsSidebarCollapsed, Converter={StaticResource InverseBoolConverter}}"
+                        VerticalAlignment="Bottom" Margin="8" Padding="12"
+                        Background="{StaticResource CardBgBrush}" CornerRadius="8"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="存储空间" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="{x:Bind ViewModel.QuotaDisplay, Mode=OneWay}"
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <ProgressBar Value="{x:Bind ViewModel.QuotaPercent, Mode=OneWay}"
+                                     Foreground="{x:Bind (ViewModel.QuotaPercent) < 90 ? StaticResource.PrimaryBrush : StaticResource.DangerBrush}"
+                                     Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 用户信息 -->
+                <Border VerticalAlignment="Bottom" Margin="8,8,8,8"
+                        Visibility="{x:Bind ViewModel.IsAuthenticated, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <controls:TeachingTip.Target>
+                        <Border Background="{StaticResource CardBgBrush}" CornerRadius="8"
+                                Padding="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Grid Visibility="{x:Bind ViewModel.IsSidebarCollapsed, Converter={StaticResource InverseBoolConverter}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <PersonPicture x:Name="PersonPicture" DisplayName="{x:Bind ViewModel.UserDisplayName}"
+                                              Width="32" Height="32" Grid.Column="0"/>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                    <TextBlock Text="{x:Bind ViewModel.UserDisplayName}"
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="已登录" FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </controls:TeachingTip.Target>
+                    <FlyoutBase.AttachedFlyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem Text="个人信息" Icon="&#xE713;" Click="ProfileMenuItem_Click"/>
+                            <MenuFlyoutItem Text="设置" Icon="&#xE71C;" Click="SettingsMenuItem_Click"/>
+                            <MenuFlyoutSeparator/>
+                            <MenuFlyoutItem Text="退出登录" Icon="&#xE778;"
+                                            IsEnabled="{x:Bind ViewModel.IsAuthenticated}"
+                                            Click="LogoutMenuItem_Click"
+                                            Foreground="{StaticResource DangerBrush}"/>
+                        </MenuFlyout>
+                    </FlyoutBase.AttachedFlyout>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- 内容区 -->
+        <Grid Grid.Column="1">
+            <Frame x:Name="RootFrame"/>
+        </Grid>
+    </Grid>
+</Window>

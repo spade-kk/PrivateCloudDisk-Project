@@ -67,7 +67,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const releases = [
   {
     version: '3.2.0', date: '2026-01-10', latest: true,

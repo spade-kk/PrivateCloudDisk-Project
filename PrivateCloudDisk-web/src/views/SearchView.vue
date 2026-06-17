@@ -143,7 +143,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SmartSearchBox from '@/components/search/SmartSearchBox.vue'

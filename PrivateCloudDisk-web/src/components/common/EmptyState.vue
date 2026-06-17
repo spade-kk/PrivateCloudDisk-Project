@@ -11,7 +11,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 defineProps({ message: { type: String, default: '该文件夹为空' } })
 defineEmits(['create'])
 </script>

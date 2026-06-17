@@ -1,0 +1,74 @@
+# ============================================================
+# IM Server — Netty WebSocket 推送服务配置
+# ============================================================
+server:
+  port: ${IM_SERVER_HTTP_PORT:8089}
+
+spring:
+  application:
+    name: im-server
+
+  # ==================== Redis 配置 ====================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 2
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+      timeout: 5000ms
+
+  # ==================== RabbitMQ 配置 ====================
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    listener:
+      simple:
+        concurrency: 4
+        max-concurrency: 8
+        prefetch: 10
+        acknowledge-mode: manual
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2.0
+
+  # ==================== Jackson 配置 ====================
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+# ==================== Netty 配置 ====================
+netty:
+  # WebSocket 监听端口
+  websocket:
+    port: ${NETTY_WS_PORT:9090}
+  # Boss 线程数（接收连接）
+  boss:
+    threads: 1
+  # Worker 线程数（处理 I/O）
+  worker:
+    threads: ${NETTY_WORKER_THREADS:8}
+  # 业务线程数
+  business:
+    threads: ${NETTY_BUSINESS_THREADS:16}
+  # 连接超时（秒）
+  connect-timeout: 30
+  # WebSocket 路径
+  websocket-path: /ws
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    org.project.im.server: DEBUG
+    io.netty: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

@@ -176,7 +176,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { useSettingsStore } from '@/stores/settingsStore'

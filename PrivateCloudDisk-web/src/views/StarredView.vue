@@ -11,7 +11,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import FileGridView from '@/components/file/FileGridView.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'

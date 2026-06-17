@@ -1,14 +1,27 @@
+# ============================================================
+# PrivateCloudDisk Web — 开发环境 Dockerfile
+# ============================================================
+# 开发模式：Vite dev server 热重载，无需 nginx 反向代理
+# 挂载本地源码目录，修改代码实时生效
+# ============================================================
+
 FROM node:22-alpine
 
 WORKDIR /frontend_web_app
 
-# 复制依赖文件，安装依赖
-COPY package.json .
+# 复制依赖文件，利用 Docker 层缓存
+COPY package.json package-lock.json ./
 
-RUN npm install
+# 安装依赖（使用国内镜像加速）
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set registry https://registry.npmmirror.com && \
+    npm ci
 
+# 复制源码（开发时通过 docker-compose volumes 挂载，此处仅为初始复制）
 COPY . .
 
+# 暴露 Vite 开发服务器端口
 EXPOSE 5500
 
-CMD [ "npm", "run", "dev" ]
+# 启动 Vite 开发服务器（监听所有网络接口以支持 Docker 外部访问）
+CMD ["npm", "run", "dev"]

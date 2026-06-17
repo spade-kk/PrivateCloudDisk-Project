@@ -92,7 +92,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { getFilePreviewTokenApi, getFileContentApi } from '@/api'
 import { getFileExtension } from '@/utils/helpers'

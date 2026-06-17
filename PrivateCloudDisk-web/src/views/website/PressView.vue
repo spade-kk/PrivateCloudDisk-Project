@@ -78,7 +78,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const pressReleases = [
   { category: '产品发布', date: '2026-01-10', title: 'CloudDrive 发布 v3.2 版本，AI 驱动文件搜索引领行业变革', summary: '全新的 AI 搜索引擎让文件查找速度提升 10 倍，支持自然语言查询和 OCR 图片文字搜索，为云存储行业带来颠覆性创新。' },
   { category: '融资新闻', date: '2025-10-15', title: 'CloudDrive 完成 5 亿元 B 轮融资，加速企业级私有云存储布局', summary: '本轮融资由红杉资本领投，腾讯跟投，资金将用于产品研发、市场拓展和国际化战略。' },

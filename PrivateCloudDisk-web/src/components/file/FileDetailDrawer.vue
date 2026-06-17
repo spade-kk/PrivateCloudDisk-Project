@@ -35,7 +35,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { formatFileSize, getFileExtension, formatTime } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'

@@ -1,7 +1,10 @@
 <template>
   <div>
-    <!-- Hero -->
+    <!-- ============================================================
+         Hero 区域 — 展示平台概览和快捷下载入口
+         ============================================================ -->
     <section class="download-hero">
+      <!-- 装饰性客户端设备展示 -->
       <div class="client-stage" aria-hidden="true">
         <div class="client-window desktop-window">
           <div class="window-topbar">
@@ -16,9 +19,7 @@
             </aside>
             <div class="desktop-content">
               <div class="desktop-toolbar">
-                <span></span>
-                <span></span>
-                <span></span>
+                <span></span><span></span><span></span>
               </div>
               <div class="desktop-grid">
                 <div v-for="n in 8" :key="n" class="mock-file">
@@ -29,7 +30,6 @@
             </div>
           </div>
         </div>
-
         <div class="client-window tablet-window">
           <div class="window-topbar compact">
             <span class="dot bg-danger"></span>
@@ -43,7 +43,6 @@
             </div>
           </div>
         </div>
-
         <div class="phone-frame">
           <div class="phone-speaker"></div>
           <div class="phone-screen">
@@ -68,8 +67,8 @@
             <a href="#desktop-clients" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90">
               <i class="fa fa-desktop"></i> 下载桌面端
             </a>
-            <a href="#mobile-clients" class="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white/80 px-5 py-3 text-sm font-semibold text-neutral-700 backdrop-blur transition hover:border-primary hover:text-primary">
-              <i class="fa fa-mobile"></i> 查看移动端
+            <a v-if="recommendedClient" :href="recommendedClient.downloadPath" @click.prevent="handleDownload(recommendedClient)" class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-primary/30 bg-white/80 px-5 py-3 text-sm font-semibold text-primary backdrop-blur transition hover:bg-primary/5">
+              <i class="fa fa-bolt"></i> 为您的设备推荐 {{ recommendedClient.displayName }}
             </a>
           </div>
           <div class="mt-10 grid max-w-2xl grid-cols-3 gap-3">
@@ -82,67 +81,112 @@
       </div>
     </section>
 
-    <!-- Desktop Clients -->
+    <!-- ============================================================
+         桌面客户端
+         ============================================================ -->
     <section id="desktop-clients" class="py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">桌面客户端</h2>
         <p class="mt-2 text-center text-sm text-neutral-400">适用于 Windows、macOS 和 Linux 操作系统</p>
-        <div class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="client in desktopClients" :key="client.os" class="rounded-2xl border border-neutral-200 p-8 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1">
+
+        <!-- 加载状态 -->
+        <div v-if="loading" class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-for="n in 3" :key="n" class="animate-pulse rounded-2xl border border-neutral-200 p-8">
+            <div class="flex items-center gap-4">
+              <div class="h-14 w-14 rounded-xl bg-neutral-100"></div>
+              <div class="space-y-2">
+                <div class="h-5 w-24 rounded bg-neutral-100"></div>
+                <div class="h-3 w-16 rounded bg-neutral-100"></div>
+              </div>
+            </div>
+            <div class="mt-4 space-y-2">
+              <div class="h-3 w-full rounded bg-neutral-100"></div>
+              <div class="h-3 w-3/4 rounded bg-neutral-100"></div>
+            </div>
+            <div class="mt-5 h-10 w-full rounded-xl bg-neutral-100"></div>
+          </div>
+        </div>
+
+        <!-- 错误状态 -->
+        <div v-else-if="error" class="mt-10 text-center">
+          <p class="text-neutral-500">{{ error }}</p>
+          <button @click="loadManifest" class="mt-4 text-sm text-primary hover:underline">重新加载</button>
+        </div>
+
+        <!-- 正常内容 -->
+        <div v-else class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="client in desktopClients"
+            :key="client.platform"
+            class="group rounded-2xl border border-neutral-200 p-8 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1"
+            :class="{ 'ring-2 ring-primary/30 border-primary/40': client.isRecommended }"
+          >
+            <!-- 推荐标签 -->
+            <div v-if="client.isRecommended" class="mb-3 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+              <i class="fa fa-star text-[10px]"></i> 推荐
+            </div>
+
             <div class="flex items-center gap-4">
               <div class="flex h-14 w-14 items-center justify-center rounded-xl" :class="client.bgClass">
-                <i :class="[client.icon, 'text-2xl', client.iconClass]"></i>
+                <i :class="[client.iconClass, 'text-2xl', client.iconColorClass]"></i>
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-neutral-800">{{ client.os }}</h3>
+                <h3 class="text-lg font-semibold text-neutral-800">{{ client.displayName }}</h3>
                 <p class="text-xs text-neutral-400">版本 {{ client.version }}</p>
               </div>
             </div>
-            <p class="mt-4 text-sm text-neutral-500">{{ client.desc }}</p>
+            <p class="mt-4 text-sm text-neutral-500">{{ client.description }}</p>
             <div class="mt-5 space-y-2">
-              <p class="text-xs text-neutral-400"><i class="fa fa-calendar mr-1"></i> 更新于 {{ client.updated }}</p>
-              <p class="text-xs text-neutral-400"><i class="fa fa-hdd-o mr-1"></i> {{ client.size }}</p>
+              <p class="text-xs text-neutral-400"><i class="fa fa-calendar mr-1"></i> 更新于 {{ formatDate(client.releaseDate) }}</p>
+              <p class="text-xs text-neutral-400"><i class="fa fa-hdd-o mr-1"></i> {{ client.fileSizeFormatted }}</p>
               <p class="text-xs text-neutral-400"><i class="fa fa-check-circle text-success mr-1"></i> {{ client.requirement }}</p>
+              <p class="text-xs text-neutral-400" :title="client.sha256">
+                <i class="fa fa-shield mr-1"></i> SHA256: {{ client.sha256 ? client.sha256.substring(0, 16) + '...' : 'N/A' }}
+              </p>
             </div>
             <div class="mt-5 flex flex-col gap-2">
-              <a :href="client.downloadUrl" class="flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition">
+              <a
+                :href="client.downloadPath"
+                @click.prevent="handleDownload(client)"
+                class="flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition"
+              >
                 <i class="fa fa-download"></i> 立即下载
               </a>
-              <a v-if="client.altUrl" :href="client.altUrl" class="text-center text-xs text-neutral-400 hover:text-primary transition">其他版本下载</a>
+              <a v-if="getAltDownload(client)" :href="getAltDownload(client)" class="text-center text-xs text-neutral-400 hover:text-primary transition">其他版本下载</a>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Mobile Clients -->
+    <!-- ============================================================
+         移动客户端
+         ============================================================ -->
     <section id="mobile-clients" class="border-t border-neutral-100 bg-neutral-50/50 py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">移动客户端</h2>
         <p class="mt-2 text-center text-sm text-neutral-400">随时随地访问您的文件，支持 iOS 和 Android</p>
         <div class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div v-for="client in mobileClients" :key="client.os" class="rounded-2xl border border-neutral-200 bg-white p-8 transition-all hover:border-primary/30 hover:shadow-lg hover:-translate-y-1">
+          <div v-for="client in mobileClients" :key="client.platform" class="rounded-2xl border border-neutral-200 bg-white p-8 transition-all hover:border-primary/30 hover:shadow-lg hover:-translate-y-1">
             <div class="flex items-center gap-4">
               <div class="flex h-14 w-14 items-center justify-center rounded-xl" :class="client.bgClass">
-                <i :class="[client.icon, 'text-2xl', client.iconClass]"></i>
+                <i :class="[client.iconClass, 'text-2xl', client.iconColorClass]"></i>
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-neutral-800">{{ client.os }}</h3>
+                <h3 class="text-lg font-semibold text-neutral-800">{{ client.displayName }}</h3>
                 <p class="text-xs text-neutral-400">版本 {{ client.version }}</p>
               </div>
             </div>
-            <p class="mt-4 text-sm text-neutral-500">{{ client.desc }}</p>
+            <p class="mt-4 text-sm text-neutral-500">{{ client.description }}</p>
             <div class="mt-5 space-y-2">
-              <p class="text-xs text-neutral-400"><i class="fa fa-calendar mr-1"></i> 更新于 {{ client.updated }}</p>
-              <p class="text-xs text-neutral-400"><i class="fa fa-hdd-o mr-1"></i> {{ client.size }}</p>
+              <p class="text-xs text-neutral-400"><i class="fa fa-calendar mr-1"></i> 更新于 {{ formatDate(client.releaseDate) }}</p>
+              <p class="text-xs text-neutral-400"><i class="fa fa-hdd-o mr-1"></i> {{ client.fileSizeFormatted }}</p>
               <p class="text-xs text-neutral-400"><i class="fa fa-check-circle text-success mr-1"></i> {{ client.requirement }}</p>
             </div>
             <div class="mt-5 flex flex-col gap-2">
-              <a :href="client.storeUrl" class="flex items-center justify-center gap-2 rounded-xl bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 transition">
-                <i :class="client.storeIcon"></i> {{ client.storeLabel }}
-              </a>
-              <a :href="client.downloadUrl" class="flex items-center justify-center gap-2 rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-600 hover:border-primary hover:text-primary transition">
-                <i class="fa fa-download"></i> 直接下载 APK/IPA
+              <a :href="client.downloadPath" target="_blank" rel="noopener" @click="handleDownload(client)" class="flex items-center justify-center gap-2 rounded-xl bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 transition">
+                <i :class="client.platform === 'ios' ? 'fa fa-apple' : 'fa fa-google'"></i>
+                {{ client.platform === 'ios' ? 'App Store 下载' : 'Google Play 下载' }}
               </a>
             </div>
           </div>
@@ -150,7 +194,9 @@
       </div>
     </section>
 
-    <!-- CLI & SDK -->
+    <!-- ============================================================
+         CLI & SDK 工具
+         ============================================================ -->
     <section class="py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">命令行工具 & SDK</h2>
@@ -204,7 +250,9 @@
       </div>
     </section>
 
-    <!-- Version History -->
+    <!-- ============================================================
+         版本历史
+         ============================================================ -->
     <section class="border-t border-neutral-100 bg-neutral-50/50 py-20 sm:py-24">
       <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">版本历史</h2>
@@ -231,7 +279,9 @@
       </div>
     </section>
 
-    <!-- System Requirements -->
+    <!-- ============================================================
+         系统要求
+         ============================================================ -->
     <section class="py-16 sm:py-20 border-t border-neutral-100 bg-neutral-50/50">
       <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-neutral-900 text-center">系统要求</h2>
@@ -256,14 +306,16 @@
       </div>
     </section>
 
-    <!-- Enterprise Deployment -->
+    <!-- ============================================================
+         企业批量部署
+         ============================================================ -->
     <section class="py-16 sm:py-20">
       <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <div class="rounded-3xl bg-gradient-to-br from-primary/5 to-info/5 border border-primary/10 p-8 sm:p-10">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div>
               <h2 class="text-2xl font-bold text-neutral-900">企业批量部署</h2>
-              <p class="mt-2 text-sm text-neutral-500">支持 MSI/AD组策略/移动设备管理(MDM) 等多种企业级部署方式</p>
+              <p class="mt-2 text-sm text-neutral-500">支持 MSI/AD 组策略/移动设备管理 (MDM) 等多种企业级部署方式</p>
             </div>
             <div class="flex gap-3">
               <button class="rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary/90">下载部署包</button>
@@ -293,47 +345,163 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+// ============================================================
+// DownloadView.vue — 企业级客户端下载页面
+// ============================================================
+// 动态从版本清单 JSON 获取各平台客户端信息，自动检测用户平台
+// 推荐最合适的下载，并记录下载事件用于统计分析。
+// ============================================================
+
+import { ref, computed, onMounted } from 'vue'
+import {
+  fetchVersionManifest,
+  detectCurrentPlatform,
+  recordDownloadEvent,
+  type ClientDownload,
+  type VersionManifest,
+} from '@/api/modules/clientDownloads'
+
+// ============================================================
+// 响应式状态
+// ============================================================
+
+/** 版本清单数据 */
+const manifest = ref<VersionManifest | null>(null)
+/** 加载状态 */
+const loading = ref(true)
+/** 错误信息 */
+const error = ref<string | null>(null)
+
+// ============================================================
+// 计算属性
+// ============================================================
+
+/** 桌面客户端列表 */
+const desktopClients = computed<ClientDownload[]>(() => {
+  if (!manifest.value) return []
+  return manifest.value.desktopClients
+})
+
+/** 移动客户端列表 */
+const mobileClients = computed<ClientDownload[]>(() => {
+  if (!manifest.value) return []
+  return manifest.value.mobileClients
+})
+
+/** 当前平台推荐的客户端 */
+const recommendedClient = computed<ClientDownload | null>(() => {
+  if (!manifest.value) return null
+  const currentPlatform = detectCurrentPlatform()
+  // 找到恰好匹配当前平台的客户端
+  return manifest.value.desktopClients.find(
+    (c) => c.platform === currentPlatform,
+  ) || null
+})
+
+// ============================================================
+// 生命周期
+// ============================================================
+
+onMounted(() => {
+  loadManifest()
+})
+
+// ============================================================
+// 方法
+// ============================================================
+
+/**
+ * 加载版本清单
+ *
+ * 从 /downloads/version-manifest.json 获取数据，
+ * 并根据当前平台标记推荐下载项。
+ */
+async function loadManifest(): Promise<void> {
+  loading.value = true
+  error.value = null
+  try {
+    const data = await fetchVersionManifest()
+    // 标记推荐客户端
+    const currentPlatform = detectCurrentPlatform()
+    data.desktopClients.forEach((client) => {
+      client.isRecommended = client.platform === currentPlatform
+    })
+    manifest.value = data
+  } catch (e) {
+    error.value = '无法加载版本信息，请刷新页面重试。'
+    console.error('[DownloadView] 加载版本清单失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * 处理下载点击
+ *
+ * 记录下载事件用于统计，如果是外部链接则在新窗口打开。
+ *
+ * @param client - 客户端下载信息
+ */
+function handleDownload(client: ClientDownload): void {
+  // 记录下载事件（fire-and-forget）
+  recordDownloadEvent(client.platform, client.version)
+
+  // 对于移动端（App Store / Google Play 链接），新窗口打开
+  if (client.platform === 'ios' || client.platform === 'android') {
+    window.open(client.downloadPath, '_blank', 'noopener')
+    return
+  }
+
+  // 桌面端直接触发浏览器下载
+  window.location.href = client.downloadPath
+}
+
+/**
+ * 格式化日期
+ *
+ * @param dateStr - ISO 日期字符串
+ * @returns 格式化的日期，如 "2026-01-12"
+ */
+function formatDate(dateStr: string): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  return d.toISOString().split('T')[0]
+}
+
+/**
+ * 获取同平台的其他版本链接
+ *
+ * 例如 macOS ARM64 用户可以查看 Intel 版本。
+ *
+ * @param client - 当前客户端
+ * @returns 其他版本下载链接或空字符串
+ */
+function getAltDownload(client: ClientDownload): string {
+  if (client.platform === 'macos-arm64') {
+    const intel = desktopClients.value.find(c => c.platform === 'macos-x64')
+    return intel?.downloadPath || ''
+  }
+  if (client.platform === 'macos-x64') {
+    const arm = desktopClients.value.find(c => c.platform === 'macos-arm64')
+    return arm?.downloadPath || ''
+  }
+  if (client.platform === 'windows-x64') {
+    const arm = desktopClients.value.find(c => c.platform === 'windows-arm64')
+    return arm?.downloadPath || ''
+  }
+  return ''
+}
+
+// ============================================================
+// 静态数据
+// ============================================================
+
 const heroStats = [
   { label: '桌面与移动系统', value: '5 平台' },
   { label: '断点续传与同步', value: '实时' },
   { label: '传输链路加密', value: 'E2E' },
-]
-
-const desktopClients = [
-  {
-    os: 'Windows', icon: 'fa fa-windows', iconClass: 'text-primary', bgClass: 'bg-primary/10',
-    version: '3.2.0', size: '128 MB', requirement: 'Windows 10/11 (64-bit)',
-    desc: '支持文件资源管理器集成、右键菜单快捷操作、托盘图标常驻、自动同步文件夹。', updated: '2026-01-12',
-    downloadUrl: '#', altUrl: '#',
-  },
-  {
-    os: 'macOS', icon: 'fa fa-apple', iconClass: 'text-neutral-800', bgClass: 'bg-neutral-100',
-    version: '3.2.0', size: '156 MB', requirement: 'macOS 12.0+ (Intel & Apple Silicon)',
-    desc: '原生 Apple Silicon 支持，Finder 集成、Touch Bar 快捷操作、iCloud 文件夹同步。', updated: '2026-01-12',
-    downloadUrl: '#', altUrl: '#',
-  },
-  {
-    os: 'Linux', icon: 'fa fa-linux', iconClass: 'text-warning', bgClass: 'bg-warning/10',
-    version: '3.2.0', size: '98 MB', requirement: 'Ubuntu 20.04+, Debian 11+, CentOS 8+',
-    desc: '支持 AppImage、deb、rpm 格式，Nautilus 集成，命令行工具，Docker 镜像。', updated: '2026-01-12',
-    downloadUrl: '#', altUrl: '#',
-  },
-]
-
-const mobileClients = [
-  {
-    os: 'iOS', icon: 'fa fa-apple', iconClass: 'text-neutral-800', bgClass: 'bg-neutral-100',
-    version: '3.1.5', size: '89 MB', requirement: 'iOS 15.0+',
-    desc: '支持 Face ID/Touch ID 解锁，文件应用集成，照片自动备份，离线文件访问。', updated: '2026-01-10',
-    downloadUrl: '#', storeUrl: '#', storeIcon: 'fa fa-apple', storeLabel: 'App Store 下载',
-  },
-  {
-    os: 'Android', icon: 'fa fa-android', iconClass: 'text-success', bgClass: 'bg-success/10',
-    version: '3.1.5', size: '72 MB', requirement: 'Android 8.0+',
-    desc: '支持指纹解锁，文件管理器集成，照片自动备份，应用数据同步，Material You 主题。', updated: '2026-01-10',
-    downloadUrl: '#', storeUrl: '#', storeIcon: 'fa fa-google', storeLabel: 'Google Play 下载',
-  },
 ]
 
 const sdks = [
@@ -360,6 +528,9 @@ const sysRequirements = [
 </script>
 
 <style scoped>
+/* ============================================================
+   Hero 区域背景和装饰
+   ============================================================ */
 .download-hero {
   position: relative;
   overflow: hidden;
@@ -387,6 +558,9 @@ const sysRequirements = [
     linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.32) 100%);
 }
 
+/* ============================================================
+   装饰性客户端设备展示
+   ============================================================ */
 .client-window,
 .phone-frame {
   position: absolute;
@@ -490,150 +664,119 @@ const sysRequirements = [
   background: rgba(22, 93, 255, 0.08);
 }
 
-.desktop-toolbar span:nth-child(1) {
-  width: 108px;
-}
+.desktop-toolbar span:nth-child(1) { width: 108px; }
+.desktop-toolbar span:nth-child(2) { width: 78px; }
+.desktop-toolbar span:nth-child(3) { width: 58px; }
 
-.desktop-toolbar span:nth-child(2) {
-  width: 78px;
-  background: rgba(54, 207, 201, 0.12);
-}
-
-.desktop-toolbar span:nth-child(3) {
-  margin-left: auto;
-  width: 138px;
-  background: rgba(245, 247, 250, 0.95);
-}
-
-.desktop-grid,
-.tablet-body {
+.desktop-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px 14px;
+  gap: 12px;
 }
 
-.mock-file,
+.mock-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 10px;
+  background: rgba(245, 247, 250, 0.7);
+  padding: 16px 8px;
+}
+
+.mock-file i {
+  font-size: 22px;
+}
+
+.mock-file span {
+  height: 6px;
+  width: 48px;
+  border-radius: 999px;
+  background: rgba(22, 93, 255, 0.08);
+}
+
+.tablet-body {
+  display: grid;
+  height: calc(100% - 30px);
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+}
+
 .tablet-card {
   display: flex;
-  min-width: 0;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   border-radius: 14px;
-  padding: 10px 8px;
+  background: rgba(245, 247, 250, 0.7);
+  padding: 14px 0;
 }
 
-.mock-file i,
 .tablet-card i {
-  font-size: 28px;
-  filter: drop-shadow(0 8px 10px rgba(31, 41, 55, 0.08));
-}
-
-.mock-file span,
-.tablet-card span,
-.phone-row span,
-.phone-header {
-  display: block;
-  border-radius: 999px;
-  background: rgba(192, 198, 207, 0.42);
-}
-
-.mock-file span {
-  height: 7px;
-  width: 72%;
-}
-
-.tablet-body {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 18px;
-}
-
-.tablet-card {
-  background: rgba(245, 247, 250, 0.74);
+  font-size: 20px;
 }
 
 .tablet-card span {
-  height: 6px;
-  width: 70%;
+  height: 5px;
+  width: 42px;
+  border-radius: 999px;
+  background: rgba(22, 93, 255, 0.08);
 }
 
 .phone-speaker {
   height: 4px;
-  width: 42px;
-  margin: 0 auto 10px;
+  width: 48px;
   border-radius: 999px;
-  background: rgba(144, 147, 153, 0.35);
+  background: rgba(22, 93, 255, 0.12);
+  margin: 0 auto 8px;
 }
 
 .phone-screen {
-  height: calc(100% - 14px);
-  overflow: hidden;
-  border-radius: 23px;
-  background: linear-gradient(180deg, rgba(245, 247, 250, 0.95), rgba(255, 255, 255, 0.96));
-  padding: 14px 10px;
+  height: calc(100% - 12px);
+  border-radius: 24px;
+  background: rgba(250, 251, 254, 0.9);
+  padding: 14px 12px;
 }
 
 .phone-header {
-  height: 26px;
+  height: 22px;
+  border-radius: 8px;
+  background: rgba(22, 93, 255, 0.08);
   margin-bottom: 14px;
-  background: rgba(22, 93, 255, 0.12);
 }
 
 .phone-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 0;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .phone-row i {
-  width: 18px;
-  text-align: center;
+  font-size: 14px;
 }
 
 .phone-row span {
-  height: 7px;
+  height: 5px;
   flex: 1;
+  border-radius: 999px;
+  background: rgba(22, 93, 255, 0.06);
 }
 
-@media (max-width: 1024px) {
-  .desktop-window {
-    right: -160px;
-    width: 660px;
-    opacity: 0.75;
-  }
-
-  .tablet-window {
-    right: 260px;
-    opacity: 0.68;
-  }
-
+/* ============================================================
+   响应式 — 移动端隐藏装饰性设备
+   ============================================================ */
+@media (max-width: 768px) {
+  .tablet-window,
   .phone-frame {
-    right: 18px;
-    opacity: 0.75;
-  }
-
-  .hero-overlay {
-    background: rgba(255, 255, 255, 0.82);
-  }
-}
-
-@media (max-width: 640px) {
-  .desktop-window {
-    bottom: -74px;
-    right: -310px;
-    width: 590px;
-    height: 330px;
-  }
-
-  .tablet-window {
     display: none;
   }
-
-  .phone-frame {
-    bottom: 34px;
-    right: -24px;
-    transform: rotate(5deg) scale(0.9);
+  .desktop-window {
+    right: -40px;
+    bottom: -60px;
+    width: 280px;
+    height: 200px;
   }
 }
 </style>

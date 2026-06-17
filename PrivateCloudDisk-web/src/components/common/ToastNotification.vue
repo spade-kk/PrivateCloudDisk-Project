@@ -17,7 +17,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useToastStore } from '@/stores/toastStore'
 

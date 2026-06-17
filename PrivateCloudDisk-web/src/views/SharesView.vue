@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import ShareLinkItem from '@/components/share/ShareLinkItem.vue'
 import CreateShareDialog from '@/components/share/CreateShareDialog.vue'

@@ -1,0 +1,137 @@
+<Page
+    x:Class="PrivateCloudDisk.Views.ProfilePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:PrivateCloudDisk.Converters"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+    </Page.Resources>
+
+    <Grid Style="{StaticResource PageContainer}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Style="{StaticResource PageHeaderText}" Text="个人信息"/>
+
+        <StackPanel Grid.Row="1" MaxWidth="500" Margin="0,16,0,0">
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel Spacing="16">
+                    <!-- 头像 -->
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <PersonPicture x:Name="AvatarImage"
+                                       DisplayName="{x:Bind ViewModel.Profile.DisplayName, Mode=OneWay}"
+                                       Width="80" Height="80"/>
+                        <Button Style="{StaticResource OutlineButton}" Padding="12,6"
+                                Command="{x:Bind ViewModel.UploadAvatarCommand}"
+                                VerticalAlignment="Center">
+                            更换头像
+                        </Button>
+                    </StackPanel>
+
+                    <Border Height="1" Background="{StaticResource BorderBrush}"/>
+
+                    <!-- 查看模式 -->
+                    <StackPanel Visibility="{x:Bind ViewModel.IsEditing, Converter={StaticResource InverseBoolConverter}}">
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="账号" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Profile.Account, Mode=OneWay}"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="用户名" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Profile.UserName, Mode=OneWay}"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="手机号" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Profile.PhoneNumber, Mode=OneWay}"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="邮箱" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Profile.Email, Mode=OneWay}"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+                            <Button Style="{StaticResource PrimaryButton}"
+                                    Command="{x:Bind ViewModel.StartEditCommand}">
+                                编辑信息
+                            </Button>
+                            <Button Style="{StaticResource OutlineButton}"
+                                    Command="{x:Bind (ViewModel.IsChangingPassword = true)}">
+                                修改密码
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 编辑模式 -->
+                    <StackPanel Visibility="{x:Bind ViewModel.IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBox PlaceholderText="用户名" Margin="0,0,0,12"
+                                 Text="{x:Bind ViewModel.EditName, Mode=TwoWay}"/>
+                        <TextBox PlaceholderText="手机号" Margin="0,0,0,12"
+                                 Text="{x:Bind ViewModel.EditPhone, Mode=TwoWay}"/>
+                        <TextBox PlaceholderText="邮箱" Margin="0,0,0,12"
+                                 Text="{x:Bind ViewModel.EditEmail, Mode=TwoWay}"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Style="{StaticResource PrimaryButton}"
+                                    Command="{x:Bind ViewModel.SaveCommand}">
+                                保存
+                            </Button>
+                            <Button Style="{StaticResource OutlineButton}"
+                                    Command="{x:Bind ViewModel.CancelEditCommand}">
+                                取消
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 密码修改 -->
+            <Border Style="{StaticResource CardBorder}" Margin="0,16,0,0"
+                    Visibility="{x:Bind ViewModel.IsChangingPassword, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel Spacing="12">
+                    <TextBlock Style="{StaticResource SubHeaderText}" Text="修改密码"/>
+                    <PasswordBox x:Name="CurPassBox" PlaceholderText="当前密码"
+                                 PasswordChanged="CurPassBox_PasswordChanged"/>
+                    <PasswordBox x:Name="NewPassBox" PlaceholderText="新密码"
+                                 PasswordChanged="NewPassBox_PasswordChanged"/>
+                    <PasswordBox x:Name="ConfirmPassBox" PlaceholderText="确认新密码"
+                                 PasswordChanged="ConfirmPassBox_PasswordChanged"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button Style="{StaticResource PrimaryButton}"
+                                Command="{x:Bind ViewModel.ChangePasswordCommand}">
+                            确认修改
+                        </Button>
+                        <Button Style="{StaticResource OutlineButton}"
+                                Command="{x:Bind (ViewModel.IsChangingPassword = false)}">
+                            取消
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Grid>
+</Page>

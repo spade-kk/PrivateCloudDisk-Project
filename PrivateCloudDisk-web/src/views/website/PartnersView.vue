@@ -58,7 +58,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const partnerCategories = [
   {
     title: '云平台合作伙伴', desc: '与全球主流云平台深度集成，提供灵活部署选择',

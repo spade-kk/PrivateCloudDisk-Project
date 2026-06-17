@@ -3,6 +3,6 @@
   <ToastNotification />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import ToastNotification from '@/components/common/ToastNotification.vue'
 </script>

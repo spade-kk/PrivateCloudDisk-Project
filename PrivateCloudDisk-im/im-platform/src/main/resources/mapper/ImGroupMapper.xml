@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.im.platform.mapper.ImGroupMapper">
+
+    <resultMap id="BaseResultMap" type="org.project.im.platform.entity.ImGroup">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="group_name" property="groupName"/>
+        <result column="avatar" property="avatar"/>
+        <result column="owner_id" property="ownerId"/>
+        <result column="announcement" property="announcement"/>
+        <result column="description" property="description"/>
+        <result column="member_count" property="memberCount"/>
+        <result column="max_members" property="maxMembers"/>
+        <result column="join_mode" property="joinMode"/>
+        <result column="is_all_muted" property="isAllMuted"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        group_id, group_name, avatar, owner_id, announcement, description,
+        member_count, max_members, join_mode, is_all_muted, status, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="org.project.im.platform.entity.ImGroup">
+        INSERT INTO im_group (<include refid="BaseColumns"/>)
+        VALUES (#{groupId}, #{groupName}, #{avatar}, #{ownerId}, #{announcement}, #{description},
+                #{memberCount}, #{maxMembers}, #{joinMode}, #{isAllMuted}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="selectByGroupId" resultMap="BaseResultMap">
+        SELECT id, <include refid="BaseColumns"/>
+        FROM im_group
+        WHERE group_id = #{groupId} AND status = 0
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT g.id, g.<include refid="BaseColumns"/>
+        FROM im_group g
+        INNER JOIN im_group_member gm ON g.group_id = gm.group_id
+        WHERE gm.user_id = #{userId} AND g.status = 0
+        ORDER BY g.create_time DESC
+    </select>
+
+    <update id="updateGroupInfo" parameterType="org.project.im.platform.entity.ImGroup">
+        UPDATE im_group
+        SET group_name = #{groupName},
+            avatar = #{avatar},
+            description = #{description},
+            join_mode = #{joinMode},
+            update_time = NOW()
+        WHERE group_id = #{groupId}
+    </update>
+
+    <update id="updateAnnouncement">
+        UPDATE im_group
+        SET announcement = #{announcement}, update_time = NOW()
+        WHERE group_id = #{groupId}
+    </update>
+
+    <update id="incrementMemberCount">
+        UPDATE im_group
+        SET member_count = member_count + 1, update_time = NOW()
+        WHERE group_id = #{groupId}
+    </update>
+
+    <update id="decrementMemberCount">
+        UPDATE im_group
+        SET member_count = GREATEST(member_count - 1, 0), update_time = NOW()
+        WHERE group_id = #{groupId}
+    </update>
+
+    <update id="updateAllMuted">
+        UPDATE im_group
+        SET is_all_muted = #{isAllMuted}, update_time = NOW()
+        WHERE group_id = #{groupId}
+    </update>
+
+    <update id="dissolve">
+        UPDATE im_group
+        SET status = 1, update_time = NOW()
+        WHERE group_id = #{groupId}
+    </update>
+</mapper>

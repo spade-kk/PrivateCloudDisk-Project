@@ -107,7 +107,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const whyJoin = [
   { title: '技术前沿', desc: '深度参与分布式存储、AI 搜索、安全加密等前沿技术研发，解决大规模系统架构挑战。', icon: 'fa fa-rocket', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
   { title: '快速成长', desc: '扁平化管理，开放的晋升通道，丰富的内外部培训资源，助你快速成长。', icon: 'fa fa-line-chart', bgClass: 'bg-success/10', iconClass: 'text-success' },

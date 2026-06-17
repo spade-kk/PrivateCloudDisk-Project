@@ -113,7 +113,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const milestones = [
   { year: '2020', title: '正式成立', desc: '获天使轮融资' },
   { year: '2021', title: '产品发布', desc: 'v1.0 正式上线' },

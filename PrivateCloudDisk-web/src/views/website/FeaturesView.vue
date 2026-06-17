@@ -187,7 +187,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const fileMgmtFeatures = [
   '支持拖拽上传和批量文件操作，自动去重',
   '文件夹无限嵌套，标签与星标分类管理',

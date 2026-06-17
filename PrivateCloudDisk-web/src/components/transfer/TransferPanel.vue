@@ -118,7 +118,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useTransferStore } from '@/stores/transferStore'
 import { formatFileSize } from '@/utils/helpers'

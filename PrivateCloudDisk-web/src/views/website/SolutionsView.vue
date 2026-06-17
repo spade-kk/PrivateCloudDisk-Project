@@ -89,7 +89,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const solutions = [
   {
     tag: '金融行业', title: '金融级数据安全与合规', icon: 'fa fa-bank', bgClass: 'bg-primary/10', iconClass: 'text-primary',

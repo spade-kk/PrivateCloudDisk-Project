@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import TrashItem from '@/components/trash/TrashItem.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'

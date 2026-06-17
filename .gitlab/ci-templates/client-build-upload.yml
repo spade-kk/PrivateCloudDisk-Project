@@ -1,0 +1,199 @@
+# ============================================================
+# GitLab CI/CD: 客户端安装包构建与上传模板
+# ============================================================
+# 使用方式：在主 .gitlab-ci.yml 中 include 此模板
+#
+#   include:
+#     - local: '.gitlab/ci-templates/client-build-upload.yml'
+#
+# 需要配置的 CI/CD Variables：
+#   DOWNLOAD_SERVER_HOST      — 下载服务器地址
+#   DOWNLOAD_SERVER_USER      — SSH 用户名
+#   DOWNLOAD_SERVER_PATH      — 服务器上的二进制文件目录
+#   DOWNLOAD_SERVER_SSH_KEY   — SSH 私钥（用于 rsync）
+#   UPLOAD_API_TOKEN          — 上传 API 认证 Token
+#   UPLOAD_API_URL            — 上传 API 地址（如 https://example.com）
+# ============================================================
+
+# ============================================================
+# 定义阶段
+# ============================================================
+stages:
+  - version
+  - build
+  - upload
+  - manifest
+
+# ============================================================
+# 全局变量
+# ============================================================
+variables:
+  CLIENT_VERSION: ""
+  UPLOAD_METHOD: "rsync"  # rsync | api | both
+
+# ============================================================
+# 阶段 1：确定版本号
+# ============================================================
+determine-version:
+  stage: version
+  image: alpine:3.21
+  script:
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        CLIENT_VERSION="${CI_COMMIT_TAG#v}"
+      elif [ -n "$CLIENT_VERSION_OVERRIDE" ]; then
+        CLIENT_VERSION="$CLIENT_VERSION_OVERRIDE"
+      else
+        echo "错误：未设置版本号。请推送 tag 或设置 CLIENT_VERSION_OVERRIDE 变量"
+        exit 1
+      fi
+      echo "构建版本: ${CLIENT_VERSION}"
+      # 将版本号写入文件供后续 job 使用
+      echo "CLIENT_VERSION=${CLIENT_VERSION}" > version.env
+  artifacts:
+    reports:
+      dotenv: version.env
+    paths:
+      - version.env
+  only:
+    - tags
+    - triggers
+    - web
+
+# ============================================================
+# 阶段 2：构建各平台安装包
+# ============================================================
+
+# ---- Windows x64 ----
+build-windows-x64:
+  stage: build
+  tags:
+    - windows
+    - docker
+  image: electronuserland/builder:wine
+  script:
+    - echo "构建 Windows x64 v${CLIENT_VERSION}"
+    # TODO: 替换为实际构建命令
+    # - cd client-desktop
+    # - npm ci
+    # - npm run build:win -- --x64 --version=${CLIENT_VERSION}
+  artifacts:
+    paths:
+      - client-desktop/dist/CloudDrive-Setup-*.exe
+    expire_in: 7 days
+  only:
+    - tags
+    - triggers
+    - web
+
+# ---- macOS ARM64 ----
+build-macos-arm64:
+  stage: build
+  tags:
+    - macos
+    - arm64
+  script:
+    - echo "构建 macOS ARM64 v${CLIENT_VERSION}"
+    # - cd client-desktop
+    # - npm ci
+    # - npm run build:mac -- --arm64 --version=${CLIENT_VERSION}
+  artifacts:
+    paths:
+      - client-desktop/dist/CloudDrive-*-arm64.dmg
+    expire_in: 7 days
+  only:
+    - tags
+    - triggers
+    - web
+  allow_failure: true
+
+# ---- macOS x64 ----
+build-macos-x64:
+  stage: build
+  tags:
+    - macos
+    - x64
+  script:
+    - echo "构建 macOS Intel v${CLIENT_VERSION}"
+    # - cd client-desktop
+    # - npm ci
+    # - npm run build:mac -- --x64 --version=${CLIENT_VERSION}
+  artifacts:
+    paths:
+      - client-desktop/dist/CloudDrive-*-x64.dmg
+    expire_in: 7 days
+  only:
+    - tags
+    - triggers
+    - web
+
+# ---- Linux x86_64 ----
+build-linux-x64:
+  stage: build
+  image: electronuserland/builder:latest
+  script:
+    - echo "构建 Linux x86_64 v${CLIENT_VERSION}"
+    # - cd client-desktop
+    # - npm ci
+    # - npm run build:linux -- --version=${CLIENT_VERSION}
+  artifacts:
+    paths:
+      - client-desktop/dist/CloudDrive-*.AppImage
+      - client-desktop/dist/clouddrive_*.deb
+      - client-desktop/dist/clouddrive-*.rpm
+    expire_in: 7 days
+  only:
+    - tags
+    - triggers
+    - web
+
+# ============================================================
+# 阶段 3：上传到下载服务器
+# ============================================================
+
+# ---- 方式 A：rsync 上传（推荐） ----
+upload-rsync:
+  stage: upload
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache openssh-client rsync
+    - mkdir -p ~/.ssh
+    - echo "${DOWNLOAD_SERVER_SSH_KEY}" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo "${DOWNLOAD_SERVER_HOST} ecdsa-sha2-nistp256 $(ssh-keyscan -t ecdsa ${DOWNLOAD_SERVER_HOST} 2>/dev/null)" >> ~/.ssh/known_hosts
+  script:
+    - |
+      echo "rsync 上传到 ${DOWNLOAD_SERVER_HOST}:${DOWNLOAD_SERVER_PATH}/binaries/"
+      # 收集所有平台的构建产物
+      mkdir -p artifacts
+      find . -name "CloudDrive-*" -o -name "clouddrive_*" | while read f; do
+        cp "$f" artifacts/
+      done
+      rsync -avz --progress artifacts/ \
+        ${DOWNLOAD_SERVER_USER}@${DOWNLOAD_SERVER_HOST}:${DOWNLOAD_SERVER_PATH}/binaries/
+  only:
+    - tags
+    - triggers
+    - web
+  when: manual
+  variables:
+    UPLOAD_METHOD: "rsync"
+
+# ============================================================
+# 阶段 4：更新版本清单
+# ============================================================
+update-manifest:
+  stage: manifest
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - |
+      echo "更新版本清单到 v${CLIENT_VERSION}"
+  only:
+    - tags
+    - triggers
+    - web
+  when: manual
+  needs:
+    - upload-rsync

@@ -118,7 +118,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const certifications = [
   { name: 'ISO 27001', desc: '信息安全管理体系', icon: 'fa fa-certificate', color: 'text-primary' },
   { name: '等保三级', desc: '国家信息安全等级保护', icon: 'fa fa-shield', color: 'text-success' },

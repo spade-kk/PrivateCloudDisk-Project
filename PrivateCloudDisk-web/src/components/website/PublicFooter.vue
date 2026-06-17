@@ -126,7 +126,7 @@
   </footer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 
 const year = new Date().getFullYear()

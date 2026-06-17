@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.AutoConfiguration
+org.project.im.client.config.ImClientAutoConfiguration

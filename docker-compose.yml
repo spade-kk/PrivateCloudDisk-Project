@@ -18,6 +18,10 @@ volumes:
   uploads-data:
   opensearch-data:
   minio-data:
+  # 下载文件卷（与 uploader 共享，可选 bind mount 替代）
+  # 若使用 bind mount 方式（CI/CD 直接 rsync），取消下面注释：
+  #   frontend 和 uploader 均改为 bind mount 到 ./downloads/binaries
+  downloads-binaries:
 
 services:
   # ============================================================
@@ -273,14 +277,147 @@ services:
     restart: always
 
   # ============================================================
+  #                       IM 实时通信服务层
+  # ============================================================
+
+  # -------------------- IM 业务平台 HTTP 服务 --------------------
+  im-platform-backend:
+    build:
+      context: ./PrivateCloudDisk-im
+      dockerfile: im-platform/Dockerfile
+    container_name: backend-im-platform
+    networks:
+      - app-networks
+    expose:
+      - "8088"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # 基础配置
+      IM_PLATFORM_PORT: 8088
+      SPRING_PROFILES_ACTIVE: docker
+
+      # MySQL
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 123456
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+
+      # JVM 内存限制
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/"
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/im/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+  # -------------------- IM WebSocket 长连接推送服务 --------------------
+  im-server-backend:
+    build:
+      context: ./PrivateCloudDisk-im
+      dockerfile: im-server/Dockerfile
+    container_name: backend-im-server
+    networks:
+      - app-networks
+    expose:
+      - "9090"
+    ports:
+      # WebSocket 端口需要对外暴露（前端直接连接）
+      - "9090:9090"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # 基础配置
+      IM_SERVER_HTTP_PORT: 8089
+      NETTY_WS_PORT: 9090
+      SPRING_PROFILES_ACTIVE: docker
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+
+      # Netty 线程数
+      NETTY_WORKER_THREADS: 8
+      NETTY_BUSINESS_THREADS: 16
+
+      # JVM 内存限制
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/"
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8089/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ============================================================
   #                         前端层
   # ============================================================
 
-  # -------------------- Vue 前端 --------------------
+  # -------------------- Vue 前端（Nginx + Brotli + Gzip） --------------------
   frontend:
     build:
       context: ./PrivateCloudDisk-web
       args:
+        # Vite 构建环境变量
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VITE_TURNSTILE_SITE_KEY: ${VITE_TURNSTILE_SITE_KEY:-0x4AAAAAADf7Z44g-izJGKIB}
         VITE_CHUNK_SIZE: ${VITE_CHUNK_SIZE:-5242880}
@@ -294,16 +431,54 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
+      # Let's Encrypt 证书持久化
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      # 客户端二进制下载文件（DMG / EXE / AppImage / DEB / RPM）
+      # 方式 A（推荐 CI/CD）：bind mount，CI/CD 通过 rsync/scp 直接上传到宿主机 ./downloads/binaries/
+      - ./downloads/binaries:/usr/share/nginx/html/downloads/binaries:ro
+      # 方式 B（纯 Docker）：命名卷，通过 uploader 服务上传
+      # - downloads-binaries:/usr/share/nginx/html/downloads/binaries:ro
     depends_on:
-      - gateway-service-backend
+      gateway-service-backend:
+        condition: service_started
     restart: always
-
+    # 资源限制（防止内存泄漏导致宿主机 OOM）
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    # 日志轮转（防止 Docker 日志占满磁盘）
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # 安全加固
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
+      - /var/run:rw,noexec,nosuid,size=8m
+      - /tmp:rw,noexec,nosuid,size=16m
+    # 健康检查（通过 HTTP 端点验证 Nginx 是否正常运行）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+      
   # ============================================================
   #                         证书管理
   # ============================================================
 
+  # -------------------- Let's Encrypt 证书自动续期 --------------------
   certbot:
     image: certbot/certbot:latest
     container_name: private-cloud-certbot
@@ -312,4 +487,6 @@ services:
       - ./certbot/conf:/etc/letsencrypt
     networks:
       - app-networks
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    # 每 12 小时检查一次证书续期
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook \"nginx -s reload\"; sleep 12h & wait $${!}; done;'"
+    restart: always

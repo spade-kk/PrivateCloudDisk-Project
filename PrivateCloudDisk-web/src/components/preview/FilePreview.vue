@@ -136,7 +136,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { usePreviewStore } from '@/stores/previewStore'
 import { useToastStore } from '@/stores/toastStore'

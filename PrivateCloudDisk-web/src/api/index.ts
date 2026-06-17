@@ -1,0 +1,16 @@
+export * from './modules/users'
+export * from './modules/uploads'
+export * from './modules/nodes'
+export * from './modules/quotas'
+export * from './modules/files'
+export * from './modules/downloads'
+export * from './modules/preview'
+export * from './modules/trash'
+export * from './modules/search'
+export * from './modules/collaboration'
+export * from './modules/security'
+export * from './modules/settings'
+export * from './modules/video'
+
+// IM 模块 — 实时通信类型、SDK、API（完全替换旧 collaboration 端点）
+export * from './im'

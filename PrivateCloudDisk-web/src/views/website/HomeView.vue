@@ -347,7 +347,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const previewCards = [
   { label: '已用存储', value: '2.4 TB', icon: 'fa fa-hdd-o', trend: '较上月 +15%', trendUp: false },
   { label: '文件总数', value: '45,821', icon: 'fa fa-files-o', trend: '较上月 +8%', trendUp: true },

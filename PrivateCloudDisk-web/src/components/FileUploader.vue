@@ -237,7 +237,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
 //import { loginApi, createUploadsSessionApi } from '@/api'
 

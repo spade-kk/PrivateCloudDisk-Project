@@ -45,7 +45,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useTransferStore } from '@/stores/transferStore'
 import TransferTable from '@/components/transfer/TransferTable.vue'

@@ -101,7 +101,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const caseStudies = [
   {
     company: '中国移动', industry: '电信运营商', size: '10万+员工',

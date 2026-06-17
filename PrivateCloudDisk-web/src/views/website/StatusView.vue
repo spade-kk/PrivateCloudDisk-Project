@@ -87,7 +87,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const lastUpdated = '2026-01-15 14:30:00 CST'
 
 const serviceGroups = [

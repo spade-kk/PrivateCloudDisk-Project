@@ -1,0 +1,103 @@
+<Page
+    x:Class="PrivateCloudDisk.Views.SearchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:PrivateCloudDisk.Converters"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <converters:FileSizeConverter x:Key="FileSizeConverter"/>
+        <converters:DateTimeFormatConverter x:Key="DateTimeFormatConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+    </Page.Resources>
+
+    <Grid Style="{StaticResource PageContainer}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Style="{StaticResource PageHeaderText}" Text="搜索"/>
+
+        <!-- 搜索栏 -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="搜索文件名、内容..."
+                            Text="{x:Bind ViewModel.Keyword, Mode=TwoWay}"
+                            QuerySubmitted="SearchBox_QuerySubmitted"/>
+
+            <ComboBox Grid.Column="1" Margin="8,0" Width="120"
+                      SelectedIndex="-1" PlaceholderText="文件类型"
+                      SelectionChanged="FilterCombo_SelectionChanged">
+                <ComboBoxItem Content="全部" Tag=""/>
+                <ComboBoxItem Content="图片" Tag="IMAGE"/>
+                <ComboBoxItem Content="视频" Tag="VIDEO"/>
+                <ComboBoxItem Content="文档" Tag="DOCUMENT"/>
+                <ComboBoxItem Content="压缩包" Tag="ARCHIVE"/>
+            </ComboBox>
+
+            <ComboBox Grid.Column="2" Width="100"
+                      SelectedIndex="0" PlaceholderText="排序"
+                      SelectionChanged="SortCombo_SelectionChanged">
+                <ComboBoxItem Content="相关性" Tag="_score"/>
+                <ComboBoxItem Content="时间" Tag="uploaded_time"/>
+                <ComboBoxItem Content="大小" Tag="size"/>
+            </ComboBox>
+        </Grid>
+
+        <!-- 结果列表 -->
+        <ListView Grid.Row="2"
+                  ItemsSource="{x:Bind ViewModel.Hits, Mode=OneWay}"
+                  Style="{StaticResource FileListView}">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid ColumnSpacing="12" Padding="4,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="32"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="160"/>
+                        </Grid.ColumnDefinitions>
+
+                        <FontIcon Grid.Column="0" Glyph="&#xE8A5;"
+                                  FontSize="20" VerticalAlignment="Center"
+                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Source.FileName}"
+                                   Style="{ThemeResource BodyTextBlockStyle}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Source.FileSize, Converter={StaticResource FileSizeConverter}}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+
+                        <TextBlock Grid.Column="3"
+                                   Text="{Binding Source.UploadedTime, Converter={StaticResource DateTimeFormatConverter}}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Visibility="{x:Bind ViewModel.HasSearched, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="输入关键词开始搜索" FontSize="16"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"/>
+        </StackPanel>
+    </Grid>
+</Page>
