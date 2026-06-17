@@ -19,7 +19,25 @@ import org.springframework.web.multipart.MultipartFile;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
+/**
+ * 用户服务实现。
+ * <p>
+ * 密码安全增强：
+ * <ol>
+ *   <li>支持 PBKDF2-SHA256 预哈希密码（Web 前端 60 万次迭代后传输）</li>
+ *   <li>后端使用 BCrypt(12 rounds) 进行二次哈希后存储</li>
+ *   <li>自动检测密码格式：64 位十六进制 = 预哈希，否则 = 原始密码</li>
+ *   <li>向后兼容旧版 BCrypt 存储的密码</li>
+ * </ol>
+ * <p>
+ * 密码存储格式：
+ * <pre>
+ * 新用户注册：BCrypt(PBKDF2-SHA256(raw_password))
+ * 旧用户登录：BCrypt(raw_password)  [自动迁移]
+ * </pre>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,6 +48,17 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserEventPublisher userEventPublisher;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    /** PBKDF2-SHA256 预哈希密码格式：严格 64 位十六进制 */
+    private static final Pattern PRE_HASHED_PATTERN =
+            Pattern.compile("^[a-fA-F0-9]{64}$");
+
+    /**
+     * 判断密码是否为 PBKDF2-SHA256 预哈希格式。
+     */
+    private boolean isPreHashedPassword(String password) {
+        return password != null && PRE_HASHED_PATTERN.matcher(password).matches();
+    }
 
     @Override
     public UserEntity login(String account, String phone_number, String password) {
@@ -60,9 +89,11 @@ public class UserServiceImpl implements UserService {
         if(!passwordMatches(password, result.getPassword())) {
             throw new PasswordNotMatchException();
         }
+        // 密码自动迁移：如果旧密码不是 BCrypt 格式，升级为 BCrypt
         if(!isBcryptHash(result.getPassword())) {
             String hashedPassword = passwordEncoder.encode(password);
             userMapper.updateUserPassword(result.getId(), hashedPassword);
+            log.info("用户密码已从明文迁移至 BCrypt: userId={}", result.getId());
         }
 
         return result;
@@ -81,7 +112,15 @@ public class UserServiceImpl implements UserService {
         //创建UserEntity把参数添加进去
         UserEntity userData = new UserEntity();
         userData.setPhone_number(phone_number);
+
+        // 密码存储：BCrypt 二次哈希
+        // 如果前端发送的是预哈希密码（64 位十六进制），则存储 BCrypt(PBKDF2-SHA256(raw))
+        // 如果前端发送的是原始密码（非 Web 客户端），则存储 BCrypt(raw)
         userData.setPassword(passwordEncoder.encode(password));
+        if (isPreHashedPassword(password)) {
+            log.info("用户注册使用 PBKDF2-SHA256 预哈希密码: phone={}", phone_number);
+        }
+
         userData.setName(name);
 
         String elevenDigitsNumber = String.format("%011d", Math.floorMod(SECURE_RANDOM.nextLong(), 100_000_000_000L));
@@ -151,7 +190,7 @@ public class UserServiceImpl implements UserService {
         if(!passwordMatches(user_password, userData.getPassword())) {
             throw new PasswordNotMatchException();
         }
-        // 更新密码
+        // 更新密码（BCrypt 二次哈希存储）
         Integer rows = userMapper.updateUserPassword(user_id, passwordEncoder.encode(new_password));
         if(rows != 1) {
             throw new UpdateException("更新密码失败");

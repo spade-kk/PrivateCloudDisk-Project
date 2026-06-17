@@ -26,7 +26,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 处理用户模块的请求
+ * 处理用户模块的请求。
+ * <p>
+ * 安全机制说明：
+ * <ul>
+ *   <li>设备指纹验证、限流、客户端身份识别全部由 <b>Gateway 网关层</b> 统一处理</li>
+ *   <li>网关验证通过后，将可信设备信息通过请求头注入下游服务</li>
+ *   <li>业务服务通过 X-User-Id、X-Device-Fingerprint 等头获取已验证信息</li>
+ *   <li>业务服务仅做业务层限流（登录失败次数、验证码失败次数等）</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/business/users")
@@ -50,12 +58,22 @@ public class UserController extends BaseController {
                                      HttpServletRequest request )
     {
         String clientIp = ClientIpUtil.resolveClientIp(request);
+
+        // 业务层限流：仅限登录失败次数、账号维度
         apiAbuseProtectionService.checkLoginStart(loginRequest, clientIp);
+
         try {
             captchaVerifier.verify(loginRequest.getCaptcha_token(), "login", clientIp);
-            UserEntity userData = userService.login(loginRequest.getAccount(), loginRequest.getPhone_number(), loginRequest.getPassword());
+
+            UserEntity userData = userService.login(
+                    loginRequest.getAccount(),
+                    loginRequest.getPhone_number(),
+                    loginRequest.getPassword());
+
             String token = jwtUtil.generateAccessToken(userData.getId().toString());
+
             apiAbuseProtectionService.recordLoginSuccess(loginRequest, clientIp);
+
             return new JsonResult<String>(OK, token);
         } catch (ServiceException e) {
             apiAbuseProtectionService.recordLoginFailure(loginRequest, clientIp);
@@ -73,8 +91,12 @@ public class UserController extends BaseController {
                                         HttpServletRequest request )
     {
         String clientIp = ClientIpUtil.resolveClientIp(request);
-        apiAbuseProtectionService.checkRegisterStart(registerUserRequest.getPhone_number(), clientIp);
+
+        apiAbuseProtectionService.checkRegisterStart(
+                registerUserRequest.getPhone_number(), clientIp);
+
         captchaVerifier.verify(registerUserRequest.getCaptcha_token(), "register", clientIp);
+
         String account = userService.register(
                 registerUserRequest.getPhone_number(),
                 registerUserRequest.getPassword(),

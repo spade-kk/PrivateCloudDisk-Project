@@ -5,6 +5,7 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -72,7 +73,7 @@ public class RabbitMQConfig {
      * 绑定消息推送队列到交换机（接收所有 IM 消息）
      */
     @Bean
-    public Binding bindingPush(Queue messagePushQueue, TopicExchange messageExchange) {
+    public Binding bindingPush(@Qualifier("messagePushQueue") Queue messagePushQueue, TopicExchange messageExchange) {
         return BindingBuilder.bind(messagePushQueue)
                 .to(messageExchange)
                 .with("im.message.#");
@@ -82,7 +83,7 @@ public class RabbitMQConfig {
      * 绑定持久化队列到交换机
      */
     @Bean
-    public Binding bindingPersist(Queue messagePersistQueue, TopicExchange messageExchange) {
+    public Binding bindingPersist(@Qualifier("messagePersistQueue") Queue messagePersistQueue, TopicExchange messageExchange) {
         return BindingBuilder.bind(messagePersistQueue)
                 .to(messageExchange)
                 .with("im.message.#");
@@ -92,7 +93,7 @@ public class RabbitMQConfig {
      * 绑定离线消息队列到交换机
      */
     @Bean
-    public Binding bindingOffline(Queue offlineQueue, TopicExchange messageExchange) {
+    public Binding bindingOffline(@Qualifier("offlineQueue") Queue offlineQueue, TopicExchange messageExchange) {
         return BindingBuilder.bind(offlineQueue)
                 .to(messageExchange)
                 .with("im.message.#");

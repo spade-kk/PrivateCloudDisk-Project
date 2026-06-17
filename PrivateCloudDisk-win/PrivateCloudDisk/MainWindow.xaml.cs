@@ -1,13 +1,20 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 using PrivateCloudDisk.ViewModels;
 using PrivateCloudDisk.Views;
+using System;
 
 namespace PrivateCloudDisk;
 
 /// <summary>
 /// 主窗口 — 管理侧边栏导航和页面路由
+/// 
+/// 页面生命周期:
+/// 1. SplashScreen (品牌展示 + 后台初始化)
+/// 2. 已登录 → HomePage (文件浏览)
+///    未登录 → LoginPage (登录/注册)
 /// </summary>
 public sealed partial class MainWindow : Window
 {
@@ -19,9 +26,15 @@ public sealed partial class MainWindow : Window
         ["favorites"] = typeof(FavoritesPage),
         ["trash"] = typeof(TrashPage),
         ["search"] = typeof(SearchPage),
+        ["virtualdisk"] = typeof(VirtualDiskPage),
         ["profile"] = typeof(ProfilePage),
         ["settings"] = typeof(SettingsPage),
+        ["imchat"] = typeof(IMChatPage),
+        ["call"] = typeof(CallPage),
+        ["callhistory"] = typeof(CallHistoryPage),
     };
+
+    private bool _splashComplete;
 
     public MainWindow()
     {
@@ -29,41 +42,40 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Title = AppConfig.AppName;
 
-        // 初始化认证状态
-        Loaded += async (s, e) =>
+        // 启动时先显示 SplashScreen
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        // 显示 SplashScreen
+        var splashScreen = App.Services.GetRequiredService<SplashScreen>();
+        splashScreen.InitializationCompleted += OnSplashCompleted;
+        RootFrame.Navigate(splashScreen.GetType());
+    }
+
+    private void OnSplashCompleted()
+    {
+        _splashComplete = true;
+        DispatcherQueue.TryEnqueue(() =>
         {
+            // 切换到主内容
             if (ViewModel.IsAuthenticated)
             {
-                await ViewModel.InitializeAsync();
-                NavigateTo("home");
+                _ = ViewModel.InitializeAsync();
+                RootFrame.Navigate(typeof(HomePage), null, new SuppressNavigationTransitionInfo());
             }
             else
             {
-                RootFrame.Navigate(typeof(LoginPage));
+                RootFrame.Navigate(typeof(LoginPage), null, new SuppressNavigationTransitionInfo());
             }
-        };
-
-        // 监听认证状态变化
-        ViewModel.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(ViewModel.CurrentPage))
-            {
-                if (ViewModel.CurrentPage == "login")
-                {
-                    RootFrame.Navigate(typeof(LoginPage));
-                }
-                else
-                {
-                    NavigateTo(ViewModel.CurrentPage);
-                }
-            }
-        };
+        });
     }
 
     private void NavigateTo(string pageName)
     {
         if (_pageMap.TryGetValue(pageName, out var pageType))
-            RootFrame.Navigate(pageType, null);
+            RootFrame.Navigate(pageType, null, new EntranceNavigationTransitionInfo());
     }
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

@@ -318,3 +318,225 @@ export function isResult<T>(obj: unknown): obj is Result<T> {
     'timestamp' in obj
   )
 }
+
+// ============================================================
+// WebRTC 视频通话信令类型
+// ============================================================
+
+/** 通话类型 */
+export enum CallType {
+  /** 语音通话 */
+  VOICE = 1,
+  /** 视频通话 */
+  VIDEO = 2,
+}
+
+/** 通话状态 */
+export enum CallStatus {
+  /** 等待接听 */
+  RINGING = 0,
+  /** 通话中 */
+  ACTIVE = 1,
+  /** 已拒绝 */
+  REJECTED = 2,
+  /** 已取消 */
+  CANCELLED = 3,
+  /** 已挂断 */
+  ENDED = 4,
+  /** 超时 */
+  TIMEOUT = 5,
+  /** 忙线 */
+  BUSY = 6,
+}
+
+/** 通话模式 */
+export enum CallMode {
+  /** P2P 一对一通话 */
+  P2P = 1,
+  /** 群组通话 */
+  GROUP = 2,
+}
+
+/** 网络质量等级 */
+export enum NetworkQuality {
+  /** 优秀 */
+  EXCELLENT = 0,
+  /** 良好 */
+  GOOD = 1,
+  /** 一般 */
+  FAIR = 2,
+  /** 差 */
+  POOR = 3,
+  /** 极差 */
+  VERY_POOR = 4,
+}
+
+// ==================== WebRTC 通话相关 DTO ====================
+
+/** 通话会话信息 */
+export interface CallSession {
+  /** 通话唯一 ID */
+  callId: string
+  /** 通话房间 ID */
+  roomId?: string
+  /** 通话类型 */
+  callType: CallType
+  /** 通话模式 */
+  callMode: CallMode
+  /** 发起者 ID */
+  callerId: string
+  /** 发起者名称 */
+  callerName?: string
+  /** 发起者头像 */
+  callerAvatar?: string
+  /** 被叫者 ID */
+  calleeId?: string
+  /** 被叫者名称 */
+  calleeName?: string
+  /** 被叫者头像 */
+  calleeAvatar?: string
+  /** 通话状态 */
+  status: CallStatus
+  /** 开始时间 */
+  startTime?: string
+  /** 结束时间 */
+  endTime?: string
+  /** 持续时间（秒） */
+  duration?: number
+  /** 参与者列表 */
+  participants?: string[]
+  /** 是否启用视频 */
+  videoEnabled: boolean
+  /** 是否启用音频 */
+  audioEnabled: boolean
+  /** 是否启用屏幕共享 */
+  screenShareEnabled: boolean
+  /** 当前编码参数 */
+  encoderParams?: EncoderParams
+  /** 网络质量等级 */
+  networkQuality: NetworkQuality
+}
+
+/** 编码参数 */
+export interface EncoderParams {
+  /** 质量等级 */
+  quality: number
+  /** 宽度 */
+  width: number
+  /** 高度 */
+  height: number
+  /** 帧率 */
+  fps: number
+  /** 最大码率（kbps） */
+  maxBitrate: number
+  /** 最小码率（kbps） */
+  minBitrate: number
+  /** 目标码率（kbps） */
+  targetBitrate: number
+  /** 分辨率缩小比例 */
+  scaleResolutionDownBy: number
+  /** 描述 */
+  description: string
+}
+
+/** 网络质量快照 */
+export interface NetworkQualitySnapshot {
+  /** 往返时延（ms） */
+  rtt: number
+  /** 丢包率（百分比 0-100） */
+  packetLoss: number
+  /** 抖动（ms） */
+  jitter: number
+  /** 估算带宽（kbps） */
+  estimatedBandwidth: number
+  /** 是否正在屏幕共享 */
+  isScreenShare: boolean
+  /** 时间戳 */
+  timestamp: number
+  /** 综合质量等级 */
+  qualityLevel: number
+}
+
+/** ICE 服务器配置 */
+export interface IceServerConfig {
+  /** ICE 服务器列表 */
+  iceServers: RTCIceServer[]
+  /** ICE 传输策略 */
+  iceTransportPolicy: RTCIceTransportPolicy
+  /** ICE Candidate 池大小 */
+  iceCandidatePoolSize: number
+}
+
+/** 通话记录 DTO */
+export interface CallRecordDTO {
+  callId: string
+  roomId?: string
+  callType: CallType
+  callMode: CallMode
+  callerId: string
+  callerName?: string
+  callerAvatar?: string
+  calleeId?: string
+  calleeName?: string
+  calleeAvatar?: string
+  status: CallStatus
+  startTime?: string
+  endTime?: string
+  duration?: number
+  rejectReason?: string
+  participants?: string[]
+  videoEnabled: boolean
+  screenShareEnabled: boolean
+  hangupBy?: string
+  createTime?: string
+}
+
+// ==================== WebRTC 信令 Payload 类型 ====================
+
+/** 通话邀请 Payload */
+export interface CallInvitePayload {
+  callId: string
+  callerId: string
+  callerName: string
+  callerAvatar: string
+  callType: CallType
+  timestamp: number
+}
+
+/** SDP Offer/Answer Payload */
+export interface SdpPayload {
+  callId: string
+  sdp: RTCSessionDescriptionInit
+}
+
+/** ICE Candidate Payload */
+export interface IceCandidatePayload {
+  callId: string
+  candidate: RTCIceCandidateInit
+}
+
+/** 网络质量上报 Payload */
+export interface QualityReportPayload {
+  callId: string
+  rtt: number
+  packetLoss: number
+  jitter: number
+  estimatedBandwidth: number
+  isScreenShare: boolean
+  qualityLevel: number
+}
+
+/** 编码参数调整 Payload */
+export interface EncoderAdjustPayload {
+  callId: string
+  encoderParams: EncoderParams
+}
+
+/** 群组通话房间 Payload */
+export interface RoomPayload {
+  roomId: string
+  roomName?: string
+  creatorId: string
+  participants: string[]
+  callType: CallType
+}

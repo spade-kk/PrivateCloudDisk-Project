@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.im.platform.mapper.ImCallRecordMapper">
+
+    <resultMap id="CallRecordResultMap" type="org.project.im.platform.entity.ImCallRecord">
+        <id column="id" property="id"/>
+        <result column="call_id" property="callId"/>
+        <result column="room_id" property="roomId"/>
+        <result column="call_type" property="callType"/>
+        <result column="call_mode" property="callMode"/>
+        <result column="caller_id" property="callerId"/>
+        <result column="callee_id" property="calleeId"/>
+        <result column="status" property="status"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="duration" property="duration"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="participants" property="participants"/>
+        <result column="video_enabled" property="videoEnabled"/>
+        <result column="screen_share_enabled" property="screenShareEnabled"/>
+        <result column="hangup_by" property="hangupBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="org.project.im.platform.entity.ImCallRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO im_call_record (
+            call_id, room_id, call_type, call_mode,
+            caller_id, callee_id, status,
+            start_time, end_time, duration, reject_reason,
+            participants, video_enabled, screen_share_enabled, hangup_by,
+            create_time, update_time
+        ) VALUES (
+            #{callId}, #{roomId}, #{callType}, #{callMode},
+            #{callerId}, #{calleeId}, #{status},
+            #{startTime}, #{endTime}, #{duration}, #{rejectReason},
+            #{participants}, #{videoEnabled}, #{screenShareEnabled}, #{hangupBy},
+            NOW(), NOW()
+        )
+    </insert>
+
+    <update id="update" parameterType="org.project.im.platform.entity.ImCallRecord">
+        UPDATE im_call_record
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="endTime != null">end_time = #{endTime},</if>
+            <if test="duration != null">duration = #{duration},</if>
+            <if test="rejectReason != null">reject_reason = #{rejectReason},</if>
+            <if test="participants != null">participants = #{participants},</if>
+            <if test="videoEnabled != null">video_enabled = #{videoEnabled},</if>
+            <if test="screenShareEnabled != null">screen_share_enabled = #{screenShareEnabled},</if>
+            <if test="hangupBy != null">hangup_by = #{hangupBy},</if>
+            update_time = NOW()
+        </set>
+        WHERE call_id = #{callId}
+    </update>
+
+    <select id="selectByCallId" resultMap="CallRecordResultMap">
+        SELECT * FROM im_call_record WHERE call_id = #{callId}
+    </select>
+
+    <select id="selectByUserId" resultMap="CallRecordResultMap">
+        SELECT * FROM im_call_record
+        WHERE caller_id = #{userId} OR callee_id = #{userId}
+           OR JSON_CONTAINS(participants, JSON_QUOTE(#{userId}))
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*) FROM im_call_record
+        WHERE caller_id = #{userId} OR callee_id = #{userId}
+           OR JSON_CONTAINS(participants, JSON_QUOTE(#{userId}))
+    </select>
+
+    <select id="selectByTimeRange" resultMap="CallRecordResultMap">
+        SELECT * FROM im_call_record
+        WHERE (caller_id = #{userId} OR callee_id = #{userId}
+               OR JSON_CONTAINS(participants, JSON_QUOTE(#{userId})))
+          AND create_time BETWEEN #{startTime} AND #{endTime}
+        ORDER BY create_time DESC
+    </select>
+
+    <delete id="deleteByIds">
+        DELETE FROM im_call_record WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

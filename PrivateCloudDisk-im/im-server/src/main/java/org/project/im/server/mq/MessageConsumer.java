@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.im.common.dto.MessageDTO;
 import org.project.im.server.service.MessagePushService;
+import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -47,7 +48,10 @@ public class MessageConsumer {
      * @param channel RabbitMQ Channel（用于手动 ACK）
      * @param deliveryTag 投递标签
      */
-    @RabbitListener(queues = MQ_QUEUE_MESSAGE_PUSH, ackMode = "MANUAL")
+    @RabbitListener(
+            queuesToDeclare = @Queue(name = "im.message.push.queue", durable = "true"),
+            ackMode = "MANUAL"
+    )
     public void onMessage(String message, Channel channel,
                           @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
         try {

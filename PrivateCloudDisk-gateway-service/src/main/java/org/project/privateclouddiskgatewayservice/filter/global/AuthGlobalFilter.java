@@ -205,6 +205,20 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
      * <p>
      * 防止攻击者通过设置 X-User-Id 等头来伪造身份。
      * 只有经过本过滤器认证的请求才会被注入这些头。
+     * <p>
+     * 注意：以下请求头是合法的客户端标识，不会剥离：
+     * <ul>
+     *   <li>X-Device-Fingerprint — 设备指纹（Web 浏览器）</li>
+     *   <li>X-Device-Id — 设备 ID（Native App）</li>
+     *   <li>X-Client-Type — 客户端类型</li>
+     *   <li>X-Timestamp — 请求时间戳</li>
+     *   <li>X-Nonce — 请求防重放 nonce</li>
+     *   <li>X-Request-Signature — 请求签名（Native App）</li>
+     *   <li>X-Platform — 平台标识（Native App）</li>
+     *   <li>X-Client-Version — 客户端版本（Native App）</li>
+     * </ul>
+     * <p>
+     * 设备身份相关的下游头由 {@link DeviceIdentityFilter} 负责剥离和注入。
      */
     private ServerHttpRequest removeClientSuppliedInternalHeaders(ServerHttpRequest request) {
         return request.mutate()
@@ -212,7 +226,6 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                     headers.remove("X-User-Id");
                     headers.remove("X-Auth-Source");
                     headers.remove("X-Session-Id");
-                    headers.remove("X-Device-Id");
                 })
                 .build();
     }

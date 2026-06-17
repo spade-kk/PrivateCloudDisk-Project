@@ -13,8 +13,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      database: 2
+      database: 0
       lettuce:
         pool:
           max-active: 16
@@ -72,3 +71,35 @@ logging:
     io.netty: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# ==================== WebRTC 配置 ====================
+webrtc:
+  # STUN/TURN ICE 服务器配置
+  ice:
+    # STUN 服务器列表（用于 P2P NAT 穿透）
+    stun-servers:
+      - stun:stun.l.google.com:19302
+      - stun:stun1.l.google.com:19302
+    # TURN 服务器列表（用于中继转发，确保 100% 连通性）
+    turn-servers:
+      - urls:
+          - turn:${TURN_SERVER_HOST:turn.example.com}:3478?transport=udp
+          - turn:${TURN_SERVER_HOST:turn.example.com}:3478?transport=tcp
+        username: ${TURN_USERNAME:privateclouddisk}
+        credential: ${TURN_CREDENTIAL:change_me_in_production}
+    # ICE 传输策略：all（优先 P2P）| relay（仅中继）
+    transport-policy: all
+    # ICE Candidate 池大小
+    candidate-pool-size: 2
+  # 通话邀请超时（秒）
+  call-invite-timeout: 60
+  # 空闲通话清理（分钟）
+  idle-call-cleanup: 30
+  # 自适应编码参数
+  adaptive-encoder:
+    # 参数切换冷却时间（毫秒）
+    switch-cooldown-ms: 3000
+    # 历史质量快照保留数量
+    history-size: 10
+    # 网络质量上报间隔（毫秒）
+    quality-report-interval: 2000

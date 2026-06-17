@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>PrivateCloudDisk.VirtualDisk</RootNamespace>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.5.240627000" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WinFsp .NET 绑定 (需要安装 WinFsp SDK) -->
+    <!-- 项目引用: 可在 https://github.com/winfsp/winfsp 获取 -->
+    <!-- <PackageReference Include="WinFsp" Version="2.0.23075" /> -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PrivateCloudDisk\PrivateCloudDisk.csproj" />
+  </ItemGroup>
+</Project>

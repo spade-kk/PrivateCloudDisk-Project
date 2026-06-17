@@ -35,13 +35,17 @@ public sealed partial class LoginPage : Page
         ViewModel.LoginSucceeded += OnLoginSucceeded;
     }
 
-    private void OnLoginSucceeded()
+    private async void OnLoginSucceeded()
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(async () =>
         {
             var mainViewModel = App.Services.GetRequiredService<MainViewModel>();
             _ = mainViewModel.InitializeAsync();
             mainViewModel.CurrentPage = "home";
+
+            // 建立 IM WebSocket 连接
+            var wsService = App.Services.GetRequiredService<Services.Interfaces.IIMWebSocketService>();
+            await wsService.ConnectAsync();
         });
     }
 

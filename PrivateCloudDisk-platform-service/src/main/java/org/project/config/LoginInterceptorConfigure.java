@@ -11,29 +11,28 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.ArrayList;
 import java.util.List;
 
-/**拦截器的注册*/
-@Configuration //自动加载当前的类并进行拦截器的注册,如果没有@Configuration就相当于没有写类LoginInterceptorConfigure
+/**
+ * 拦截器注册配置。
+ * <p>
+ * 设备指纹验证已移至 Gateway 网关层统一处理，业务服务不再需要设备指纹拦截器。
+ */
 public class LoginInterceptorConfigure implements WebMvcConfigurer {
     @Autowired
     private JwtUtil jwtUtil;
 
     @Override
-    //配置拦截器
     public void addInterceptors(InterceptorRegistry registry) {
-        //1.创建自定义的拦截器对象
-        HandlerInterceptor interceptor =  new LoginInterceptor(jwtUtil);
-        //2.配置白名单并存放在一个List集合
+        // JWT 登录认证拦截器
+        HandlerInterceptor loginInterceptor = new LoginInterceptor(jwtUtil);
+
         List<String> patterns = new ArrayList<>();
         patterns.add("/api/user/login");
         patterns.add("/api/user/register");
         patterns.add("/internal/storage/**");
 
-        //registry.addInterceptor(interceptor);完成拦截
-        // 器的注册,后面的addPathPatterns表示拦截哪些url
-        //这里的参数/**表示所有请求,再后面的excludePathPatterns表
-        // 示有哪些是白名单,且参数是列表
-        registry.addInterceptor(interceptor)
+        registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns(patterns);
+                .excludePathPatterns(patterns)
+                .order(1);
     }
 }

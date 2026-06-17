@@ -60,9 +60,14 @@
                             <NavigationViewItem Icon="&#xE80F;" Content="首页" Tag="home"/>
                             <NavigationViewItem Icon="&#xE710;" Content="收藏" Tag="favorites"/>
                             <NavigationViewItem Icon="&#xE74D;" Content="回收站" Tag="trash"/>
+                            <NavigationViewItem Icon="&#xEDA9;" Content="虚拟磁盘" Tag="virtualdisk"/>
                             <NavigationViewItem Icon="&#xF01E;" Content="搜索" Tag="search"/>
                             <NavigationViewItem Icon="&#xE713;" Content="个人信息" Tag="profile"/>
                             <NavigationViewItem Icon="&#xE71C;" Content="设置" Tag="settings"/>
+                            <NavigationViewItemSeparator />
+                            <NavigationViewItem Icon="&#xE8BD;" Content="消息" Tag="imchat"/>
+                            <NavigationViewItem Icon="&#xE717;" Content="通话" Tag="call"/>
+                            <NavigationViewItem Icon="&#xE81C;" Content="通话记录" Tag="callhistory"/>
                         </NavigationView.MenuItems>
                     </NavigationView>
                 </StackPanel>

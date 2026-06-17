@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using PrivateCloudDisk.Services.Implementations;
 using PrivateCloudDisk.Services.Interfaces;
+using PrivateCloudDisk.Services.VirtualDisk;
 using PrivateCloudDisk.ViewModels;
 using PrivateCloudDisk.Views;
 using System;
@@ -13,6 +14,11 @@ namespace PrivateCloudDisk;
 
 /// <summary>
 /// 应用程序入口 — 负责 DI 容器初始化、服务注册和窗口导航
+/// 
+/// 启动流程:
+/// 1. SplashScreen (品牌展示 + 后台初始化)
+/// 2. 已登录 → MainWindow (文件浏览)
+///    未登录 → LoginPage (登录/注册)
 /// </summary>
 public partial class App : Application
 {
@@ -64,7 +70,18 @@ public partial class App : Application
         services.AddSingleton<IQuotaService, QuotaService>();
         services.AddSingleton<IUserService, UserService>();
 
+        // ── 虚拟磁盘服务 ────────────────────────────────────
+        services.AddSingleton<CloudFilesSyncEngine>();
+        services.AddSingleton<VirtualDiskService>();
+
+        // ── WebRTC / IM 服务 ────────────────────────────────
+        services.AddSingleton<IIMWebSocketService, IMWebSocketService>();
+        services.AddSingleton<IWebRTCSignalingService, WebRTCSignalingService>();
+        services.AddSingleton<IWebRTCMediaService, WebRTCMediaService>();
+        services.AddSingleton<IAdaptiveEncoderService, AdaptiveEncoderService>();
+
         // ── ViewModels ──────────────────────────────────────
+        services.AddTransient<SplashViewModel>();
         services.AddTransient<LoginViewModel>();
         services.AddTransient<HomeViewModel>();
         services.AddTransient<FileDetailViewModel>();
@@ -73,9 +90,16 @@ public partial class App : Application
         services.AddTransient<SearchViewModel>();
         services.AddTransient<ProfileViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<VirtualDiskViewModel>();
         services.AddSingleton<MainViewModel>();
 
+        // ── WebRTC / IM ViewModels ──────────────────────────
+        services.AddSingleton<CallViewModel>();
+        services.AddSingleton<IMChatViewModel>();
+        services.AddTransient<CallHistoryViewModel>();
+
         // ── Views ───────────────────────────────────────────
+        services.AddTransient<SplashScreen>();
         services.AddTransient<LoginPage>();
         services.AddTransient<HomePage>();
         services.AddTransient<FileDetailPage>();
@@ -84,20 +108,46 @@ public partial class App : Application
         services.AddTransient<SearchPage>();
         services.AddTransient<ProfilePage>();
         services.AddTransient<SettingsPage>();
+        services.AddTransient<VirtualDiskPage>();
+
+        // ── WebRTC / IM Views ───────────────────────────────
+        services.AddTransient<CallPage>();
+        services.AddTransient<IMChatPage>();
+        services.AddTransient<CallHistoryPage>();
 
         Services = services.BuildServiceProvider();
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // 创建主窗口，先显示 SplashScreen
         _mainWindow = new MainWindow();
+
+        // 判断是否首次启动
+        var settings = Services.GetRequiredService<ISettingsService>();
+        var isFirstRun = !settings.Get("App.HasLaunched", false);
+
+        if (isFirstRun)
+        {
+            // 首次启动：显示 SplashScreen → 登录页
+            settings.Set("App.HasLaunched", true);
+            settings.Save();
+        }
+
         _mainWindow.Activate();
 
-        // 异步初始化认证状态
+        // 后台初始化认证状态
         await Task.Run(async () =>
         {
             var authService = Services.GetRequiredService<IAuthService>();
-            await authService.TryRestoreSessionAsync();
+            var restored = await authService.TryRestoreSessionAsync();
+
+            // 如果已恢复会话，自动建立 IM WebSocket 连接
+            if (restored)
+            {
+                var wsService = Services.GetRequiredService<IIMWebSocketService>();
+                await wsService.ConnectAsync();
+            }
         });
     }
 }

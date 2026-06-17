@@ -1,0 +1,291 @@
+<Page
+    x:Class="PrivateCloudDisk.Views.VirtualDiskPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:PrivateCloudDisk.Converters"
+    xmlns:vm="using:PrivateCloudDisk.ViewModels"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <converters:FileSizeConverter x:Key="FileSizeConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+    </Page.Resources>
+
+    <Grid Style="{StaticResource PageContainer}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 页头 -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <TextBlock Style="{StaticResource PageHeaderText}" Text="虚拟磁盘"/>
+                <TextBlock Text="将云端文件映射为本地磁盘，像操作本地文件一样操作云端文件"
+                           FontSize="13" Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <!-- 状态指示器 -->
+            <Border Grid.Column="1" Padding="12,6" CornerRadius="16"
+                    Background="{x:Bind ViewModel.IsMounted ? '#E8F5E9' : '#FFF3E0', Mode=OneWay}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Border Width="10" Height="10" CornerRadius="5"
+                            Background="{x:Bind ViewModel.IsMounted ? '#4CAF50' : '#FF9800', Mode=OneWay}"/>
+                    <TextBlock Text="{x:Bind ViewModel.StatusDisplay, Mode=OneWay}"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{x:Bind ViewModel.IsMounted ? '#2E7D32' : '#E65100', Mode=OneWay}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,0">
+            <StackPanel Spacing="16" MaxWidth="600">
+                <!-- 概览卡片 -->
+                <Border Style="{StaticResource CardBorder}" Padding="24">
+                    <StackPanel Spacing="16">
+                        <TextBlock Style="{StaticResource SubHeaderText}" Text="磁盘概览"/>
+
+                        <!-- 状态按钮 -->
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button x:Name="MountBtn"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Command="{x:Bind ViewModel.MountCommand}"
+                                    Visibility="{x:Bind ViewModel.IsMounted, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE7F1;" Margin="0,0,8,0"/>
+                                    <TextBlock Text="挂载虚拟磁盘"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource DangerButton}"
+                                    Command="{x:Bind ViewModel.UnmountCommand}"
+                                    Visibility="{x:Bind ViewModel.IsMounted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xEDA9;" Margin="0,0,8,0"/>
+                                    <TextBlock Text="卸载磁盘"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource OutlineButton}"
+                                    Command="{x:Bind ViewModel.SyncNowCommand}"
+                                    Visibility="{x:Bind ViewModel.IsMounted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE117;" Margin="0,0,8,0"/>
+                                    <TextBlock Text="立即同步"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- 磁盘信息 -->
+                        <Grid Visibility="{x:Bind ViewModel.IsMounted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="挂载路径" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{x:Bind ViewModel.SyncRootPath, Mode=OneWay}"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+
+                            <TextBlock Grid.Row="1" Margin="0,8,0,0"
+                                       Text="文件数量" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,8,0,0"
+                                       FontWeight="SemiBold">
+                                <Run Text="{x:Bind ViewModel.FileCount, Mode=OneWay}"/>
+                                <Run Text=" 个文件"/>
+                                <Run Text=", "/>
+                                <Run Text="{x:Bind ViewModel.FolderCount, Mode=OneWay}"/>
+                                <Run Text=" 个文件夹"/>
+                            </TextBlock>
+
+                            <!-- 存储空间进度条 -->
+                            <TextBlock Grid.Row="2" Margin="0,12,0,4"
+                                       Text="存储空间" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Grid Grid.Row="3" Grid.ColumnSpan="2">
+                                <ProgressBar Value="{x:Bind ViewModel.SpacePercent, Mode=OneWay}"
+                                             Maximum="100" Height="8"
+                                             Foreground="#1A73E8"/>
+                                <TextBlock Text="{x:Bind ViewModel.SpaceDisplay, Mode=OneWay}"
+                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,12,0,0"/>
+                            </Grid>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 配置卡片 -->
+                <Border Style="{StaticResource CardBorder}" Padding="24">
+                    <StackPanel Spacing="16">
+                        <TextBlock Style="{StaticResource SubHeaderText}" Text="磁盘配置"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="磁盘名称" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1" Text="{x:Bind ViewModel.DisplayName, Mode=TwoWay}"
+                                     PlaceholderText="PrivateCloudDisk"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="同步路径" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{x:Bind ViewModel.SyncRootPath, Mode=TwoWay}"
+                                     PlaceholderText="选择本地文件夹"
+                                     IsReadOnly="True"/>
+                            <Button Grid.Column="2" Margin="8,0,0,0"
+                                    Style="{StaticResource OutlineButton}" Padding="10,6"
+                                    Command="{x:Bind ViewModel.BrowseSyncPathCommand}">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE838;" FontSize="14"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 同步策略 -->
+                <Border Style="{StaticResource CardBorder}" Padding="24">
+                    <StackPanel Spacing="16">
+                        <TextBlock Style="{StaticResource SubHeaderText}" Text="同步策略"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="实时同步" FontWeight="SemiBold"/>
+                                <TextBlock Text="文件变更时自动同步到云端"
+                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          IsOn="{x:Bind ViewModel.RealTimeSync, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="按需下载" FontWeight="SemiBold"/>
+                                <TextBlock Text="仅在使用文件时下载，节省本地空间"
+                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          IsOn="{x:Bind ViewModel.OnDemandDownload, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="同步间隔" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Slider Width="200" Minimum="60" Maximum="3600" StepFrequency="60"
+                                        Value="{x:Bind ViewModel.SyncInterval, Mode=TwoWay}"/>
+                                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold">
+                                    <Run Text="{x:Bind ViewModel.SyncInterval, Mode=OneWay}"/>
+                                    <Run Text=" 秒"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="最大缓存" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Slider Width="200" Minimum="1024" Maximum="102400" StepFrequency="1024"
+                                        Value="{x:Bind ViewModel.MaxCacheSize, Mode=TwoWay}"/>
+                                <TextBlock VerticalAlignment="Center" FontWeight="SemiBold">
+                                    <Run Text="{x:Bind ViewModel.MaxCacheSize, Mode=OneWay}"/>
+                                    <Run Text=" MB"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="冲突策略" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <ComboBox Grid.Column="1"
+                                      SelectedIndex="{x:Bind ViewModel.SelectedConflictResolution, Mode=TwoWay}">
+                                <ComboBoxItem Content="保留两者"/>
+                                <ComboBoxItem Content="本地优先"/>
+                                <ComboBoxItem Content="云端优先"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="排除扩展名" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{x:Bind ViewModel.ExcludedExtensions, Mode=TwoWay}"
+                                     PlaceholderText="例: .tmp,.log,.cache"/>
+                        </Grid>
+
+                        <Button Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"
+                                Command="{x:Bind ViewModel.SaveSettingsCommand}">
+                            <TextBlock Text="保存配置"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- 同步日志 -->
+                <Border Style="{StaticResource CardBorder}" Padding="24">
+                    <StackPanel Spacing="12">
+                        <TextBlock Style="{StaticResource SubHeaderText}" Text="同步日志"/>
+
+                        <ListView ItemsSource="{x:Bind ViewModel.SyncLog, Mode=OneWay}"
+                                  MaxHeight="300">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:VirtualDiskViewModel">
+                                    <StackPanel>
+                                        <!-- 这里需要正确的类型绑定 -->
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

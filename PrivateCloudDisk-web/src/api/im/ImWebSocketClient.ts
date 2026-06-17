@@ -327,6 +327,20 @@ export class ImWebSocketClient {
     })
   }
 
+  /**
+   * 发送 WebRTC 信令消息（仅发送，不等待响应）
+   * @param command 信令命令字
+   * @param payload 信令数据
+   */
+  sendSignaling(command: number, payload: Record<string, unknown>): void {
+    this.sendRaw({
+      version: PROTOCOL_VERSION,
+      command: command as CommandType,
+      timestamp: Date.now(),
+      payload,
+    })
+  }
+
   // ==================== 私有方法 ====================
 
   /** 执行 WebSocket 连接 */

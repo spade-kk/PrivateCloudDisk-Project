@@ -14,6 +14,7 @@ import org.project.im.common.enums.CommandType;
 import org.project.im.common.protocol.MessageProtocol;
 import org.project.im.server.netty.SessionManager;
 import org.project.im.server.service.MessagePushService;
+import org.project.im.server.signaling.handler.SignalingHandler;
 import org.springframework.stereotype.Component;
 
 /**
@@ -40,6 +41,7 @@ public class MessageHandler extends SimpleChannelInboundHandler<TextWebSocketFra
 
     private final SessionManager sessionManager;
     private final MessagePushService messagePushService;
+    private final SignalingHandler signalingHandler;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -69,6 +71,19 @@ public class MessageHandler extends SimpleChannelInboundHandler<TextWebSocketFra
                 case READ_MESSAGE -> messagePushService.handleRead(ctx, protocol);
                 case TYPING -> messagePushService.handleTyping(ctx, protocol);
                 case SYNC_OFFLINE_MESSAGES -> messagePushService.handleSyncOffline(ctx, protocol);
+                // WebRTC 信令命令路由到 SignalingHandler
+                case CALL_INVITE, CALL_ACCEPT, CALL_REJECT, CALL_CANCEL, CALL_HANGUP,
+                     CALL_BUSY, CALL_TIMEOUT,
+                     SIGNALING_OFFER, SIGNALING_ANSWER, SIGNALING_ICE_CANDIDATE,
+                     SIGNALING_RENEGOTIATE,
+                     CALL_QUALITY_REPORT, CALL_ENCODER_ADJUST,
+                     CALL_RESOLUTION_SWITCH, CALL_BITRATE_ADJUST, CALL_FRAMERATE_ADJUST,
+                     CALL_SCREEN_SHARE_START, CALL_SCREEN_SHARE_STOP,
+                     CALL_MUTE_TOGGLE, CALL_CAMERA_TOGGLE,
+                     CALL_SWITCH_TO_VOICE, CALL_SWITCH_TO_VIDEO,
+                     CALL_ROOM_CREATE, CALL_ROOM_JOIN, CALL_ROOM_LEAVE,
+                     CALL_ROOM_INVITE, CALL_ROOM_MEMBERS, CALL_ROOM_INFO,
+                     CALL_ICE_SERVERS -> signalingHandler.handle(ctx, protocol);
                 default -> sendError(ctx, "不支持的命令: " + command.getDescription());
             }
         } catch (Exception e) {

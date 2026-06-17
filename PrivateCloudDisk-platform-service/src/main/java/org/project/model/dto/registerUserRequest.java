@@ -4,7 +4,17 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import org.project.validation.ValidPassword;
 
+/**
+ * 用户注册请求 DTO。
+ * <p>
+ * 密码字段支持两种格式：
+ * <ol>
+ *   <li><b>原始密码</b>（8-128 位，含字母+数字+特殊字符）</li>
+ *   <li><b>PBKDF2-SHA256 预哈希密码</b>（64 位十六进制字符串）— Web 前端安全传输</li>
+ * </ol>
+ */
 @Data
 public class registerUserRequest {
 
@@ -14,8 +24,7 @@ public class registerUserRequest {
     String phone_number;
 
     @NotBlank(message = "密码不能为空")
-    @Pattern( regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,15}$",
-              message = "密码必须是8-15位，包含字母、数字")
+    @ValidPassword
     String password;
 
     @NotBlank(message = "验证码不能为空")

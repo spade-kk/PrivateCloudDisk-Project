@@ -117,6 +117,14 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                 String userId = exchange.getRequest().getHeaders().getFirst("X-User-Id");
                 yield StringUtils.hasText(userId) ? "user:" + userId : "ip:" + clientIp(exchange);
             }
+            case FINGERPRINT -> {
+                String fp = exchange.getRequest().getHeaders().getFirst("X-Device-Fingerprint");
+                yield StringUtils.hasText(fp) ? "fp:" + fp : "";
+            }
+            case FINGERPRINT_OR_IP -> {
+                String fp = exchange.getRequest().getHeaders().getFirst("X-Device-Fingerprint");
+                yield StringUtils.hasText(fp) ? "fp:" + fp : "ip:" + clientIp(exchange);
+            }
         };
     }
 

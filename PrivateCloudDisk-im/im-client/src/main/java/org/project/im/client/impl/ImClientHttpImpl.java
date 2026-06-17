@@ -13,6 +13,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
@@ -54,9 +55,12 @@ public class ImClientHttpImpl implements ImClient {
     public Result<MessageDTO> sendMessage(MessageDTO messageDTO) {
         String url = platformBaseUrl + "/api/v1/messages/send";
         try {
-            ResponseEntity<Result<MessageDTO>> response = restTemplate.postForEntity(
-                    url, messageDTO,
-                    new ParameterizedTypeReference<Result<MessageDTO>>() {}.getType());
+            ResponseEntity<Result<MessageDTO>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(messageDTO),  // 将请求体包装为 HttpEntity
+                    new ParameterizedTypeReference<Result<MessageDTO>>() {}
+            );
             return response.getBody();
         } catch (Exception e) {
             log.error("发送消息失败", e);
@@ -68,10 +72,14 @@ public class ImClientHttpImpl implements ImClient {
     public Result<Void> recallMessage(String messageId, String userId) {
         String url = platformBaseUrl + "/api/v1/messages/recall?messageId={messageId}&userId={userId}";
         try {
-            ResponseEntity<Result<Void>> response = restTemplate.postForEntity(
-                    url, null, new ParameterizedTypeReference<Result<Void>>() {}.getType(),
-                    messageId, userId);
-            return response.getBody();
+            ResponseEntity<Result<Void>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,  // 无请求体
+                    new ParameterizedTypeReference<Result<Void>>() {},
+                    messageId, userId
+            );
+            return Result.success(null);
         } catch (Exception e) {
             log.error("撤回消息失败", e);
             return Result.error(500, "撤回消息失败: " + e.getMessage());
@@ -103,10 +111,14 @@ public class ImClientHttpImpl implements ImClient {
         String url = platformBaseUrl
                 + "/api/v1/conversations/create?userId={userId}&targetId={targetId}&conversationType={type}";
         try {
-            ResponseEntity<Result<ConversationDTO>> response = restTemplate.postForEntity(
-                    url, null, new ParameterizedTypeReference<Result<ConversationDTO>>() {}.getType(),
-                    userId, targetId, conversationType);
-            return response.getBody();
+            ResponseEntity<Result<ConversationDTO>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,   // 没有请求体时可以直接传 null（或 new HttpEntity<>(null)）
+                    new ParameterizedTypeReference<Result<ConversationDTO>>() {},
+                    userId, targetId, conversationType
+            );
+            return response.getBody();   // 类型为 Result<ConversationDTO>ersationType);
         } catch (Exception e) {
             log.error("创建会话失败", e);
             return Result.error(500, "创建会话失败: " + e.getMessage());
@@ -148,9 +160,13 @@ public class ImClientHttpImpl implements ImClient {
         String url = platformBaseUrl
                 + "/api/v1/groups/create?ownerId={ownerId}&groupName={groupName}&avatar={avatar}";
         try {
-            ResponseEntity<Result<GroupDTO>> response = restTemplate.postForEntity(
-                    url, null, new ParameterizedTypeReference<Result<GroupDTO>>() {}.getType(),
-                    ownerId, groupName, avatar);
+            ResponseEntity<Result<GroupDTO>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,
+                    new ParameterizedTypeReference<Result<GroupDTO>>() {},
+                    ownerId, groupName, avatar
+            );
             return response.getBody();
         } catch (Exception e) {
             log.error("创建群组失败", e);
@@ -190,10 +206,14 @@ public class ImClientHttpImpl implements ImClient {
     public Result<Void> joinGroup(String groupId, String userId) {
         String url = platformBaseUrl + "/api/v1/groups/{groupId}/join?userId={userId}";
         try {
-            ResponseEntity<Result<Void>> response = restTemplate.postForEntity(
-                    url, null, new ParameterizedTypeReference<Result<Void>>() {}.getType(),
-                    groupId, userId);
-            return response.getBody();
+            ResponseEntity<Result<Void>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,
+                    new ParameterizedTypeReference<Result<Void>>() {},
+                    groupId, userId
+            );
+            return Result.success(null);
         } catch (Exception e) {
             log.error("加入群组失败", e);
             return Result.error(500, "加入群组失败: " + e.getMessage());
@@ -204,10 +224,14 @@ public class ImClientHttpImpl implements ImClient {
     public Result<Void> leaveGroup(String groupId, String userId) {
         String url = platformBaseUrl + "/api/v1/groups/{groupId}/leave?userId={userId}";
         try {
-            ResponseEntity<Result<Void>> response = restTemplate.postForEntity(
-                    url, null, new ParameterizedTypeReference<Result<Void>>() {}.getType(),
-                    groupId, userId);
-            return response.getBody();
+            ResponseEntity<Result<Void>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    null,
+                    new ParameterizedTypeReference<Result<Void>>() {},
+                    groupId, userId
+            );
+            return Result.success(null);
         } catch (Exception e) {
             log.error("退出群组失败", e);
             return Result.error(500, "退出群组失败: " + e.getMessage());

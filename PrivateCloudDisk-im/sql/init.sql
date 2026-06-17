@@ -87,3 +87,31 @@ CREATE TABLE IF NOT EXISTS `im_group_member` (
     UNIQUE KEY `uk_group_user` (`group_id`, `user_id`),
     KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 群组成员表';
+
+-- ==================== 通话记录表 ====================
+CREATE TABLE IF NOT EXISTS `im_call_record` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    `call_id` VARCHAR(64) NOT NULL COMMENT '通话唯一 ID',
+    `room_id` VARCHAR(64) DEFAULT NULL COMMENT '通话房间 ID（群组通话时使用）',
+    `call_type` TINYINT NOT NULL DEFAULT 2 COMMENT '通话类型：1-语音通话 2-视频通话',
+    `call_mode` TINYINT NOT NULL DEFAULT 1 COMMENT '通话模式：1-P2P 2-群组',
+    `caller_id` VARCHAR(64) NOT NULL COMMENT '发起者用户 ID',
+    `callee_id` VARCHAR(64) DEFAULT NULL COMMENT '被叫者用户 ID（P2P 模式）',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '通话状态：0-等待接听 1-通话中 2-已拒绝 3-已取消 4-已挂断 5-超时 6-忙线',
+    `start_time` DATETIME DEFAULT NULL COMMENT '通话开始时间',
+    `end_time` DATETIME DEFAULT NULL COMMENT '通话结束时间',
+    `duration` BIGINT DEFAULT 0 COMMENT '通话持续时间（秒）',
+    `reject_reason` VARCHAR(255) DEFAULT NULL COMMENT '拒绝原因',
+    `participants` JSON DEFAULT NULL COMMENT '参与者列表（JSON 数组）',
+    `video_enabled` TINYINT(1) DEFAULT 1 COMMENT '是否启用视频',
+    `screen_share_enabled` TINYINT(1) DEFAULT 0 COMMENT '是否启用屏幕共享',
+    `hangup_by` VARCHAR(64) DEFAULT NULL COMMENT '挂断方用户 ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_call_id` (`call_id`),
+    KEY `idx_caller_id` (`caller_id`),
+    KEY `idx_callee_id` (`callee_id`),
+    KEY `idx_create_time` (`create_time`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 通话记录表';
