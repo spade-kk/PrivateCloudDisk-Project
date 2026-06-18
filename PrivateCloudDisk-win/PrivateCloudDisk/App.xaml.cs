@@ -6,6 +6,7 @@ using PrivateCloudDisk.Services.VirtualDisk;
 using PrivateCloudDisk.ViewModels;
 using PrivateCloudDisk.Views;
 using System;
+using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -58,6 +59,29 @@ public partial class App : Application
         // ── 认证 ────────────────────────────────────────────
         services.AddSingleton<IAuthService, AuthService>();
         services.AddSingleton<IAuthTokenStore, AuthTokenStore>();
+
+
+        // ── Windows 平台增强服务 ────────────────────────────
+        services.AddSingleton<ToastNotificationService>();
+        services.AddSingleton<ToastNotificationActivationHandler>();
+        services.AddSingleton<TaskbarProgressService>(sp =>
+            new TaskbarProgressService(Window.Current as Microsoft.UI.Xaml.Window!));
+        services.AddSingleton<JumpListService>();
+        services.AddSingleton<NetworkMonitorService>();
+        services.AddSingleton<SystemTrayService>(sp =>
+            new SystemTrayService(
+                Window.Current as Microsoft.UI.Xaml.Window!,
+                () => Window.Current?.Activate(),
+                () => { /* 隐藏窗口 */ },
+                async () => await sp.GetRequiredService<IAuthService>().LogoutAsync()));
+        services.AddSingleton<ShareTargetService>();
+        services.AddSingleton<ThumbnailService>();
+        services.AddSingleton<SearchIndexService>(sp =>
+            new SearchIndexService(
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "PrivateCloudDisk", "Cache")));
+        services.AddSingleton<CredentialManagerService>();
 
         // ── 业务服务 ────────────────────────────────────────
         services.AddSingleton<IFileService, FileService>();

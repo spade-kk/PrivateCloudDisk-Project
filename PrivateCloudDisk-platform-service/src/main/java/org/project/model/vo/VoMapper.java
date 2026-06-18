@@ -40,7 +40,17 @@ public final class VoMapper {
         }
         FileStarVO vo = new FileStarVO();
         vo.setStar_id(entity.getStar_id());
-        vo.setFile_id(entity.getFile_id().toString());
+        vo.setTarget_type(entity.getTarget_type() != null ? entity.getTarget_type().name() : null);
+        // 根据类型设置目标ID
+        if (entity.getTarget_type() == FileStarEntity.TargetType.file && entity.getFile_id() != null) {
+            vo.setTarget_id(entity.getFile_id().toString());
+        } else if (entity.getTarget_type() == FileStarEntity.TargetType.folder && entity.getNode_id() != null) {
+            vo.setTarget_id(entity.getNode_id().toString());
+        }
+        vo.setTarget_name(entity.getTarget_name());
+        vo.setTarget_size(entity.getTarget_size());
+        vo.setFile_type(entity.getFile_type());
+        vo.setFile_status(entity.getFile_status());
         vo.setStarred_at(entity.getStarred_at());
         return vo;
     }

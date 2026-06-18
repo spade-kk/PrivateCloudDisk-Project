@@ -8,34 +8,56 @@ import java.util.List;
 
 @Mapper
 public interface FileStarMapper {
-    
+
     /**
      * 添加文件收藏
      */
     int insertFileStar(FileStarEntity fileStar);
-    
+
     /**
-     * 取消文件收藏
+     * 添加文件夹收藏
+     */
+    int insertFolderStar(FileStarEntity fileStar);
+
+    /**
+     * 取消文件收藏（按 user_id + file_id）
      */
     int deleteFileStar(@Param("user_id") String user_id, @Param("file_id") String file_id);
-    
+
+    /**
+     * 取消文件夹收藏（按 user_id + node_id）
+     */
+    int deleteFolderStar(@Param("user_id") String user_id, @Param("node_id") String node_id);
+
     /**
      * 查询用户是否收藏了文件
      */
     FileStarEntity findFileStarByUserIdAndFileId(@Param("user_id") String user_id, @Param("file_id") String file_id);
-    
+
+    /**
+     * 查询用户是否收藏了文件夹
+     */
+    FileStarEntity findFolderStarByUserIdAndNodeId(@Param("user_id") String user_id, @Param("node_id") String node_id);
+
     /**
      * 查询用户所有收藏的文件ID
      */
     List<String> findStarredFileIdsByUserId(@Param("user_id") String user_id);
-    
+
     /**
-     * 查询用户收藏的文件列表（分页）
+     * 查询用户所有收藏的文件夹节点ID
      */
-    List<FileStarEntity> findStarredFilesByUserId(@Param("user_id") String user_id, @Param("offset") Integer offset, @Param("limit") Integer limit);
-    
+    List<String> findStarredNodeIdsByUserId(@Param("user_id") String user_id);
+
     /**
-     * 统计用户收藏的文件数量
+     * 查询用户收藏列表（含文件/文件夹详情，分页）
      */
-    Integer countStarredFilesByUserId(@Param("user_id") String user_id);
+    List<FileStarEntity> findStarredItemsByUserId(@Param("user_id") String user_id,
+                                                   @Param("offset") Integer offset,
+                                                   @Param("limit") Integer limit);
+
+    /**
+     * 统计用户收藏总数（文件+文件夹）
+     */
+    Integer countStarredItemsByUserId(@Param("user_id") String user_id);
 }

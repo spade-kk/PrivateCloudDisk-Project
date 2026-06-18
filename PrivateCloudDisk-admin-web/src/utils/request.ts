@@ -4,21 +4,30 @@ import { clearAuthStorage, getAccessToken } from '@/utils/storage.ts'
 
 export const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 30000
+  timeout: 30000,
 })
 
-request.interceptors.request.use((config) => {
+// ============================================================
+// 请求拦截器
+// ============================================================
+
+request.interceptors.request.use(async (config) => {
   const token = getAccessToken()
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
 
+  // 基础追踪头
   config.headers['X-Trace-Id'] = crypto.randomUUID()
   config.headers['X-Client-Type'] = 'ADMIN_WEB'
 
   return config
 })
+
+// ============================================================
+// 响应拦截器
+// ============================================================
 
 request.interceptors.response.use(
   (response) => {
@@ -53,5 +62,5 @@ request.interceptors.response.use(
 
     message.error(error.response?.data?.message || error.message || '网络异常')
     return Promise.reject(error)
-  }
+  },
 )

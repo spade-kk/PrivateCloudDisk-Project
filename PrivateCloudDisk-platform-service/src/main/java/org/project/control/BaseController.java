@@ -88,6 +88,9 @@ public class BaseController {
         } else if (e instanceof FileNotExistException) {
             result.setCode(18000);
             result.setMessage(e.getMessage());
+        } else if (e instanceof OverstepAuthorityException) {
+            result.setCode(19000);
+            result.setMessage(e.getMessage());
         }
         //将处理输出日志...
         log.warn("服务器运行时发生异常:" + result.toString());

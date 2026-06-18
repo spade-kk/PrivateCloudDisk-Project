@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using PrivateCloudDisk.Models;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace PrivateCloudDisk.Services.Implementations;
 
@@ -32,8 +31,16 @@ public class AuthService : IAuthService
     // ── 登录 ────────────────────────────────────────────
     public async Task<UserProfile> LoginAsync(LoginRequest request)
     {
+        // 客户端密码预哈希 — 密码明文永不离开客户端
+        var hashedRequest = new LoginRequest
+        {
+            Account = request.Account,
+            Password = SecurityHeaderService.HashPasswordForTransport(request.Password, request.Account),
+            PhoneNumber = request.PhoneNumber
+        };
+
         var client = _httpFactory.CreateClient("PlatformService");
-        var response = await client.PostAsJsonAsync("/users/login", request);
+        var response = await client.PostAsJsonAsync("/users/login", hashedRequest);
         var apiResp = await ParseResponseAsync<LoginResponse>(response);
 
         var loginData = apiResp.GetDataOrThrow();
@@ -51,8 +58,16 @@ public class AuthService : IAuthService
     // ── 注册 ────────────────────────────────────────────
     public async Task<UserProfile> RegisterAsync(RegisterRequest request)
     {
+        // 客户端密码预哈希
+        var hashedRequest = new RegisterRequest
+        {
+            Account = request.Account,
+            UserName = request.UserName,
+            Password = SecurityHeaderService.HashPasswordForTransport(request.Password, request.Account)
+        };
+
         var client = _httpFactory.CreateClient("PlatformService");
-        var response = await client.PostAsJsonAsync("/users/register", request);
+        var response = await client.PostAsJsonAsync("/users/register", hashedRequest);
         var apiResp = await ParseResponseAsync<LoginResponse>(response);
 
         var loginData = apiResp.GetDataOrThrow();

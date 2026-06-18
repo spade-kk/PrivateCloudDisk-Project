@@ -40,6 +40,10 @@ dependencies {
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+
+    // Jackson（用于 JSON 解析，PlatformAttestationVerifier 等安全组件使用）
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

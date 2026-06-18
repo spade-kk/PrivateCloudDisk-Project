@@ -12,6 +12,7 @@ import { Form, Input, Button, Checkbox, message, Card } from 'antd'
 import { UserOutlined, LockOutlined, CloudOutlined } from '@ant-design/icons'
 import { useUserStore } from '@/store/userStore'
 import { getRememberLogin, getSavedAccount, setRememberLogin, setSavedAccount } from '@/utils/storage'
+import { hashPasswordForTransmission } from '@/utils/crypto'
 import './Login.css'
 
 export default function LoginPage() {
@@ -37,10 +38,13 @@ export default function LoginPage() {
 
   const handleLogin = async (values) => {
     try {
+      // v5.0: PBKDF2-SHA256 密码预哈希（60万次迭代）
+      const hashedPassword = await hashPasswordForTransmission(values.password)
+
       await doLogin({
         account: values.account,
         phone_number: values.phone_number,
-        password: values.password
+        password: hashedPassword
       })
 
       // 记住密码

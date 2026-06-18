@@ -7,6 +7,7 @@
 import { defineStore } from 'pinia'
 import { getToken, setToken, removeToken, getUserId, setUserId, getUserProfile, setUserProfile } from '@/utils/storage'
 import { login, register, getUserInfo, updateUserInfo, changePassword, deleteAccount } from '@/api/user'
+import { hashPasswordForTransport } from '@/utils/crypto'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -51,7 +52,12 @@ export const useUserStore = defineStore('user', {
      * @param {Object} params { account?, phone_number, password, captcha_token? }
      */
     async doLogin(params) {
-      const res = await login(params)
+      // 客户端密码预哈希 — 密码明文永不离开客户端
+      const salt = params.account || params.phone_number || ''
+      const hashedPassword = await hashPasswordForTransport(params.password, salt)
+      const hashedParams = { ...params, password: hashedPassword }
+
+      const res = await login(hashedParams)
       const token = res.data
       this.token = token
       setToken(token)
@@ -68,7 +74,12 @@ export const useUserStore = defineStore('user', {
      * @param {Object} params { phone_number, password, code, name, captcha_token? }
      */
     async doRegister(params) {
-      const res = await register(params)
+      // 客户端密码预哈希
+      const salt = params.phone_number || ''
+      const hashedPassword = await hashPasswordForTransport(params.password, salt)
+      const hashedParams = { ...params, password: hashedPassword }
+
+      const res = await register(hashedParams)
       return res.data // 返回 account
     },
 
@@ -98,7 +109,14 @@ export const useUserStore = defineStore('user', {
 
     /** 修改密码 */
     async doChangePassword(params) {
-      await changePassword(params)
+      // 客户端密码预哈希 - 新旧密码都哈希
+      const account = this.profile?.account || ''
+      const hashedParams = {
+        ...params,
+        old_password: await hashPasswordForTransport(params.old_password, account),
+        new_password: await hashPasswordForTransport(params.new_password, account),
+      }
+      await changePassword(hashedParams)
     },
 
     /** 注销账号 */

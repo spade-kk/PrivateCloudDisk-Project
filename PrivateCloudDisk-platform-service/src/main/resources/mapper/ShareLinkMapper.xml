@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.ShareLinkMapper">
+
+    <resultMap id="ShareLinkEntityMap" type="org.project.model.entity.ShareLinkEntity">
+        <id column="share_id" property="share_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="share_token" property="share_token"/>
+        <result column="share_owner_id" property="share_owner_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="share_target_type" property="share_target_type"/>
+        <result column="share_file_id" property="share_file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="share_node_id" property="share_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="share_name" property="share_name"/>
+        <result column="share_password" property="share_password"/>
+        <result column="share_has_password" property="share_has_password"/>
+        <result column="share_expires_at" property="share_expires_at"/>
+        <result column="share_view_count" property="share_view_count"/>
+        <result column="share_status" property="share_status"/>
+        <result column="share_created_at" property="share_created_at"/>
+        <result column="share_updated_at" property="share_updated_at"/>
+        <!-- 关联查询字段 -->
+        <result column="target_name" property="target_name"/>
+        <result column="target_size" property="target_size"/>
+        <result column="file_type" property="file_type"/>
+        <result column="owner_name" property="owner_name"/>
+    </resultMap>
+
+    <!-- ==================== 插入 ==================== -->
+
+    <insert id="insertShare" parameterType="org.project.model.entity.ShareLinkEntity">
+        INSERT INTO pcd_share_link_table (
+            share_id, share_token, share_owner_id,
+            share_target_type, share_file_id, share_node_id,
+            share_name, share_password, share_has_password,
+            share_expires_at, share_status
+        ) VALUES (
+            #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{share_token},
+            #{share_owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{share_target_type},
+            #{share_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{share_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{share_name},
+            #{share_password},
+            #{share_has_password},
+            #{share_expires_at},
+            'active'
+        )
+    </insert>
+
+    <!-- ==================== 查询 ==================== -->
+
+    <select id="findById" resultMap="ShareLinkEntityMap">
+        SELECT * FROM pcd_share_link_table
+        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <select id="findByToken" resultMap="ShareLinkEntityMap">
+        SELECT
+            s.share_id,
+            s.share_token,
+            s.share_owner_id,
+            s.share_target_type,
+            s.share_file_id,
+            s.share_node_id,
+            s.share_name,
+            s.share_password,
+            s.share_has_password,
+            s.share_expires_at,
+            s.share_view_count,
+            s.share_status,
+            s.share_created_at,
+            s.share_updated_at,
+            COALESCE(f.file_name, d.node_name) AS target_name,
+            COALESCE(f.file_size, 0) AS target_size,
+            f.file_type AS file_type,
+            u.user_name AS owner_name
+        FROM pcd_share_link_table s
+        LEFT JOIN pcd_file_info_table f
+            ON s.share_file_id = f.file_id AND s.share_target_type = 'file'
+        LEFT JOIN pcd_directory_tree_table d
+            ON s.share_node_id = d.node_id AND s.share_target_type = 'folder'
+        LEFT JOIN pcd_user_info_table u
+            ON s.share_owner_id = u.user_id
+        WHERE s.share_token = #{share_token}
+    </select>
+
+    <select id="findByOwnerId" resultMap="ShareLinkEntityMap">
+        SELECT
+            s.share_id,
+            s.share_token,
+            s.share_owner_id,
+            s.share_target_type,
+            s.share_file_id,
+            s.share_node_id,
+            s.share_name,
+            s.share_password,
+            s.share_has_password,
+            s.share_expires_at,
+            s.share_view_count,
+            s.share_status,
+            s.share_created_at,
+            s.share_updated_at,
+            COALESCE(f.file_name, d.node_name) AS target_name,
+            COALESCE(f.file_size, 0) AS target_size,
+            f.file_type AS file_type
+        FROM pcd_share_link_table s
+        LEFT JOIN pcd_file_info_table f
+            ON s.share_file_id = f.file_id AND s.share_target_type = 'file'
+        LEFT JOIN pcd_directory_tree_table d
+            ON s.share_node_id = d.node_id AND s.share_target_type = 'folder'
+        WHERE s.share_owner_id = #{owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY s.share_created_at DESC
+    </select>
+
+    <!-- ==================== 更新 ==================== -->
+
+    <update id="revokeShare">
+        UPDATE pcd_share_link_table
+        SET share_status = 'revoked'
+        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND share_owner_id = #{owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND share_status = 'active'
+    </update>
+
+    <update id="incrementViewCount">
+        UPDATE pcd_share_link_table
+        SET share_view_count = share_view_count + 1
+        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="expireOutdatedShares">
+        UPDATE pcd_share_link_table
+        SET share_status = 'expired'
+        WHERE share_status = 'active'
+          AND share_expires_at IS NOT NULL
+          AND share_expires_at &lt; NOW()
+    </update>
+
+</mapper>

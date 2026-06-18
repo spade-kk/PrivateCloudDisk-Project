@@ -32,7 +32,7 @@ const fileClient = axios.create({
 
 // ==================== 请求拦截器 ====================
 
-const requestInterceptor = (config) => {
+const requestInterceptor = async (config) => {
   const token = getToken()
   const userId = getUserId()
 

@@ -55,7 +55,7 @@ function isAbsoluteURL(url) {
  * @param {boolean} options.skipAuth 跳过 Token 注入 (默认 false)
  * @returns {Promise<{code:number, message:string, data:*}>}
  */
-export function request(options = {}) {
+export async function request(options = {}) {
   const {
     url,
     method = 'GET',

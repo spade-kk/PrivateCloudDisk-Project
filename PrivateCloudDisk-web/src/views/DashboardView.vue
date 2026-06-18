@@ -74,17 +74,21 @@
         v-if="viewMode === 'grid'"
         :nodes="filteredNodes"
         :selectedIds="selectionStore.selectedIds"
+        :starredIds="starredStore.allStarredIds"
         @itemClick="onNodeClick"
         @action="onNodeAction"
         @selection-change="toggleSelect"
+        @star="onStarToggle"
       />
       <FileListView
         v-else
         :nodes="filteredNodes"
         :selectedIds="selectionStore.selectedIds"
+        :starredIds="starredStore.allStarredIds"
         @itemClick="onNodeClick"
         @action="onNodeAction"
         @selection-change="toggleSelect"
+        @star="onStarToggle"
       />
       </div>
 
@@ -102,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useFileBrowserStore } from '@/stores/fileBrowserStore'
@@ -110,6 +114,7 @@ import { useUploaderStore } from '@/stores/uploaderStore'
 import { useDownloaderStore } from '@/stores/downloaderStore'
 import { useStorageStore } from '@/stores/storageStore'
 import { useToastStore } from '@/stores/toastStore'
+import { useStarredStore } from '@/stores/starred'
 import PathNavigator from '@/components/file/PathNavigator.vue'
 import StorageInfo from '@/components/file/StorageInfo.vue'
 import FileGridView from '@/components/file/FileGridView.vue'
@@ -138,6 +143,7 @@ const downloaderStore = useDownloaderStore()
 const storageStore = useStorageStore()
 const toastStore = useToastStore()
 const selectionStore = useSelectionStore()
+const starredStore = useStarredStore()
 
 const renameVisible = ref(false)
 const renameTarget = ref(null)
@@ -158,6 +164,10 @@ const fileInputRef = ref(null)
 const filteredNodes = computed(() => fileBrowserStore.filteredNodes)
 
 // 生命周期：登录后加载数据
+onMounted(async () => {
+  await starredStore.initStarredIds()
+})
+
 watch(() => authStore.isLoggedIn, async (loggedIn) => {
   if (loggedIn) {
     await fileBrowserStore.loadRoot()
@@ -378,6 +388,19 @@ function startUploadConfirmed() {
   if (selectedFile.value) {
     uploaderStore.startUpload(selectedFile.value)
     selectedFile.value = null
+  }
+}
+
+// ============================================================
+// 收藏操作
+// ============================================================
+
+async function onStarToggle(node: any) {
+  try {
+    const isNowStarred = await starredStore.toggleStar(node.node_id, node.node_type)
+    toastStore.showSuccess(isNowStarred ? '已收藏' : '已取消收藏')
+  } catch (err: any) {
+    toastStore.showError('操作失败')
   }
 }
 

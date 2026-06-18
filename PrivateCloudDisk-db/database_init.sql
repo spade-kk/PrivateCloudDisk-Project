@@ -86,15 +86,47 @@ CREATE TABLE pcd_file_info_table (
     UNIQUE KEY uk_file_info (file_id, file_author_id, file_node_id),
 ) COMMENT='文件信息表';
 
-CREATE TABLE pcd_sharing_Link_mange_table (
-    sharing_link_id                     BINARY(16)     NOT NULL PRIMARY KEY,
-    sharing_link_path                   VARCHAR(512)    NOT NULL                  COMMENT '分享链接路径',
-    sharing_link_file_id                BINARY(16)     NOT NULL                  COMMENT '分享链接关联的文件ID',
-    FOREIGN KEY (sharing_link_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
-    sharing_link_valid_starting_time    TIMESTAMP       NOT NULL    DEFAULT NOW() COMMENT '分享链接有效开始时间',
-    sharing_link_valid_endding_time     TIMESTAMP       NOT NULL                  COMMENT '分享链接有效结束时间',
-    sharing_link_password               VARCHAR(60)                               COMMENT '分享链接密码'
-) COMMENT='文件分享链接管理表';
+-- =====================================================================
+-- 分享链接管理表 pcd_share_link_table
+-- 设计要点：
+--   1. share_token 为公开访问的唯一凭证（随机 UUID），绝不暴露 file_id/node_id
+--   2. 密码使用 BCrypt 哈希存储，不存明文
+--   3. 支持文件和文件夹两种分享类型
+--   4. 分享访问永为只读，无 CRUD 权限
+--   5. 通过 share_token + 访问令牌验证，杜绝横向越权
+-- =====================================================================
+DROP TABLE IF EXISTS pcd_share_link_table;
+CREATE TABLE pcd_share_link_table (
+    share_id                BINARY(16)     NOT NULL PRIMARY KEY       COMMENT '分享ID（内部主键）',
+    share_token             VARCHAR(36)     NOT NULL UNIQUE           COMMENT '分享访问令牌（UUID，对外暴露）',
+    share_owner_id          BINARY(16)     NOT NULL                   COMMENT '分享者用户ID',
+    FOREIGN KEY (share_owner_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    share_target_type       ENUM('file', 'folder') NOT NULL           COMMENT '分享目标类型',
+    share_file_id           BINARY(16)     NULL                       COMMENT '分享的文件ID（分享文件时填写）',
+    FOREIGN KEY (share_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
+    share_node_id           BINARY(16)     NULL                       COMMENT '分享的文件夹节点ID（分享文件夹时填写）',
+    FOREIGN KEY (share_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
+    share_name              VARCHAR(200)    NOT NULL                   COMMENT '分享名称（用户自定义）',
+    share_password          VARCHAR(120)    NULL                       COMMENT '提取码（BCrypt 哈希，NULL 表示无密码）',
+    share_has_password      TINYINT(1)      NOT NULL DEFAULT 0         COMMENT '是否有密码保护',
+    share_expires_at        DATETIME        NULL                       COMMENT '过期时间（NULL 表示永久有效）',
+    share_view_count        INT             NOT NULL DEFAULT 0         COMMENT '浏览次数',
+    share_status            ENUM('active', 'revoked', 'expired') NOT NULL DEFAULT 'active' COMMENT '分享状态',
+    share_created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    share_updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_share_owner (share_owner_id, share_status),
+    INDEX idx_share_token (share_token),
+    INDEX idx_share_status (share_status),
+    CONSTRAINT chk_share_target CHECK (
+        (share_target_type = 'file' AND share_file_id IS NOT NULL AND share_node_id IS NULL) OR
+        (share_target_type = 'folder' AND share_node_id IS NOT NULL AND share_file_id IS NULL)
+    )
+) COMMENT='分享链接管理表';
+
+-- =====================================================================
+-- 旧的分享表（替换为上面的新表）
+-- =====================================================================
+DROP TABLE IF EXISTS pcd_sharing_Link_mange_table;
 
 /*
 
@@ -209,17 +241,21 @@ CREATE TABLE pcd_user_quota_log_table (
     INDEX idx_user_id_time (quota_log_user_id, quota_log_created_at)
 ) COMMENT='配额变更日志';
 
--- 文件收藏表
+-- 文件/文件夹收藏表
 CREATE TABLE pcd_file_star_table (
     star_id             BIGINT          PRIMARY KEY AUTO_INCREMENT,
     star_user_id        BINARY(16)     NOT NULL COMMENT '用户ID',
     FOREIGN KEY (star_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
-    star_file_id        BINARY(16)     NOT NULL COMMENT '文件ID',
+    star_target_type    ENUM('file', 'folder') NOT NULL DEFAULT 'file' COMMENT '收藏目标类型：file=文件, folder=文件夹',
+    star_file_id        BINARY(16)     NULL COMMENT '文件ID（收藏文件时填写）',
     FOREIGN KEY (star_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
+    star_node_id        BINARY(16)     NULL COMMENT '文件夹节点ID（收藏文件夹时填写）',
+    FOREIGN KEY (star_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
     star_starred_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
-    UNIQUE KEY uk_user_file (star_user_id, star_file_id),
+    UNIQUE KEY uk_user_file_star (star_user_id, star_file_id),
+    UNIQUE KEY uk_user_folder_star (star_user_id, star_node_id),
     INDEX idx_user_starred (star_user_id, star_starred_at)
-) COMMENT='文件收藏表';
+) COMMENT='文件/文件夹收藏表';
 
 -- 回收站文件表
 CREATE TABLE pcd_trash_target_table (

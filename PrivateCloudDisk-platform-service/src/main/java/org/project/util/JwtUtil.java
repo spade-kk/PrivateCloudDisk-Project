@@ -11,7 +11,9 @@ import org.springframework.util.StreamUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
 
@@ -20,14 +22,19 @@ import java.util.Date;
 public class JwtUtil {
     @Value("classpath:keys/private_key.pem")
     private Resource privateKeyResource;
-    private PrivateKey secretKey;
+    @Value("classpath:keys/public_key.pem")
+    private Resource publicKeyResource;
+    private PrivateKey privateKey;
+    private PublicKey publicKey;
     private final long expirationMs = 86400000; // 24小时
+    private final long shareTokenExpirationMs = 15 * 60 * 1000; // 分享访问令牌 15 分钟
 
     @PostConstruct
     public void init() {
         try {
             //从本地文件中加载私匙 公匙
-            secretKey = loadPrivateKey(privateKeyResource);
+            privateKey = loadPrivateKey(privateKeyResource);
+            publicKey = loadPublicKey(publicKeyResource);
         }
         catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -56,6 +63,21 @@ public class JwtUtil {
     }
 
     /**
+     * 从 PEM 文件加载公钥
+     */
+    private static PublicKey loadPublicKey(Resource pemFileResource) throws Exception {
+        String publicKeyPEM = StreamUtils.copyToString(
+                        pemFileResource.getInputStream(), StandardCharsets.UTF_8)
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", "");
+        byte[] encoded = Base64.getDecoder().decode(publicKeyPEM);
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(encoded);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        return keyFactory.generatePublic(keySpec);
+    }
+
+    /**
      * 生成登陆身份认证通行证令牌 JWT Token
      * @param user_id
      * @return 通行证令牌
@@ -68,7 +90,68 @@ public class JwtUtil {
                 .setSubject(user_id)
                 .setIssuedAt(new Date())
                 .setExpiration(expiryDate)
-                .signWith(secretKey, SignatureAlgorithm.RS256)
+                .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
+    }
+
+    /**
+     * 生成分享短期访问令牌
+     * @param share_token 分享令牌
+     * @return 短期访问令牌（15 分钟有效）
+     */
+    public String generateShareAccessToken(String share_token) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + shareTokenExpirationMs);
+
+        return Jwts.builder()
+                .setSubject("share:" + share_token)
+                .claim("purpose", "share_access")
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(privateKey, SignatureAlgorithm.RS256)
+                .compact();
+    }
+
+    /**
+     * 验证分享短期访问令牌
+     * @param token 访问令牌
+     * @return share_token，如果无效返回 null
+     */
+    public String verifyShareAccessToken(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(publicKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            String subject = claims.getSubject();
+            String purpose = claims.get("purpose", String.class);
+            if (subject != null && subject.startsWith("share:") && "share_access".equals(purpose)) {
+                return subject.substring(6); // 去掉 "share:" 前缀
+            }
+            return null;
+        } catch (JwtException e) {
+            log.warn("分享访问令牌验证失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 验证身份认证令牌
+     * @param token 令牌
+     * @return user_id，如果无效返回 null
+     */
+    public String verifyAccessToken(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(publicKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims.getSubject();
+        } catch (JwtException e) {
+            log.warn("身份认证令牌验证失败: {}", e.getMessage());
+            return null;
+        }
     }
 }

@@ -3,45 +3,114 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.project.mapper.FileStarMapper">
-    
+
     <resultMap id="FileStarEntityMap" type="org.project.model.entity.FileStarEntity">
         <id column="star_id" property="star_id"/>
         <result column="star_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="star_target_type" property="target_type"/>
         <result column="star_file_id" property="file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="star_node_id" property="node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="star_starred_at" property="starred_at"/>
+        <result column="target_name" property="target_name"/>
+        <result column="target_size" property="target_size"/>
+        <result column="file_type" property="file_type"/>
+        <result column="file_status" property="file_status"/>
     </resultMap>
-    
+
+    <!-- ==================== 插入 ==================== -->
+
     <insert id="insertFileStar" parameterType="org.project.model.entity.FileStarEntity">
-        INSERT INTO pcd_file_star_table (star_user_id, star_file_id, star_starred_at)
-        VALUES (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{starred_at})
+        INSERT INTO pcd_file_star_table (star_user_id, star_target_type, star_file_id, star_starred_at)
+        VALUES (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                'file',
+                #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{starred_at})
     </insert>
-    
+
+    <insert id="insertFolderStar" parameterType="org.project.model.entity.FileStarEntity">
+        INSERT INTO pcd_file_star_table (star_user_id, star_target_type, star_node_id, star_starred_at)
+        VALUES (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                'folder',
+                #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{starred_at})
+    </insert>
+
+    <!-- ==================== 删除 ==================== -->
+
     <delete id="deleteFileStar">
-        DELETE FROM pcd_file_star_table 
-        WHERE star_user_id = #{user_id} AND star_file_id = #{file_id}
+        DELETE FROM pcd_file_star_table
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'file'
     </delete>
-    
+
+    <delete id="deleteFolderStar">
+        DELETE FROM pcd_file_star_table
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'folder'
+    </delete>
+
+    <!-- ==================== 查询 ==================== -->
+
     <select id="findFileStarByUserIdAndFileId" resultMap="FileStarEntityMap">
-        SELECT * FROM pcd_file_star_table 
-        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} AND star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        SELECT * FROM pcd_file_star_table
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'file'
     </select>
-    
+
+    <select id="findFolderStarByUserIdAndNodeId" resultMap="FileStarEntityMap">
+        SELECT * FROM pcd_file_star_table
+        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'folder'
+    </select>
+
     <select id="findStarredFileIdsByUserId" resultType="string">
-        SELECT star_file_id FROM pcd_file_star_table 
+        SELECT star_file_id FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'file'
         ORDER BY star_starred_at DESC
     </select>
-    
-    <select id="findStarredFilesByUserId" resultMap="FileStarEntityMap">
-        SELECT * FROM pcd_file_star_table 
+
+    <select id="findStarredNodeIdsByUserId" resultType="string">
+        SELECT star_node_id FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'folder'
         ORDER BY star_starred_at DESC
+    </select>
+
+    <!--
+        查询用户收藏列表（含文件/文件夹详情，分页）
+        LEFT JOIN 文件信息表和目录树表，按收藏时间倒序
+    -->
+    <select id="findStarredItemsByUserId" resultMap="FileStarEntityMap">
+        SELECT
+            s.star_id,
+            s.star_user_id,
+            s.star_target_type,
+            s.star_file_id,
+            s.star_node_id,
+            s.star_starred_at,
+            COALESCE(f.file_name, d.node_name) AS target_name,
+            COALESCE(f.file_size, 0) AS target_size,
+            f.file_type AS file_type,
+            f.file_status AS file_status
+        FROM pcd_file_star_table s
+        LEFT JOIN pcd_file_info_table f
+            ON s.star_file_id = f.file_id AND s.star_target_type = 'file'
+        LEFT JOIN pcd_directory_tree_table d
+            ON s.star_node_id = d.node_id AND s.star_target_type = 'folder'
+        WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (f.file_id IS NOT NULL OR d.node_id IS NOT NULL)
+        ORDER BY s.star_starred_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
-    
-    <select id="countStarredFilesByUserId" resultType="int">
-        SELECT COUNT(*) FROM pcd_file_star_table 
+
+    <select id="countStarredItemsByUserId" resultType="int">
+        SELECT COUNT(*) FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
-    
+
 </mapper>
