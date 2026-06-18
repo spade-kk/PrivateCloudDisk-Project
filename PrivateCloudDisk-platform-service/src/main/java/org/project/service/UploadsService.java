@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface UploadsService {
     /**
-     * 创建上传会话
+     * 创建上传会话（含防滥用检查）
      * @param total_chunks 总块数
      * @param file_size 文件大小
      * @param file_checksum 文件校验和
@@ -16,6 +16,7 @@ public interface UploadsService {
      * @param file_type 文件类型
      * @param user_id 用户ID
      * @param node_id 目录节点ID
+     * @param clientIp 客户端IP（用于防滥用检查）
      * @return 上传会话ID
      */
     UUID createUploadsSession(
@@ -26,7 +27,8 @@ public interface UploadsService {
                 String file_name,
                 String file_type,
                 UUID user_id,
-                UUID node_id
+                UUID node_id,
+                String clientIp
             );
 
     /**

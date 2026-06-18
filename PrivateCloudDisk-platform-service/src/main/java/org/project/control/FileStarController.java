@@ -5,12 +5,12 @@ import lombok.RequiredArgsConstructor;
 import org.project.control.result.JsonResult;
 import org.project.model.entity.FileStarEntity;
 import org.project.model.vo.FileStarVO;
+import org.project.model.vo.VoMapper;
 import org.project.service.FileStarService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 文件/文件夹收藏控制器
@@ -135,8 +135,7 @@ public class FileStarController extends BaseController {
             @RequestParam(defaultValue = "50") Integer pageSize,
             @RequestHeader("X-User-Id") String user_id) {
         List<FileStarEntity> items = fileStarService.getStarredItems(user_id, page, pageSize);
-        List<FileStarVO> vos = items.stream().map(this::toVO).collect(Collectors.toList());
-        return new JsonResult<>(OK, vos);
+        return new JsonResult<>(OK, VoMapper.toFileStarVOList(items));
     }
 
     /**
@@ -164,27 +163,5 @@ public class FileStarController extends BaseController {
     public JsonResult<List<String>> getStarredNodeIds(@RequestHeader("X-User-Id") String user_id) {
         List<String> ids = fileStarService.getStarredNodeIds(user_id);
         return new JsonResult<>(OK, ids);
-    }
-
-    // ═══════════════════════════════════════════════
-    // 私有方法
-    // ═══════════════════════════════════════════════
-
-    private FileStarVO toVO(FileStarEntity entity) {
-        FileStarVO vo = new FileStarVO();
-        vo.setStar_id(entity.getStar_id());
-        vo.setTarget_type(entity.getTarget_type() != null ? entity.getTarget_type().name() : "file");
-        // 根据类型设置 target_id
-        if (entity.getTarget_type() == FileStarEntity.TargetType.folder && entity.getNode_id() != null) {
-            vo.setTarget_id(entity.getNode_id().toString());
-        } else if (entity.getFile_id() != null) {
-            vo.setTarget_id(entity.getFile_id().toString());
-        }
-        vo.setTarget_name(entity.getTarget_name());
-        vo.setTarget_size(entity.getTarget_size());
-        vo.setFile_type(entity.getFile_type());
-        vo.setFile_status(entity.getFile_status());
-        vo.setStarred_at(entity.getStarred_at());
-        return vo;
     }
 }

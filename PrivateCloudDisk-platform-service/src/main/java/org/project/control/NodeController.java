@@ -6,7 +6,6 @@ import org.project.control.result.JsonResult;
 import org.project.model.dto.CreateFolderNodeRequest;
 import org.project.model.dto.FolderFileInfo;
 import org.project.model.dto.MoveNodeRequest;
-import org.project.model.dto.NodeQueryDTO;
 import org.project.model.dto.RenameNodeRequest;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
@@ -101,16 +100,8 @@ public class NodeController extends BaseController {
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestHeader("X-User-Id") String user_id) {
         
-        NodeQueryDTO query = new NodeQueryDTO();
-        query.setParentId(node_id);
-        query.setKeyword(keyword);
-        query.setFileType(fileType);
-        query.setSortBy(sortBy);
-        query.setSortOrder(sortOrder);
-        query.setPage(page);
-        query.setPageSize(pageSize);
-        
-        PageResultVO<NodeEntity> result = directoryTreeService.findUserNodesByNodeIdPaged(query, UUID.fromString(user_id));
+        PageResultVO<NodeEntity> result = directoryTreeService.findUserNodesByNodeIdPaged(
+                node_id, keyword, fileType, sortBy, sortOrder, page, pageSize, UUID.fromString(user_id));
         
         List<NodeVO> voList = VoMapper.toNodeVOList(result.getItems());
         PageResultVO<NodeVO> voResult = new PageResultVO<>(

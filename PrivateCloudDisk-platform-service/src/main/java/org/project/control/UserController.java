@@ -6,17 +6,13 @@ import org.project.control.result.JsonResult;
 import org.project.model.entity.UserEntity;
 import org.project.model.dto.ChangeUserPasswordRequest;
 import org.project.model.dto.LoginRequest;
-import org.project.model.dto.registerUserRequest;
-import org.project.model.dto.updateUserInfoRequest;
+import org.project.model.dto.RegisterUserRequest;
+import org.project.model.dto.UpdateUserInfoRequest;
 import org.project.model.vo.LoginDeviceVO;
 import org.project.model.vo.UserProfileVO;
 import org.project.model.vo.VoMapper;
-import org.project.security.ApiAbuseProtectionService;
-import org.project.security.CaptchaVerifier;
-import org.project.service.ex.ServiceException;
 import org.project.service.UserService;
 import org.project.util.ClientIpUtil;
-import org.project.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -35,75 +31,57 @@ import java.util.UUID;
  *   <li>业务服务通过 X-User-Id、X-Device-Fingerprint 等头获取已验证信息</li>
  *   <li>业务服务仅做业务层限流（登录失败次数、验证码失败次数等）</li>
  * </ul>
+ *
+ * <p><b>注册接口人机验证说明：</b>
+ * <ul>
+ *   <li>注册接口本身<b>不需要</b>人机验证码</li>
+ *   <li>人机验证在获取验证码时（/business/verification/send）已通过</li>
+ *   <li>验证码本身就是第二因子，足以防止自动化攻击</li>
+ *   <li>注册接口通过"验证码校验 + 防爆破（IP 级别失败次数限制）"来保护</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/business/users")
 public class UserController extends BaseController {
     @Autowired
     UserService userService;
-    @Autowired
-    JwtUtil jwtUtil;
 
-    @Autowired
-    private CaptchaVerifier captchaVerifier;
-    @Autowired
-    private ApiAbuseProtectionService apiAbuseProtectionService;
     /**
-     * 处理用户登录的请求
-     * @param loginRequest 登陆请求体参数Json对象
-     * @return JsonResult data String 登陆通行凭证令牌 JWT Token
+     * 处理用户登录的请求。
+     * <p>接口层只负责：提取客户端 IP → 调用业务层 → 返回 JsonResult。
+     * 人机验证、防滥用检查、账号认证、JWT 生成、成功/失败记录 —— 全部由 {@link UserService#login} 处理。
      */
     @PostMapping("/login")
-    public JsonResult<String> login( @Valid @RequestBody LoginRequest loginRequest,
-                                     HttpServletRequest request )
-    {
+    public JsonResult<String> login(@Valid @RequestBody LoginRequest loginRequest,
+                                     HttpServletRequest request) {
         String clientIp = ClientIpUtil.resolveClientIp(request);
-
-        // 业务层限流：仅限登录失败次数、账号维度
-        apiAbuseProtectionService.checkLoginStart(loginRequest, clientIp);
-
-        try {
-            captchaVerifier.verify(loginRequest.getCaptcha_token(), "login", clientIp);
-
-            UserEntity userData = userService.login(
-                    loginRequest.getAccount(),
-                    loginRequest.getPhone_number(),
-                    loginRequest.getPassword());
-
-            String token = jwtUtil.generateAccessToken(userData.getId().toString());
-
-            apiAbuseProtectionService.recordLoginSuccess(loginRequest, clientIp);
-
-            return new JsonResult<String>(OK, token);
-        } catch (ServiceException e) {
-            apiAbuseProtectionService.recordLoginFailure(loginRequest, clientIp);
-            throw e;
-        }
+        String token = userService.login(
+                loginRequest.getAccount(),
+                loginRequest.getPhone_number(),
+                loginRequest.getPassword(),
+                loginRequest.getCaptcha_token(),
+                loginRequest.getCaptcha_action(),
+                clientIp);
+        return new JsonResult<>(OK, token);
     }
 
     /**
-     * 处理用户注册的请求
-     * @param registerUserRequest 注册请求体参数Json对象
-     * @return JsonResult data String
+     * 处理用户注册的请求。
+     * <p>接口层只负责：提取客户端 IP → 调用业务层 → 返回 JsonResult。
+     * 防滥用检查、验证码防爆破、验证码校验、创建用户、清除/记录尝试计数 —— 全部由 {@link UserService#register} 处理。
      */
     @PostMapping("/")
-    public JsonResult<String> register( @Valid @RequestBody registerUserRequest registerUserRequest,
-                                        HttpServletRequest request )
-    {
+    public JsonResult<String> register(@Valid @RequestBody RegisterUserRequest registerUserRequest,
+                                          HttpServletRequest request) {
         String clientIp = ClientIpUtil.resolveClientIp(request);
-
-        apiAbuseProtectionService.checkRegisterStart(
-                registerUserRequest.getPhone_number(), clientIp);
-
-        captchaVerifier.verify(registerUserRequest.getCaptcha_token(), "register", clientIp);
-
         String account = userService.register(
                 registerUserRequest.getPhone_number(),
+                registerUserRequest.getEmail(),
                 registerUserRequest.getPassword(),
                 registerUserRequest.getCode(),
-                registerUserRequest.getName());
-
-        return new JsonResult<String>(OK, account);
+                registerUserRequest.getName(),
+                clientIp);
+        return new JsonResult<>(OK, account);
     }
 
     /**
@@ -125,7 +103,7 @@ public class UserController extends BaseController {
      */
     @PatchMapping("/me")
     public JsonResult<Void> updateUserInfoByUserId( @RequestHeader("X-User-Id") String user_id,
-                                                     @Valid @RequestBody updateUserInfoRequest updateUserInfoRequest ) {
+                                                     @Valid @RequestBody UpdateUserInfoRequest updateUserInfoRequest ) {
         userService.updateUserInfo(
                 UUID.fromString(user_id),
                 updateUserInfoRequest.getNew_email(),
@@ -160,6 +138,7 @@ public class UserController extends BaseController {
                 changeUserPasswordRequest.getNew_password());
         return new JsonResult<>(OK);
     }
+
     /**
      * 上传用户头像
      * @param user_id

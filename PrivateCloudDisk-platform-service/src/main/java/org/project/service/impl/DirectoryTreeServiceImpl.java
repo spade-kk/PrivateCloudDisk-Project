@@ -2,7 +2,6 @@ package org.project.service.impl;
 
 import org.project.mapper.DirectoryClosureMapper;
 import org.project.mapper.TrashTargetMapper;
-import org.project.model.dto.NodeQueryDTO;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.NodeEntity;
@@ -147,7 +146,9 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     }
 
     @Override
-    public PageResultVO<NodeEntity> findUserNodesByNodeIdPaged(NodeQueryDTO query, UUID user_id) {
+    public PageResultVO<NodeEntity> findUserNodesByNodeIdPaged(
+            String parentId, String keyword, String fileType,
+            String sortBy, String sortOrder, Integer page, Integer pageSize, UUID userId) {
         return null;
     }
 

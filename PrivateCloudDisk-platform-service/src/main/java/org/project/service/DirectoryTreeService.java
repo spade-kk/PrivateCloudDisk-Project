@@ -1,6 +1,5 @@
 package org.project.service;
 
-import org.project.model.dto.NodeQueryDTO;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.NodeEntity;
@@ -62,11 +61,20 @@ public interface DirectoryTreeService {
     
     /**
      * 分页查询节点下所有节点元数据（支持搜索、过滤、排序）
-     * @param query 查询条件
-     * @param user_id 用户ID
+     * <p>接口层负责从 Request DTO 提取参数后传入，业务层不依赖任何 Request DTO。</p>
+     * @param parentId 父节点ID
+     * @param keyword 搜索关键词
+     * @param fileType 文件类型过滤
+     * @param sortBy 排序字段
+     * @param sortOrder 排序方向
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @param userId 用户ID
      * @return 分页结果
      */
-    PageResultVO<NodeEntity> findUserNodesByNodeIdPaged(NodeQueryDTO query, UUID user_id);
+    PageResultVO<NodeEntity> findUserNodesByNodeIdPaged(
+            String parentId, String keyword, String fileType,
+            String sortBy, String sortOrder, Integer page, Integer pageSize, UUID userId);
     
     /**
      * 移动节点

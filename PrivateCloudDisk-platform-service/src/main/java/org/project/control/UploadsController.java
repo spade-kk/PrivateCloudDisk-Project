@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.project.control.result.JsonResult;
 import org.project.model.dto.CreateUploadsSessionRequest;
-import org.project.security.ApiAbuseProtectionService;
 import org.project.service.UploadsService;
 import org.project.util.ClientIpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +17,6 @@ public class UploadsController extends BaseController {
     @Autowired
     private UploadsService uploadsService;
 
-    @Autowired
-    private ApiAbuseProtectionService apiAbuseProtectionService;
     /**
      * 处理上传会话创建的请求
      * @param createUploadsSessionRequest 创建上传会话请求体参数Json对象
@@ -31,11 +28,7 @@ public class UploadsController extends BaseController {
             @Valid @RequestBody CreateUploadsSessionRequest createUploadsSessionRequest,
             HttpServletRequest request)
     {
-        apiAbuseProtectionService.checkUploadSessionCreate(
-                user_id,
-                createUploadsSessionRequest.getNode_id(),
-                ClientIpUtil.resolveClientIp(request)
-        );
+        String clientIp = ClientIpUtil.resolveClientIp(request);
 
         UUID uploads_id = uploadsService.createUploadsSession(
                 createUploadsSessionRequest.getTotal_chunks(),
@@ -45,7 +38,8 @@ public class UploadsController extends BaseController {
                 createUploadsSessionRequest.getFile_name(),
                 createUploadsSessionRequest.getFile_type(),
                 UUID.fromString(user_id),
-                UUID.fromString(createUploadsSessionRequest.getNode_id()));
+                UUID.fromString(createUploadsSessionRequest.getNode_id()),
+                clientIp);
 
         return new JsonResult<String>(OK, uploads_id.toString());
     }

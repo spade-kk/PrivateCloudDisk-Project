@@ -2,10 +2,62 @@ package org.project.model.vo;
 
 import org.project.model.entity.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class VoMapper {
     private VoMapper() {
+    }
+
+    // ==================== Share 相关转换方法 ====================
+
+    public static ShareLinkVO toShareLinkVO(ShareLinkEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        ShareLinkVO vo = new ShareLinkVO();
+        vo.setShare_id(entity.getShare_id().toString());
+        vo.setShare_token(entity.getShare_token());
+        vo.setShare_url("/share/" + entity.getShare_token());
+        vo.setShare_target_type(entity.getShare_target_type().name());
+        vo.setShare_name(entity.getShare_name());
+        vo.setTarget_name(entity.getTarget_name());
+        vo.setTarget_size(entity.getTarget_size());
+        vo.setFile_type(entity.getFile_type());
+        vo.setShare_has_password(entity.getShare_has_password());
+        vo.setShare_expires_at(entity.getShare_expires_at());
+        vo.setShare_view_count(entity.getShare_view_count());
+        vo.setShare_status(entity.getShare_status().name());
+        vo.setShare_created_at(entity.getShare_created_at());
+        return vo;
+    }
+
+    public static List<ShareLinkVO> toShareLinkVOList(List<ShareLinkEntity> entities) {
+        if (entities == null) {
+            return List.of();
+        }
+        return entities.stream().map(VoMapper::toShareLinkVO).toList();
+    }
+
+    public static ShareAccessInfoVO toShareAccessInfoVO(ShareLinkEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        ShareAccessInfoVO vo = new ShareAccessInfoVO();
+        vo.setShare_token(entity.getShare_token());
+        vo.setShare_name(entity.getShare_name());
+        vo.setShare_target_type(entity.getShare_target_type().name());
+        vo.setTarget_name(entity.getTarget_name());
+        vo.setTarget_size(entity.getTarget_size());
+        vo.setFile_type(entity.getFile_type());
+        vo.setOwner_name(entity.getOwner_name());
+        vo.setHas_password(entity.getShare_has_password());
+        vo.setIs_expired(entity.getShare_status() == ShareLinkEntity.ShareStatus.expired ||
+                (entity.getShare_expires_at() != null && entity.getShare_expires_at().isBefore(LocalDateTime.now())));
+        vo.setIs_revoked(entity.getShare_status() == ShareLinkEntity.ShareStatus.revoked);
+        vo.setExpires_at(entity.getShare_expires_at());
+        vo.setCreated_at(entity.getShare_created_at());
+        return vo;
     }
     
     // ==================== 新增方法 ====================

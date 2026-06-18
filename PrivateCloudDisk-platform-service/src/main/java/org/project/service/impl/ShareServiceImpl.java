@@ -5,15 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
 import org.project.mapper.ShareLinkMapper;
-import org.project.model.dto.ShareCreateRequest;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.ShareLinkEntity;
 import org.project.model.entity.ShareLinkEntity.ShareStatus;
 import org.project.model.entity.ShareLinkEntity.TargetType;
-import org.project.model.vo.ShareAccessInfoVO;
-import org.project.model.vo.ShareContentItemVO;
-import org.project.model.vo.ShareLinkVO;
 import org.project.service.DirectoryTreeService;
 import org.project.service.ShareService;
 import org.project.service.ex.*;
@@ -26,7 +22,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * 分享链接服务实现
@@ -37,6 +32,9 @@ import java.util.stream.Collectors;
  * 3. 密码验证通过后签发短期 JWT（15 分钟），后续请求凭 JWT 访问
  * 4. 分享访问永为只读，无 CRUD 权限
  * 5. 所有文件/文件夹访问必须通过 share_token 校验，杜绝横向越权
+ *
+ * <p><b>分层原则</b>：本服务不接收任何 Request DTO，不返回任何 VO。
+ * 所有 Entity → VO 的转换由接口层通过 VoMapper 完成。
  */
 @Slf4j
 @Service
@@ -52,46 +50,53 @@ public class ShareServiceImpl implements ShareService {
 
     @Override
     @Transactional
-    public ShareLinkVO createShare(String user_id, ShareCreateRequest request) {
-        UUID ownerId = UUID.fromString(user_id);
+    public ShareLinkEntity createShare(String userId, String shareName, String targetType,
+                                        String fileId, String nodeId, String password, Integer expireDays) {
+        UUID ownerId = UUID.fromString(userId);
 
         ShareLinkEntity share = new ShareLinkEntity();
         share.setShare_id(UUID.randomUUID());
         share.setShare_token(UUID.randomUUID().toString());
         share.setShare_owner_id(ownerId);
-        share.setShare_name(request.getShare_name());
+        share.setShare_name(shareName);
 
-        if ("file".equals(request.getTarget_type())) {
-            if (request.getFile_id() == null || request.getFile_id().isBlank()) {
+        if ("file".equals(targetType)) {
+            if (fileId == null || fileId.isBlank()) {
                 throw new ServiceException("分享文件时 file_id 不能为空");
             }
-            UUID fileId = UUID.fromString(request.getFile_id());
-            FileEntity file = fileMapper.findUserFileById(fileId, ownerId);
+            UUID fid = UUID.fromString(fileId);
+            FileEntity file = fileMapper.findUserFileById(fid, ownerId);
             if (file == null) {
                 throw new FileNotExistException("文件不存在或无权访问");
             }
             share.setShare_target_type(TargetType.file);
-            share.setShare_file_id(fileId);
+            share.setShare_file_id(fid);
             share.setShare_node_id(null);
-        } else if ("folder".equals(request.getTarget_type())) {
-            if (request.getNode_id() == null || request.getNode_id().isBlank()) {
+            // 填充目标信息
+            share.setTarget_name(file.getName());
+            share.setTarget_size(file.getSize());
+            share.setFile_type(file.getType());
+        } else if ("folder".equals(targetType)) {
+            if (nodeId == null || nodeId.isBlank()) {
                 throw new ServiceException("分享文件夹时 node_id 不能为空");
             }
-            UUID nodeId = UUID.fromString(request.getNode_id());
-            FolderNodeEntity folder = folderNodeMapper.findFolderNodeByIdAndUserId(nodeId, ownerId);
+            UUID nid = UUID.fromString(nodeId);
+            FolderNodeEntity folder = folderNodeMapper.findFolderNodeByIdAndUserId(nid, ownerId);
             if (folder == null) {
                 throw new NodeNotExistException("文件夹不存在或无权访问");
             }
             share.setShare_target_type(TargetType.folder);
             share.setShare_file_id(null);
-            share.setShare_node_id(nodeId);
+            share.setShare_node_id(nid);
+            share.setTarget_name(folder.getName());
+            share.setTarget_size(0L);
         } else {
             throw new ServiceException("无效的分享目标类型");
         }
 
         // 密码处理
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            share.setShare_password(passwordEncoder.encode(request.getPassword()));
+        if (password != null && !password.isBlank()) {
+            share.setShare_password(passwordEncoder.encode(password));
             share.setShare_has_password(true);
         } else {
             share.setShare_password(null);
@@ -99,8 +104,8 @@ public class ShareServiceImpl implements ShareService {
         }
 
         // 过期时间
-        if (request.getExpires_in_days() != null && request.getExpires_in_days() > 0) {
-            share.setShare_expires_at(LocalDateTime.now().plusDays(request.getExpires_in_days()));
+        if (expireDays != null && expireDays > 0) {
+            share.setShare_expires_at(LocalDateTime.now().plusDays(expireDays));
         } else {
             share.setShare_expires_at(null);
         }
@@ -110,59 +115,48 @@ public class ShareServiceImpl implements ShareService {
             throw new InsertException("创建分享链接失败");
         }
 
-        log.info("分享链接创建成功: userId={}, token={}, type={}", user_id, share.getShare_token(), request.getTarget_type());
-        return toShareLinkVO(share);
+        log.info("分享链接创建成功: userId={}, token={}, type={}", userId, share.getShare_token(), targetType);
+        return share;
     }
 
     @Override
-    public List<ShareLinkVO> getMyShares(String user_id) {
-        UUID ownerId = UUID.fromString(user_id);
-        List<ShareLinkEntity> shares = shareLinkMapper.findByOwnerId(ownerId);
-        return shares.stream().map(this::toShareLinkVO).collect(Collectors.toList());
+    public List<ShareLinkEntity> getMyShares(String userId) {
+        UUID ownerId = UUID.fromString(userId);
+        return shareLinkMapper.findByOwnerId(ownerId);
     }
 
     @Override
     @Transactional
-    public void revokeShare(String user_id, String share_id) {
-        int rows = shareLinkMapper.revokeShare(UUID.fromString(share_id), UUID.fromString(user_id));
+    public void revokeShare(String userId, String shareId) {
+        int rows = shareLinkMapper.revokeShare(UUID.fromString(shareId), UUID.fromString(userId));
         if (rows != 1) {
             throw new ServiceException("分享不存在或无权撤销");
         }
-        log.info("分享已撤销: shareId={}, userId={}", share_id, user_id);
+        log.info("分享已撤销: shareId={}, userId={}", shareId, userId);
     }
 
     @Override
-    public ShareAccessInfoVO getShareAccessInfo(String share_token) {
-        ShareLinkEntity share = shareLinkMapper.findByToken(share_token);
+    public ShareLinkEntity getShareAccessInfo(String shareToken) {
+        ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
         if (share == null) {
             throw new ServiceException("分享链接不存在");
         }
 
         if (share.getShare_status() == ShareStatus.revoked) {
-            ShareAccessInfoVO vo = buildAccessInfoVO(share);
-            vo.setIs_revoked(true);
-            return vo;
+            return share;
         }
 
         if (share.getShare_expires_at() != null && share.getShare_expires_at().isBefore(LocalDateTime.now())) {
             shareLinkMapper.expireOutdatedShares();
-            ShareAccessInfoVO vo = buildAccessInfoVO(share);
-            vo.setIs_expired(true);
-            return vo;
+            return share;
         }
 
-        if (share.getShare_status() == ShareStatus.expired) {
-            ShareAccessInfoVO vo = buildAccessInfoVO(share);
-            vo.setIs_expired(true);
-            return vo;
-        }
-
-        return buildAccessInfoVO(share);
+        return share;
     }
 
     @Override
-    public String verifyPasswordAndGetToken(String share_token, String password) {
-        ShareLinkEntity share = shareLinkMapper.findByToken(share_token);
+    public String verifyPasswordAndGetToken(String shareToken, String password) {
+        ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
         if (share == null) {
             throw new ServiceException("分享链接不存在");
         }
@@ -191,8 +185,8 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public ShareLinkEntity getShareByAccessToken(String access_token) {
-        String shareToken = jwtUtil.verifyShareAccessToken(access_token);
+    public ShareLinkEntity getShareByAccessToken(String accessToken) {
+        String shareToken = jwtUtil.verifyShareAccessToken(accessToken);
         if (shareToken == null) {
             throw new ServiceException("访问令牌无效或已过期，请重新验证");
         }
@@ -215,8 +209,8 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public FileEntity getSharedFile(String share_token, String file_id) {
-        ShareLinkEntity share = shareLinkMapper.findByToken(share_token);
+    public FileEntity getSharedFile(String shareToken, String fileId) {
+        ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
         if (share == null || share.getShare_status() != ShareStatus.active) {
             throw new ServiceException("分享链接无效");
         }
@@ -225,7 +219,7 @@ public class ShareServiceImpl implements ShareService {
             throw new ServiceException("该分享不是文件类型");
         }
 
-        UUID fid = UUID.fromString(file_id);
+        UUID fid = UUID.fromString(fileId);
         if (!fid.equals(share.getShare_file_id())) {
             throw new OverstepAuthorityException("无权访问该文件");
         }
@@ -234,8 +228,8 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
-    public List<ShareContentItemVO> getSharedFolderContents(String share_token, String node_id) {
-        ShareLinkEntity share = shareLinkMapper.findByToken(share_token);
+    public List<SharedItem> getSharedFolderContents(String shareToken, String nodeId) {
+        ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
         if (share == null || share.getShare_status() != ShareStatus.active) {
             throw new ServiceException("分享链接无效");
         }
@@ -246,25 +240,20 @@ public class ShareServiceImpl implements ShareService {
 
         // 确定要浏览的节点ID：没传或传了根节点ID则浏览分享根目录
         UUID browseNodeId;
-        if (node_id == null || node_id.isBlank() || node_id.equals(share.getShare_node_id().toString())) {
+        if (nodeId == null || nodeId.isBlank() || nodeId.equals(share.getShare_node_id().toString())) {
             browseNodeId = share.getShare_node_id();
         } else {
-            browseNodeId = UUID.fromString(node_id);
+            browseNodeId = UUID.fromString(nodeId);
         }
 
         UUID ownerId = share.getShare_owner_id();
-        List<ShareContentItemVO> items = new ArrayList<>();
+        List<SharedItem> items = new ArrayList<>();
 
         // 查询子文件夹
         List<FolderNodeEntity> subFolders = folderNodeMapper.findFolderNodesByIdAndUserId(browseNodeId, ownerId);
         if (subFolders != null) {
             for (FolderNodeEntity folder : subFolders) {
-                items.add(ShareContentItemVO.builder()
-                        .item_type("folder")
-                        .node_id(folder.getNode_id().toString())
-                        .name(folder.getName())
-                        .size(0L)
-                        .build());
+                items.add(SharedItem.ofFolder(folder));
             }
         }
 
@@ -272,53 +261,10 @@ public class ShareServiceImpl implements ShareService {
         List<FileEntity> subFiles = fileMapper.findUserActiveFilesByNodeId(browseNodeId, ownerId);
         if (subFiles != null) {
             for (FileEntity file : subFiles) {
-                items.add(ShareContentItemVO.builder()
-                        .item_type("file")
-                        .file_id(file.getId().toString())
-                        .name(file.getName())
-                        .size(file.getSize())
-                        .file_type(file.getType())
-                        .build());
+                items.add(SharedItem.ofFile(file));
             }
         }
 
         return items;
-    }
-
-    // ==================== 私有方法 ====================
-
-    private ShareLinkVO toShareLinkVO(ShareLinkEntity entity) {
-        ShareLinkVO vo = new ShareLinkVO();
-        vo.setShare_id(entity.getShare_id().toString());
-        vo.setShare_token(entity.getShare_token());
-        vo.setShare_url("/share/" + entity.getShare_token());
-        vo.setShare_target_type(entity.getShare_target_type().name());
-        vo.setShare_name(entity.getShare_name());
-        vo.setTarget_name(entity.getTarget_name());
-        vo.setTarget_size(entity.getTarget_size());
-        vo.setFile_type(entity.getFile_type());
-        vo.setShare_has_password(entity.getShare_has_password());
-        vo.setShare_expires_at(entity.getShare_expires_at());
-        vo.setShare_view_count(entity.getShare_view_count());
-        vo.setShare_status(entity.getShare_status().name());
-        vo.setShare_created_at(entity.getShare_created_at());
-        return vo;
-    }
-
-    private ShareAccessInfoVO buildAccessInfoVO(ShareLinkEntity share) {
-        ShareAccessInfoVO vo = new ShareAccessInfoVO();
-        vo.setShare_token(share.getShare_token());
-        vo.setShare_name(share.getShare_name());
-        vo.setShare_target_type(share.getShare_target_type().name());
-        vo.setTarget_name(share.getTarget_name());
-        vo.setTarget_size(share.getTarget_size());
-        vo.setFile_type(share.getFile_type());
-        vo.setOwner_name(share.getOwner_name());
-        vo.setHas_password(share.getShare_has_password());
-        vo.setIs_expired(false);
-        vo.setIs_revoked(false);
-        vo.setExpires_at(share.getShare_expires_at());
-        vo.setCreated_at(share.getShare_created_at());
-        return vo;
     }
 }

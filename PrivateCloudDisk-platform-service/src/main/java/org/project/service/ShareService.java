@@ -1,31 +1,40 @@
 package org.project.service;
 
-import org.project.model.dto.ShareCreateRequest;
+import org.project.model.entity.FileEntity;
+import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.ShareLinkEntity;
-import org.project.model.vo.ShareAccessInfoVO;
-import org.project.model.vo.ShareLinkVO;
 
 import java.util.List;
 
 /**
  * 分享链接服务接口
+ *
+ * <p><b>分层原则</b>：本接口不接收任何 Request DTO，不返回任何 VO。
+ * 所有方法参数由接口层从 Request DTO 提取后传入，所有返回值均为 Entity，
+ * Entity → VO 的转换由接口层通过 {@link org.project.model.vo.VoMapper} 完成。
  */
 public interface ShareService {
 
     /**
      * 创建分享链接
-     * @param user_id 用户ID
-     * @param request 创建请求
-     * @return 创建的分享链接 VO
+     * @param userId 用户ID
+     * @param shareName 分享名称
+     * @param targetType 目标类型（"file" 或 "folder"）
+     * @param fileId 文件ID（targetType=file 时必填）
+     * @param nodeId 文件夹节点ID（targetType=folder 时必填）
+     * @param password 密码（可选）
+     * @param expireDays 过期天数（可选）
+     * @return 创建的分享链接实体
      */
-    ShareLinkVO createShare(String user_id, ShareCreateRequest request);
+    ShareLinkEntity createShare(String userId, String shareName, String targetType,
+                              String fileId, String nodeId, String password, Integer expireDays);
 
     /**
      * 获取用户的所有分享链接
      * @param user_id 用户ID
      * @return 分享链接列表
      */
-    List<ShareLinkVO> getMyShares(String user_id);
+    List<ShareLinkEntity> getMyShares(String user_id);
 
     /**
      * 撤销分享链接
@@ -39,7 +48,7 @@ public interface ShareService {
      * @param share_token 分享令牌
      * @return 分享公开信息
      */
-    ShareAccessInfoVO getShareAccessInfo(String share_token);
+    ShareLinkEntity getShareAccessInfo(String shareToken);
 
     /**
      * 验证分享密码并返回短期访问令牌
@@ -65,11 +74,23 @@ public interface ShareService {
     org.project.model.entity.FileEntity getSharedFile(String share_token, String file_id);
 
     /**
-     * 获取分享文件夹的子内容（文件和子文件夹）
+     * 获取分享文件夹的子内容（文件和子文件夹实体列表）
      * <p>仅支持文件夹分享，且 node_id 必须在分享范围内
      * @param share_token 分享令牌
      * @param node_id 要浏览的节点ID（null 或 分享的根节点ID 表示浏览分享根目录）
      * @return 子内容列表（含文件和文件夹）
      */
-    List<org.project.model.vo.ShareContentItemVO> getSharedFolderContents(String share_token, String node_id);
+    List<SharedItem> getSharedFolderContents(String shareToken, String nodeId);
+
+    /**
+     * 分享文件夹内容项 —— 统一封装文件和文件夹实体
+     */
+    record SharedItem(String itemType, FileEntity file, FolderNodeEntity folder) {
+        public static SharedItem ofFile(FileEntity file) {
+            return new SharedItem("file", file, null);
+        }
+        public static SharedItem ofFolder(FolderNodeEntity folder) {
+            return new SharedItem("folder", null, folder);
+        }
+    }
 }

@@ -5,6 +5,8 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.project.control.result.JsonResult;
 import org.project.service.ex.*;
+import org.project.service.ex.ResendTokenExhaustedException;
+import org.project.service.ex.ResendTokenInvalidException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +34,20 @@ public class BaseController {
     public ResponseEntity<JsonResult<Void>> handleCaptchaVerificationException(CaptchaVerificationException e) {
         JsonResult<Void> result = new JsonResult<>(e.getMessage(), 42000);
         log.warn("人机验证失败:{}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
+    }
+
+    @ExceptionHandler(ResendTokenInvalidException.class)
+    public ResponseEntity<JsonResult<Void>> handleResendTokenInvalidException(ResendTokenInvalidException e) {
+        JsonResult<Void> result = new JsonResult<>(e.getMessage(), 42002);
+        log.warn("重新发送令牌无效:{}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
+    }
+
+    @ExceptionHandler(ResendTokenExhaustedException.class)
+    public ResponseEntity<JsonResult<Void>> handleResendTokenExhaustedException(ResendTokenExhaustedException e) {
+        JsonResult<Void> result = new JsonResult<>(e.getMessage(), 42003);
+        log.warn("重新发送次数已用完:{}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
     }
 

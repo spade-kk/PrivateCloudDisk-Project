@@ -92,24 +92,4 @@ public class UserManageController extends BaseController {
         userManageService.updateUserInfo(UUID.fromString(user_id), userName);
         return new JsonResult<>(OK);
     }
-    
-    /**
-     * 发送邮箱验证码
-     */
-    @PostMapping("/email/verification-code")
-    public JsonResult<Void> sendEmailVerificationCode(
-            @RequestParam("email") @Email String email) {
-        userManageService.sendEmailVerificationCode(email);
-        return new JsonResult<>(OK);
-    }
-    
-    /**
-     * 发送手机验证码
-     */
-    @PostMapping("/phone/verification-code")
-    public JsonResult<Void> sendPhoneVerificationCode(
-            @RequestParam("phone") @Pattern(regexp = "^1[3-9]\\d{9}$") String phone) {
-        userManageService.sendPhoneVerificationCode(phone);
-        return new JsonResult<>(OK);
-    }
 }

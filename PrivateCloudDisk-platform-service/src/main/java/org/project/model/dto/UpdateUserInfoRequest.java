@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
-public class updateUserInfoRequest {
+public class UpdateUserInfoRequest {
     @NotBlank
     @Email(message = "邮箱格式不正确")
     String new_email;

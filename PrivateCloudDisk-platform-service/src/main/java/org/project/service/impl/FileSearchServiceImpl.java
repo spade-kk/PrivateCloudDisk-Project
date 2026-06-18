@@ -10,10 +10,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
@@ -24,7 +21,7 @@ import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.project.model.dto.FileSearchRequest;
-import org.project.model.vo.FileSearchVo;
+import org.project.model.vo.FileSearchVO;
 import org.project.service.FileSearchService;
 import org.project.service.ex.ServiceException;
 import org.springframework.beans.factory.annotation.Value;
@@ -125,7 +122,23 @@ public class FileSearchServiceImpl implements FileSearchService {
     private String contentIndexName;
 
     @Override
-    public FileSearchVo search(FileSearchRequest request) {
+    public FileSearchVO search(String keyword, int page, int size, String sortField, boolean asc,
+                               String userId, Map<String, String> filters,
+                               List<String> highlightFields, String searchAfter) {
+        FileSearchRequest request = new FileSearchRequest();
+        request.setKeyword(keyword);
+        request.setPage(page);
+        request.setSize(size);
+        request.setSortField(sortField);
+        request.setAsc(asc);
+        request.setUserId(userId);
+        request.setFilters(filters);
+        request.setHighlightFields(highlightFields);
+        request.setSearchAfter(searchAfter);
+        return search(request);
+    }
+
+    private FileSearchVO search(FileSearchRequest request) {
         normalizePagination(request);
 
         boolean hasKeyword = hasText(request.getKeyword());
@@ -133,7 +146,7 @@ public class FileSearchServiceImpl implements FileSearchService {
                 ? executeIntelligentKeywordSearch(request)
                 : executeBasicMetadataSearch(request);
 
-        FileSearchVo result = new FileSearchVo();
+        FileSearchVO result = new FileSearchVO();
         result.setTotal(resolveTotal(response, hasKeyword));
         result.setHits(toHits(response));
         result.setAggregations(resolveAggregations(response));

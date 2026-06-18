@@ -8,22 +8,35 @@ import java.util.UUID;
 
 public interface UserService {
     /**
-     * 业务层函数登录调用持久层函数的方法实现登录操作并返回用户数据
-     * @param account 账号
-     * @param phone_number 手机号
+     * 用户登录（完整业务逻辑）。
+     * <p>包含：人机验证 → 防滥用检查 → 账号认证 → JWT 生成 → 记录成功/失败。
+     * 接口层负责从 Request DTO 中提取参数并传入，业务层不依赖任何 Request DTO。
+     *
+     * @param account 账号（可选，与 phoneNumber 二选一）
+     * @param phoneNumber 手机号（可选，与 account 二选一）
      * @param password 密码
-     * @return 用户数据
+     * @param captchaToken 人机验证 token
+     * @param captchaAction 人机验证动作
+     * @param clientIp 客户端 IP
+     * @return JWT 令牌
      */
-    UserEntity login(String account, String phone_number, String password);
+    String login(String account, String phoneNumber, String password,
+                 String captchaToken, String captchaAction, String clientIp);
+
     /**
-     * 业务层函数实现注册用户功能
-     * @param phone_number 手机号
+     * 用户注册（完整业务逻辑）。
+     * <p>包含：防滥用检查 → 验证码防爆破检查 → 验证码校验 → 创建用户 → 清除尝试计数 / 记录失败。
+     * 接口层负责从 Request DTO 中提取参数并传入，业务层不依赖任何 Request DTO。
+     *
+     * @param phoneNumber 手机号（可选，与 email 二选一）
+     * @param email 邮箱（可选，与 phoneNumber 二选一）
      * @param password 密码
      * @param code 验证码
      * @param name 用户名
+     * @param clientIp 客户端 IP
      * @return 新注册成功的用户账号
      */
-    String register(String phone_number, String password, String code, String name);
+    String register(String phoneNumber, String email, String password, String code, String name, String clientIp);
      /**
       * 业务层函数根据用户ID查询用户根目录节点
       * @param user_id 用户ID

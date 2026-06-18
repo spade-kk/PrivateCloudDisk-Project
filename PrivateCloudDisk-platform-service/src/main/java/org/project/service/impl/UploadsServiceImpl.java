@@ -8,6 +8,7 @@ import org.project.model.entity.UploadsChunkEntity;
 import org.project.model.entity.UploadsSessionEntity;
 import org.project.mapper.ChunksMapper;
 import org.project.mapper.UploadsMapper;
+import org.project.security.ApiAbuseProtectionService;
 import org.project.service.DirectoryTreeService;
 import org.project.service.FileService;
 import org.project.service.UploadsService;
@@ -35,9 +36,15 @@ public class UploadsServiceImpl implements UploadsService {
     private FileMapper fileMapper;
     @Autowired
     private FolderNodeMapper folderNodeMapper;
+    @Autowired
+    private ApiAbuseProtectionService apiAbuseProtectionService;
 
     @Override
-    public UUID createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, UUID user_id, UUID node_id) {
+    public UUID createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, UUID user_id, UUID node_id, String clientIp) {
+        // 防滥用检查
+        apiAbuseProtectionService.checkUploadSessionCreate(
+                user_id.toString(), node_id.toString(), clientIp);
+
         FolderNodeEntity folderNode = directoryTreeService.findUserFolderNodeIfExist(node_id, user_id);
         if(folderNode == null) {
             throw new NodeNotExistException("节点不存在");

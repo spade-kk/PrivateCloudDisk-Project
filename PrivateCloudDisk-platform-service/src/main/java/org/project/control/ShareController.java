@@ -9,10 +9,12 @@ import org.project.model.entity.ShareLinkEntity;
 import org.project.model.vo.ShareAccessInfoVO;
 import org.project.model.vo.ShareContentItemVO;
 import org.project.model.vo.ShareLinkVO;
+import org.project.model.vo.VoMapper;
 import org.project.service.ShareService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -53,8 +55,15 @@ public class ShareController extends BaseController {
     public JsonResult<ShareLinkVO> createShare(
             @Valid @RequestBody ShareCreateRequest request,
             @RequestHeader("X-User-Id") String user_id) {
-        ShareLinkVO vo = shareService.createShare(user_id, request);
-        return new JsonResult<>(OK, vo);
+        ShareLinkEntity entity = shareService.createShare(
+                user_id,
+                request.getShare_name(),
+                request.getTarget_type(),
+                request.getFile_id(),
+                request.getNode_id(),
+                request.getPassword(),
+                request.getExpires_in_days());
+        return new JsonResult<>(OK, VoMapper.toShareLinkVO(entity));
     }
 
     /**
@@ -63,8 +72,8 @@ public class ShareController extends BaseController {
     @GetMapping("/business/shares")
     public JsonResult<List<ShareLinkVO>> getMyShares(
             @RequestHeader("X-User-Id") String user_id) {
-        List<ShareLinkVO> list = shareService.getMyShares(user_id);
-        return new JsonResult<>(OK, list);
+        List<ShareLinkEntity> entities = shareService.getMyShares(user_id);
+        return new JsonResult<>(OK, VoMapper.toShareLinkVOList(entities));
     }
 
     /**
@@ -90,8 +99,8 @@ public class ShareController extends BaseController {
     @GetMapping("/public/shares/{share_token}/info")
     public JsonResult<ShareAccessInfoVO> getShareInfo(
             @PathVariable String share_token) {
-        ShareAccessInfoVO vo = shareService.getShareAccessInfo(share_token);
-        return new JsonResult<>(OK, vo);
+        ShareLinkEntity entity = shareService.getShareAccessInfo(share_token);
+        return new JsonResult<>(OK, VoMapper.toShareAccessInfoVO(entity));
     }
 
     /**
@@ -110,7 +119,6 @@ public class ShareController extends BaseController {
 
     /**
      * 获取分享内容（文件或文件夹信息）
-     * <p>需要携带有效的访问令牌
      */
     @GetMapping("/public/shares/{share_token}/content")
     public JsonResult<ShareLinkEntity> getShareContent(
@@ -157,8 +165,8 @@ public class ShareController extends BaseController {
             @RequestHeader("X-Share-Access-Token") String access_token) {
         // 验证访问令牌
         shareService.getShareByAccessToken(access_token);
-        List<ShareContentItemVO> items = shareService.getSharedFolderContents(share_token, node_id);
-        return new JsonResult<>(OK, items);
+        List<ShareService.SharedItem> items = shareService.getSharedFolderContents(share_token, node_id);
+        return new JsonResult<>(OK, toShareContentItemVOList(items));
     }
 
     /**
@@ -169,7 +177,29 @@ public class ShareController extends BaseController {
             @PathVariable String share_token,
             @RequestHeader("X-Share-Access-Token") String access_token) {
         shareService.getShareByAccessToken(access_token);
-        List<ShareContentItemVO> items = shareService.getSharedFolderContents(share_token, null);
-        return new JsonResult<>(OK, items);
+        List<ShareService.SharedItem> items = shareService.getSharedFolderContents(share_token, null);
+        return new JsonResult<>(OK, toShareContentItemVOList(items));
+    }
+
+    // ==================== 私有转换方法 ====================
+
+    private List<ShareContentItemVO> toShareContentItemVOList(List<ShareService.SharedItem> items) {
+        List<ShareContentItemVO> vos = new ArrayList<>();
+        for (ShareService.SharedItem item : items) {
+            ShareContentItemVO vo = new ShareContentItemVO();
+            vo.setItem_type(item.itemType());
+            if (item.file() != null) {
+                vo.setFile_id(item.file().getId().toString());
+                vo.setName(item.file().getName());
+                vo.setSize(item.file().getSize());
+                vo.setFile_type(item.file().getType());
+            } else if (item.folder() != null) {
+                vo.setNode_id(item.folder().getNode_id().toString());
+                vo.setName(item.folder().getName());
+                vo.setSize(0L);
+            }
+            vos.add(vo);
+        }
+        return vos;
     }
 }
