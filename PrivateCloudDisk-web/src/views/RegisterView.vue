@@ -205,10 +205,10 @@
                 </span>
               </div>
 
-              <div class="flex min-h-[74px] items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div class="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-3">
                 <div
                   ref="turnstileContainer"
-                  class="min-h-[65px] w-[300px] max-[560px]:origin-center max-[560px]:scale-[0.92]"
+                  class="turnstile-widget"
                   :class="{ hidden: !turnstileSiteKey }"
                 ></div>
                 <div v-if="!turnstileSiteKey" class="text-sm text-danger">
@@ -261,9 +261,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import { useRouter } from 'vue-router'
 import { post } from '@/utils/request'
 import { hashPasswordForTransport } from '@/utils/crypto'
+import { sendVerificationCodeApi, resendVerificationCodeApi } from '@/api/modules/users'
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+const MAX_RESEND_COUNT = 8
 
 const router = useRouter()
 const form = reactive({
@@ -275,15 +277,21 @@ const form = reactive({
 const loading = ref(false)
 const formError = ref('')
 const verificationCountdown = ref(0)
-const verificationTimer = ref(null)
+const verificationTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const focusedField = ref('')
 const showPassword = ref(false)
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || ''
-const turnstileContainer = ref(null)
-const turnstileWidgetId = ref(null)
+const turnstileContainer = ref<HTMLElement | null>(null)
+const turnstileWidgetId = ref<string | null>(null)
 const captchaToken = ref('')
 const captchaLoading = ref(false)
 const captchaError = ref('')
+
+// ── 验证码重发机制 ──
+// 首次获取验证码需 Turnstile 人机验证，后端返回 resend_token（UUID）
+// 后续重发凭 resend_token，无需再次人机验证，10 分钟内最多 8 次
+const resendToken = ref('')
+const resendCount = ref(0)
 
 const onboardingSteps = [
   { title: '填写资料', desc: '账号、邮箱与密码' },
@@ -326,7 +334,11 @@ const captchaStatusText = computed(() => {
 })
 
 const verificationDisabled = computed(() => {
-  return loading.value || verificationCountdown.value > 0 || !emailValid.value
+  if (loading.value || verificationCountdown.value > 0 || !emailValid.value) return true
+  // 重发模式：有 resend_token 即可，不需要 Turnstile
+  if (resendToken.value && resendCount.value < MAX_RESEND_COUNT) return false
+  // 首次模式：需要 Turnstile 验证通过
+  return !captchaToken.value
 })
 
 const submitDisabled = computed(() => {
@@ -409,6 +421,28 @@ function resetTurnstile() {
   }
 }
 
+function startVerificationCountdown() {
+  verificationCountdown.value = 60
+  if (verificationTimer.value) clearInterval(verificationTimer.value)
+  verificationTimer.value = setInterval(() => {
+    verificationCountdown.value -= 1
+    if (verificationCountdown.value <= 0) {
+      if (verificationTimer.value) {
+        clearInterval(verificationTimer.value)
+        verificationTimer.value = null
+      }
+    }
+  }, 1000)
+}
+
+/**
+ * 发送验证码
+ *
+ * 流程：
+ *   1. 首次发送 → 需完成 Turnstile → 调用 sendVerificationCodeApi → 后端返回 resend_token
+ *   2. 后续重发 → 凭 resend_token 调用 resendVerificationCodeApi → 无需人机验证
+ *   3. 超过 8 次重发或 10 分钟超时 → 重置，需重新走首次流程
+ */
 async function sendVerificationCode() {
   formError.value = ''
   if (!emailValid.value) {
@@ -416,22 +450,49 @@ async function sendVerificationCode() {
     return
   }
 
-  try {
-    await post('business/users/email/verification-code', null, {
-      params: { email: form.email },
-    })
+  // 判断是首次发送还是重发
+  const isResend = resendToken.value && resendCount.value < MAX_RESEND_COUNT
 
-    verificationCountdown.value = 60
-    if (verificationTimer.value) clearInterval(verificationTimer.value)
-    verificationTimer.value = setInterval(() => {
-      verificationCountdown.value -= 1
-      if (verificationCountdown.value <= 0) {
-        clearInterval(verificationTimer.value)
-        verificationTimer.value = null
+  if (!isResend) {
+    // ── 首次发送：需 Turnstile 人机验证 ──
+    if (!captchaToken.value) {
+      captchaError.value = '请先完成安全验证'
+      return
+    }
+  }
+
+  try {
+    if (isResend) {
+      // 重发：凭 resend_token，无需人机验证
+      await resendVerificationCodeApi(resendToken.value)
+      resendCount.value += 1
+    } else {
+      // 首次：带 Turnstile token
+      const res = await sendVerificationCodeApi(form.email, captchaToken.value, 'send_code')
+
+      // 存储 resend_token 供后续重发使用
+      if (res?.data?.resend_token) {
+        resendToken.value = res.data.resend_token
+        resendCount.value = 0
       }
-    }, 1000)
-  } catch (error) {
-    formError.value = error.message || error.response?.data?.message || '发送验证码失败'
+
+      // 重置 Turnstile：token 已消费，注册时需重新验证
+      resetTurnstile()
+    }
+
+    startVerificationCountdown()
+  } catch (error: any) {
+    formError.value = error?.message || error?.response?.data?.message || '发送验证码失败'
+
+    // 如果是重发达上限或超时，重置状态，下次需重新走首次流程
+    if (isResend && (error?.response?.status === 429 || error?.response?.data?.code === 'RESEND_LIMIT')) {
+      resendToken.value = ''
+      resendCount.value = 0
+      resetTurnstile()
+    }
+    if (!isResend) {
+      resetTurnstile()
+    }
   }
 }
 

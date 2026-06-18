@@ -81,6 +81,27 @@
   .shadow-card {
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
   }
+  /* ── Turnstile 人机验证组件容器 ── */
+  .turnstile-widget {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 300px;
+    min-height: 65px;
+  }
+  /* 小屏幕下 Turnstile 等比缩放，避免溢出 */
+  @media (max-width: 420px) {
+    .turnstile-widget {
+      transform: scale(0.86);
+      transform-origin: center;
+    }
+  }
+  @media (min-width: 421px) and (max-width: 560px) {
+    .turnstile-widget {
+      transform: scale(0.92);
+      transform-origin: center;
+    }
+  }
   .fade-in {
     animation: fadeIn 0.3s ease-in-out;
   }

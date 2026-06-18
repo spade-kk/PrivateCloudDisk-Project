@@ -463,9 +463,6 @@ public class VerificationCodeService {
      * 检查目标是否属于系统自身（防止用系统邮箱给自己发验证码）。
      *
      * @param target          邮箱或手机号
-     * @param systemEmail     系统发件邮箱
-     * @param systemPhone     系统发件手机号（可选）
-     * @param blockedDomains  被禁止的邮箱域名列表
      * @throws IllegalArgumentException 如果是系统自身邮箱/手机号
      */
     private void checkTargetNotSystem(String target) {

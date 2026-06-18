@@ -116,7 +116,29 @@
                   <p class="truncate text-xs text-neutral-400">建议定期更换以确保安全</p>
                 </div>
               </div>
-              <button @click="showPasswordSheet = true" class="shrink-0 rounded-lg border px-3 py-1 text-xs text-neutral-500 transition hover:border-primary hover:text-primary">修改</button>
+              <router-link to="/app/security/change-password" class="shrink-0 rounded-lg border px-3 py-1 text-xs text-neutral-500 transition hover:border-primary hover:text-primary">修改</router-link>
+            </div>
+            <!-- 邮箱换绑 -->
+            <div class="flex items-center justify-between rounded-lg border border-neutral-100 p-3 transition hover:border-neutral-200">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-50"><i class="fa fa-envelope-o text-xs text-violet-500"></i></span>
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-neutral-700">绑定邮箱</p>
+                  <p class="truncate text-xs text-neutral-400">{{ userInfo.email || '未绑定' }} · 用于通知和安全提醒</p>
+                </div>
+              </div>
+              <router-link to="/app/security/change-email" class="shrink-0 rounded-lg border px-3 py-1 text-xs text-neutral-500 transition hover:border-primary hover:text-primary">换绑</router-link>
+            </div>
+            <!-- 手机号换绑 -->
+            <div class="flex items-center justify-between rounded-lg border border-neutral-100 p-3 transition hover:border-neutral-200">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-50"><i class="fa fa-mobile text-sm text-green-500"></i></span>
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-neutral-700">绑定手机号</p>
+                  <p class="truncate text-xs text-neutral-400">{{ formatPhone(userInfo.phone_number) }} · 用于登录验证和安全通知</p>
+                </div>
+              </div>
+              <router-link to="/app/security/change-phone" class="shrink-0 rounded-lg border px-3 py-1 text-xs text-neutral-500 transition hover:border-primary hover:text-primary">换绑</router-link>
             </div>
             <!-- 设备 -->
             <div class="flex items-center justify-between rounded-lg border border-neutral-100 p-3 transition hover:border-neutral-200">
@@ -210,43 +232,6 @@
       </div>
     </div>
 
-    <!-- ===== 密码修改抽屉 ===== -->
-    <Teleport to="body">
-      <Transition name="sheet">
-        <div v-if="showPasswordSheet" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" @click.self="showPasswordSheet = false">
-          <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-          <div class="relative w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl">
-            <div class="mb-5 flex items-center justify-between">
-              <h3 class="text-lg font-bold text-neutral-800">修改登录密码</h3>
-              <button @click="showPasswordSheet = false" class="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600">
-                <i class="fa fa-times"></i>
-              </button>
-            </div>
-            <form @submit.prevent="changePassword" class="space-y-4">
-              <div>
-                <label class="mb-1.5 block text-xs font-medium text-neutral-500">原密码</label>
-                <input v-model="passwordForm.old" type="password" class="w-full rounded-lg border border-neutral-200 px-4 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" placeholder="输入原密码" />
-              </div>
-              <div>
-                <label class="mb-1.5 block text-xs font-medium text-neutral-500">新密码</label>
-                <input v-model="passwordForm.new" type="password" class="w-full rounded-lg border border-neutral-200 px-4 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" placeholder="至少 6 位" />
-              </div>
-              <div>
-                <label class="mb-1.5 block text-xs font-medium text-neutral-500">确认新密码</label>
-                <input v-model="passwordForm.confirm" type="password" class="w-full rounded-lg border border-neutral-200 px-4 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" placeholder="再次输入新密码" />
-              </div>
-              <div class="flex gap-3 pt-1">
-                <button type="button" @click="showPasswordSheet = false" class="flex-1 rounded-lg border px-4 py-2.5 text-sm text-neutral-500 transition hover:bg-neutral-50">取消</button>
-                <button type="submit" :disabled="changingPassword" class="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-60">
-                  <i v-if="changingPassword" class="fa fa-spinner fa-spin mr-1"></i>确认修改
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
     <!-- ===== 注销确认弹窗 ===== -->
     <Teleport to="body">
       <Transition name="fade">
@@ -282,7 +267,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { useUserStore } from '@/stores/userStore'
 import {
   updateMyUserInfoApi,
-  changeMyUserPasswordApi,
   uploadUserAvatarApi,
   deleteMyUserApi,
 } from '@/api/modules/users'
@@ -304,10 +288,6 @@ const avatarInput = ref(null)
 const showDeleteConfirm = ref(false)
 const deleteConfirmText = ref('')
 const deleting = ref(false)
-
-const showPasswordSheet = ref(false)
-const changingPassword = ref(false)
-const passwordForm = ref({ old: '', new: '', confirm: '' })
 
 // ── computed ──
 const quotaPercent = computed(() => {
@@ -364,23 +344,6 @@ const handleAvatarUpload = async (e) => {
     } else { toast.showToast(res.message || '上传失败', 'error') }
   } catch { toast.showToast('上传失败', 'error') }
   finally { if (avatarInput.value) avatarInput.value.value = '' }
-}
-
-// ── 密码 ──
-const changePassword = async () => {
-  if (!passwordForm.value.old) return toast.showToast('请输入原密码', 'error')
-  if (passwordForm.value.new.length < 6) return toast.showToast('新密码至少6位', 'error')
-  if (passwordForm.value.new !== passwordForm.value.confirm) return toast.showToast('两次密码不一致', 'error')
-  changingPassword.value = true
-  try {
-    const res = await changeMyUserPasswordApi(passwordForm.value.old, passwordForm.value.new)
-    if (res.code === 200) {
-      toast.showToast('密码已更新', 'success')
-      showPasswordSheet.value = false
-      passwordForm.value = { old: '', new: '', confirm: '' }
-    } else { toast.showToast(res.message || '修改失败', 'error') }
-  } catch (e) { toast.showToast(e?.message || '修改失败', 'error') }
-  finally { changingPassword.value = false }
 }
 
 // ── 注销 ──
@@ -442,17 +405,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* ── 密码抽屉动画 ── */
-.sheet-enter-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.sheet-leave-active { transition: all 0.2s ease-in; }
-.sheet-enter-from .absolute { opacity: 0; }
-.sheet-leave-to .absolute { opacity: 0; }
-.sheet-enter-from .relative { transform: translateY(100%); }
-@media (min-width: 640px) {
-  .sheet-enter-from .relative { transform: translateY(20px) scale(0.96); opacity: 0; }
-  .sheet-leave-to .relative { transform: translateY(20px) scale(0.96); opacity: 0; }
-}
-
 /* ── 弹窗动画 ── */
 .fade-enter-active { transition: all 0.2s ease-out; }
 .fade-leave-active { transition: all 0.15s ease-in; }

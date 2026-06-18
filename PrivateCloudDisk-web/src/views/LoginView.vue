@@ -211,10 +211,10 @@
                 </span>
               </div>
 
-              <div class="flex min-h-[74px] items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div class="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-3">
                 <div
                   ref="turnstileContainer"
-                  class="min-h-[65px] w-[300px] max-[420px]:origin-center max-[420px]:scale-[0.86] max-[560px]:origin-center max-[560px]:scale-[0.92]"
+                  class="turnstile-widget"
                   :class="{ hidden: !turnstileSiteKey }"
                 ></div>
                 <div v-if="!turnstileSiteKey" class="text-center text-sm text-danger">

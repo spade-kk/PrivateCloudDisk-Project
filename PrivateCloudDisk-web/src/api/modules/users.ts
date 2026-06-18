@@ -3,6 +3,11 @@
 // ============================================================
 // 封装用户认证、用户信息管理、密码修改、头像上传、设备管理等接口。
 // 所有接口安全传输：密码在调用前已通过 PBKDF2-SHA256 预哈希处理。
+//
+// 验证码获取流程：
+//   1. 首次获取 → 需 Turnstile 人机验证 → 后端返回 resend_token（UUID）
+//   2. 重发验证码 → 不需人机验证，携带 resend_token 即可
+//      限制：10 分钟内最多重发 8 次，超限需重新走首次流程
 // ============================================================
 
 import { get, post, patch, put, del } from '@/utils/request'
@@ -72,6 +77,52 @@ export function registerApi(
 }
 
 // ============================================================
+// 验证码 — 通用（注册、换绑等场景共用）
+// ============================================================
+
+/**
+ * 首次发送验证码（需人机验证）
+ *
+ * 适用于注册、邮箱换绑、手机号换绑等所有需要验证码的场景。
+ * 首次发送必须通过 Turnstile 人机验证，后端校验通过后返回 resend_token，
+ * 后续重发可凭此 token 免人机验证。
+ *
+ * @param target - 目标地址（邮箱地址或手机号）
+ * @param captchaToken - Turnstile 人机验证 Token
+ * @param captchaAction - 验证动作标识（send_code / change_email / change_phone 等）
+ * @returns Promise<{ code: number, message: string, data: { resend_token: string } }>
+ */
+export function sendVerificationCodeApi(
+  target: string,
+  captchaToken: string,
+  captchaAction: string = 'send_code',
+): Promise<any> {
+  return post('business/users/email/verification-code', null, {
+    params: {
+      email: target,
+      captcha_token: captchaToken,
+      captcha_action: captchaAction,
+    },
+  })
+}
+
+/**
+ * 重发验证码（免人机验证，凭 resend_token）
+ *
+ * 首次发送验证码后，后端返回 resend_token（UUID），
+ * 10 分钟内最多可凭此 token 重发 8 次，无需再次完成 Turnstile。
+ * 超限或超时后需重新走首次流程（重新通过人机验证）。
+ *
+ * @param resendToken - 首次发送时后端返回的 resend_token
+ * @returns Promise<{ code: number, message: string }>
+ */
+export function resendVerificationCodeApi(resendToken: string): Promise<any> {
+  return post('business/users/email/verification-code/resend', null, {
+    params: { resend_token: resendToken },
+  })
+}
+
+// ============================================================
 // 用户信息管理
 // ============================================================
 
@@ -116,21 +167,134 @@ export function updateMyUserInfoApi(
 // ============================================================
 
 /**
- * 修改用户密码
+ * 修改用户密码（企业级：含人机验证）
  *
  * 新旧密码均需经过客户端预哈希后再发送。
  * 后端应验证旧密码正确性，再更新为新密码。
+ * captchaToken 为 Turnstile 人机验证 Token。
  *
  * @param old_password - 已预哈希的旧密码
  * @param new_password - 已预哈希的新密码
+ * @param captchaToken - Turnstile 验证 Token
+ * @param captchaAction - 验证动作标识
  * @returns Promise 修改结果
  */
 export function changeMyUserPasswordApi(
   old_password: string,
   new_password: string,
+  captchaToken: string = '',
+  captchaAction: string = 'change_password',
 ): Promise<any> {
-  const data = { old_password, new_password }
+  const data = { old_password, new_password, captcha_token: captchaToken, captcha_action: captchaAction }
   return post('business/users/me/password', data)
+}
+
+// ============================================================
+// 邮箱换绑
+// ============================================================
+
+/**
+ * 发送邮箱换绑验证码
+ *
+ * 向新邮箱发送验证码，用于确认邮箱归属。
+ * 首次发送需通过 Turnstile 人机验证。
+ *
+ * @param email - 新邮箱地址
+ * @param captchaToken - Turnstile 验证 Token
+ * @param captchaAction - 验证动作标识
+ * @returns Promise<{ code: number, message: string, data: { resend_token: string } }>
+ */
+export function sendChangeEmailCodeApi(
+  email: string,
+  captchaToken: string = '',
+  captchaAction: string = 'change_email',
+): Promise<any> {
+  return post('business/users/me/email/verification-code', null, {
+    params: { email, captcha_token: captchaToken, captcha_action: captchaAction },
+  })
+}
+
+/**
+ * 重发邮箱换绑验证码（免人机验证，凭 resend_token）
+ *
+ * @param resendToken - 首次发送时后端返回的 resend_token
+ * @returns Promise<{ code: number, message: string }>
+ */
+export function resendChangeEmailCodeApi(resendToken: string): Promise<any> {
+  return post('business/users/me/email/verification-code/resend', null, {
+    params: { resend_token: resendToken },
+  })
+}
+
+/**
+ * 确认换绑邮箱
+ *
+ * 验证验证码后完成邮箱换绑。
+ *
+ * @param newEmail - 新邮箱地址
+ * @param code - 邮箱验证码
+ * @returns Promise 换绑结果
+ */
+export function confirmChangeEmailApi(
+  newEmail: string,
+  code: string,
+): Promise<any> {
+  const data = { new_email: newEmail, code }
+  return post('business/users/me/email', data)
+}
+
+// ============================================================
+// 手机号换绑
+// ============================================================
+
+/**
+ * 发送手机号换绑验证码
+ *
+ * 向新手机号发送短信验证码，用于确认手机号归属。
+ * 首次发送需通过 Turnstile 人机验证。
+ *
+ * @param phone - 新手机号
+ * @param captchaToken - Turnstile 验证 Token
+ * @param captchaAction - 验证动作标识
+ * @returns Promise<{ code: number, message: string, data: { resend_token: string } }>
+ */
+export function sendChangePhoneCodeApi(
+  phone: string,
+  captchaToken: string = '',
+  captchaAction: string = 'change_phone',
+): Promise<any> {
+  return post('business/users/me/phone/verification-code', null, {
+    params: { phone_number: phone, captcha_token: captchaToken, captcha_action: captchaAction },
+  })
+}
+
+/**
+ * 重发手机号换绑验证码（免人机验证，凭 resend_token）
+ *
+ * @param resendToken - 首次发送时后端返回的 resend_token
+ * @returns Promise<{ code: number, message: string }>
+ */
+export function resendChangePhoneCodeApi(resendToken: string): Promise<any> {
+  return post('business/users/me/phone/verification-code/resend', null, {
+    params: { resend_token: resendToken },
+  })
+}
+
+/**
+ * 确认换绑手机号
+ *
+ * 验证验证码后完成手机号换绑。
+ *
+ * @param newPhone - 新手机号
+ * @param code - 短信验证码
+ * @returns Promise 换绑结果
+ */
+export function confirmChangePhoneApi(
+  newPhone: string,
+  code: string,
+): Promise<any> {
+  const data = { new_phone_number: newPhone, code }
+  return post('business/users/me/phone', data)
 }
 
 // ============================================================
