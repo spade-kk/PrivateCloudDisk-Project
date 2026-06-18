@@ -109,6 +109,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
       // 视频播放器：通过 fileId 参数指定播放文件
       { path: 'video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { requiresAuth: true } },
+      // 视频/语音通话页面
+      { path: 'call', name: 'Call', component: () => import('@/views/CallView.vue'), meta: { requiresAuth: true } },
       // 控制台 404 兜底
       { path: ':pathMatch(.*)*', name: 'AppNotFound', component: () => import('@/views/website/NotFoundView.vue') },
     ],

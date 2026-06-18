@@ -227,7 +227,11 @@ class RabbitMQService:
     async def _declare_queue_safe(
         self, queue_name: str, arguments: dict
     ) -> aio_pika.Queue:
-        """安全声明队列：先被动检查是否存在，不存在则创建带 DLX 参数"""
+        """安全声明队列：先被动检查是否存在，不存在则创建带 DLX 参数
+
+        关键修复：如果队列已存在但没有 DLX 参数，则记录严重警告。
+        已存在的队列无法通过代码修改参数，需要手动删除队列后重启。
+        """
         try:
             queue = await self.channel.declare_queue(
                 queue_name,
@@ -235,6 +239,21 @@ class RabbitMQService:
                 passive=True,
             )
             logger.info(f"队列已存在，沿用已有配置: {queue_name}")
+
+            # 检查已有队列是否缺少 DLX 参数
+            if arguments and "x-dead-letter-exchange" in arguments:
+                has_dlx = (
+                    hasattr(queue, 'arguments')
+                    and queue.arguments
+                    and "x-dead-letter-exchange" in queue.arguments
+                )
+                if not has_dlx:
+                    logger.critical(
+                        f"⚠ 队列 {queue_name} 已存在但缺少 DLX 参数! "
+                        f"消息 NACK 后将不会进入死信队列。"
+                        f"请手动删除队列后重启 Worker: "
+                        f"rabbitmqadmin delete queue name={queue_name}"
+                    )
             return queue
         except Exception:
             await asyncio.sleep(0.5)
@@ -373,8 +392,10 @@ class RabbitMQService:
                             f"error={e}",
                             exc_info=True,
                         )
+                        # 关键修复：requeue=False 让消息通过 DLX 进入死信队列
+                        # 而不是 requeue=True 导致无限重试循环
                         try:
-                            await raw_message.nack(requeue=True)
+                            await raw_message.nack(requeue=False)
                         except Exception:
                             pass
 

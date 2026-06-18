@@ -26,6 +26,9 @@
           </div>
           <div class="grid grid-cols-1 gap-2 pt-4 sm:grid-cols-3">
             <button v-if="node?.node_type === 'FILE'" @click="download" class="touch-button rounded-lg bg-primary py-2 text-white">下载</button>
+            <button v-if="isVideoFile" @click="playVideo" class="touch-button rounded-lg bg-green-600 py-2 text-white">
+              <i class="fa fa-play"></i> 播放
+            </button>
             <button @click="copyPath" class="touch-button rounded-lg border border-primary py-2 text-primary">复制路径</button>
             <button v-if="node?.node_type !== 'FOLDER'" @click="showVersionHistory" class="touch-button rounded-lg border border-neutral-300 py-2">版本历史</button>
           </div>
@@ -50,11 +53,26 @@ const emit = defineEmits(['close', 'download', 'versionHistory'])
 const router = useRouter()
 
 const iconClass = computed(() => getFileIconClass(props.node?.node_name || ''))
+
+const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v', 'ts', 'm3u8']
+
+const isVideoFile = computed(() => {
+  if (props.node?.node_type !== 'FILE') return false
+  const ext = getFileExtension(props.node?.node_name || '')?.toLowerCase()
+  return videoExtensions.includes(ext)
+})
+
 const download = () => emit('download', props.node)
 const copyPath = () => {
   navigator.clipboard.writeText(props.fullPath)
-  // 可调用 toast 提示
 }
+
+const playVideo = () => {
+  if (props.node?.node_id) {
+    router.push({ name: 'VideoPlayer', query: { fileId: props.node.node_id, fileName: props.node.node_name } })
+  }
+}
+
 const showVersionHistory = () => router.push(`/version-history/${props.node?.node_id}`)
 </script>
 

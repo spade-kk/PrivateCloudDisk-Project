@@ -97,7 +97,8 @@ class NotificationService:
                     f"{settings.business_service_url}/api/v1/business/internal/storage/files/{file_id}/status",
                     params={
                         "status": status,
-                        "uid": user_id
+                        "uid": user_id,
+                        "error_message": error_message or "",
                     },
                 )
                 resp.raise_for_status()

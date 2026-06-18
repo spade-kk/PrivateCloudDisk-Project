@@ -287,6 +287,17 @@ class DeadLetterConsumer:
 
         logger.warning(f"DLQ: 非核心功能降级, file_id={file_id}, task_type={task_type}")
 
+        # 通知业务服务：文件已激活但非核心功能降级
+        # try:
+        #     await NotificationService.notify_file_status(
+        #         file_id=file_id,
+        #         status="active",
+        #         user_id=data.get("user_id", ""),
+        #         error_message=f"{task_type} 处理失败（非核心功能降级），文件仍可正常使用",
+        #     )
+        # except Exception as e:
+        #     logger.error(f"通知业务服务失败: {e}")
+
         await self._log_dlq_action(data, "DEGRADED", f"{task_type} 非核心功能降级")
         return True
 
@@ -334,14 +345,27 @@ class DeadLetterConsumer:
     # ========== 未知错误 ==========
 
     async def _handle_unknown(self, data: dict) -> bool:
-        """未知错误 → 全面记录日志"""
+        """未知错误 → 全面记录日志 + 通知业务服务"""
+        file_id = data.get("file_id", "unknown")
         logger.error(
             f"DLQ: 未知错误, 完整消息:\n"
-            f"  file_id={data.get('file_id')}\n"
+            f"  file_id={file_id}\n"
             f"  task_type={data.get('task_type')}\n"
             f"  error={data.get('error', 'N/A')}\n"
             f"  full_data={json.dumps(data, indent=2, ensure_ascii=False)[:1000]}"
         )
+
+        # 通知业务服务文件处理失败
+        # try:
+        #     await NotificationService.notify_file_status(
+        #         file_id=file_id,
+        #         status="merge_failed",
+        #         user_id=data.get("user_id", ""),
+        #         error_message=f"未知错误: {data.get('error', 'N/A')}",
+        #     )
+        # except Exception as e:
+        #     logger.error(f"通知业务服务失败: {e}")
+
         await self._log_dlq_action(data, "UNKNOWN_ERROR", data.get("error", "未知错误"))
         return True
 

@@ -35,6 +35,7 @@ import {
   type MessageProtocol,
   type MessageDTO,
   type ConversationDTO,
+  type CallInvitePayload,
   CommandType,
   ConnectionState,
   MessageType,
@@ -45,6 +46,8 @@ import {
   destroyImClient,
 } from '@/api/im'
 import { useAuthStore } from './authStore'
+import * as messageCache from '@/utils/messageCache'
+import { useImClient } from '@/composables/useImClient'
 
 // ==================== 类型定义 ====================
 
@@ -97,6 +100,12 @@ export interface ChatMessage {
   status: string
   serverSeq?: number
   replyTo?: string
+  /** 消息同步状态 */
+  syncStatus?: 'synced' | 'syncing' | 'failed' | 'pending'
+  /** 视频通话相关 */
+  callType?: 'video' | 'voice'
+  callDuration?: number
+  callStatus?: 'missed' | 'answered' | 'rejected' | 'ended'
 }
 
 export interface GroupInfo {
@@ -222,6 +231,21 @@ function messageTypeToString(type: MessageType): string {
   return map[type] || 'text'
 }
 
+function stringToMessageType(type: string): MessageType {
+  const map: Record<string, MessageType> = {
+    text: MessageType.TEXT,
+    image: MessageType.IMAGE,
+    file: MessageType.FILE,
+    voice: MessageType.VOICE,
+    video: MessageType.VIDEO,
+    location: MessageType.LOCATION,
+    system: MessageType.SYSTEM_NOTICE,
+    custom: MessageType.CUSTOM,
+    reply: MessageType.REPLY,
+  }
+  return map[type] || MessageType.TEXT
+}
+
 function messageStatusToString(status: MessageStatus): string {
   const map: Record<number, string> = {
     [MessageStatus.SENDING]: 'sending',
@@ -251,6 +275,19 @@ export const useNotificationStore = defineStore('notification', () => {
   const backendReady = ref(false)
   const userSearchResults = ref<Friend[]>([])
   const typingUsers = ref<Record<string, string>>({}) // conversationId -> userName
+  const syncStatus = ref<'idle' | 'syncing' | 'synced' | 'error'>('idle') // 全局消息同步状态
+
+  // ---- 视频通话相关 ----
+  const hasIncomingCall = ref(false)
+  const incomingCallInfo = ref<CallInvitePayload | null>(null)
+  const isCallActive = ref(false)
+  const activeCallSession = ref<{
+    callId: string
+    peerId: string
+    peerName: string
+    callType: 'video' | 'voice'
+    startTime: number
+  } | null>(null)
 
   // ---- IM SDK 实例 ----
   let imClient: ImWebSocketClient | null = null
@@ -322,11 +359,20 @@ export const useNotificationStore = defineStore('notification', () => {
   // ==================== 会话操作 ====================
 
   async function openConversation(conversationId: string): Promise<void> {
+    syncStatus.value = 'syncing'
     activeConversationId.value = conversationId
     const conversation = conversations.value.find(item => item.id === conversationId)
     if (conversation) {
       conversation.unread = 0
     }
+
+    // 先从本地缓存加载
+    try {
+      const cached = await messageCache.loadMessages(conversationId)
+      if (cached.length > 0) {
+        messagesByConversation.value[conversationId] = cached
+      }
+    } catch { /* 忽略缓存错误 */ }
 
     // 获取历史消息
     try {
@@ -337,13 +383,18 @@ export const useNotificationStore = defineStore('notification', () => {
         50,
       )
       if (res.code === 200 && Array.isArray(res.data)) {
-        messagesByConversation.value[conversationId] = (res.data as MessageDTO[]).map(normalizeMessage)
+        const serverMessages = (res.data as MessageDTO[]).map(normalizeMessage)
+        messagesByConversation.value[conversationId] = serverMessages
+        // 同步到本地缓存
+        messageCache.saveMessages(conversationId, serverMessages)
       }
     } catch {
       if (!messagesByConversation.value[conversationId]) {
         messagesByConversation.value[conversationId] = []
       }
     }
+
+    syncStatus.value = 'synced'
 
     // 发送已读回执（WebSocket + HTTP 双通道）
     if (imClient?.isConnected) {
@@ -396,6 +447,7 @@ export const useNotificationStore = defineStore('notification', () => {
     content: string
     file_id?: string
     share_url?: string
+    extra?: string
   }): Promise<void> {
     if (!activeConversationId.value || !payload.content?.trim()) return
 
@@ -404,19 +456,31 @@ export const useNotificationStore = defineStore('notification', () => {
 
     const userId = authStore.user.account || authStore.user.name
 
+    // 构建消息 -- sender 设为 'me' 表示自己发送，前端根据此判断消息方向
     const message: ChatMessage = {
-      id: `local-${Date.now()}`,
-      sender: userId,
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sender: 'me',
       senderName: authStore.user.name || userId,
       type: payload.type || 'text',
       content: payload.content.trim(),
       file_id: payload.file_id || undefined,
       share_url: payload.share_url || undefined,
+      extra: payload.extra || undefined,
       created_at: Date.now(),
       status: 'sending',
+      syncStatus: 'syncing',
     }
 
     appendMessage(activeConversationId.value, message)
+    // 保存到本地缓存
+    messageCache.saveMessage(activeConversationId.value, message)
+
+    // 更新会话的最后消息
+    if (conversation) {
+      conversation.updated_at = message.created_at
+      conversation.lastMessage = message.content.slice(0, 50)
+      conversation.lastMessageType = 1
+    }
 
     // WebSocket 优先发送
     if (imClient?.isConnected) {
@@ -424,13 +488,16 @@ export const useNotificationStore = defineStore('notification', () => {
         const messageDTO: MessageDTO = {
           conversationId: activeConversationId.value,
           conversationType: conversation.conversationType || ConversationType.PRIVATE,
-          messageType: MessageType.TEXT,
+          messageType: stringToMessageType(payload.type || 'text'),
           senderId: userId,
           receiverId: conversation.friend_id,
           content: payload.content.trim(),
+          extra: payload.extra,
         }
         imClient.sendMessage(messageDTO)
         message.status = 'sent'
+        message.syncStatus = 'synced'
+        messageCache.updateMessageStatus(activeConversationId.value, message.id, 'sent', 'synced')
         return
       } catch {
         // WebSocket 失败，降级到 HTTP
@@ -442,18 +509,29 @@ export const useNotificationStore = defineStore('notification', () => {
       const res = await sendMessageApi({
         conversationId: activeConversationId.value,
         conversationType: conversation.conversationType || ConversationType.PRIVATE,
-        messageType: MessageType.TEXT,
+        messageType: stringToMessageType(payload.type || 'text'),
         senderId: userId,
         receiverId: conversation.friend_id,
         content: payload.content.trim(),
+        extra: payload.extra,
       })
-      message.status = res.code === 200 ? 'sent' : 'failed'
-      if (res.data?.messageId) {
-        message.id = res.data.messageId
-        message.serverSeq = res.data.serverSeq
+      if (res.code === 200) {
+        message.status = 'sent'
+        message.syncStatus = 'synced'
+        if (res.data?.messageId) {
+          message.id = res.data.messageId
+          message.serverSeq = res.data.serverSeq
+        }
+        messageCache.updateMessageStatus(activeConversationId.value, message.id, 'sent', 'synced')
+      } else {
+        message.status = 'failed'
+        message.syncStatus = 'failed'
+        messageCache.updateMessageStatus(activeConversationId.value, message.id, 'failed', 'failed')
       }
     } catch {
-      message.status = 'local'
+      message.status = 'failed'
+      message.syncStatus = 'failed'
+      messageCache.updateMessageStatus(activeConversationId.value, message.id, 'failed', 'failed')
     }
   }
 
@@ -477,6 +555,87 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     } catch { /* 静默 */ }
     return false
+  }
+
+  /**
+   * 重试发送失败的消息
+   */
+  async function retryMessage(conversationId: string, messageId: string): Promise<void> {
+    const messages = messagesByConversation.value[conversationId]
+    if (!messages) return
+    const msg = messages.find(m => m.id === messageId)
+    if (!msg || (msg.status !== 'failed' && msg.syncStatus !== 'failed')) return
+
+    // 重新发送
+    await sendMessage({
+      type: msg.type,
+      content: msg.content,
+      file_id: msg.file_id,
+      share_url: msg.share_url,
+      extra: msg.extra,
+    })
+    // 删除旧的失败消息
+    messagesByConversation.value[conversationId] = messages.filter(m => m.id !== messageId)
+    messageCache.deleteMessage(conversationId, messageId)
+  }
+
+  /**
+   * 发送视频通话邀请消息
+   */
+  async function sendVideoCallInvite(callType: 'video' | 'voice'): Promise<string | null> {
+    if (!activeConversationId.value) return null
+
+    const conversation = conversations.value.find(item => item.id === activeConversationId.value)
+    if (!conversation) return null
+
+    const callId = `call-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const userId = authStore.user.account || authStore.user.name
+
+    const extra = JSON.stringify({
+      callId,
+      callType,
+      callerId: userId,
+      callerName: authStore.user.name || userId,
+      timestamp: Date.now(),
+    })
+
+    await sendMessage({
+      type: 'video_call',
+      content: callType === 'video' ? '视频通话邀请' : '语音通话邀请',
+      extra,
+    })
+
+    return callId
+  }
+
+  // ==================== 视频通话操作 ====================
+
+  /** 接受来电 */
+  function acceptIncomingCall(): void {
+    if (!incomingCallInfo.value) return
+    hasIncomingCall.value = false
+
+    activeCallSession.value = {
+      callId: incomingCallInfo.value.callId || '',
+      peerId: incomingCallInfo.value.callerId || '',
+      peerName: incomingCallInfo.value.callerName || '未知用户',
+      callType: incomingCallInfo.value.callType === 'VIDEO' ? 'video' : 'voice',
+      startTime: Date.now(),
+    }
+    isCallActive.value = true
+    incomingCallInfo.value = null
+  }
+
+  /** 拒绝来电 */
+  function rejectIncomingCall(): void {
+    hasIncomingCall.value = false
+    incomingCallInfo.value = null
+  }
+
+  /** 挂断通话 */
+  function endCall(): void {
+    isCallActive.value = false
+    activeCallSession.value = null
   }
 
   // ==================== 联系人操作 ====================
@@ -548,6 +707,9 @@ export const useNotificationStore = defineStore('notification', () => {
         enableHeartbeat: true,
       })
 
+      // 注册到 useCall 共享
+      useImClient().setClient(imClient)
+
       // 注册连接状态监听
       imClient.onStatusChange((state: ConnectionState) => {
         switch (state) {
@@ -593,6 +755,29 @@ export const useNotificationStore = defineStore('notification', () => {
       if (!msg) return
       const chatMessage = normalizeMessage(msg)
       const conversationId = msg.conversationId
+
+      // 检测视频通话邀请
+      if (msg.messageType === MessageType.CUSTOM && msg.extra) {
+        try {
+          const extra = JSON.parse(msg.extra)
+          if (extra.callType && extra.callId) {
+            chatMessage.type = 'video_call'
+            chatMessage.callType = extra.callType
+            // 触发来电弹窗
+            if (msg.senderId !== authStore.user.account) {
+              hasIncomingCall.value = true
+              incomingCallInfo.value = {
+                callId: extra.callId,
+                callType: extra.callType === 'video' ? 'VIDEO' as any : 'VOICE' as any,
+                callerId: extra.callerId || msg.senderId,
+                callerName: extra.callerName || msg.senderName || msg.senderId,
+                conversationId,
+                timestamp: extra.timestamp || Date.now(),
+              }
+            }
+          }
+        } catch { /* 忽略解析错误 */ }
+      }
 
       // 确保会话存在
       let conversation = conversations.value.find(item => item.id === conversationId)
@@ -696,6 +881,7 @@ export const useNotificationStore = defineStore('notification', () => {
       imClient = null
     }
     destroyImClient()
+    useImClient().setClient(null)
     realtimeStatus.value = 'offline'
   }
 
@@ -705,12 +891,15 @@ export const useNotificationStore = defineStore('notification', () => {
     const current = messagesByConversation.value[conversationId] || []
     messagesByConversation.value[conversationId] = [...current, message]
 
+    // 保存到本地缓存
+    messageCache.saveMessage(conversationId, message)
+
     const conversation = conversations.value.find(item => item.id === conversationId)
     if (conversation) {
       conversation.updated_at = message.created_at
       conversation.lastMessage = message.content.slice(0, 50)
       conversation.lastMessageType = message.type === 'text' ? 1 : 2
-      if (message.sender !== authStore.user.account && conversationId !== activeConversationId.value) {
+      if (message.sender !== 'me' && message.sender !== authStore.user.account && conversationId !== activeConversationId.value) {
         conversation.unread = (conversation.unread || 0) + 1
       }
     }
@@ -726,6 +915,7 @@ export const useNotificationStore = defineStore('notification', () => {
       if (msg) {
         msg.status = status
         if (serverSeq !== undefined) msg.serverSeq = serverSeq
+        messageCache.updateMessageStatus(conversationId, messageId, status)
         return
       }
     }
@@ -756,6 +946,13 @@ export const useNotificationStore = defineStore('notification', () => {
     backendReady,
     userSearchResults,
     typingUsers,
+    syncStatus,
+
+    // 视频通话
+    hasIncomingCall,
+    incomingCallInfo,
+    isCallActive,
+    activeCallSession,
 
     // 计算属性
     unreadCount,
@@ -780,6 +977,13 @@ export const useNotificationStore = defineStore('notification', () => {
     // 消息
     sendMessage,
     recallMessage,
+    retryMessage,
+    sendVideoCallInvite,
+
+    // 视频通话
+    acceptIncomingCall,
+    rejectIncomingCall,
+    endCall,
 
     // 联系人
     searchUsers,

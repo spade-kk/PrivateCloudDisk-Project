@@ -10,6 +10,10 @@
           <i class="fa fa-circle"></i>
           {{ realtimeText }}
         </span>
+        <span v-if="syncStatusText" class="sync-status" :class="syncStatusClass">
+          <i :class="syncStatusIcon"></i>
+          {{ syncStatusText }}
+        </span>
         <button @click="notificationStore.markAllAsRead">
           <i class="fa fa-check-circle-o"></i>
           <span>通知全已读</span>
@@ -26,6 +30,15 @@
         </div>
       </div>
     </section>
+
+    <!-- 消息同步状态横幅 -->
+    <div v-if="notificationStore.syncStatus === 'syncing'" class="sync-banner syncing">
+      <i class="fa fa-refresh fa-spin"></i> 正在同步消息...
+    </div>
+    <div v-else-if="notificationStore.syncStatus === 'error'" class="sync-banner error">
+      <i class="fa fa-exclamation-triangle"></i> 消息同步失败，请检查网络
+      <button @click="notificationStore.bootstrap">重试</button>
+    </div>
 
     <section class="collab-shell">
       <aside class="conversation-panel">
@@ -98,6 +111,21 @@
               <h2>{{ notificationStore.activeConversation.title }}</h2>
               <p>{{ notificationStore.activeConversation.subtitle || '平台联系人' }}</p>
             </div>
+            <div class="chat-head-actions">
+              <!-- 视频通话按钮 -->
+              <button class="call-btn video-call" @click="startVideoCall('video')" title="视频通话">
+                <i class="fa fa-video-camera"></i>
+              </button>
+              <button class="call-btn voice-call" @click="startVideoCall('voice')" title="语音通话">
+                <i class="fa fa-phone"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 正在输入提示 -->
+          <div v-if="typingHint" class="typing-indicator">
+            <span class="typing-dots"><i></i><i></i><i></i></span>
+            {{ typingHint }} 正在输入...
           </div>
 
           <div ref="messagesRef" class="message-stream">
@@ -107,7 +135,36 @@
               class="message-row"
               :class="{ mine: message.sender === 'me' }"
             >
-              <div class="message-bubble" :class="message.type">
+              <!-- 视频通话邀请消息 -->
+              <div v-if="message.type === 'video_call'" class="message-bubble call-invite">
+                <div class="call-invite-content">
+                  <div class="call-invite-icon">
+                    <i :class="message.callType === 'video' ? 'fa fa-video-camera' : 'fa fa-phone'"></i>
+                  </div>
+                  <div class="call-invite-text">
+                    <strong>{{ message.sender === 'me' ? '你发起了' : '对方发起了' }}{{ message.callType === 'video' ? '视频通话' : '语音通话' }}</strong>
+                    <p>{{ message.content }}</p>
+                  </div>
+                </div>
+                <!-- 如果是对面发来的邀请且当前通话未激活 -->
+                <div v-if="message.sender !== 'me' && !notificationStore.isCallActive" class="call-invite-actions">
+                  <button class="btn-accept" @click="acceptCallFromMessage(message)">
+                    <i class="fa fa-phone"></i> 接听
+                  </button>
+                  <button class="btn-reject" @click="rejectCallFromMessage(message)">
+                    <i class="fa fa-times"></i> 拒绝
+                  </button>
+                </div>
+                <div v-else-if="message.sender !== 'me' && notificationStore.isCallActive" class="call-invite-status">
+                  <span class="status-ended">通话已结束</span>
+                </div>
+                <footer>
+                  <time>{{ formatDateTime(message.created_at) }}</time>
+                </footer>
+              </div>
+
+              <!-- 普通消息 -->
+              <div v-else class="message-bubble" :class="message.type">
                 <div v-if="message.type === 'file'" class="attachment">
                   <i class="fa fa-file-o"></i>
                   <div>
@@ -125,7 +182,26 @@
                 <p v-else>{{ message.content }}</p>
                 <footer>
                   <time>{{ formatDateTime(message.created_at) }}</time>
-                  <span v-if="message.sender === 'me'">{{ statusText(message.status) }}</span>
+                  <!-- 消息状态指示器（仅自己发送的消息显示） -->
+                  <span v-if="message.sender === 'me'" class="message-status">
+                    <!-- 发送中 -->
+                    <i v-if="message.status === 'sending' || message.syncStatus === 'syncing'" class="fa fa-circle-o-notch fa-spin status-sending" title="发送中"></i>
+                    <!-- 已发送 -->
+                    <i v-else-if="message.status === 'sent'" class="fa fa-check status-sent" title="已发送"></i>
+                    <!-- 已送达 -->
+                    <i v-else-if="message.status === 'delivered'" class="fa fa-check-circle status-delivered" title="已送达"></i>
+                    <!-- 已读 -->
+                    <i v-else-if="message.status === 'read'" class="fa fa-check-circle status-read" title="已读"></i>
+                    <!-- 发送失败 -->
+                    <span v-else-if="message.status === 'failed' || message.syncStatus === 'failed'" class="status-failed-group">
+                      <i class="fa fa-exclamation-circle status-failed" title="发送失败"></i>
+                      <button class="retry-btn" @click="retryMessage(message)" title="重试发送">
+                        <i class="fa fa-refresh"></i>
+                      </button>
+                    </span>
+                    <!-- 已撤回 -->
+                    <i v-else-if="message.status === 'recalled'" class="fa fa-undo status-recalled" title="已撤回"></i>
+                  </span>
                 </footer>
               </div>
             </div>
@@ -142,7 +218,7 @@
               <input v-else v-model="shareUrl" placeholder="粘贴分享链接或 /share/xxx" />
             </div>
             <div class="composer-input">
-              <textarea v-model="draft" rows="2" :placeholder="composerPlaceholder"></textarea>
+              <textarea v-model="draft" rows="2" :placeholder="composerPlaceholder" @keydown.enter.exact.prevent="sendText"></textarea>
               <button type="submit"><i class="fa fa-paper-plane"></i></button>
             </div>
           </form>
@@ -178,6 +254,15 @@
               <strong class="truncate">{{ friend.name }}</strong>
               <p class="truncate">{{ friend.account }} · {{ friend.role || friend.email }}</p>
             </div>
+            <!-- 联系人快捷通话按钮 -->
+            <div class="friend-call-actions">
+              <button class="mini-call-btn" @click.stop="startCallWithFriend(friend, 'video')" title="视频通话">
+                <i class="fa fa-video-camera"></i>
+              </button>
+              <button class="mini-call-btn" @click.stop="startCallWithFriend(friend, 'voice')" title="语音通话">
+                <i class="fa fa-phone"></i>
+              </button>
+            </div>
           </button>
         </div>
 
@@ -190,30 +275,92 @@
         </div>
       </aside>
     </section>
+
+    <!-- 来电弹窗 — 由 useCall 信令层驱动 -->
+    <IncomingCallDialog
+      :visible="call.hasIncomingCall.value"
+      :incoming-call-info="incomingCallDialogInfo"
+      @accept="handleAcceptCall"
+      @reject="handleRejectCall"
+    />
+
+    <!-- 浮窗通话组件 -->
+    <FloatingCallWindow
+      :visible="showFloatingCall"
+      :peer-name="floatingCallPeerName"
+      :is-video="floatingCallIsVideo"
+      :call-duration="floatingCallDuration"
+      :is-muted="isCallMuted"
+      :is-camera-off="isCallCameraOff"
+      :local-stream="callLocalStream"
+      :remote-stream="callRemoteStream"
+      @hangup="handleHangupCall"
+      @toggle-mute="toggleMute"
+      @toggle-camera="toggleCamera"
+      @fullscreen="goToFullscreenCall"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import PageState from '@/components/common/PageState.vue'
+import IncomingCallDialog from '@/components/im/IncomingCallDialog.vue'
+import FloatingCallWindow from '@/components/im/FloatingCallWindow.vue'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useToastStore } from '@/stores/toastStore'
+import { useCall } from '@/composables/useCall'
 import { formatDateTime, timeAgo } from '@/utils/helpers'
+import type { Friend, ChatMessage } from '@/stores/notificationStore'
+import { CallType, CallStatus } from '@/api/im/types'
 
 const notificationStore = useNotificationStore()
 const toastStore = useToastStore()
+const router = useRouter()
+const call = useCall()
+
 const conversationKeyword = ref('')
 const draft = ref('')
 const composerMode = ref('text')
 const attachmentId = ref('')
 const shareUrl = ref('')
 const friendAccount = ref('')
-const messagesRef = ref(null)
+const messagesRef = ref<HTMLDivElement | null>(null)
+
+// ---- 通话相关 ----
+const isCallMuted = ref(false)
+const isCallCameraOff = ref(false)
+const callLocalStream = ref<MediaStream | null>(null)
+const callRemoteStream = ref<MediaStream | null>(null)
+const callStartTime = ref<number>(0)
+const callDurationRef = ref('00:00')
+let callDurationTimer: ReturnType<typeof setInterval> | null = null
+
+// ---- 计算属性 ----
 
 const realtimeText = computed(() => {
-  const map = { online: '实时在线', connecting: '连接中', reconnecting: '重连中', degraded: '降级模式', kicked: '已被踢下线', offline: '离线占位' }
+  const map: Record<string, string> = {
+    online: '实时在线', connecting: '连接中', reconnecting: '重连中',
+    degraded: '降级模式', kicked: '已被踢下线', offline: '离线占位'
+  }
   return map[notificationStore.realtimeStatus] || '离线占位'
 })
+
+const syncStatusText = computed(() => {
+  const map: Record<string, string> = {
+    syncing: '消息同步中...', error: '同步失败', idle: '',
+  }
+  return map[notificationStore.syncStatus] || ''
+})
+
+const syncStatusIcon = computed(() => {
+  if (notificationStore.syncStatus === 'syncing') return 'fa fa-refresh fa-spin'
+  if (notificationStore.syncStatus === 'error') return 'fa fa-exclamation-triangle'
+  return ''
+})
+
+const syncStatusClass = computed(() => notificationStore.syncStatus)
 
 const stats = computed(() => [
   { label: '系统未读', value: notificationStore.unreadCount, icon: 'fa fa-bell', bg: 'bg-primary/10 text-primary' },
@@ -236,74 +383,342 @@ const composerPlaceholder = computed(() => {
   return '输入消息，Enter 发送，Shift + Enter 换行'
 })
 
-onMounted(() => {
+const typingHint = computed(() => {
+  if (!notificationStore.activeConversationId) return null
+  return notificationStore.typingUsers[notificationStore.activeConversationId] || null
+})
+
+// 来电弹窗 — 使用 useCall 的 incomingCallInfo 作为信令层数据源
+const incomingCallDialogInfo = computed(() => {
+  if (!call.incomingCallInfo.value) return null
+  const info = call.incomingCallInfo.value
+  return {
+    callId: info.callId || '',
+    callType: info.callType === CallType.VIDEO ? 'video' : 'voice',
+    callerId: info.callerId || '',
+    callerName: info.callerName || '未知用户',
+    callerAvatar: info.callerAvatar || undefined,
+    conversationId: (info as any).conversationId || '',
+    timestamp: (info as any).timestamp || Date.now(),
+  }
+})
+
+// 浮窗通话控制 — 使用 useCall 的流和状态
+const showFloatingCall = computed(() =>
+  call.status.value === CallStatus.ACTIVE || call.status.value === CallStatus.RINGING
+)
+
+const floatingCallPeerName = computed(() =>
+  call.session.value?.calleeName || call.session.value?.callerName || '未知用户'
+)
+
+const floatingCallIsVideo = computed(() =>
+  call.session.value?.callType === CallType.VIDEO
+)
+
+const floatingCallDuration = computed(() => callDurationRef.value)
+
+// ---- 生命周期 ----
+
+onMounted(async () => {
   notificationStore.bootstrap()
+  // 初始化 useCall（由 notificationStore 的 connectRealtime 注册 IM 客户端后）
+  // 延迟初始化，等待 IM 客户端就绪
+  setTimeout(async () => {
+    try {
+      await call.init()
+    } catch (e) {
+      console.warn('[NotificationsView] useCall 初始化:', e)
+    }
+  }, 1000)
+})
+
+onBeforeUnmount(() => {
+  if (callDurationTimer) clearInterval(callDurationTimer)
+  call.destroy()
 })
 
 watch(() => notificationStore.activeMessages.length, () => {
   nextTick(() => {
-    if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+    if (messagesRef.value) {
+      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+    }
   })
 })
 
-function friendOf(conversation) {
-  return notificationStore.friends.find(item => item.id === conversation.friend_id)
+// 监听 useCall 的来电状态（信令层）
+watch(() => call.hasIncomingCall.value, (val) => {
+  if (val) {
+    // 播放铃声提示
+    try {
+      const audio = new Audio('/sounds/call_ringtone.mp3')
+      audio.loop = true
+      audio.play().catch(() => {})
+      const stopRing = () => {
+        audio.pause()
+        audio.currentTime = 0
+      }
+      const unwatchAccept = watch(() => call.hasIncomingCall.value, (v) => {
+        if (!v) { stopRing(); unwatchAccept() }
+      })
+    } catch { /* 忽略音频错误 */ }
+  }
+})
+
+// 监听 useCall 的流变化，同步到本地 ref
+watch(() => call.localStream.value, (stream) => {
+  callLocalStream.value = stream || null
+})
+
+watch(() => call.remoteStream.value, (stream) => {
+  callRemoteStream.value = stream || null
+})
+
+// 监听 useCall 的静音/摄像头状态
+watch(() => call.isMuted.value, (val) => {
+  isCallMuted.value = val
+})
+
+watch(() => call.isCameraOff.value, (val) => {
+  isCallCameraOff.value = val
+})
+
+// 监听 useCall 的通话状态变化，同步 notificationStore 和计时器
+watch(() => call.status.value, (newStatus) => {
+  if (newStatus === CallStatus.ACTIVE) {
+    notificationStore.isCallActive = true
+    notificationStore.activeCallSession = {
+      callId: call.session.value?.callId || '',
+      peerId: call.session.value?.calleeId || call.session.value?.callerId || '',
+      peerName: floatingCallPeerName.value,
+      callType: floatingCallIsVideo.value ? 'video' : 'voice',
+      startTime: Date.now(),
+    }
+    startCallDurationTimer()
+  } else if (newStatus === CallStatus.ENDED) {
+    stopCallDurationTimer()
+    notificationStore.endCall()
+    callLocalStream.value = null
+    callRemoteStream.value = null
+  }
+})
+
+// ---- 方法 ----
+
+function friendOf(conversation: any) {
+  return notificationStore.friends.find((item: Friend) => item.id === conversation.friend_id)
 }
 
-function latestMessage(conversationId) {
+function latestMessage(conversationId: string) {
   const list = notificationStore.messagesByConversation[conversationId] || []
   const latest = list[list.length - 1]
   if (!latest) return '暂无消息'
   if (latest.type === 'file') return `[文件] ${latest.content}`
   if (latest.type === 'share') return `[链接] ${latest.content}`
+  if (latest.type === 'video_call') return `[${latest.callType === 'video' ? '视频' : '语音'}通话]`
   return latest.content
 }
+
+function typeMeta(type: string) {
+  const map: Record<string, { icon: string; color: string }> = {
+    success: { icon: 'fa fa-check-circle', color: 'text-green-500' },
+    security: { icon: 'fa fa-shield', color: 'text-red-500' },
+    info: { icon: 'fa fa-info-circle', color: 'text-blue-500' },
+    warning: { icon: 'fa fa-exclamation-triangle', color: 'text-yellow-500' },
+  }
+  return map[type] || { icon: 'fa fa-bell', color: 'text-gray-500' }
+}
+
+// ---- 消息操作 ----
 
 async function sendText() {
   const content = draft.value.trim()
   if (!content && composerMode.value === 'text') return
-  if (composerMode.value === 'file' && !attachmentId.value.trim()) return toastStore.showToast('请输入文件 ID', 'error')
-  if (composerMode.value === 'share' && !shareUrl.value.trim()) return toastStore.showToast('请输入分享链接', 'error')
 
   await notificationStore.sendMessage({
     type: composerMode.value,
-    content: content || (composerMode.value === 'file' ? `共享文件 ${attachmentId.value}` : '共享链接'),
-    file_id: attachmentId.value.trim(),
-    share_url: shareUrl.value.trim(),
+    content: content || attachmentId.value || shareUrl.value,
+    file_id: composerMode.value === 'file' ? attachmentId.value : undefined,
+    share_url: composerMode.value === 'share' ? shareUrl.value : undefined,
   })
+
   draft.value = ''
   attachmentId.value = ''
   shareUrl.value = ''
   composerMode.value = 'text'
+
+  nextTick(() => {
+    if (messagesRef.value) {
+      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+    }
+  })
+}
+
+function retryMessage(message: ChatMessage) {
+  if (!notificationStore.activeConversationId) return
+  notificationStore.retryMessage(notificationStore.activeConversationId, message.id)
 }
 
 async function addFriend() {
-  const result = await notificationStore.sendFriendRequest(friendAccount.value)
+  const account = friendAccount.value.trim()
+  if (!account) return
+  const result = await notificationStore.sendFriendRequest(account)
   if (result.success) {
-    toastStore.showToast(result.local ? '好友申请已进入待发送队列' : '好友申请已发送', 'success')
     friendAccount.value = ''
+    toastStore.show('好友申请已发送', 'success')
   } else {
-    toastStore.showToast(result.message, 'error')
+    toastStore.show(result.message || '操作失败', 'error')
   }
 }
 
-function statusText(status) {
-  const map = { sending: '发送中', sent: '已发送', delivered: '已送达', read: '已读', local: '本地待同步', failed: '失败' }
-  return map[status] || status
+// ---- 视频通话操作 ----
+
+/**
+ * 发起视频/语音通话
+ * 1. 通过 notificationStore 发送 video_call 消息到聊天中
+ * 2. 通过 useCall 启动 WebRTC 信令和媒体采集
+ */
+async function startVideoCall(callType: 'video' | 'voice') {
+  const conversation = notificationStore.activeConversation
+  if (!conversation) return
+
+  const calleeId = conversation.friend_id || ''
+  const calleeName = conversation.title || '未知用户'
+  const calleeAvatar = ''
+
+  // 1. 发送视频邀请消息到聊天中
+  await notificationStore.sendVideoCallInvite(callType)
+
+  // 2. 启动 WebRTC 通话
+  try {
+    const ct = callType === 'video' ? CallType.VIDEO : CallType.VOICE
+    await call.startCall(calleeId, calleeName, calleeAvatar, ct)
+  } catch (e: any) {
+    console.error('[NotificationsView] 发起通话失败:', e)
+    toastStore.show(e?.message || '发起通话失败', 'error')
+  }
 }
 
-function typeMeta(type) {
-  const map = {
-    success: { icon: 'fa fa-check', color: 'text-success' },
-    warning: { icon: 'fa fa-exclamation-triangle', color: 'text-warning' },
-    security: { icon: 'fa fa-shield', color: 'text-primary' },
-    info: { icon: 'fa fa-info', color: 'text-neutral-500' },
+/**
+ * 从联系人列表直接发起通话
+ */
+async function startCallWithFriend(friend: Friend, callType: 'video' | 'voice') {
+  await notificationStore.startDirectConversation(friend.id)
+  // 等待会话切换完成
+  await nextTick()
+  await startVideoCall(callType)
+}
+
+/**
+ * 接听来电（信令层）
+ */
+async function handleAcceptCall() {
+  try {
+    await call.acceptIncomingCall()
+    // 状态同步由 watch(call.status) 处理
+  } catch (e: any) {
+    console.error('[NotificationsView] 接听失败:', e)
+    toastStore.show(e?.message || '接听失败', 'error')
   }
-  return map[type] || map.info
+}
+
+/**
+ * 拒绝来电（信令层）
+ */
+function handleRejectCall() {
+  call.rejectIncomingCall('用户拒绝')
+  notificationStore.rejectIncomingCall()
+}
+
+/**
+ * 从聊天消息中的邀请点击接听
+ */
+function acceptCallFromMessage(message: ChatMessage) {
+  // 如果 useCall 已经有来电信息，直接接听
+  if (call.hasIncomingCall.value) {
+    handleAcceptCall()
+  } else {
+    // 否则，先解析消息中的 extra 信息来初始化通话
+    try {
+      const extra = message.extra ? JSON.parse(message.extra) : null
+      if (extra?.callId) {
+        // 手动设置 incomingCallInfo 以便 acceptIncomingCall 能工作
+        call.incomingCallInfo.value = {
+          callId: extra.callId,
+          callType: extra.callType === 'video' ? CallType.VIDEO : CallType.VOICE,
+          callerId: extra.callerId || '',
+          callerName: extra.callerName || '未知用户',
+          callerAvatar: '',
+          timestamp: extra.timestamp || Date.now(),
+        }
+        call.hasIncomingCall.value = true
+        handleAcceptCall()
+      }
+    } catch {
+      toastStore.show('无法解析通话邀请', 'error')
+    }
+  }
+}
+
+function rejectCallFromMessage(_message: ChatMessage) {
+  handleRejectCall()
+}
+
+/**
+ * 挂断通话
+ */
+function handleHangupCall() {
+  call.hangup()
+  stopCallDurationTimer()
+  callLocalStream.value = null
+  callRemoteStream.value = null
+}
+
+function toggleMute() {
+  call.toggleMute()
+}
+
+function toggleCamera() {
+  call.toggleCamera()
+}
+
+function goToFullscreenCall() {
+  if (call.session.value) {
+    router.push({
+      name: 'Call',
+      query: {
+        callId: call.session.value.callId,
+        peerId: call.session.value.calleeId || call.session.value.callerId || '',
+        peerName: floatingCallPeerName.value,
+        callType: floatingCallIsVideo.value ? 'video' : 'voice',
+      }
+    })
+  }
+}
+
+function startCallDurationTimer() {
+  callStartTime.value = Date.now()
+  callDurationTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - callStartTime.value) / 1000)
+    const mins = Math.floor(elapsed / 60)
+    const secs = elapsed % 60
+    callDurationRef.value = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }, 1000)
+}
+
+function stopCallDurationTimer() {
+  if (callDurationTimer) {
+    clearInterval(callDurationTimer)
+    callDurationTimer = null
+  }
+  callDurationRef.value = '00:00'
 }
 </script>
 
 <style scoped>
+/* ============================================================
+   Collab Page — 协作消息中心整体布局
+   ============================================================ */
 .collab-page {
   display: grid;
   gap: 16px;
@@ -704,7 +1119,7 @@ function typeMeta(type) {
 @media (max-width: 1180px) {
   .collab-shell {
     grid-template-columns: 280px minmax(0, 1fr);
-  }
+}
 
   .people-panel {
     grid-column: 1 / -1;
@@ -732,5 +1147,382 @@ function typeMeta(type) {
   .message-bubble {
     max-width: 92%;
   }
+}
+
+/* ============================================================
+   新增：消息同步状态横幅
+   ============================================================ */
+.sync-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+.sync-banner.syncing {
+  background: rgba(22, 93, 255, 0.06);
+  color: #165dff;
+}
+
+.sync-banner.error {
+  background: rgba(255, 77, 79, 0.06);
+  color: #ff4d4f;
+}
+
+.sync-banner.error button {
+  margin-left: 4px;
+  border: 0;
+  background: transparent;
+  color: #165dff;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: #f5f7fa;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.sync-status.syncing {
+  color: #165dff;
+}
+
+.sync-status.error {
+  color: #ff4d4f;
+}
+
+/* ============================================================
+   新增：聊天头部通话按钮
+   ============================================================ */
+.chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.call-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e0e3e9;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  font-size: 15px;
+}
+
+.call-btn:hover {
+  background: #f5f7fa;
+}
+
+.call-btn.video-call {
+  color: #165dff;
+}
+
+.call-btn.video-call:hover {
+  border-color: #165dff;
+  background: rgba(22, 93, 255, 0.06);
+}
+
+.call-btn.voice-call {
+  color: #52c41a;
+}
+
+.call-btn.voice-call:hover {
+  border-color: #52c41a;
+  background: rgba(82, 196, 26, 0.06);
+}
+
+/* ============================================================
+   新增：联系人列表快捷通话按钮
+   ============================================================ */
+.friend-call-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.friend-item:hover .friend-call-actions {
+  opacity: 1;
+}
+
+.mini-call-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+  font-size: 13px;
+  color: #909399;
+}
+
+.mini-call-btn:hover {
+  background: rgba(22, 93, 255, 0.08);
+  color: #165dff;
+}
+
+/* ============================================================
+   新增：正在输入指示器
+   ============================================================ */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.typing-dots i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #909399;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+
+.typing-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+/* ============================================================
+   新增：视频通话邀请消息气泡
+   ============================================================ */
+.message-bubble.call-invite {
+  background: linear-gradient(135deg, rgba(22, 93, 255, 0.04), rgba(82, 196, 26, 0.04));
+  border: 1px solid rgba(22, 93, 255, 0.12);
+  padding: 12px 14px;
+}
+
+.message-row.mine .message-bubble.call-invite {
+  background: linear-gradient(135deg, #165dff, #3b7dff);
+  border-color: transparent;
+  color: #fff;
+}
+
+.call-invite-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.call-invite-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(22, 93, 255, 0.1);
+  color: #165dff;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.message-row.mine .call-invite-icon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.call-invite-text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.call-invite-text p {
+  font-size: 12px;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.call-invite-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(22, 93, 255, 0.1);
+}
+
+.message-row.mine .call-invite-actions {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-accept,
+.btn-reject {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.1s ease;
+}
+
+.btn-accept:active,
+.btn-reject:active {
+  transform: scale(0.96);
+}
+
+.btn-accept {
+  background: #52c41a;
+  color: #fff;
+}
+
+.btn-accept:hover {
+  background: #49b014;
+}
+
+.btn-reject {
+  background: #f5f7fa;
+  color: #ff4d4f;
+  border: 1px solid #e0e3e9;
+}
+
+.btn-reject:hover {
+  background: #ff4d4f;
+  color: #fff;
+  border-color: #ff4d4f;
+}
+
+.call-invite-status {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(22, 93, 255, 0.1);
+}
+
+.status-ended {
+  font-size: 12px;
+  color: #909399;
+  font-style: italic;
+}
+
+.message-row.mine .status-ended {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ============================================================
+   新增：消息状态指示器
+   ============================================================ */
+.message-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.message-status .status-sending {
+  color: #909399;
+  font-size: 11px;
+}
+
+.message-status .status-sent {
+  color: #909399;
+}
+
+.message-status .status-delivered {
+  color: #909399;
+}
+
+.message-status .status-read {
+  color: #52c41a;
+}
+
+.status-failed-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-failed {
+  color: #ff4d4f;
+  font-size: 12px;
+}
+
+.retry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  transition: background 0.16s ease;
+}
+
+.retry-btn:hover {
+  background: rgba(255, 77, 79, 0.2);
+}
+
+.status-recalled {
+  color: #909399;
+  font-size: 12px;
+}
+
+/* 自己发送的消息中状态指示器颜色微调 */
+.message-row.mine .message-status .status-sending,
+.message-row.mine .message-status .status-sent,
+.message-row.mine .message-status .status-delivered {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.message-row.mine .message-status .status-read {
+  color: #b7eb8f;
+}
+
+.message-row.mine .status-recalled {
+  color: rgba(255, 255, 255, 0.5);
 }
 </style>

@@ -182,36 +182,33 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
-import { CallStatus, NetworkQuality } from '@/api/im/types'
+import { useRoute, useRouter } from 'vue-router'
+import { useCall } from '@/composables/useCall'
+import { CallStatus, CallType, NetworkQuality } from '@/api/im/types'
 import type { EncoderParams } from '@/api/im/types'
 
-// ==================== Props ====================
+// ==================== 路由 ====================
 
-const props = defineProps<{
-  localStream: MediaStream | null
-  remoteStream: MediaStream | null
-  isMuted: boolean
-  isCameraOff: boolean
-  isScreenSharing: boolean
-  status: CallStatus
-  isVideoCall: boolean
-  callDuration: string
-  networkQuality: NetworkQuality
-  encoderParams: EncoderParams | null
-  callError: string | null
-  remoteName: string
-  remoteAvatar: string
-}>()
+const route = useRoute()
+const router = useRouter()
+const call = useCall()
 
-// ==================== Emits ====================
+// 从路由 query 获取通话信息
+const routePeerName = (route.query.peerName as string) || '未知用户'
 
-const emit = defineEmits<{
-  toggleMute: []
-  toggleCamera: []
-  toggleScreenShare: []
-  switchToVoice: []
-  hangup: []
-}>()
+// ==================== 状态（从 useCall 获取） ====================
+
+const isMuted = computed(() => call.isMuted.value)
+const isCameraOff = computed(() => call.isCameraOff.value)
+const isScreenSharing = computed(() => call.isScreenSharing.value)
+const status = computed(() => call.status.value)
+const isVideoCall = computed(() => call.isVideoCall.value)
+const callDuration = computed(() => call.callDuration.value)
+const networkQuality = computed(() => call.networkQuality.value)
+const encoderParams = computed(() => call.encoderParams.value)
+const callError = computed(() => call.callError.value)
+const remoteName = computed(() => call.session.value?.calleeName || call.session.value?.callerName || routePeerName)
+const remoteAvatar = computed(() => call.session.value?.callerAvatar || call.session.value?.calleeAvatar || '')
 
 // ==================== 视频元素 ====================
 
@@ -221,7 +218,7 @@ const hasRemoteVideo = ref(false)
 
 // 绑定流到视频元素
 watch(
-  () => props.localStream,
+  () => call.localStream.value,
   (stream) => {
     if (localVideoRef.value && stream) {
       localVideoRef.value.srcObject = stream
@@ -231,7 +228,7 @@ watch(
 )
 
 watch(
-  () => props.remoteStream,
+  () => call.remoteStream.value,
   (stream) => {
     if (remoteVideoRef.value && stream) {
       remoteVideoRef.value.srcObject = stream
@@ -249,12 +246,12 @@ function onRemoteVideoReady(): void {
 
 // ==================== 远程信息 ====================
 
-const remoteInitial = computed(() => (props.remoteName || '?')[0])
+const remoteInitial = computed(() => (remoteName.value || '?')[0])
 
 // ==================== 网络质量标签 ====================
 
 const networkQualityLabel = computed(() => {
-  switch (props.networkQuality) {
+  switch (networkQuality.value) {
     case NetworkQuality.EXCELLENT: return '网络优秀'
     case NetworkQuality.GOOD: return '网络良好'
     case NetworkQuality.FAIR: return '网络一般'
@@ -263,6 +260,33 @@ const networkQualityLabel = computed(() => {
     default: return ''
   }
 })
+
+// ==================== 控制操作 ====================
+
+function toggleMute(): void {
+  call.toggleMute()
+}
+
+function toggleCamera(): void {
+  call.toggleCamera()
+}
+
+function toggleScreenShare(): void {
+  if (isScreenSharing.value) {
+    call.stopScreenShare()
+  } else {
+    call.startScreenShare()
+  }
+}
+
+function switchToVoice(): void {
+  call.switchToVoice()
+}
+
+function hangup(): void {
+  call.hangup()
+  router.back()
+}
 
 // ==================== 画中画拖拽 ====================
 
@@ -315,24 +339,30 @@ function onKeydown(e: KeyboardEvent): void {
   switch (e.key) {
     case 'm':
     case 'M':
-      emit('toggleMute')
+      toggleMute()
       break
     case 'v':
     case 'V':
-      emit('toggleCamera')
+      toggleCamera()
       break
     case 'Escape':
-      emit('hangup')
+      hangup()
       break
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
+  try {
+    await call.init()
+  } catch (e) {
+    console.warn('[CallView] useCall 初始化:', e)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
+  call.destroy()
 })
 
 // ==================== 暴露给父组件 ====================

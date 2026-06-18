@@ -201,7 +201,7 @@ services:
       FILE_UPLOAD_DIR: /data/uploads
       QUARANTINE_DIR: /data/uploads/quarantine
       REDIS_URL: redis://redis:6379/0
-      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+      BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
 
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
@@ -243,7 +243,7 @@ services:
     container_name: backend-file-worker
     networks:
       - app-networks
-    command: python worker.py
+    command: /backend_file_service/docker-entrypoint-worker.sh
     depends_on:
       - rabbitmq
       - redis
@@ -256,7 +256,7 @@ services:
 
       FILE_UPLOAD_DIR: /data/uploads
       REDIS_URL: redis://redis:6379/0
-      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+      BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
 

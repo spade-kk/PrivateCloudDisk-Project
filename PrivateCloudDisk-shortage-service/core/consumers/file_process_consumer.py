@@ -152,7 +152,22 @@ class FileProcessConsumer:
                 f"error={e}",
                 exc_info=True,
             )
-            await message.ack()
+            # 关键修复：未预期异常不应 ACK，应 NACK(requeue=False) 让消息
+            # 通过 RabbitMQ DLX 机制自动路由到死信队列，确保不丢失
+            try:
+                await message.nack(requeue=False)
+                logger.warning(
+                    f"[TASK-DLQ-ROUTE] file_id={file_id_str} "
+                    f"task={task_type_str} "
+                    f"reason=UNHANDLED_EXCEPTION "
+                    f"error={e}"
+                )
+            except Exception as nack_err:
+                logger.critical(
+                    f"[TASK-NACK-FAIL] file_id={file_id_str} "
+                    f"无法 NACK 消息: {nack_err}",
+                    exc_info=True,
+                )
 
     def _run_sync_process(self, event: FileProcessEvent):
         """
@@ -163,14 +178,13 @@ class FileProcessConsumer:
 
     async def _on_success(self, message: Any, event: FileProcessEvent, result):
         """处理成功"""
-        await message.ack()
         logger.info(
-            f"[TASK-ACK] file_id={event.file_id} "
+            f"[TASK-OK] file_id={event.file_id} "
             f"task={event.task_type} "
-            f"status=success"
+            f"result=success"
         )
 
-        # 更新 Redis 任务状态
+        # 先更新 Redis 任务状态（在 ACK 之前，确保状态持久化）
         await self._update_task_status(
             event.task_id, event.task_type, TaskStatus.COMPLETED, result.data,
         )
@@ -190,8 +204,16 @@ class FileProcessConsumer:
         if result.data.get("checksum"):
             accumulated["checksum"] = result.data["checksum"]
 
-        # 发送下一个任务
+        # 发送下一个任务（在 ACK 之前，确保流水线触发）
         await self._send_next_task(event, accumulated)
+
+        # 最后 ACK：确保所有后续操作都成功后才确认消息消费
+        await message.ack()
+        logger.debug(
+            f"[TASK-ACK] file_id={event.file_id} "
+            f"task={event.task_type} "
+            f"status=success"
+        )
 
     async def _on_failure(self, message: Any, event: FileProcessEvent, result):
         """处理失败 - 决定重试还是进 DLQ"""
@@ -213,14 +235,14 @@ class FileProcessConsumer:
     async def _handle_virus_found(
         self, message: Any, event: FileProcessEvent, result
     ):
-        """发现病毒 → ACK 并发布安全事件"""
-        await message.ack()
+        """发现病毒 → 先更新状态和通知业务服务，再 ACK"""
         logger.critical(
             f"[TASK-VIRUS] file_id={event.file_id} "
             f"threat={result.data.get('threat_name', 'unknown')} "
             f"status=quarantined"
         )
 
+        # 先更新 Redis 任务状态
         await self._update_task_status(
             event.task_id,
             event.task_type,
@@ -228,6 +250,7 @@ class FileProcessConsumer:
             {"error": result.error, "failure_reason": result.failure_reason},
         )
 
+        # 通知业务服务（在 ACK 之前，确保通知成功）
         try:
             from core.services.notification_service import NotificationService
 
@@ -239,6 +262,9 @@ class FileProcessConsumer:
             )
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
+
+        # 最后 ACK：确保状态更新和通知都完成后才确认
+        await message.ack()
 
     async def _retry_with_backoff(
         self, message: Any, event: FileProcessEvent, result
@@ -256,21 +282,38 @@ class FileProcessConsumer:
             f"error={result.error}"
         )
 
-        await message.ack()
-
         retry_event = event.with_retry_increment()
         retry_dict = retry_event.to_dict()
         retry_dict["failure_reason"] = result.failure_reason
 
         await asyncio.sleep(delay)
-        await rabbitmq_service.publish_message(
-            settings.file_process_exchange,
-            settings.file_process_routing_key,
-            retry_dict,
-        )
+
+        try:
+            await rabbitmq_service.publish_message(
+                settings.file_process_exchange,
+                settings.file_process_routing_key,
+                retry_dict,
+            )
+            # 重试消息发布成功后才 ACK 原消息
+            await message.ack()
+            logger.info(
+                f"[TASK-RETRY-OK] file_id={event.file_id} "
+                f"task={event.task_type} "
+                f"attempt={next_retry}/{self.retry.max_attempts} "
+                f"delay_s={delay}"
+            )
+        except Exception as pub_err:
+            # 重试发布失败 → 原消息不能 ACK，应 NACK 进入 DLQ
+            logger.error(
+                f"[TASK-RETRY-PUB-FAIL] file_id={event.file_id} "
+                f"task={event.task_type} "
+                f"重试消息发布失败，原消息进入 DLQ: {pub_err}",
+                exc_info=True,
+            )
+            await message.nack(requeue=False)
 
     async def _send_to_dlq(self, message: Any, event: FileProcessEvent, result):
-        """重试耗尽 → NACK → 自动进入 DLQ (通过 DLX 配置)"""
+        """重试耗尽 → 先更新状态，再 NACK → 自动进入 DLQ (通过 DLX 配置)"""
         logger.error(
             f"[TASK-DLQ] file_id={event.file_id} "
             f"task={event.task_type} "
@@ -279,8 +322,7 @@ class FileProcessConsumer:
             f"error={result.error}"
         )
 
-        await message.nack(requeue=False)
-
+        # 先更新 Redis 任务状态（在 NACK 之前，确保状态持久化）
         await self._update_task_status(
             event.task_id,
             event.task_type,
@@ -291,6 +333,9 @@ class FileProcessConsumer:
                 "retry_exhausted": True,
             },
         )
+
+        # 再 NACK(requeue=False)：通过 RabbitMQ DLX 自动路由到死信队列
+        await message.nack(requeue=False)
 
     async def _send_next_task(self, event: FileProcessEvent, accumulated: dict):
         """发送流水线中下一个任务"""

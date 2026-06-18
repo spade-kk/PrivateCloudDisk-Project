@@ -40,8 +40,8 @@ class VirusScanner:
             import pyclamd
             # 尝试 Unix Socket 连接
             socket_paths = [
-                "/opt/homebrew/var/run/clamav/clamd.sock",
-                "/var/run/clamav/clamd.sock",
+                "/opt/homebrew/var/run/clamav/clamd.sock",  # macOS
+                "/var/run/clamav/clamd.sock",          # Linux 标准路径
                 "/tmp/clamd.sock",
             ]
             self._cd = None
