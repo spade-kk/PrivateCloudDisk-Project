@@ -216,7 +216,7 @@ service.interceptors.response.use(
     let message = '网络异常，请稍后重试'
     let isNetworkError = false
     let isTimeout = false
-
+    console.warn(error)
     if (error.response) {
       const status = error.response.status
       switch (status) {

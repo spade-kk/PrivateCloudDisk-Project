@@ -1,0 +1,913 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		CE8B3F352FE5968F00BDDC99 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CE8B3F2B2FE5968F00BDDC99 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CE8B3F452FE596E700BDDC99 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE8B3F442FE596E600BDDC99 /* WidgetKit.framework */; };
+		CE8B3F472FE596E700BDDC99 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE8B3F462FE596E700BDDC99 /* SwiftUI.framework */; };
+		CE8B3F582FE596E900BDDC99 /* WidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CE8B3F422FE596E600BDDC99 /* WidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CE8B3DA02FE58D2300BDDC99 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE8B3D8A2FE58D2000BDDC99 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CE8B3D912FE58D2000BDDC99;
+			remoteInfo = "PrivateCloudDisk-ios";
+		};
+		CE8B3DAA2FE58D2300BDDC99 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE8B3D8A2FE58D2000BDDC99 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CE8B3D912FE58D2000BDDC99;
+			remoteInfo = "PrivateCloudDisk-ios";
+		};
+		CE8B3F332FE5968F00BDDC99 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE8B3D8A2FE58D2000BDDC99 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CE8B3F2A2FE5968F00BDDC99;
+			remoteInfo = ShareExtension;
+		};
+		CE8B3F562FE596E900BDDC99 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE8B3D8A2FE58D2000BDDC99 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CE8B3F412FE596E600BDDC99;
+			remoteInfo = WidgetExtensionExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CE8B3F3A2FE5968F00BDDC99 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CE8B3F582FE596E900BDDC99 /* WidgetExtensionExtension.appex in Embed Foundation Extensions */,
+				CE8B3F352FE5968F00BDDC99 /* ShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		CE8B3D922FE58D2000BDDC99 /* PrivateCloudDisk-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PrivateCloudDisk-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE8B3D9F2FE58D2300BDDC99 /* PrivateCloudDisk-iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "PrivateCloudDisk-iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE8B3DA92FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "PrivateCloudDisk-iosUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE8B3F2B2FE5968F00BDDC99 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE8B3F422FE596E600BDDC99 /* WidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE8B3F442FE596E600BDDC99 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		CE8B3F462FE596E700BDDC99 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CE8B3F362FE5968F00BDDC99 /* Exceptions for "ShareExtension" folder in "ShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE8B3F2A2FE5968F00BDDC99 /* ShareExtension */;
+		};
+		CE8B3F592FE596E900BDDC99 /* Exceptions for "WidgetExtension" folder in "WidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE8B3F412FE596E600BDDC99 /* WidgetExtensionExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CE8B3D942FE58D2000BDDC99 /* PrivateCloudDisk-ios */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "PrivateCloudDisk-ios";
+			sourceTree = "<group>";
+		};
+		CE8B3DA22FE58D2300BDDC99 /* PrivateCloudDisk-iosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "PrivateCloudDisk-iosTests";
+			sourceTree = "<group>";
+		};
+		CE8B3DAC2FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "PrivateCloudDisk-iosUITests";
+			sourceTree = "<group>";
+		};
+		CE8B3F2C2FE5968F00BDDC99 /* ShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE8B3F362FE5968F00BDDC99 /* Exceptions for "ShareExtension" folder in "ShareExtension" target */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		CE8B3F482FE596E700BDDC99 /* WidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE8B3F592FE596E900BDDC99 /* Exceptions for "WidgetExtension" folder in "WidgetExtensionExtension" target */,
+			);
+			path = WidgetExtension;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CE8B3D8F2FE58D2000BDDC99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3D9C2FE58D2300BDDC99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3DA62FE58D2300BDDC99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3F282FE5968F00BDDC99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3F3F2FE596E600BDDC99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE8B3F472FE596E700BDDC99 /* SwiftUI.framework in Frameworks */,
+				CE8B3F452FE596E700BDDC99 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		CE8B3D892FE58D2000BDDC99 = {
+			isa = PBXGroup;
+			children = (
+				CE8B3D942FE58D2000BDDC99 /* PrivateCloudDisk-ios */,
+				CE8B3DA22FE58D2300BDDC99 /* PrivateCloudDisk-iosTests */,
+				CE8B3DAC2FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests */,
+				CE8B3F2C2FE5968F00BDDC99 /* ShareExtension */,
+				CE8B3F482FE596E700BDDC99 /* WidgetExtension */,
+				CE8B3F432FE596E600BDDC99 /* Frameworks */,
+				CE8B3D932FE58D2000BDDC99 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CE8B3D932FE58D2000BDDC99 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE8B3D922FE58D2000BDDC99 /* PrivateCloudDisk-ios.app */,
+				CE8B3D9F2FE58D2300BDDC99 /* PrivateCloudDisk-iosTests.xctest */,
+				CE8B3DA92FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests.xctest */,
+				CE8B3F2B2FE5968F00BDDC99 /* ShareExtension.appex */,
+				CE8B3F422FE596E600BDDC99 /* WidgetExtensionExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE8B3F432FE596E600BDDC99 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CE8B3F442FE596E600BDDC99 /* WidgetKit.framework */,
+				CE8B3F462FE596E700BDDC99 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CE8B3D912FE58D2000BDDC99 /* PrivateCloudDisk-ios */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE8B3DB32FE58D2300BDDC99 /* Build configuration list for PBXNativeTarget "PrivateCloudDisk-ios" */;
+			buildPhases = (
+				CE8B3D8E2FE58D2000BDDC99 /* Sources */,
+				CE8B3D8F2FE58D2000BDDC99 /* Frameworks */,
+				CE8B3D902FE58D2000BDDC99 /* Resources */,
+				CE8B3F3A2FE5968F00BDDC99 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CE8B3F342FE5968F00BDDC99 /* PBXTargetDependency */,
+				CE8B3F572FE596E900BDDC99 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CE8B3D942FE58D2000BDDC99 /* PrivateCloudDisk-ios */,
+			);
+			name = "PrivateCloudDisk-ios";
+			packageProductDependencies = (
+			);
+			productName = "PrivateCloudDisk-ios";
+			productReference = CE8B3D922FE58D2000BDDC99 /* PrivateCloudDisk-ios.app */;
+			productType = "com.apple.product-type.application";
+		};
+		CE8B3D9E2FE58D2300BDDC99 /* PrivateCloudDisk-iosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE8B3DB62FE58D2300BDDC99 /* Build configuration list for PBXNativeTarget "PrivateCloudDisk-iosTests" */;
+			buildPhases = (
+				CE8B3D9B2FE58D2300BDDC99 /* Sources */,
+				CE8B3D9C2FE58D2300BDDC99 /* Frameworks */,
+				CE8B3D9D2FE58D2300BDDC99 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CE8B3DA12FE58D2300BDDC99 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CE8B3DA22FE58D2300BDDC99 /* PrivateCloudDisk-iosTests */,
+			);
+			name = "PrivateCloudDisk-iosTests";
+			packageProductDependencies = (
+			);
+			productName = "PrivateCloudDisk-iosTests";
+			productReference = CE8B3D9F2FE58D2300BDDC99 /* PrivateCloudDisk-iosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		CE8B3DA82FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE8B3DB92FE58D2300BDDC99 /* Build configuration list for PBXNativeTarget "PrivateCloudDisk-iosUITests" */;
+			buildPhases = (
+				CE8B3DA52FE58D2300BDDC99 /* Sources */,
+				CE8B3DA62FE58D2300BDDC99 /* Frameworks */,
+				CE8B3DA72FE58D2300BDDC99 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CE8B3DAB2FE58D2300BDDC99 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CE8B3DAC2FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests */,
+			);
+			name = "PrivateCloudDisk-iosUITests";
+			packageProductDependencies = (
+			);
+			productName = "PrivateCloudDisk-iosUITests";
+			productReference = CE8B3DA92FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		CE8B3F2A2FE5968F00BDDC99 /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE8B3F372FE5968F00BDDC99 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
+			buildPhases = (
+				CE8B3F272FE5968F00BDDC99 /* Sources */,
+				CE8B3F282FE5968F00BDDC99 /* Frameworks */,
+				CE8B3F292FE5968F00BDDC99 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CE8B3F2C2FE5968F00BDDC99 /* ShareExtension */,
+			);
+			name = ShareExtension;
+			packageProductDependencies = (
+			);
+			productName = ShareExtension;
+			productReference = CE8B3F2B2FE5968F00BDDC99 /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CE8B3F412FE596E600BDDC99 /* WidgetExtensionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE8B3F5A2FE596E900BDDC99 /* Build configuration list for PBXNativeTarget "WidgetExtensionExtension" */;
+			buildPhases = (
+				CE8B3F3E2FE596E600BDDC99 /* Sources */,
+				CE8B3F3F2FE596E600BDDC99 /* Frameworks */,
+				CE8B3F402FE596E600BDDC99 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CE8B3F482FE596E700BDDC99 /* WidgetExtension */,
+			);
+			name = WidgetExtensionExtension;
+			packageProductDependencies = (
+			);
+			productName = WidgetExtensionExtension;
+			productReference = CE8B3F422FE596E600BDDC99 /* WidgetExtensionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CE8B3D8A2FE58D2000BDDC99 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					CE8B3D912FE58D2000BDDC99 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					CE8B3D9E2FE58D2300BDDC99 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = CE8B3D912FE58D2000BDDC99;
+					};
+					CE8B3DA82FE58D2300BDDC99 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = CE8B3D912FE58D2000BDDC99;
+					};
+					CE8B3F2A2FE5968F00BDDC99 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					CE8B3F412FE596E600BDDC99 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = CE8B3D8D2FE58D2000BDDC99 /* Build configuration list for PBXProject "PrivateCloudDisk-ios" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = CE8B3D892FE58D2000BDDC99;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CE8B3D932FE58D2000BDDC99 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CE8B3D912FE58D2000BDDC99 /* PrivateCloudDisk-ios */,
+				CE8B3D9E2FE58D2300BDDC99 /* PrivateCloudDisk-iosTests */,
+				CE8B3DA82FE58D2300BDDC99 /* PrivateCloudDisk-iosUITests */,
+				CE8B3F2A2FE5968F00BDDC99 /* ShareExtension */,
+				CE8B3F412FE596E600BDDC99 /* WidgetExtensionExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CE8B3D902FE58D2000BDDC99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3D9D2FE58D2300BDDC99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3DA72FE58D2300BDDC99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3F292FE5968F00BDDC99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3F402FE596E600BDDC99 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CE8B3D8E2FE58D2000BDDC99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3D9B2FE58D2300BDDC99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3DA52FE58D2300BDDC99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3F272FE5968F00BDDC99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE8B3F3E2FE596E600BDDC99 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CE8B3DA12FE58D2300BDDC99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CE8B3D912FE58D2000BDDC99 /* PrivateCloudDisk-ios */;
+			targetProxy = CE8B3DA02FE58D2300BDDC99 /* PBXContainerItemProxy */;
+		};
+		CE8B3DAB2FE58D2300BDDC99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CE8B3D912FE58D2000BDDC99 /* PrivateCloudDisk-ios */;
+			targetProxy = CE8B3DAA2FE58D2300BDDC99 /* PBXContainerItemProxy */;
+		};
+		CE8B3F342FE5968F00BDDC99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CE8B3F2A2FE5968F00BDDC99 /* ShareExtension */;
+			targetProxy = CE8B3F332FE5968F00BDDC99 /* PBXContainerItemProxy */;
+		};
+		CE8B3F572FE596E900BDDC99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CE8B3F412FE596E600BDDC99 /* WidgetExtensionExtension */;
+			targetProxy = CE8B3F562FE596E900BDDC99 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		CE8B3DB12FE58D2300BDDC99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CE8B3DB22FE58D2300BDDC99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		CE8B3DB42FE58D2300BDDC99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CE8B3DB52FE58D2300BDDC99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CE8B3DB72FE58D2300BDDC99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PrivateCloudDisk-ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PrivateCloudDisk-ios";
+			};
+			name = Debug;
+		};
+		CE8B3DB82FE58D2300BDDC99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PrivateCloudDisk-ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PrivateCloudDisk-ios";
+			};
+			name = Release;
+		};
+		CE8B3DBA2FE58D2300BDDC99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-iosUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "PrivateCloudDisk-ios";
+			};
+			name = Debug;
+		};
+		CE8B3DBB2FE58D2300BDDC99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-iosUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "PrivateCloudDisk-ios";
+			};
+			name = Release;
+		};
+		CE8B3F382FE5968F00BDDC99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-ios.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CE8B3F392FE5968F00BDDC99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-ios.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CE8B3F5B2FE596E900BDDC99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = WidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-ios.WidgetExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CE8B3F5C2FE596E900BDDC99 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = D49LY84RA9;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = WidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.spadek.PrivateCloudDisk-ios.WidgetExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CE8B3D8D2FE58D2000BDDC99 /* Build configuration list for PBXProject "PrivateCloudDisk-ios" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE8B3DB12FE58D2300BDDC99 /* Debug */,
+				CE8B3DB22FE58D2300BDDC99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE8B3DB32FE58D2300BDDC99 /* Build configuration list for PBXNativeTarget "PrivateCloudDisk-ios" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE8B3DB42FE58D2300BDDC99 /* Debug */,
+				CE8B3DB52FE58D2300BDDC99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE8B3DB62FE58D2300BDDC99 /* Build configuration list for PBXNativeTarget "PrivateCloudDisk-iosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE8B3DB72FE58D2300BDDC99 /* Debug */,
+				CE8B3DB82FE58D2300BDDC99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE8B3DB92FE58D2300BDDC99 /* Build configuration list for PBXNativeTarget "PrivateCloudDisk-iosUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE8B3DBA2FE58D2300BDDC99 /* Debug */,
+				CE8B3DBB2FE58D2300BDDC99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE8B3F372FE5968F00BDDC99 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE8B3F382FE5968F00BDDC99 /* Debug */,
+				CE8B3F392FE5968F00BDDC99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE8B3F5A2FE596E900BDDC99 /* Build configuration list for PBXNativeTarget "WidgetExtensionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE8B3F5B2FE596E900BDDC99 /* Debug */,
+				CE8B3F5C2FE596E900BDDC99 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = CE8B3D8A2FE58D2000BDDC99 /* Project object */;
+}

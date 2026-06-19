@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.AdminUserMapper">
+    <resultMap id="AdminUserEntityMap" type="org.project.model.entity.AdminUserEntity">
+        <id column="admin_id" property="adminId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="admin_account" property="adminAccount"/>
+        <result column="admin_name" property="adminName"/>
+        <result column="admin_email" property="adminEmail"/>
+        <result column="admin_phone_number" property="adminPhoneNumber"/>
+        <result column="admin_password" property="adminPassword"/>
+        <result column="admin_role" property="adminRole"/>
+        <result column="admin_status" property="adminStatus"/>
+        <result column="admin_image_path" property="adminImagePath"/>
+        <result column="admin_login_fail_count" property="adminLoginFailCount"/>
+        <result column="admin_locked_until" property="adminLockedUntil"/>
+        <result column="admin_last_login_at" property="adminLastLoginAt"/>
+        <result column="admin_last_login_ip" property="adminLastLoginIp"/>
+        <result column="admin_created_by" property="adminCreatedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="admin_created_at" property="adminCreatedAt"/>
+        <result column="admin_updated_at" property="adminUpdatedAt"/>
+    </resultMap>
+
+    <select id="findByAdminAccount" resultMap="AdminUserEntityMap">
+        SELECT * FROM pcd_admin_user_table WHERE admin_account = #{admin_account};
+    </select>
+
+    <select id="findByAdminEmail" resultMap="AdminUserEntityMap">
+        SELECT * FROM pcd_admin_user_table WHERE admin_email = #{admin_email};
+    </select>
+
+    <select id="findByAdminId" resultMap="AdminUserEntityMap">
+        SELECT * FROM pcd_admin_user_table WHERE admin_id = #{admin_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </select>
+
+    <insert id="insertAdminUser" parameterType="org.project.model.entity.AdminUserEntity">
+        INSERT INTO pcd_admin_user_table (
+            admin_id, admin_account, admin_name, admin_email, admin_phone_number,
+            admin_password, admin_role, admin_status, admin_image_path,
+            admin_created_by, admin_created_at, admin_updated_at
+        ) VALUES (
+            #{adminId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{adminAccount}, #{adminName}, #{adminEmail}, #{adminPhoneNumber},
+            #{adminPassword}, #{adminRole}, #{adminStatus}, #{adminImagePath},
+            #{adminCreatedBy,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{adminCreatedAt}, #{adminUpdatedAt}
+        );
+    </insert>
+
+    <update id="updateAdminUser" parameterType="org.project.model.entity.AdminUserEntity">
+        UPDATE pcd_admin_user_table SET
+            admin_name = #{adminName},
+            admin_email = #{adminEmail},
+            admin_phone_number = #{adminPhoneNumber},
+            admin_role = #{adminRole},
+            admin_status = #{adminStatus},
+            admin_image_path = #{adminImagePath},
+            admin_login_fail_count = #{adminLoginFailCount},
+            admin_locked_until = #{adminLockedUntil},
+            admin_last_login_at = #{adminLastLoginAt},
+            admin_last_login_ip = #{adminLastLoginIp},
+            admin_updated_at = #{adminUpdatedAt}
+        WHERE admin_id = #{adminId,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </update>
+
+    <update id="updateAdminPassword">
+        UPDATE pcd_admin_user_table SET admin_password = #{new_password}
+        WHERE admin_id = #{admin_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </update>
+
+    <delete id="deleteAdminById">
+        DELETE FROM pcd_admin_user_table
+        WHERE admin_id = #{admin_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+    </delete>
+</mapper>

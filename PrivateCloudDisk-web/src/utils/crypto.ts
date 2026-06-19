@@ -146,7 +146,7 @@ async function _ensureIntegrity(): Promise<void> {
       keyMaterial,
       256,
     )
-    const hashHex = _buf2hex(derivedBits)
+    const hashHex = buf2hex(derivedBits)
     const prefix = hashHex.substring(0, 8)
 
     // 校验：不同的 pepper 和输入组合会产生不同的 hash
@@ -167,13 +167,13 @@ async function _ensureIntegrity(): Promise<void> {
 // 编码工具
 // ============================================================
 
-function _buf2hex(buffer: ArrayBuffer): string {
+function buf2hex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
 }
 
-function _hex2buf(hex: string): ArrayBuffer {
+function hex2buf(hex: string): ArrayBuffer {
   const bytes = new Uint8Array(hex.length / 2)
   for (let i = 0; i < hex.length; i += 2) {
     bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16)
@@ -181,19 +181,19 @@ function _hex2buf(hex: string): ArrayBuffer {
   return bytes.buffer
 }
 
-function _str2buf(str: string): Uint8Array {
+function str2buf(str: string): Uint8Array {
   return new TextEncoder().encode(str)
 }
 
-function _buf2str(buffer: ArrayBuffer): string {
+function buf2str(buffer: ArrayBuffer): string {
   return new TextDecoder().decode(buffer)
 }
 
-function _buf2base64(buffer: ArrayBuffer): string {
+function buf2base64(buffer: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)))
 }
 
-function _base642buf(base64: string): ArrayBuffer {
+function base642buf(base64: string): ArrayBuffer {
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) {
@@ -223,12 +223,12 @@ export async function pbkdf2HashPassword(
   salt?: string,
 ): Promise<string> {
   const saltBytes = salt
-    ? _hex2buf(salt)
+    ? hex2buf(salt)
     : crypto.getRandomValues(new Uint8Array(16))
 
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    _str2buf(password),
+    str2buf(password),
     'PBKDF2',
     false,
     ['deriveBits'],
@@ -245,8 +245,8 @@ export async function pbkdf2HashPassword(
     PBKDF2_KEY_LENGTH,
   )
 
-  const saltHex = _buf2hex(saltBytes)
-  const hashHex = _buf2hex(derivedBits)
+  const saltHex = buf2hex(saltBytes)
+  const hashHex = buf2hex(derivedBits)
 
   return `pbkdf2:sha256:${PBKDF2_ITERATIONS}$${saltHex}$${hashHex}`
 }
@@ -281,7 +281,7 @@ export async function hashPasswordForTransport(password: string): Promise<string
   const pepper = _assemblePepper()
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    _str2buf(password),
+    str2buf(password),
     'PBKDF2',
     false,
     ['deriveBits'],
@@ -301,7 +301,7 @@ export async function hashPasswordForTransport(password: string): Promise<string
   // 清除 pepper 字节数组
   pepper.fill(0)
 
-  return _buf2hex(derivedBits)
+  return buf2hex(derivedBits)
 }
 
 // ============================================================
@@ -316,7 +316,7 @@ export async function hashPasswordForTransport(password: string): Promise<string
  * @returns Base64 编码的密文（格式: iv + ciphertext + authTag）
  */
 export async function aesEncrypt(plaintext: string, keyHex: string): Promise<string> {
-  const keyBytes = _hex2buf(keyHex)
+  const keyBytes = hex2buf(keyHex)
   const iv = crypto.getRandomValues(new Uint8Array(AES_IV_LENGTH))
 
   const cryptoKey = await crypto.subtle.importKey(
@@ -330,7 +330,7 @@ export async function aesEncrypt(plaintext: string, keyHex: string): Promise<str
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     cryptoKey,
-    _str2buf(plaintext),
+    str2buf(plaintext),
   )
 
   // 将 IV + 密文 拼接后 Base64 编码
@@ -338,7 +338,7 @@ export async function aesEncrypt(plaintext: string, keyHex: string): Promise<str
   combined.set(iv)
   combined.set(new Uint8Array(encrypted), iv.length)
 
-  return _buf2base64(combined.buffer)
+  return buf2base64(combined.buffer)
 }
 
 /**
@@ -352,8 +352,8 @@ export async function aesDecrypt(
   cipherBase64: string,
   keyHex: string,
 ): Promise<string> {
-  const keyBytes = _hex2buf(keyHex)
-  const combined = new Uint8Array(_base642buf(cipherBase64))
+  const keyBytes = hex2buf(keyHex)
+  const combined = new Uint8Array(base642buf(cipherBase64))
 
   const iv = combined.slice(0, AES_IV_LENGTH)
   const ciphertext = combined.slice(AES_IV_LENGTH)

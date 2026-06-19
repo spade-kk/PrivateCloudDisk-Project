@@ -104,6 +104,11 @@ public class RabbitMQConifgure {
     public static final String FILE_DELETE_EXCHANGE = "pcd.file.delete.exchange";
     public static final String FILE_DELETE_ROUTING_KEY = "file.delete";
 
+    // 文件删除死信交换机（与 Python Worker 保持一致）
+    public static final String FILE_DELETE_DLX = "pcd.file.delete.dlx";
+    public static final String FILE_DELETE_DLQ = "pcd.file.delete.dlq";
+    public static final String FILE_DELETE_DLQ_ROUTING_KEY = "file.delete.dlq";
+
     // 配额更新队列
     public static final String QUOTA_UPDATE_QUEUE = "pcd.quota.update.queue";
     public static final String QUOTA_UPDATE_EXCHANGE = "pcd.quota.update.exchange";
@@ -249,12 +254,13 @@ public class RabbitMQConifgure {
     }
 
     /**
-     * 文件处理死信队列
+     * 文件处理死信队列（与 Python Worker 保持一致的 30 天 TTL）
      */
     @Bean
     public Queue fileProcessDlq() {
         return QueueBuilder
                 .durable(FILE_PROCESS_DLQ)
+                .withArgument("x-message-ttl", 2592000000L) // 30 天，与 Python Worker 一致
                 .build();
     }
 
@@ -289,12 +295,39 @@ public class RabbitMQConifgure {
                 .with(FILE_PROCESS_ROUTING_KEY);
     }
 
+    /**
+     * 文件删除死信交换机（与 Python Worker 保持一致）
+     */
+    @Bean
+    public DirectExchange fileDeleteDlxExchange() {
+        return new DirectExchange(FILE_DELETE_DLX);
+    }
+
+    /**
+     * 文件删除死信队列（与 Python Worker 保持一致的 30 天 TTL）
+     */
+    @Bean
+    public Queue fileDeleteDlq() {
+        return QueueBuilder
+                .durable(FILE_DELETE_DLQ)
+                .withArgument("x-message-ttl", 2592000000L) // 30 天，与 Python Worker 一致
+                .build();
+    }
+
+    @Bean
+    public Binding fileDeleteDlqBinding() {
+        return BindingBuilder
+                .bind(fileDeleteDlq())
+                .to(fileDeleteDlxExchange())
+                .with(FILE_DELETE_DLQ_ROUTING_KEY);
+    }
+
     @Bean
     public Queue fileDeleteQueue() {
         return QueueBuilder
                 .durable(FILE_DELETE_QUEUE)
-                .deadLetterExchange(FILE_PROCESS_DLX)
-                .deadLetterRoutingKey(FILE_PROCESS_DLQ_ROUTING_KEY)
+                .deadLetterExchange(FILE_DELETE_DLX)
+                .deadLetterRoutingKey(FILE_DELETE_DLQ_ROUTING_KEY)
                 .ttl(3 * 24 * 60 * 60 * 1000)
                 .build();
     }

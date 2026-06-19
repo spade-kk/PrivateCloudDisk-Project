@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_search"
+        android:icon="@drawable/ic_search"
+        android:title="@string/action_search"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_upload"
+        android:icon="@drawable/ic_upload"
+        android:title="@string/action_upload"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_create_folder"
+        android:icon="@drawable/ic_create_folder"
+        android:title="@string/action_create_folder"
+        app:showAsAction="ifRoom" />
+</menu>

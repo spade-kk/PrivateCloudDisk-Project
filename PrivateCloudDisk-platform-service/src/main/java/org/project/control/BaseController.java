@@ -7,6 +7,11 @@ import org.project.control.result.JsonResult;
 import org.project.service.ex.*;
 import org.project.service.ex.ResendTokenExhaustedException;
 import org.project.service.ex.ResendTokenInvalidException;
+import org.project.service.ex.AdminException;
+import org.project.service.ex.AdminNotFoundException;
+import org.project.service.ex.AdminPasswordNotMatchException;
+import org.project.service.ex.AdminAccountLockedException;
+import org.project.service.ex.AdminPermissionDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -106,6 +111,21 @@ public class BaseController {
             result.setMessage(e.getMessage());
         } else if (e instanceof OverstepAuthorityException) {
             result.setCode(19000);
+            result.setMessage(e.getMessage());
+        } else if (e instanceof AdminNotFoundException) {
+            result.setCode(20000);
+            result.setMessage(e.getMessage());
+        } else if (e instanceof AdminPasswordNotMatchException) {
+            result.setCode(20001);
+            result.setMessage(e.getMessage());
+        } else if (e instanceof AdminAccountLockedException) {
+            result.setCode(20002);
+            result.setMessage(e.getMessage());
+        } else if (e instanceof AdminPermissionDeniedException) {
+            result.setCode(20003);
+            result.setMessage(e.getMessage());
+        } else if (e instanceof AdminException) {
+            result.setCode(20004);
             result.setMessage(e.getMessage());
         }
         //将处理输出日志...

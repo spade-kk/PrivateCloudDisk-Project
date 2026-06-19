@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SystemConfigMapper">
+    <resultMap id="SystemConfigEntityMap" type="org.project.model.entity.SystemConfigEntity">
+        <id column="config_id" property="configId"/>
+        <result column="config_key" property="configKey"/>
+        <result column="config_value" property="configValue"/>
+        <result column="config_group" property="configGroup"/>
+        <result column="config_description" property="configDescription"/>
+        <result column="config_editable" property="configEditable"/>
+        <result column="config_version" property="configVersion"/>
+        <result column="config_updated_by" property="configUpdatedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="config_updated_at" property="configUpdatedAt"/>
+        <result column="config_created_at" property="configCreatedAt"/>
+    </resultMap>
+
+    <select id="findByConfigKey" resultMap="SystemConfigEntityMap">
+        SELECT * FROM pcd_system_config_table WHERE config_key = #{config_key};
+    </select>
+
+    <select id="findAll" resultMap="SystemConfigEntityMap">
+        SELECT * FROM pcd_system_config_table ORDER BY config_group, config_key;
+    </select>
+
+    <update id="updateConfigValue">
+        UPDATE pcd_system_config_table SET
+            config_value = #{config_value},
+            config_version = #{config_version}
+        WHERE config_key = #{config_key};
+    </update>
+</mapper>

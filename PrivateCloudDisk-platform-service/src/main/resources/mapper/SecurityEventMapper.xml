@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SecurityEventMapper">
+    <resultMap id="SecurityEventEntityMap" type="org.project.model.entity.SecurityEventEntity">
+        <id column="event_id" property="eventId"/>
+        <result column="event_type" property="eventType"/>
+        <result column="event_severity" property="eventSeverity"/>
+        <result column="event_user_id" property="eventUserId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="event_admin_id" property="eventAdminId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="event_ip" property="eventIp"/>
+        <result column="event_description" property="eventDescription"/>
+        <result column="event_handled" property="eventHandled"/>
+        <result column="event_handled_by" property="eventHandledBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="event_handled_at" property="eventHandledAt"/>
+        <result column="event_resolution" property="eventResolution"/>
+        <result column="event_created_at" property="eventCreatedAt"/>
+    </resultMap>
+
+    <insert id="insertSecurityEvent" parameterType="org.project.model.entity.SecurityEventEntity" useGeneratedKeys="true" keyProperty="eventId">
+        INSERT INTO pcd_security_event_table (
+            event_type, event_severity, event_user_id, event_admin_id,
+            event_ip, event_description, event_created_at
+        ) VALUES (
+            #{eventType}, #{eventSeverity},
+            #{eventUserId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{eventAdminId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{eventIp}, #{eventDescription}, #{eventCreatedAt}
+        );
+    </insert>
+
+    <select id="findByEventId" resultMap="SecurityEventEntityMap">
+        SELECT * FROM pcd_security_event_table WHERE event_id = #{event_id};
+    </select>
+
+    <select id="findByFilters" resultMap="SecurityEventEntityMap">
+        SELECT * FROM pcd_security_event_table
+        <where>
+            <if test="type != null and type != ''">
+                AND event_type = #{type}
+            </if>
+            <if test="severity != null and severity != ''">
+                AND event_severity = #{severity}
+            </if>
+            <if test="handled != null">
+                AND event_handled = #{handled}
+            </if>
+            <if test="startDate != null">
+                AND event_created_at >= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND event_created_at &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY event_created_at DESC
+        LIMIT #{limit} OFFSET #{offset};
+    </select>
+
+    <select id="countByFilters" resultType="long">
+        SELECT COUNT(*) FROM pcd_security_event_table
+        <where>
+            <if test="type != null and type != ''">
+                AND event_type = #{type}
+            </if>
+            <if test="severity != null and severity != ''">
+                AND event_severity = #{severity}
+            </if>
+            <if test="handled != null">
+                AND event_handled = #{handled}
+            </if>
+            <if test="startDate != null">
+                AND event_created_at >= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND event_created_at &lt;= #{endDate}
+            </if>
+        </where>;
+    </select>
+
+    <select id="countByHandled" resultType="long">
+        SELECT COUNT(*) FROM pcd_security_event_table WHERE event_handled = #{handled};
+    </select>
+
+    <update id="updateHandled">
+        UPDATE pcd_security_event_table SET
+            event_handled = TRUE,
+            event_handled_by = #{handled_by,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            event_handled_at = #{handled_at},
+            event_resolution = #{resolution}
+        WHERE event_id = #{event_id};
+    </update>
+</mapper>

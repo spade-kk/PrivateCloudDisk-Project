@@ -482,6 +482,7 @@ async function sendVerificationCode() {
 
     startVerificationCountdown()
   } catch (error: any) {
+    console.log(error)
     formError.value = error?.message || error?.response?.data?.message || '发送验证码失败'
 
     // 如果是重发达上限或超时，重置状态，下次需重新走首次流程

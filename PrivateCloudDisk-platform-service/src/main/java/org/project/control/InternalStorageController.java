@@ -33,24 +33,6 @@ public class InternalStorageController extends BaseController {
     private FileService fileService;
     @Autowired
     private UserService userService;
-    @Autowired
-    private RabbitTemplate rabbitTemplate;
-
-    @GetMapping("test")
-    public JsonResult<Void> test() {
-        rabbitTemplate.convertAndSend(
-                RabbitMQConifgure.REGISTER_EXCHANGE,
-                RabbitMQConifgure.REGISTER_ROUTING_KEY,
-                "test");
-
-        return new JsonResult<>(OK);
-    }
-
-    @GetMapping("test2")
-    public JsonResult<Void> test2() {
-        userService.findRootFolderNodeByUserId(UUID.fromString("415d3064-a465-4813-8f42-d6f1aa9b87c0"));
-        return new JsonResult<>(OK);
-    }
 
     @PostMapping("uploads/{uploads_id}/chunks/{chunk_index}/complete")
     public JsonResult<Void> chunk_complete(
@@ -73,13 +55,6 @@ public class InternalStorageController extends BaseController {
         return new JsonResult<>(OK, VoMapper.toUploadsSessionInternalVO(uploadsSessionData));
     }
 
-    @PostMapping("uploads/{uploads_id}/query")
-    public JsonResult<UploadsSessionInternalVO> uploads_query_legacy(
-            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-                    message = "uploads_id必须是有效的UUID格式")
-            @PathVariable String uploads_id) {
-        return uploads_query(uploads_id);
-    }
 
     @GetMapping({"uploads/{uploads_id}/chunks/{chunk_index}", "uploads/{uploads_id}/chunks/{chunk_index}/"})
     public JsonResult<UploadsChunkInternalVO> chunk_query(
@@ -93,18 +68,7 @@ public class InternalStorageController extends BaseController {
         return new JsonResult<>(OK, VoMapper.toUploadsChunkInternalVO(chunkData));
     }
 
-    @PostMapping("uploads/{uploads_id}/chunks/{chunk_index}/query")
-    public JsonResult<UploadsChunkInternalVO> chunk_query_legacy(
-            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-                    message = "uploads_id必须是有效的UUID格式")
-            @PathVariable String uploads_id,
-            @NotNull(message = "chunk_index 不能为空")
-            @Min(value = 0, message = "chunk_index 不能为负数")
-            @PathVariable Integer chunk_index) {
-        return chunk_query(uploads_id, chunk_index);
-    }
-
-    @PostMapping({"uploads/{uploads_id}/merge", "uploads/{uploads_id}/merging"})
+    @PostMapping({ "uploads/{uploads_id}/merging"})
     public JsonResult<String> uploads_merging(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "uploads_id必须是有效的UUID格式")
@@ -125,7 +89,7 @@ public class InternalStorageController extends BaseController {
         return new JsonResult<>(OK);
     }
 
-    @GetMapping({"files/{file_id}", "files/{file_id}/info", "file/{file_id}/info"})
+    @GetMapping({"files/{file_id}"})
     public JsonResult<InternalFileMetadataVO> file_metadata_query(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "file_id必须是有效的UUID格式")

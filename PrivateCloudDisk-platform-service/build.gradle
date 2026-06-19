@@ -27,6 +27,11 @@ repositories {
     mavenCentral()
 }
 
+ext {
+    set('springCloudVersion', "2024.0.1")
+    set('springCloudAlibabaVersion', "2023.0.1.0")
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
@@ -60,11 +65,43 @@ dependencies {
     // SpringDoc OpenAPI（Swagger UI）- API 文档与测试
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
+    // ============================================================
+    // 企业级中间件扩展依赖 (新增)
+    // ============================================================
+
+    // Spring Cloud Alibaba — Nacos 服务发现 + 配置中心
+    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-nacos-discovery'
+    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-nacos-config'
+
+    // Spring Cloud Alibaba — Sentinel 流量控制 + 熔断降级
+    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-sentinel'
+    // Sentinel 数据源 Nacos 持久化
+    implementation 'com.alibaba.csp:sentinel-datasource-nacos:1.8.8'
+
+    // Spring Cloud Alibaba — Seata 分布式事务 (AT 模式)
+    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-seata'
+
+    // XXL-Job 分布式任务调度
+    implementation 'com.xuxueli:xxl-job-core:2.4.2'
+
+    // Micrometer + Prometheus 指标暴露
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // Redisson 分布式锁（高级 Redis 客户端）
+    implementation 'org.redisson:redisson-spring-boot-starter:3.40.2'
 
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "com.alibaba.cloud:spring-cloud-alibaba-dependencies:${springCloudAlibabaVersion}"
+    }
 }
 
 tasks.named('test') {

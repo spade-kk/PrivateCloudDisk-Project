@@ -168,4 +168,13 @@ public class OpenApiConfig {
                 .pathsToMatch("/business/internal/**")
                 .build();
     }
+
+    @Bean
+    public GroupedOpenApi otherApiGroup() {
+        return GroupedOpenApi.builder()
+                .group("100-其他接口")
+                .displayName("其他接口")
+                .pathsToMatch("/business/**")
+                .build();
+    }
 }

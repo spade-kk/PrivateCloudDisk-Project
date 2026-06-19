@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary -->
+    <color name="colorPrimary">#1976D2</color>
+    <color name="colorPrimaryDark">#1565C0</color>
+    <color name="colorPrimaryLight">#42A5F5</color>
+    <color name="colorAccent">#FF6F00</color>
+
+    <!-- Background -->
+    <color name="colorBackground">#FAFAFA</color>
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="colorError">#D32F2F</color>
+
+    <!-- Text -->
+    <color name="textPrimary">#212121</color>
+    <color name="textSecondary">#757575</color>
+    <color name="textHint">#BDBDBD</color>
+
+    <!-- File type colors -->
+    <color name="folderColor">#FFB74D</color>
+    <color name="imageColor">#4CAF50</color>
+    <color name="videoColor">#F44336</color>
+    <color name="audioColor">#9C27B0</color>
+    <color name="documentColor">#2196F3</color>
+
+    <!-- Status -->
+    <color name="uploadingColor">#2196F3</color>
+    <color name="completedColor">#4CAF50</color>
+    <color name="failedColor">#F44336</color>
+    <color name="pausedColor">#FF9800</color>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.IpBlacklistMapper">
+    <resultMap id="IpBlacklistEntityMap" type="org.project.model.entity.IpBlacklistEntity">
+        <id column="blacklist_id" property="blacklistId"/>
+        <result column="blacklist_ip" property="blacklistIp"/>
+        <result column="blacklist_reason" property="blacklistReason"/>
+        <result column="blacklist_added_by" property="blacklistAddedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="blacklist_removed_by" property="blacklistRemovedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="blacklist_removed_at" property="blacklistRemovedAt"/>
+        <result column="blacklist_status" property="blacklistStatus"/>
+        <result column="blacklist_expires_at" property="blacklistExpiresAt"/>
+        <result column="blacklist_created_at" property="blacklistCreatedAt"/>
+    </resultMap>
+
+    <select id="findByIpAndStatus" resultMap="IpBlacklistEntityMap">
+        SELECT * FROM pcd_ip_blacklist_table
+        WHERE blacklist_ip = #{blacklist_ip} AND blacklist_status = #{blacklist_status};
+    </select>
+
+    <select id="findAllActive" resultMap="IpBlacklistEntityMap">
+        SELECT * FROM pcd_ip_blacklist_table
+        WHERE blacklist_status = 'ACTIVE'
+        AND (blacklist_expires_at IS NULL OR blacklist_expires_at > NOW());
+    </select>
+
+    <insert id="insertIpBlacklist" parameterType="org.project.model.entity.IpBlacklistEntity" useGeneratedKeys="true" keyProperty="blacklistId">
+        INSERT INTO pcd_ip_blacklist_table (
+            blacklist_ip, blacklist_reason, blacklist_added_by,
+            blacklist_status, blacklist_expires_at, blacklist_created_at
+        ) VALUES (
+            #{blacklistIp}, #{blacklistReason},
+            #{blacklistAddedBy,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{blacklistStatus}, #{blacklistExpiresAt}, #{blacklistCreatedAt}
+        );
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE pcd_ip_blacklist_table SET blacklist_status = #{blacklist_status}
+        WHERE blacklist_ip = #{blacklist_ip};
+    </update>
+</mapper>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.AdminAuditLogMapper">
+    <resultMap id="AdminAuditLogEntityMap" type="org.project.model.entity.AdminAuditLogEntity">
+        <id column="audit_id" property="auditId"/>
+        <result column="audit_admin_id" property="auditAdminId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="audit_admin_name" property="auditAdminName"/>
+        <result column="audit_admin_role" property="auditAdminRole"/>
+        <result column="audit_action" property="auditAction"/>
+        <result column="audit_resource" property="auditResource"/>
+        <result column="audit_resource_id" property="auditResourceId"/>
+        <result column="audit_detail" property="auditDetail"/>
+        <result column="audit_request_method" property="auditRequestMethod"/>
+        <result column="audit_request_path" property="auditRequestPath"/>
+        <result column="audit_client_ip" property="auditClientIp"/>
+        <result column="audit_user_agent" property="auditUserAgent"/>
+        <result column="audit_status" property="auditStatus"/>
+        <result column="audit_error_message" property="auditErrorMessage"/>
+        <result column="audit_created_at" property="auditCreatedAt"/>
+    </resultMap>
+
+    <insert id="insertAuditLog" parameterType="org.project.model.entity.AdminAuditLogEntity" useGeneratedKeys="true" keyProperty="auditId">
+        INSERT INTO pcd_admin_audit_log_table (
+            audit_admin_id, audit_admin_name, audit_admin_role,
+            audit_action, audit_resource, audit_resource_id, audit_detail,
+            audit_request_method, audit_request_path,
+            audit_client_ip, audit_user_agent,
+            audit_status, audit_error_message, audit_created_at
+        ) VALUES (
+            #{auditAdminId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{auditAdminName}, #{auditAdminRole},
+            #{auditAction}, #{auditResource}, #{auditResourceId}, #{auditDetail},
+            #{auditRequestMethod}, #{auditRequestPath},
+            #{auditClientIp}, #{auditUserAgent},
+            #{auditStatus}, #{auditErrorMessage}, #{auditCreatedAt}
+        );
+    </insert>
+
+    <select id="findByAdminId" resultMap="AdminAuditLogEntityMap">
+        SELECT * FROM pcd_admin_audit_log_table
+        WHERE audit_admin_id = #{admin_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY audit_created_at DESC;
+    </select>
+
+    <select id="findByFilters" resultMap="AdminAuditLogEntityMap">
+        SELECT * FROM pcd_admin_audit_log_table
+        <where>
+            <if test="adminId != null">
+                AND audit_admin_id = #{adminId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            </if>
+            <if test="action != null and action != ''">
+                AND audit_action = #{action}
+            </if>
+            <if test="resource != null and resource != ''">
+                AND audit_resource = #{resource}
+            </if>
+            <if test="status != null and status != ''">
+                AND audit_status = #{status}
+            </if>
+            <if test="startDate != null">
+                AND audit_created_at >= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND audit_created_at &lt;= #{endDate}
+            </if>
+        </where>
+        ORDER BY audit_created_at DESC
+        LIMIT #{limit} OFFSET #{offset};
+    </select>
+
+    <select id="countByFilters" resultType="long">
+        SELECT COUNT(*) FROM pcd_admin_audit_log_table
+        <where>
+            <if test="adminId != null">
+                AND audit_admin_id = #{adminId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            </if>
+            <if test="action != null and action != ''">
+                AND audit_action = #{action}
+            </if>
+            <if test="resource != null and resource != ''">
+                AND audit_resource = #{resource}
+            </if>
+            <if test="status != null and status != ''">
+                AND audit_status = #{status}
+            </if>
+            <if test="startDate != null">
+                AND audit_created_at >= #{startDate}
+            </if>
+            <if test="endDate != null">
+                AND audit_created_at &lt;= #{endDate}
+            </if>
+        </where>;
+    </select>
+
+    <select id="countSince" resultType="long">
+        SELECT COUNT(*) FROM pcd_admin_audit_log_table WHERE audit_created_at >= #{since};
+    </select>
+</mapper>

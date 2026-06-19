@@ -64,6 +64,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             new ExcludedPath("/api/v1/business/users/", "POST"),                       // 注册
             new ExcludedPath("/api/v1/business/verification-code/register/send", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/business/verification-code/register/resend", "POST"),// 邮箱验证码
+            new ExcludedPath("/api/v1/business/admin/**", "*"),                        // 管理员接口（由 AdminGatewayFilter 处理）
             new ExcludedPath("/api/v1/business/internal/**", "*")                      // 内部服务通信
     );
 
