@@ -143,13 +143,10 @@ public class UserServiceImpl implements UserService {
                 ? phoneNumber : email;
         apiAbuseProtectionService.checkRegisterStart(identity, clientIp);
 
-        // 2. 防爆破：检查验证码失败次数（同一 IP 15 分钟内最多 5 次失败）
-        verificationCodeService.checkRegisterCodeAttempts(clientIp);
-
+        String targetType = null;
+        String target = null;
         try {
-            // 3. 确定目标类型和值
-            String targetType;
-            String target;
+            // 2. 确定目标类型和值
             if (phoneNumber != null && !phoneNumber.isBlank()) {
                 targetType = "phone";
                 target = phoneNumber.trim();
@@ -160,8 +157,11 @@ public class UserServiceImpl implements UserService {
                 throw new AccountOrPhoneNumberException();
             }
 
+            // 3. 防爆破：检查验证码失败次数（同一 IP 15 分钟内最多 5 次失败）
+            verificationCodeService.checkCodeAttempts(targetType, target, "REGISTER", clientIp);
+
             // 4. 验证验证码（一次性使用，验证后自动删除）
-            boolean codeValid = verificationCodeService.verifyCode(targetType, target, "REGISTER", code);
+            boolean codeValid = verificationCodeService.verifyCode(targetType, target, "REGISTER", code, clientIp);
             if (!codeValid) {
                 throw new VerificationCodeErrorException();
             }
@@ -225,7 +225,7 @@ public class UserServiceImpl implements UserService {
             userEventPublisher.publishUserRegistered(registeredEvent);
 
             // 10. 注册成功，清除该 IP 的验证码失败计数
-            verificationCodeService.clearRegisterCodeAttempts(clientIp);
+            verificationCodeService.clearCodeAttempts(targetType, target, "REGISTER", clientIp);
 
             log.info("用户注册成功并发布事件: userId={}, account={}, targetType={}, target={}",
                      userData.getId(), userData.getAccount(), targetType, target);
@@ -234,7 +234,7 @@ public class UserServiceImpl implements UserService {
 
         } catch (VerificationCodeErrorException e) {
             // 验证码错误，记录失败次数
-            verificationCodeService.recordRegisterCodeFailure(clientIp);
+            verificationCodeService.recordCodeFailure(targetType, target, "REGISTER",clientIp);
             throw e;
         }
     }
