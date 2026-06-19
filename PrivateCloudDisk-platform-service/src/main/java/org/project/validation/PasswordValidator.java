@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * <p>
  * 支持两种密码格式的校验：
  * <ul>
- *   <li><b>原始密码</b>：8-128 位，至少包含一个字母和一个数字，允许常见特殊字符</li>
+ *   <li><b>原始密码</b>：8-28 位，至少包含一个字母和一个数字，允许常见特殊字符</li>
  *   <li><b>PBKDF2-SHA256 预哈希密码</b>：严格 64 位十六进制字符串（小写 a-f 或大写 A-F，数字 0-9）</li>
  * </ul>
  * <p>
@@ -29,7 +29,7 @@ public class PasswordValidator implements ConstraintValidator<ValidPassword, Str
             Pattern.compile("^[a-fA-F0-9]{64}$");
 
     /**
-     * 原始密码格式：8-128 位，至少包含一个字母和一个数字
+     * 原始密码格式：8-28 位，至少包含一个字母和一个数字
      * <p>
      * 允许的字符集：字母、数字、以及常见特殊字符
      * 注意：不包含空格和控制字符，防止注入攻击
@@ -53,8 +53,8 @@ public class PasswordValidator implements ConstraintValidator<ValidPassword, Str
             return true;
         }
 
-        // 格式二：原始密码（8-128 位，含字母+数字+允许的特殊字符）
-        if (password.length() < 8 || password.length() > 128) {
+        // 格式二：原始密码（8-28 位，含字母+数字+允许的特殊字符）
+        if (password.length() < 8 || password.length() > 28) {
             return false;
         }
         if (RAW_PASSWORD_INVALID.matcher(password).find()) {

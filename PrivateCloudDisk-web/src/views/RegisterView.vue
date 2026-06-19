@@ -261,7 +261,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import { useRouter } from 'vue-router'
 import { post } from '@/utils/request'
 import { hashPasswordForTransport } from '@/utils/crypto'
-import { sendVerificationCodeApi, resendVerificationCodeApi } from '@/api/modules/users'
+import { sendRegisterVerificationCodeApi, resendRegisterVerificationCodeApi } from '@/api/modules/users'
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
@@ -464,11 +464,11 @@ async function sendVerificationCode() {
   try {
     if (isResend) {
       // 重发：凭 resend_token，无需人机验证
-      await resendVerificationCodeApi(resendToken.value)
+      await resendRegisterVerificationCodeApi(form.email, resendToken.value)
       resendCount.value += 1
     } else {
       // 首次：带 Turnstile token
-      const res = await sendVerificationCodeApi(form.email, captchaToken.value, 'send_code')
+      const res = await sendRegisterVerificationCodeApi(form.email, captchaToken.value, 'send_code')
 
       // 存储 resend_token 供后续重发使用
       if (res?.data?.resend_token) {
@@ -520,7 +520,7 @@ async function handleRegister() {
 
   try {
     // 客户端密码预哈希 - 密码明文永不离开浏览器
-    const hashedPassword = await hashPasswordForTransport(form.password, form.email)
+    const hashedPassword = await hashPasswordForTransport(form.password)
 
     const response = await post('business/users/', {
       name: form.name,

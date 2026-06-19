@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.control.result.JsonResult;
+import org.project.model.dto.RegisterVerificationSendRequest;
 import org.project.model.dto.VerificationSendRequest;
 import org.project.model.vo.VerificationSendVO;
 import org.project.service.VerificationCodeService;
@@ -47,7 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/business/verification")
+@RequestMapping("/business/verification-code")
 @RequiredArgsConstructor
 public class VerificationController extends BaseController {
 
@@ -105,6 +106,62 @@ public class VerificationController extends BaseController {
 
         VerificationSendVO response = verificationCodeService.resendCode(
                 targetType, target, request.getPurpose(), resendToken, clientIp);
+
+        return new JsonResult<>(OK, response);
+    }
+
+    /**
+     * 首次发送注册验证码（需人机验证码）。
+     * <p>所有业务逻辑（人机验证、过滤、生成、发送、token 创建）均由 VerificationCodeService 处理。
+     */
+    @PostMapping("/register/send")
+    public JsonResult<VerificationSendVO> sendRegisterVerificationCode(
+            @Valid @RequestBody RegisterVerificationSendRequest request,
+            HttpServletRequest httpRequest) {
+
+        String clientIp = ClientIpUtil.resolveClientIp(httpRequest);
+
+        String targetType;
+        String target;
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            targetType = "email";
+            target = request.getEmail().trim().toLowerCase();
+        } else {
+            targetType = "phone";
+            target = request.getPhone().trim();
+        }
+
+        VerificationSendVO response = verificationCodeService.sendCode(
+                targetType, target, "REGISTER",
+                request.getCaptchaToken(), request.getCaptchaAction(), clientIp);
+
+        return new JsonResult<>(OK, response);
+    }
+
+    /**
+     * 重新发送验证码（无需人机验证码，需携带有效的 resend token）。
+     * <p>不重新颁发 token，返回同一个 token + 更新后的剩余次数。
+     */
+    @PostMapping("/register/resend")
+    public JsonResult<VerificationSendVO> resendRegisterVerificationCode(
+            @Valid @RequestBody RegisterVerificationSendRequest request,
+            @RequestHeader(value = "X-Resend-Token", required = true) String resendToken,
+            HttpServletRequest httpRequest) {
+
+        String clientIp = ClientIpUtil.resolveClientIp(httpRequest);
+
+        String targetType;
+        String target;
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            targetType = "email";
+            target = request.getEmail().trim().toLowerCase();
+        } else {
+            targetType = "phone";
+            target = request.getPhone().trim();
+        }
+
+        VerificationSendVO response = verificationCodeService.resendCode(
+                targetType, target, "REGISTER", resendToken, clientIp);
 
         return new JsonResult<>(OK, response);
     }

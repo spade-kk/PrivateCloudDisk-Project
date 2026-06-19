@@ -64,8 +64,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(phoneNumber: string, password: string, captchaToken: string = ''): Promise<{ success: boolean; message?: string; scope?: string }> {
     try {
       // 客户端密码预哈希 - 密码明文永不离开浏览器
-      //const hashedPassword = await hashPasswordForTransport(password, phoneNumber)
-      const res = await loginApi(phoneNumber, password, captchaToken, 'login')
+      const hashedPassword = await hashPasswordForTransport(password)
+      const res = await loginApi(phoneNumber, hashedPassword, captchaToken, 'login')
       if (res.code === 200) {
         token.value = res.data
         cookie.set(TOKEN_COOKIE_KEY, token.value, { days: 7 })

@@ -94,6 +94,11 @@ public class RabbitMQConifgure {
     public static final String FILE_PROCESS_EXCHANGE = "pcd.file.process.exchange";
     public static final String FILE_PROCESS_ROUTING_KEY = "file.process";
 
+    // 文件处理死信交换机（与 Python Worker 保持一致）
+    public static final String FILE_PROCESS_DLX = "pcd.file.process.dlx";
+    public static final String FILE_PROCESS_DLQ = "pcd.file.process.dlq";
+    public static final String FILE_PROCESS_DLQ_ROUTING_KEY = "file.process.dlq";
+
     // 文件删除队列（由文件服务消费）
     public static final String FILE_DELETE_QUEUE = "pcd.file.delete.queue";
     public static final String FILE_DELETE_EXCHANGE = "pcd.file.delete.exchange";
@@ -235,11 +240,39 @@ public class RabbitMQConifgure {
 
     // ==================== 文件相关队列（用于发送消息，文件服务消费） ====================
 
+    /**
+     * 文件处理死信交换机（与 Python Worker 保持一致）
+     */
+    @Bean
+    public DirectExchange fileProcessDlxExchange() {
+        return new DirectExchange(FILE_PROCESS_DLX);
+    }
+
+    /**
+     * 文件处理死信队列
+     */
+    @Bean
+    public Queue fileProcessDlq() {
+        return QueueBuilder
+                .durable(FILE_PROCESS_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Binding fileProcessDlqBinding() {
+        return BindingBuilder
+                .bind(fileProcessDlq())
+                .to(fileProcessDlxExchange())
+                .with(FILE_PROCESS_DLQ_ROUTING_KEY);
+    }
+
     @Bean
     public Queue fileProcessQueue() {
         return QueueBuilder
                 .durable(FILE_PROCESS_QUEUE)
-                .withArgument("x-message-ttl", 7 * 24 * 60 * 60 * 1000L)
+                .deadLetterExchange(FILE_PROCESS_DLX)
+                .deadLetterRoutingKey(FILE_PROCESS_DLQ_ROUTING_KEY)
+                .ttl(7 * 24 * 60 * 60 * 1000)
                 .build();
     }
 
@@ -260,7 +293,9 @@ public class RabbitMQConifgure {
     public Queue fileDeleteQueue() {
         return QueueBuilder
                 .durable(FILE_DELETE_QUEUE)
-                .withArgument("x-message-ttl", 3 * 24 * 60 * 60 * 1000L)
+                .deadLetterExchange(FILE_PROCESS_DLX)
+                .deadLetterRoutingKey(FILE_PROCESS_DLQ_ROUTING_KEY)
+                .ttl(3 * 24 * 60 * 60 * 1000)
                 .build();
     }
 

@@ -480,7 +480,7 @@ async function resendCode(): Promise<void> {
   sendingCode.value = true
 
   try {
-    await resendChangeEmailCodeApi(resendToken.value)
+    await resendChangeEmailCodeApi(form.newEmail, resendToken.value)
     startResendCountdown()
     toast.showToast('验证码已重新发送', 'success')
   } catch (error: any) {

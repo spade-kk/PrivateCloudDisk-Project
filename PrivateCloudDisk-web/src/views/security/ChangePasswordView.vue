@@ -437,10 +437,9 @@ async function handleChangePassword(): Promise<void> {
   submitting.value = true
 
   try {
-    // 客户端密码预哈希 - 使用用户邮箱作为盐值的一部分
-    const userEmail = auth.user?.email || auth.user?.account || ''
-    const hashedOldPassword = await hashPasswordForTransport(form.oldPassword, userEmail)
-    const hashedNewPassword = await hashPasswordForTransport(form.newPassword, userEmail)
+    // 客户端密码预哈希 - 密码明文永不离开浏览器
+    const hashedOldPassword = await hashPasswordForTransport(form.oldPassword)
+    const hashedNewPassword = await hashPasswordForTransport(form.newPassword)
 
     const res = await changeMyUserPasswordApi(
       hashedOldPassword,

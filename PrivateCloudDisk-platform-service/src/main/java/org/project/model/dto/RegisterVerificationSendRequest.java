@@ -20,30 +20,22 @@ import lombok.Data;
  * </ul>
  */
 @Data
-public class VerificationSendRequest {
+public class RegisterVerificationSendRequest {
 
     /**
      * 接收邮箱（与手机号二选一）
      */
     @Size(max = 254, message = "邮箱长度不能超过254个字符")
     @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-             message = "邮箱格式不正确")
+            message = "邮箱格式不正确")
     private String email;
 
     /**
      * 接收手机号（与邮箱二选一）
      */
     @Pattern(regexp = "^1[3-9]\\d{9}$",
-             message = "手机号格式不正确")
+            message = "手机号格式不正确")
     private String phone;
-
-    /**
-     * 验证码用途：REGISTER（注册）、BIND（绑定）、RESET（重置密码）
-     */
-    @NotBlank(message = "验证码用途不能为空")
-    @Pattern(regexp = "^(BIND|RESET)$",
-             message = "验证码用途必须是 BIND 或 RESET")
-    private String purpose;
 
     /**
      * Cloudflare Turnstile 人机验证 token（首次发送时必填，重新发送时可选）

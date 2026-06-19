@@ -501,7 +501,7 @@ async function resendCode(): Promise<void> {
   sendingCode.value = true
 
   try {
-    await resendChangePhoneCodeApi(resendToken.value)
+    await resendChangePhoneCodeApi(form.newPhone, resendToken.value)
     startResendCountdown()
     toast.showToast('验证码已重新发送', 'success')
   } catch (error: any) {

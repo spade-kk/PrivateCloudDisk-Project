@@ -96,14 +96,14 @@ export function sendVerificationCodeApi(
   target: string,
   captchaToken: string,
   captchaAction: string = 'send_code',
+  purpose: string
 ): Promise<any> {
-  return post('business/users/email/verification-code', null, {
-    params: {
+  return post('business/verification-code/send', {
       email: target,
       captcha_token: captchaToken,
       captcha_action: captchaAction,
-    },
-  })
+      purpose: purpose
+    })
 }
 
 /**
@@ -116,9 +116,54 @@ export function sendVerificationCodeApi(
  * @param resendToken - 首次发送时后端返回的 resend_token
  * @returns Promise<{ code: number, message: string }>
  */
-export function resendVerificationCodeApi(resendToken: string): Promise<any> {
-  return post('business/users/email/verification-code/resend', null, {
-    params: { resend_token: resendToken },
+export function resendVerificationCodeApi(target: string, purpose: string, resendToken: string): Promise<any> {
+  return post('business/verification-code/resend', {
+      email: target,
+      purpose: purpose
+  }, {
+    header: { 'X-Resend-Token': resendToken },
+  })
+}
+
+/**
+ * 首次发送验证码（需人机验证）
+ *
+ * 适用于注册、邮箱换绑、手机号换绑等所有需要验证码的场景。
+ * 首次发送必须通过 Turnstile 人机验证，后端校验通过后返回 resend_token，
+ * 后续重发可凭此 token 免人机验证。
+ *
+ * @param target - 目标地址（邮箱地址或手机号）
+ * @param captchaToken - Turnstile 人机验证 Token
+ * @param captchaAction - 验证动作标识（send_code / change_email / change_phone 等）
+ * @returns Promise<{ code: number, message: string, data: { resend_token: string } }>
+ */
+export function sendRegisterVerificationCodeApi(
+  target: string,
+  captchaToken: string,
+  captchaAction: string = 'send_code'
+): Promise<any> {
+  return post('business/verification-code/register/send', {
+      email: target,
+      captcha_token: captchaToken,
+      captcha_action: captchaAction
+    })
+}
+
+/**
+ * 重发验证码（免人机验证，凭 resend_token）
+ *
+ * 首次发送验证码后，后端返回 resend_token（UUID），
+ * 10 分钟内最多可凭此 token 重发 8 次，无需再次完成 Turnstile。
+ * 超限或超时后需重新走首次流程（重新通过人机验证）。
+ *
+ * @param resendToken - 首次发送时后端返回的 resend_token
+ * @returns Promise<{ code: number, message: string }>
+ */
+export function resendRegisterVerificationCodeApi(target: string, resendToken: string): Promise<any> {
+  return post('business/verification-code/register/resend', {
+      email: target
+  }, {
+    header: { 'X-Resend-Token': resendToken },
   })
 }
 
@@ -209,8 +254,11 @@ export function sendChangeEmailCodeApi(
   captchaToken: string = '',
   captchaAction: string = 'change_email',
 ): Promise<any> {
-  return post('business/users/me/email/verification-code', null, {
-    params: { email, captcha_token: captchaToken, captcha_action: captchaAction },
+  return post('business/verification-code/send', {
+    email: email,
+    captcha_token: captchaToken,
+    captcha_action: captchaAction,
+    purpose: 'BIND'
   })
 }
 
@@ -220,9 +268,12 @@ export function sendChangeEmailCodeApi(
  * @param resendToken - 首次发送时后端返回的 resend_token
  * @returns Promise<{ code: number, message: string }>
  */
-export function resendChangeEmailCodeApi(resendToken: string): Promise<any> {
-  return post('business/users/me/email/verification-code/resend', null, {
-    params: { resend_token: resendToken },
+export function resendChangeEmailCodeApi(email: string, resendToken: string): Promise<any> {
+  return post('business/verification-code/resend', {
+      email: email,
+      purpose: 'BIND'
+  }, {
+    header: { 'X-Resend-Token': resendToken },
   })
 }
 
@@ -263,8 +314,11 @@ export function sendChangePhoneCodeApi(
   captchaToken: string = '',
   captchaAction: string = 'change_phone',
 ): Promise<any> {
-  return post('business/users/me/phone/verification-code', null, {
-    params: { phone_number: phone, captcha_token: captchaToken, captcha_action: captchaAction },
+    return post('business/verification-code/send', {
+    phone_number: phone,
+    captcha_token: captchaToken,
+    captcha_action: captchaAction,
+    purpose: 'BIND'
   })
 }
 
@@ -274,9 +328,12 @@ export function sendChangePhoneCodeApi(
  * @param resendToken - 首次发送时后端返回的 resend_token
  * @returns Promise<{ code: number, message: string }>
  */
-export function resendChangePhoneCodeApi(resendToken: string): Promise<any> {
-  return post('business/users/me/phone/verification-code/resend', null, {
-    params: { resend_token: resendToken },
+export function resendChangePhoneCodeApi(phone: string, resendToken: string): Promise<any> {
+  return post('business/verification-code/resend', {
+      phone_number: phone,
+      purpose: 'BIND'
+  }, {
+    header: { 'X-Resend-Token': resendToken },
   })
 }
 

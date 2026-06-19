@@ -21,24 +21,36 @@ import org.springframework.web.multipart.MultipartFile;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
  * 用户服务实现。
- * <p>
- * 密码安全增强：
+ *
+ * <h3>密码安全架构（企业级双层哈希）</h3>
  * <ol>
- *   <li>支持 PBKDF2-SHA256 预哈希密码（Web 前端 60 万次迭代后传输）</li>
- *   <li>后端使用 BCrypt(12 rounds) 进行二次哈希后存储</li>
- *   <li>自动检测密码格式：64 位十六进制 = 预哈希，否则 = 原始密码</li>
- *   <li>向后兼容旧版 BCrypt 存储的密码</li>
+ *   <li><b>客户端预哈希</b>：前端使用 PBKDF2-SHA256（60 万次迭代）对原始密码预哈希。
+ *       密码明文永不离开浏览器内存，即使 TLS 被中间人攻击也不会泄露明文。</li>
+ *   <li><b>服务端二次哈希</b>：后端使用 BCrypt(12 rounds) 对客户端传来的 PBKDF2 哈希值
+ *       进行二次哈希后存储。BCrypt 自动生成随机 salt，确保每个用户密码的存储格式不同。</li>
+ *   <li><b>一致性保证</b>：客户端使用固定的 application-level pepper 作为 PBKDF2 salt，
+ *       确保注册和登录时产生的哈希值一致。真正的随机 salt 由 BCrypt 在服务端生成。</li>
  * </ol>
- * <p>
- * 密码存储格式：
+ *
+ * <h3>密码存储格式</h3>
  * <pre>
- * 新用户注册：BCrypt(PBKDF2-SHA256(raw_password))
- * 旧用户登录：BCrypt(raw_password)  [自动迁移]
+ * 数据库存储：BCrypt( PBKDF2-SHA256( raw_password, pepper ) )
  * </pre>
+ *
+ * <h3>为什么二次哈希是正确的？</h3>
+ * <p>BCrypt 是单向哈希函数，后端不需要也不能"解密"客户端传来的哈希值。
+ * 后端对客户端传来的 PBKDF2 哈希值再做一次 BCrypt 哈希，存入数据库。
+ * 登录时，客户端发送相同的 PBKDF2 哈希值，后端用 BCrypt.matches() 验证：
+ * BCrypt 会从存储的哈希中提取 salt，用相同的 salt 重新哈希输入值，然后比对输出。
+ * 只要输入值相同（注册和登录的 PBKDF2 哈希值一致），验证就一定通过。
+ *
+ * <h3>为什么不用 phone/email 作为 salt？</h3>
+ * <p>注册时用 email 作为 salt，登录时可能用 phoneNumber 或 account——
+ * 不同标识符导致不同 salt → 不同 PBKDF2 hash → 登录失败。
+ * 固定 application-level pepper 避免了这个问题，且安全性由 BCrypt 的随机 salt 兜底。
  */
 @Slf4j
 @Service
@@ -54,17 +66,6 @@ public class UserServiceImpl implements UserService {
     private final CaptchaVerifier captchaVerifier;
     private final JwtUtil jwtUtil;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
-    /** PBKDF2-SHA256 预哈希密码格式：严格 64 位十六进制 */
-    private static final Pattern PRE_HASHED_PATTERN =
-            Pattern.compile("^[a-fA-F0-9]{64}$");
-
-    /**
-     * 判断密码是否为 PBKDF2-SHA256 预哈希格式。
-     */
-    private boolean isPreHashedPassword(String password) {
-        return password != null && PRE_HASHED_PATTERN.matcher(password).matches();
-    }
 
     @Override
     public String login(String account, String phoneNumber, String password,
@@ -107,13 +108,6 @@ public class UserServiceImpl implements UserService {
 
             if (!passwordMatches(password, result.getPassword())) {
                 throw new PasswordNotMatchException();
-            }
-
-            // 密码自动迁移
-            if (!isBcryptHash(result.getPassword())) {
-                String hashedPassword = passwordEncoder.encode(password);
-                userMapper.updateUserPassword(result.getId(), hashedPassword);
-                log.info("用户密码已从明文迁移至 BCrypt: userId={}", result.getId());
             }
 
             // 4. 生成 JWT 令牌
@@ -190,9 +184,6 @@ public class UserServiceImpl implements UserService {
             }
 
             userData.setPassword(passwordEncoder.encode(password));
-            if (isPreHashedPassword(password)) {
-                log.info("用户注册使用 PBKDF2-SHA256 预哈希密码: target={}", target);
-            }
 
             userData.setName(name);
 
@@ -320,17 +311,18 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 密码匹配验证。
+     *
+     * <p>客户端传入的 password 是 PBKDF2-SHA256 哈希值（64 位十六进制），
+     * 数据库存储的是 BCrypt( PBKDF2-SHA256( raw_password ) )。
+     * BCrypt.matches() 会从存储的哈希中提取 salt，重新哈希输入值后比对。
+     * 只要客户端传入的 PBKDF2 哈希值与注册时一致，验证就一定通过。
+     */
     private boolean passwordMatches(String rawPassword, String storedPassword) {
-        if(storedPassword == null) {
+        if (storedPassword == null) {
             return false;
         }
-        if(isBcryptHash(storedPassword)) {
-            return passwordEncoder.matches(rawPassword, storedPassword);
-        }
-        return storedPassword.equals(rawPassword);
-    }
-
-    private boolean isBcryptHash(String password) {
-        return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$"));
+        return passwordEncoder.matches(rawPassword, storedPassword);
     }
 }
