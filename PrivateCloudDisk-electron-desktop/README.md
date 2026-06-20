@@ -1,4 +1,4 @@
-# PrivateCloudDisk Desktop - 企业私有云盘桌面客户端
+# PrivateCloudDisk Electron Desktop - 企业私有云盘桌面客户端 跨平台 Native
 
 基于 Electron 的企业级私有云盘桌面客户端，支持 macOS / Windows / Linux，提供**本地系统级虚拟磁盘**功能（类似百度网盘云磁盘）。
 
