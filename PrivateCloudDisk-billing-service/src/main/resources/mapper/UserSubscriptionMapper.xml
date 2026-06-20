@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.UserSubscriptionMapper">
+
+    <resultMap id="UserSubscriptionMap" type="org.project.billing.model.entity.UserSubscriptionEntity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="plan_id" property="planId"/>
+        <result column="status" property="status"/>
+        <result column="billing_cycle" property="billingCycle"/>
+        <result column="start_date" property="startDate"/>
+        <result column="end_date" property="endDate"/>
+        <result column="auto_renew" property="autoRenew"/>
+        <result column="cancelled_at" property="cancelledAt"/>
+        <result column="trial_started_at" property="trialStartedAt"/>
+        <result column="trial_ended_at" property="trialEndedAt"/>
+        <result column="last_billing_date" property="lastBillingDate"/>
+        <result column="next_billing_date" property="nextBillingDate"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="allColumns">
+        id, user_id, plan_id, status, billing_cycle, start_date, end_date, auto_renew,
+        cancelled_at, trial_started_at, trial_ended_at, last_billing_date, next_billing_date,
+        created_at, updated_at
+    </sql>
+
+    <select id="findByUserId" resultMap="UserSubscriptionMap">
+        SELECT <include refid="allColumns"/> FROM pcd_user_subscription_table WHERE user_id = #{userId}
+    </select>
+
+    <select id="findByUserIdForUpdate" resultMap="UserSubscriptionMap">
+        SELECT <include refid="allColumns"/> FROM pcd_user_subscription_table WHERE user_id = #{userId} FOR UPDATE
+    </select>
+
+    <insert id="insert" parameterType="org.project.billing.model.entity.UserSubscriptionEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pcd_user_subscription_table
+        (user_id, plan_id, status, billing_cycle, start_date, end_date, auto_renew,
+         cancelled_at, trial_started_at, trial_ended_at, last_billing_date, next_billing_date)
+        VALUES
+        (#{userId}, #{planId}, #{status}, #{billingCycle}, #{startDate}, #{endDate}, #{autoRenew},
+         #{cancelledAt}, #{trialStartedAt}, #{trialEndedAt}, #{lastBillingDate}, #{nextBillingDate})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE pcd_user_subscription_table SET status = #{status} WHERE user_id = #{userId}
+    </update>
+
+    <update id="updatePlan">
+        UPDATE pcd_user_subscription_table
+        SET plan_id = #{planId},
+            billing_cycle = #{billingCycle},
+            start_date = #{startDate},
+            end_date = #{endDate},
+            next_billing_date = #{nextBillingDate}
+        WHERE user_id = #{userId}
+    </update>
+
+    <update id="updateSubscription">
+        UPDATE pcd_user_subscription_table
+        <set>
+            <if test="planId != null">plan_id = #{planId},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="billingCycle != null">billing_cycle = #{billingCycle},</if>
+            <if test="startDate != null">start_date = #{startDate},</if>
+            <if test="endDate != null">end_date = #{endDate},</if>
+            <if test="autoRenew != null">auto_renew = #{autoRenew},</if>
+            <if test="cancelledAt != null">cancelled_at = #{cancelledAt},</if>
+            <if test="trialStartedAt != null">trial_started_at = #{trialStartedAt},</if>
+            <if test="trialEndedAt != null">trial_ended_at = #{trialEndedAt},</if>
+            <if test="lastBillingDate != null">last_billing_date = #{lastBillingDate},</if>
+            <if test="nextBillingDate != null">next_billing_date = #{nextBillingDate},</if>
+        </set>
+        WHERE user_id = #{userId}
+    </update>
+
+    <select id="findExpiringSubscriptions" resultMap="UserSubscriptionMap">
+        SELECT <include refid="allColumns"/> FROM pcd_user_subscription_table
+        WHERE status = 'ACTIVE' AND end_date &lt;= #{beforeDate} AND auto_renew = 0
+    </select>
+
+    <select id="findExpiredSubscriptions" resultMap="UserSubscriptionMap">
+        SELECT <include refid="allColumns"/> FROM pcd_user_subscription_table
+        WHERE status = 'ACTIVE' AND end_date &lt; #{now}
+    </select>
+
+    <select id="findAutoRenewSubscriptions" resultMap="UserSubscriptionMap">
+        SELECT <include refid="allColumns"/> FROM pcd_user_subscription_table
+        WHERE status = 'ACTIVE' AND auto_renew = 1 AND next_billing_date &lt;= #{now}
+    </select>
+
+</mapper>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.PaymentCallbackLogMapper">
+
+    <resultMap id="CallbackLogMap" type="org.project.billing.model.entity.PaymentCallbackLogEntity">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="payment_method" property="paymentMethod"/>
+        <result column="callback_type" property="callbackType"/>
+        <result column="third_party_trade_no" property="thirdPartyTradeNo"/>
+        <result column="callback_raw" property="callbackRaw"/>
+        <result column="callback_status" property="callbackStatus"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="retry_count" property="retryCount"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="org.project.billing.model.entity.PaymentCallbackLogEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pcd_payment_callback_log_table
+        (order_no, payment_method, callback_type, third_party_trade_no, callback_raw, callback_status, error_message, retry_count)
+        VALUES
+        (#{orderNo}, #{paymentMethod}, #{callbackType}, #{thirdPartyTradeNo}, #{callbackRaw}, #{callbackStatus}, #{errorMessage}, #{retryCount})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE pcd_payment_callback_log_table
+        SET callback_status = #{callbackStatus}, error_message = #{errorMessage}
+        WHERE id = #{id}
+    </update>
+
+    <update id="incrementRetryCount">
+        UPDATE pcd_payment_callback_log_table
+        SET retry_count = retry_count + 1, callback_status = 'RETRYING'
+        WHERE id = #{id}
+    </update>
+
+    <select id="findFailedLogs" resultMap="CallbackLogMap">
+        SELECT * FROM pcd_payment_callback_log_table
+        WHERE callback_status = 'FAILED' AND retry_count &lt; 5
+        ORDER BY created_at ASC LIMIT #{limit}
+    </select>
+
+</mapper>

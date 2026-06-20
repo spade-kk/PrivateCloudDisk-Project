@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>欢迎使用私有云网盘</title>
+    <style>
+        body, table, td, a {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            outline: none;
+            text-decoration: none;
+        }
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            background-color: #f3f5f8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+            "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+        }
+        a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        @media screen and (max-width: 600px) {
+            .container {
+                width: 100% !important;
+            }
+            .outer-padding {
+                padding: 16px !important;
+            }
+            .mobile-padding {
+                padding-left: 22px !important;
+                padding-right: 22px !important;
+            }
+            .title {
+                font-size: 22px !important;
+            }
+            .button {
+                display: block !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .feature-column {
+                display: block !important;
+                width: 100% !important;
+                padding-right: 0 !important;
+                padding-left: 0 !important;
+                padding-bottom: 12px !important;
+            }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background-color:#f3f5f8;">
+<div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; line-height:1px; font-size:1px;">
+    欢迎加入私有云网盘，您的账号已成功创建。
+</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f3f5f8;">
+    <tr>
+        <td align="center" class="outer-padding" style="padding:32px 12px;">
+            <!-- Container -->
+            <table role="presentation" class="container" width="600" cellspacing="0" cellpadding="0" border="0"
+                   style="width:600px; max-width:600px; background-color:#ffffff; border-radius:18px; overflow:hidden; border:1px solid #e5e7eb;">
+                <!-- Header -->
+                <tr>
+                    <td class="mobile-padding" style="padding:30px 36px 22px 36px; background-color:#ffffff; border-bottom:1px solid #eef0f4;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                                <td valign="middle" width="48">
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                        <tr>
+                                            <td align="center" valign="middle"
+                                                style="width:44px; height:44px; background-color:#111827; border-radius:12px; color:#ffffff; font-size:15px; font-weight:700; letter-spacing:0.5px;">
+                                                PCD
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td valign="middle" style="padding-left:12px;">
+                                    <div style="font-size:16px; font-weight:700; color:#111827; line-height:1.4;">
+                                        私有云网盘
+                                    </div>
+                                    <div style="font-size:12px; color:#6b7280; line-height:1.5;">
+                                        Private Cloud Disk &middot; 安全可靠的文件存储服务
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Hero -->
+                <tr>
+                    <td class="mobile-padding" style="padding:38px 36px 18px 36px;">
+                        <div style="display:inline-block; padding:6px 12px; background-color:#ecfdf5; border:1px solid #bbf7d0; border-radius:999px; color:#047857; font-size:13px; font-weight:600; line-height:1.2;">
+                            注册成功
+                        </div>
+                        <h1 class="title" style="margin:18px 0 12px 0; font-size:26px; line-height:1.35; color:#111827; font-weight:700;">
+                            欢迎使用私有云网盘
+                        </h1>
+                        <p style="margin:0; font-size:14px; line-height:1.85; color:#4b5563;">
+                            您好
+                            {{.Username}}，
+                            您的账号已成功创建。现在可以开始上传、管理和访问您的文件资源。
+                        </p>
+                    </td>
+                </tr>
+                <!-- Account Info -->
+                <tr>
+                    <td class="mobile-padding" style="padding:12px 36px 10px 36px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                               style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:16px;">
+                            <tr>
+                                <td style="padding:20px 20px 18px 20px;">
+                                    <div style="font-size:14px; font-weight:700; color:#111827; margin-bottom:12px;">
+                                        账号信息
+                                    </div>
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                        <tr>
+                                            <td style="padding:8px 0; font-size:13px; color:#6b7280; width:90px;">
+                                                账号邮箱
+                                            </td>
+                                            <td style="padding:8px 0; font-size:13px; color:#111827; font-weight:600; word-break:break-all;">
+                                                {{.Email}}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:8px 0; font-size:13px; color:#6b7280; width:90px;">
+                                                注册时间
+                                            </td>
+                                            <td style="padding:8px 0; font-size:13px; color:#111827; font-weight:600;">
+                                                {{.RegisterTime}}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:8px 0; font-size:13px; color:#6b7280; width:90px;">
+                                                账号状态
+                                            </td>
+                                            <td style="padding:8px 0; font-size:13px; color:#047857; font-weight:700;">
+                                                已启用
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- CTA Button -->
+                <tr>
+                    <td class="mobile-padding" align="center" style="padding:22px 36px 12px 36px;">
+                        <a class="button"
+                           href="{{.LoginUrl}}"
+                           target="_blank"
+                           style="display:inline-block; background-color:#111827; color:#ffffff; font-size:14px; font-weight:700; line-height:1.2; padding:15px 28px; border-radius:12px; text-align:center; text-decoration:none;">
+                            进入私有云网盘
+                        </a>
+                        <div style="font-size:12px; color:#9ca3af; line-height:1.7; margin-top:12px;">
+                            如果按钮无法打开，请复制登录地址到浏览器访问。
+                        </div>
+                    </td>
+                </tr>
+                <!-- Features -->
+                <tr>
+                    <td class="mobile-padding" style="padding:18px 36px 8px 36px;">
+                        <div style="font-size:14px; font-weight:700; color:#111827; margin-bottom:12px;">
+                            您可以开始使用
+                        </div>
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                            <tr>
+                                <td class="feature-column" width="33.33%" valign="top" style="padding-right:8px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                                           style="background-color:#ffffff; border:1px solid #e5e7eb; border-radius:14px;">
+                                        <tr>
+                                            <td style="padding:16px 14px;">
+                                                <div style="font-size:13px; font-weight:700; color:#111827; line-height:1.5;">
+                                                    文件上传
+                                                </div>
+                                                <div style="font-size:12px; color:#6b7280; line-height:1.7; margin-top:5px;">
+                                                    支持文件安全存储与统一管理
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td class="feature-column" width="33.33%" valign="top" style="padding-left:4px; padding-right:4px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                                           style="background-color:#ffffff; border:1px solid #e5e7eb; border-radius:14px;">
+                                        <tr>
+                                            <td style="padding:16px 14px;">
+                                                <div style="font-size:13px; font-weight:700; color:#111827; line-height:1.5;">
+                                                    快速访问
+                                                </div>
+                                                <div style="font-size:12px; color:#6b7280; line-height:1.7; margin-top:5px;">
+                                                    在不同设备上访问您的资源
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td class="feature-column" width="33.33%" valign="top" style="padding-left:8px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                                           style="background-color:#ffffff; border:1px solid #e5e7eb; border-radius:14px;">
+                                        <tr>
+                                            <td style="padding:16px 14px;">
+                                                <div style="font-size:13px; font-weight:700; color:#111827; line-height:1.5;">
+                                                    安全保护
+                                                </div>
+                                                <div style="font-size:12px; color:#6b7280; line-height:1.7; margin-top:5px;">
+                                                    保障账号与文件访问安全
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- Security Tips -->
+                <tr>
+                    <td class="mobile-padding" style="padding:18px 36px 30px 36px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                               style="background-color:#f8fafc; border:1px solid #e5e7eb; border-radius:14px;">
+                            <tr>
+                                <td style="padding:16px 16px 14px 16px;">
+                                    <div style="font-size:14px; font-weight:700; color:#111827; margin-bottom:8px;">
+                                        安全建议
+                                    </div>
+                                    <div style="font-size:13px; line-height:1.8; color:#4b5563;">
+                                        为了保护您的账号和文件安全，建议您妥善保管登录密码，不要与他人共享账号。
+                                        如果发现异常登录或文件访问行为，请及时联系管理员处理。
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="height:1px; background-color:#eef0f4; margin:26px 0 18px 0;"></div>
+                        <p style="margin:0; font-size:12px; line-height:1.8; color:#9ca3af; text-align:center;">
+                            此邮件由系统自动发送，请勿直接回复。<br>
+                            如果您并未注册私有云网盘账号，请忽略此邮件或联系管理员。
+                        </p>
+                    </td>
+                </tr>
+                <!-- Footer -->
+                <tr>
+                    <td style="padding:22px 36px; background-color:#f9fafb; border-top:1px solid #eef0f4; text-align:center;">
+                        <div style="font-size:13px; color:#111827; font-weight:700; line-height:1.6;">
+                            私有云网盘 Private Cloud Disk
+                        </div>
+                        <div style="font-size:11px; color:#9ca3af; line-height:1.8; margin-top:4px;">
+                            Account Service Center
+                        </div>
+                        <div style="font-size:11px; color:#9ca3af; line-height:1.8; margin-top:8px;">
+                            &copy; {{.CurrentYear}} Private Cloud Disk. All rights reserved.
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            <!-- End Container -->
+        </td>
+    </tr>
+</table>
+</body>
+</html>

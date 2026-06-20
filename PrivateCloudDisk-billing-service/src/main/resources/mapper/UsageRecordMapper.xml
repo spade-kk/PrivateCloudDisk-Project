@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.UsageRecordMapper">
+
+    <resultMap id="UsageRecordMap" type="org.project.billing.model.entity.UsageRecordEntity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="record_date" property="recordDate"/>
+        <result column="storage_used_bytes" property="storageUsedBytes"/>
+        <result column="storage_limit_bytes" property="storageLimitBytes"/>
+        <result column="storage_overage_bytes" property="storageOverageBytes"/>
+        <result column="traffic_used_bytes" property="trafficUsedBytes"/>
+        <result column="traffic_limit_bytes" property="trafficLimitBytes"/>
+        <result column="traffic_overage_bytes" property="trafficOverageBytes"/>
+        <result column="overage_cost" property="overageCost"/>
+        <result column="is_billed" property="isBilled"/>
+        <result column="billing_order_id" property="billingOrderId"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="findByUserIdAndDate" resultMap="UsageRecordMap">
+        SELECT * FROM pcd_usage_record_table WHERE user_id = #{userId} AND record_date = #{recordDate}
+    </select>
+
+    <insert id="insert" parameterType="org.project.billing.model.entity.UsageRecordEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pcd_usage_record_table
+        (user_id, record_date, storage_used_bytes, storage_limit_bytes, storage_overage_bytes,
+         traffic_used_bytes, traffic_limit_bytes, traffic_overage_bytes, overage_cost, is_billed)
+        VALUES
+        (#{userId}, #{recordDate}, #{storageUsedBytes}, #{storageLimitBytes}, #{storageOverageBytes},
+         #{trafficUsedBytes}, #{trafficLimitBytes}, #{trafficOverageBytes}, #{overageCost}, #{isBilled})
+    </insert>
+
+    <insert id="upsert" parameterType="org.project.billing.model.entity.UsageRecordEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pcd_usage_record_table
+        (user_id, record_date, storage_used_bytes, storage_limit_bytes, storage_overage_bytes,
+         traffic_used_bytes, traffic_limit_bytes, traffic_overage_bytes, overage_cost, is_billed)
+        VALUES
+        (#{userId}, #{recordDate}, #{storageUsedBytes}, #{storageLimitBytes}, #{storageOverageBytes},
+         #{trafficUsedBytes}, #{trafficLimitBytes}, #{trafficOverageBytes}, #{overageCost}, #{isBilled})
+        ON DUPLICATE KEY UPDATE
+        storage_used_bytes = VALUES(storage_used_bytes),
+        storage_limit_bytes = VALUES(storage_limit_bytes),
+        storage_overage_bytes = VALUES(storage_overage_bytes),
+        traffic_used_bytes = VALUES(traffic_used_bytes),
+        traffic_limit_bytes = VALUES(traffic_limit_bytes),
+        traffic_overage_bytes = VALUES(traffic_overage_bytes),
+        overage_cost = VALUES(overage_cost)
+    </insert>
+
+    <select id="findUnbilledRecords" resultMap="UsageRecordMap">
+        SELECT * FROM pcd_usage_record_table
+        WHERE is_billed = 0 AND overage_cost > 0 AND record_date &lt; #{beforeDate}
+    </select>
+
+    <update id="markAsBilled">
+        UPDATE pcd_usage_record_table SET is_billed = 1, billing_order_id = #{billingOrderId} WHERE id = #{id}
+    </update>
+
+</mapper>

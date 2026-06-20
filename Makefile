@@ -145,3 +145,82 @@ db-restore: ## 恢复数据库 (BACKUP=path/to/backup.sql.gz)
 		docker compose exec -T mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) private_cloud_disk < $(BACKUP); \
 	fi
 	@echo "Restore completed"
+
+# ============================================================
+# 客户端构建 (全平台)
+# ============================================================
+
+# 版本号（可从环境变量或 git 获取）
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.0.0-dev")
+VERSION := $(subst v,,$(VERSION))
+BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+.PHONY: clients-all
+clients-all: ## 构建所有客户端（完整矩阵）
+	@bash scripts/build-all-clients.sh --version $(VERSION)
+
+.PHONY: clients-dry
+clients-dry: ## 模拟构建（预览构建计划）
+	@bash scripts/build-all-clients.sh --dry-run --version $(VERSION)
+
+.PHONY: cli
+cli: ## 仅构建 Go CLI 客户端
+	@bash scripts/build-all-clients.sh --cli-only --version $(VERSION)
+
+.PHONY: cli-install
+cli-install: cli ## 构建并安装 CLI 到本地
+	@echo "安装 CLI 到 /usr/local/bin/pcd..."
+	@cp downloads/binaries/cli/pcd_$(VERSION)_$(shell uname -s | tr '[:upper:]' '[:lower:]')_$(shell uname -m)/pcd /usr/local/bin/pcd 2>/dev/null || \
+		cp downloads/binaries/cli/pcd_$(VERSION)_$(shell uname -s | tr '[:upper:]' '[:lower:]')_$(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')/pcd /usr/local/bin/pcd
+	@chmod +x /usr/local/bin/pcd
+	@echo "CLI 已安装! pcd --version"
+
+.PHONY: desktop
+desktop: ## 仅构建 Electron 桌面客户端
+	@bash scripts/build-all-clients.sh --electron-only --version $(VERSION)
+
+.PHONY: desktop-mac
+desktop-mac: ## 构建 macOS 桌面客户端
+	@bash scripts/build-all-clients.sh --electron-only --platform macos --version $(VERSION)
+
+.PHONY: desktop-win
+desktop-win: ## 构建 Windows 桌面客户端
+	@bash scripts/build-all-clients.sh --electron-only --platform windows --version $(VERSION)
+
+.PHONY: desktop-linux
+desktop-linux: ## 构建 Linux 桌面客户端
+	@bash scripts/build-all-clients.sh --electron-only --platform linux --version $(VERSION)
+
+.PHONY: android
+android: ## 仅构建 Android 客户端
+	@bash scripts/build-all-clients.sh --android-only --version $(VERSION)
+
+.PHONY: admin-web
+admin-web: ## 仅构建 Admin Web 管理后台
+	@bash scripts/build-all-clients.sh --admin-only --version $(VERSION)
+
+.PHONY: clients-upload
+clients-upload: clients-all ## 构建并上传到下载服务器
+	@echo "客户端已构建并上传"
+
+.PHONY: clients-clean
+clients-clean: ## 清理客户端构建产物
+	@echo "清理客户端构建产物..."
+	@rm -rf downloads/binaries/*
+	@echo "已清理 downloads/binaries/"
+
+# --------------------------
+# 下载服务器部署
+# --------------------------
+
+.PHONY: serve-downloads
+serve-downloads: ## 启动本地下载服务器（开发用）
+	@echo "启动下载服务器 http://localhost:9090"
+	@echo "访问: http://localhost:9090/binaries/"
+	@cd downloads && python3 -m http.server 9090 || \
+		cd downloads && npx http-server -p 9090 -c-1
+
+.PHONY: deploy-downloads
+deploy-downloads: ## 部署下载页面到 Nginx 静态服务器
+	@echo "部署下载页面到 downloads/..."
+	@bash scripts/deploy-downloads.sh

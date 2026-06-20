@@ -1,0 +1,94 @@
+# 通知服务配置
+server:
+  port: "8084"
+  mode: "release"  # debug | release | test
+
+mysql:
+  host: "${MYSQL_HOST:-localhost}"
+  port: 3306
+  user: "${MYSQL_USER:-pcd}"
+  password: "${MYSQL_PASSWORD:-pcd_password}"
+  database: "pcd_notification"
+  charset: "utf8mb4"
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_lifetime: 3600s
+
+redis:
+  host: "${REDIS_HOST:-localhost}"
+  port: 6379
+  password: "${REDIS_PASSWORD:-}"
+  db: 1
+  pool_size: 20
+
+rabbitmq:
+  host: "${RABBITMQ_HOST:-localhost}"
+  port: 5672
+  user: "${RABBITMQ_USER:-guest}"
+  password: "${RABBITMQ_PASSWORD:-guest}"
+  vhost: "/"
+  heartbeat: 30s
+  connection_timeout: 10s
+
+# APNs (Apple Push Notification service)
+apns:
+  enabled: false  # 生产环境开启
+  key_path: "./certs/apns_auth_key.p8"
+  key_id: ""
+  team_id: ""
+  topic: "com.privateclouddisk.app"
+  production: false  # false=开发环境, true=生产环境
+
+# FCM (Firebase Cloud Messaging)
+fcm:
+  enabled: false
+  credentials_path: "./certs/fcm_service_account.json"
+
+# 邮件
+email:
+  enabled: true
+  smtp_host: "smtp.example.com"
+  smtp_port: 587
+  username: "noreply@privateclouddisk.com"
+  password: "${SMTP_PASSWORD:-}"
+  from_name: "私有云盘"
+  from_addr: "noreply@privateclouddisk.com"
+  use_tls: true
+
+# 短信
+sms:
+  enabled: false
+  provider: "aliyun"  # aliyun | tencent
+  base_url: "https://dysmsapi.aliyuncs.com"
+  api_key: "${SMS_API_KEY:-}"
+  template_id: "SMS_123456789"
+  sign_name: "私有云盘"
+
+# 微信小程序
+wechat_mp:
+  enabled: false
+  app_id: "${WECHAT_MP_APP_ID:-}"
+  app_secret: "${WECHAT_MP_APP_SECRET:-}"
+
+# 支付宝小程序
+alipay_mp:
+  enabled: false
+  app_id: "${ALIPAY_MP_APP_ID:-}"
+  private_key_path: "./certs/alipay_private_key.pem"
+  alipay_public_key_path: "./certs/alipay_public_key.pem"
+
+# Web Push
+webpush:
+  enabled: false
+  subject: "mailto:noreply@privateclouddisk.com"
+  vapid_public_key: "${VAPID_PUBLIC_KEY:-}"
+  vapid_private_key: "${VAPID_PRIVATE_KEY:-}"
+
+# 工作配置
+worker:
+  retry_max_attempts: 5
+  retry_backoff_ms: 1000
+  aggregation_window_sec: 300   # 聚合窗口 5 分钟
+  max_aggregation_size: 10      # 最大聚合数
+  aggregation_check_interval_sec: 30  # 聚合检查间隔
+  log_retention_days: 90        # 日志保留天数

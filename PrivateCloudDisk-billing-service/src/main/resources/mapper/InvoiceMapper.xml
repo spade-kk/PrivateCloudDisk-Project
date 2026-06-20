@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.InvoiceMapper">
+
+    <resultMap id="InvoiceMap" type="org.project.billing.model.entity.InvoiceEntity">
+        <id column="id" property="id"/>
+        <result column="invoice_no" property="invoiceNo"/>
+        <result column="user_id" property="userId"/>
+        <result column="order_id" property="orderId"/>
+        <result column="invoice_type" property="invoiceType"/>
+        <result column="invoice_title_type" property="invoiceTitleType"/>
+        <result column="invoice_title" property="invoiceTitle"/>
+        <result column="tax_no" property="taxNo"/>
+        <result column="invoice_amount" property="invoiceAmount"/>
+        <result column="tax_amount" property="taxAmount"/>
+        <result column="status" property="status"/>
+        <result column="file_url" property="fileUrl"/>
+        <result column="email" property="email"/>
+        <result column="remark" property="remark"/>
+        <result column="issued_at" property="issuedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="allColumns">
+        id, invoice_no, user_id, order_id, invoice_type, invoice_title_type,
+        invoice_title, tax_no, invoice_amount, tax_amount,
+        status, file_url, email, remark, issued_at, created_at, updated_at
+    </sql>
+
+    <select id="findByInvoiceNo" resultMap="InvoiceMap">
+        SELECT <include refid="allColumns"/> FROM pcd_invoice_table WHERE invoice_no = #{invoiceNo}
+    </select>
+
+    <select id="findByOrderId" resultMap="InvoiceMap">
+        SELECT <include refid="allColumns"/> FROM pcd_invoice_table WHERE order_id = #{orderId}
+    </select>
+
+    <insert id="insert" parameterType="org.project.billing.model.entity.InvoiceEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pcd_invoice_table
+        (invoice_no, user_id, order_id, invoice_type, invoice_title_type, invoice_title, tax_no,
+         invoice_amount, tax_amount, status, email, remark)
+        VALUES
+        (#{invoiceNo}, #{userId}, #{orderId}, #{invoiceType}, #{invoiceTitleType}, #{invoiceTitle}, #{taxNo},
+         #{invoiceAmount}, #{taxAmount}, #{status}, #{email}, #{remark})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE pcd_invoice_table
+        SET status = #{status}, file_url = #{fileUrl}, issued_at = #{issuedAt}
+        WHERE invoice_no = #{invoiceNo}
+    </update>
+
+    <select id="findByUserId" resultMap="InvoiceMap">
+        SELECT <include refid="allColumns"/> FROM pcd_invoice_table
+        WHERE user_id = #{userId} ORDER BY created_at DESC
+    </select>
+
+    <select id="findPendingInvoices" resultMap="InvoiceMap">
+        SELECT <include refid="allColumns"/> FROM pcd_invoice_table
+        WHERE status = 'PENDING' ORDER BY created_at ASC
+    </select>
+
+</mapper>

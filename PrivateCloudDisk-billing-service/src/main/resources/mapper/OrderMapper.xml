@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.OrderMapper">
+
+    <resultMap id="OrderMap" type="org.project.billing.model.entity.OrderEntity">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="user_id" property="userId"/>
+        <result column="order_type" property="orderType"/>
+        <result column="plan_id" property="planId"/>
+        <result column="billing_cycle" property="billingCycle"/>
+        <result column="amount_original" property="amountOriginal"/>
+        <result column="amount_discount" property="amountDiscount"/>
+        <result column="amount_payable" property="amountPayable"/>
+        <result column="amount_paid" property="amountPaid"/>
+        <result column="currency" property="currency"/>
+        <result column="status" property="status"/>
+        <result column="payment_method" property="paymentMethod"/>
+        <result column="payment_channel" property="paymentChannel"/>
+        <result column="third_party_trade_no" property="thirdPartyTradeNo"/>
+        <result column="coupon_id" property="couponId"/>
+        <result column="coupon_code" property="couponCode"/>
+        <result column="refund_amount" property="refundAmount"/>
+        <result column="refund_reason" property="refundReason"/>
+        <result column="refunded_at" property="refundedAt"/>
+        <result column="paid_at" property="paidAt"/>
+        <result column="expired_at" property="expiredAt"/>
+        <result column="remark" property="remark"/>
+        <result column="extra_params" property="extraParams"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="allColumns">
+        id, order_no, user_id, order_type, plan_id, billing_cycle,
+        amount_original, amount_discount, amount_payable, amount_paid, currency,
+        status, payment_method, payment_channel, third_party_trade_no,
+        coupon_id, coupon_code, refund_amount, refund_reason, refunded_at,
+        paid_at, expired_at, remark, extra_params, created_at, updated_at
+    </sql>
+
+    <select id="findByOrderNo" resultMap="OrderMap">
+        SELECT <include refid="allColumns"/> FROM pcd_order_table WHERE order_no = #{orderNo}
+    </select>
+
+    <select id="findByOrderNoForUpdate" resultMap="OrderMap">
+        SELECT <include refid="allColumns"/> FROM pcd_order_table WHERE order_no = #{orderNo} FOR UPDATE
+    </select>
+
+    <insert id="insert" parameterType="org.project.billing.model.entity.OrderEntity" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pcd_order_table
+        (order_no, user_id, order_type, plan_id, billing_cycle,
+         amount_original, amount_discount, amount_payable, amount_paid, currency,
+         status, payment_method, payment_channel, third_party_trade_no,
+         coupon_id, coupon_code, refund_amount, refund_reason,
+         paid_at, expired_at, remark, extra_params)
+        VALUES
+        (#{orderNo}, #{userId}, #{orderType}, #{planId}, #{billingCycle},
+         #{amountOriginal}, #{amountDiscount}, #{amountPayable}, #{amountPaid}, #{currency},
+         #{status}, #{paymentMethod}, #{paymentChannel}, #{thirdPartyTradeNo},
+         #{couponId}, #{couponCode}, #{refundAmount}, #{refundReason},
+         #{paidAt}, #{expiredAt}, #{remark}, #{extraParams})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE pcd_order_table SET status = #{status} WHERE order_no = #{orderNo}
+    </update>
+
+    <update id="updatePaymentInfo">
+        UPDATE pcd_order_table
+        SET payment_method = #{paymentMethod},
+            third_party_trade_no = #{thirdPartyTradeNo},
+            amount_paid = #{amountPaid},
+            paid_at = #{paidAt},
+            status = #{status}
+        WHERE order_no = #{orderNo}
+    </update>
+
+    <update id="updateRefundInfo">
+        UPDATE pcd_order_table
+        SET refund_amount = #{refundAmount},
+            refund_reason = #{refundReason},
+            refunded_at = #{refundedAt},
+            status = #{status}
+        WHERE order_no = #{orderNo}
+    </update>
+
+    <select id="findByUserId" resultMap="OrderMap">
+        SELECT <include refid="allColumns"/> FROM pcd_order_table
+        WHERE user_id = #{userId} ORDER BY created_at DESC
+    </select>
+
+    <select id="findExpiredPendingOrders" resultMap="OrderMap">
+        SELECT <include refid="allColumns"/> FROM pcd_order_table
+        WHERE status = 'PENDING' AND expired_at &lt; #{now}
+    </select>
+
+    <select id="findPendingRefundOrders" resultMap="OrderMap">
+        SELECT <include refid="allColumns"/> FROM pcd_order_table
+        WHERE status = 'PAID' AND refund_amount > 0 AND refund_reason IS NOT NULL
+    </select>
+
+</mapper>

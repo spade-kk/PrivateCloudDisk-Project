@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.SubscriptionPlanMapper">
+
+    <resultMap id="SubscriptionPlanMap" type="org.project.billing.model.entity.SubscriptionPlanEntity">
+        <id column="id" property="id"/>
+        <result column="plan_code" property="planCode"/>
+        <result column="plan_name" property="planName"/>
+        <result column="plan_tier" property="planTier"/>
+        <result column="description" property="description"/>
+        <result column="storage_limit_bytes" property="storageLimitBytes"/>
+        <result column="max_file_size_bytes" property="maxFileSizeBytes"/>
+        <result column="max_share_links" property="maxShareLinks"/>
+        <result column="max_download_speed" property="maxDownloadSpeed"/>
+        <result column="features_json" property="featuresJson"/>
+        <result column="price_monthly" property="priceMonthly"/>
+        <result column="price_yearly" property="priceYearly"/>
+        <result column="price_quarterly" property="priceQuarterly"/>
+        <result column="overage_unit_price" property="overageUnitPrice"/>
+        <result column="trial_days" property="trialDays"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="is_active" property="isActive"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByPlanCode" resultMap="SubscriptionPlanMap">
+        SELECT * FROM pcd_subscription_plan_table WHERE plan_code = #{planCode}
+    </select>
+
+    <select id="findById" resultMap="SubscriptionPlanMap">
+        SELECT * FROM pcd_subscription_plan_table WHERE id = #{id}
+    </select>
+
+    <select id="findAllActive" resultMap="SubscriptionPlanMap">
+        SELECT * FROM pcd_subscription_plan_table WHERE is_active = 1 ORDER BY sort_order ASC
+    </select>
+
+    <select id="findAll" resultMap="SubscriptionPlanMap">
+        SELECT * FROM pcd_subscription_plan_table ORDER BY sort_order ASC
+    </select>
+
+</mapper>

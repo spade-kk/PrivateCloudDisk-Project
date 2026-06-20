@@ -184,6 +184,84 @@ services:
       SPRINGDOC_SWAGGER_UI_ENABLED: true
     restart: always
 
+  # -------------------- SpringBoot 计费与订阅服务 --------------------
+  billing-service-backend:
+    build: ./PrivateCloudDisk-billing-service
+    container_name: backend-billing-service
+    networks:
+      - app-networks
+    ports:
+      - "8083:8083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_DATABASE: 1
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      # 支付配置 (默认关闭，生产环境通过环境变量注入)
+      PAYMENT_ALIPAY_ENABLED: ${PAYMENT_ALIPAY_ENABLED:-false}
+      PAYMENT_ALIPAY_APP_ID: ${PAYMENT_ALIPAY_APP_ID:-}
+      PAYMENT_ALIPAY_PRIVATE_KEY: ${PAYMENT_ALIPAY_PRIVATE_KEY:-}
+      PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY: ${PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY:-}
+      PAYMENT_WECHAT_ENABLED: ${PAYMENT_WECHAT_ENABLED:-false}
+      PAYMENT_WECHAT_APP_ID: ${PAYMENT_WECHAT_APP_ID:-}
+      PAYMENT_WECHAT_MCH_ID: ${PAYMENT_WECHAT_MCH_ID:-}
+      PAYMENT_WECHAT_API_KEY: ${PAYMENT_WECHAT_API_KEY:-}
+      PAYMENT_WECHAT_API_V3_KEY: ${PAYMENT_WECHAT_API_V3_KEY:-}
+      PAYMENT_APPLE_IAP_ENABLED: ${PAYMENT_APPLE_IAP_ENABLED:-false}
+      PAYMENT_APPLE_IAP_SHARED_SECRET: ${PAYMENT_APPLE_IAP_SHARED_SECRET:-}
+      # 计费业务配置
+      BILLING_ORDER_EXPIRE_MINUTES: ${BILLING_ORDER_EXPIRE_MINUTES:-30}
+      BILLING_GRACE_PERIOD_DAYS: ${BILLING_GRACE_PERIOD_DAYS:-7}
+      # 企业级中间件
+      SW_AGENT_NAME: PrivateCloudDisk-billing-service
+      SW_AGENT_BACKEND: ${SW_AGENT_BACKEND:-skywalking-oap:11800}
+      NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos123}
+      SEATA_ENABLED: ${SEATA_ENABLED:-true}
+      SENTINEL_ENABLED: ${SENTINEL_ENABLED:-true}
+      SENTINEL_DASHBOARD: ${SENTINEL_DASHBOARD:-sentinel:8858}
+      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
+      XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job:8089/xxl-job-admin}
+      REDISSON_ENABLED: ${REDISSON_ENABLED:-true}
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
   # -------------------- FastAPI 文件服务 --------------------
   file-service-backend:
     build: ./PrivateCloudDisk-shortage-service

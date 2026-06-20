@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.billing.mapper.CouponMapper">
+
+    <resultMap id="CouponMap" type="org.project.billing.model.entity.CouponEntity">
+        <id column="id" property="id"/>
+        <result column="coupon_code" property="couponCode"/>
+        <result column="coupon_name" property="couponName"/>
+        <result column="coupon_type" property="couponType"/>
+        <result column="discount_percent" property="discountPercent"/>
+        <result column="fixed_amount" property="fixedAmount"/>
+        <result column="min_order_amount" property="minOrderAmount"/>
+        <result column="max_discount_amount" property="maxDiscountAmount"/>
+        <result column="applicable_plans" property="applicablePlans"/>
+        <result column="applicable_user_level" property="applicableUserLevel"/>
+        <result column="total_quantity" property="totalQuantity"/>
+        <result column="used_quantity" property="usedQuantity"/>
+        <result column="per_user_limit" property="perUserLimit"/>
+        <result column="valid_from" property="validFrom"/>
+        <result column="valid_to" property="validTo"/>
+        <result column="is_active" property="isActive"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findByCouponCode" resultMap="CouponMap">
+        SELECT * FROM pcd_coupon_table WHERE coupon_code = #{couponCode}
+    </select>
+
+    <select id="findByCouponCodeForUpdate" resultMap="CouponMap">
+        SELECT * FROM pcd_coupon_table WHERE coupon_code = #{couponCode} FOR UPDATE
+    </select>
+
+    <select id="findById" resultMap="CouponMap">
+        SELECT * FROM pcd_coupon_table WHERE id = #{id}
+    </select>
+
+    <update id="incrementUsedQuantity">
+        UPDATE pcd_coupon_table SET used_quantity = used_quantity + 1 WHERE coupon_code = #{couponCode}
+    </update>
+
+    <select id="findAllActive" resultMap="CouponMap">
+        SELECT * FROM pcd_coupon_table WHERE is_active = 1 AND valid_from &lt;= NOW() AND valid_to &gt;= NOW() ORDER BY created_at DESC
+    </select>
+
+</mapper>
