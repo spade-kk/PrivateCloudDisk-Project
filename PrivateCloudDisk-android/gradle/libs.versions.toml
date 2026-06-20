@@ -29,6 +29,7 @@ gson = "2.11.0"
 glide = "4.16.0"
 # Room Database
 room = "2.6.1"
+roomRxjava3 = "2.6.1"
 # Dependency Injection
 hilt = "2.51.1"
 hiltNavigationCompose = "1.2.0"
@@ -43,11 +44,11 @@ datastore = "1.1.1"
 paging = "3.3.4"
 # WebSocket
 okhttpWs = "4.12.0"
-# WebRTC
-webrtc = "1.0.30039"
+# WebRTC (Google official) - placeholder, not yet used
+webrtc = "1.0.32006"
 # CameraX
 camerax = "1.4.1"
-# ML Kit (Document Scanning)
+# ML Kit (Document Scanning) - placeholder, not yet used
 mlkitDocumentScanner = "16.0.0-beta1"
 # ExoPlayer
 exoplayer = "2.19.1"
@@ -63,6 +64,9 @@ leakcanary = "2.14"
 timber = "5.0.1"
 # EventBus
 eventbus = "3.3.1"
+# RxJava3
+rxjava3 = "3.1.9"
+rxandroid3 = "3.0.2"
 # Testing
 junit = "4.13.2"
 junitExt = "1.2.1"
@@ -112,6 +116,7 @@ glide-compiler = { group = "com.github.bumptech.glide", name = "compiler", versi
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-rxjava3 = { group = "androidx.room", name = "room-rxjava3", version.ref = "room" }
 # Hilt DI
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
@@ -125,14 +130,14 @@ datastore = { group = "androidx.datastore", name = "datastore-preferences", vers
 # Paging
 paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 # WebRTC
-webrtc = { group = "io.getstream", name = "stream-webrtc-android", version.ref = "webrtc" }
+webrtc = { group = "org.webrtc", name = "google-webrtc", version.ref = "webrtc" }
 # CameraX
 camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 # ML Kit
-mlkit-document-scanner = { group = "com.google.mlkit", name = "document-scanner", version.ref = "mlkitDocumentScanner" }
+mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlkitDocumentScanner" }
 # ExoPlayer
 exoplayer-core = { group = "com.google.android.exoplayer", name = "exoplayer-core", version.ref = "exoplayer" }
 exoplayer-ui = { group = "com.google.android.exoplayer", name = "exoplayer-ui", version.ref = "exoplayer" }
@@ -148,6 +153,9 @@ leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", v
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 # EventBus
 eventbus = { group = "org.greenrobot", name = "eventbus", version.ref = "eventbus" }
+# RxJava3
+rxjava3 = { group = "io.reactivex.rxjava3", name = "rxjava", version.ref = "rxjava3" }
+rxandroid3 = { group = "io.reactivex.rxjava3", name = "rxandroid", version.ref = "rxandroid3" }
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }

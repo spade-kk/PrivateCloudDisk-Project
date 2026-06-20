@@ -1,11 +1,12 @@
 {
   "name": "privateclouddisk-desktop",
   "version": "1.0.0",
-  "description": "PrivateCloudDisk 企业私有云盘桌面客户端 (macOS / Windows)",
+  "description": "私有云 企业私有云盘桌面客户端 (macOS / Windows)",
   "main": "src/main/main.js",
   "author": "PrivateCloudDisk Team",
   "license": "UNLICENSED",
   "private": true,
+  "productName": "私有云",
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:renderer": "vite",

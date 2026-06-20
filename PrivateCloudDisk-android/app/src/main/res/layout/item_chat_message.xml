@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="6dp"
+    android:orientation="vertical">
+
+    <!-- 时间标签（居中） -->
+    <TextView
+        android:id="@+id/tv_time_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="12dp"
+        android:background="@color/bgSurfaceHover"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="4dp"
+        android:text="上午 10:30"
+        android:textColor="@color/textTertiary"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <!-- 接收方头像（左侧） -->
+        <ImageView
+            android:id="@+id/iv_avatar_left"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_default_avatar"
+            android:visibility="gone" />
+
+        <!-- 接收方气泡 -->
+        <LinearLayout
+            android:id="@+id/layout_received"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_sender_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:layout_marginStart="4dp"
+                android:textColor="@color/textSecondary"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tv_received_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="260dp"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="10dp"
+                android:background="@drawable/bg_chat_bubble_received"
+                android:textColor="@color/chatBubbleReceivedText"
+                android:textSize="15sp"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
+
+        <!-- 发送方气泡 -->
+        <LinearLayout
+            android:id="@+id/layout_sent"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_sent_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="260dp"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="10dp"
+                android:background="@drawable/bg_chat_bubble_sent"
+                android:textColor="@color/chatBubbleSentText"
+                android:textSize="15sp"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
+
+        <!-- 发送方头像（右侧） -->
+        <ImageView
+            android:id="@+id/iv_avatar_right"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_default_avatar"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

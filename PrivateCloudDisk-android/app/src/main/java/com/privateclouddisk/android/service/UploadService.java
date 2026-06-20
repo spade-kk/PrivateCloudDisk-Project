@@ -9,6 +9,7 @@ import android.os.IBinder;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import com.privateclouddisk.android.PrivateCloudDiskApp;
 import com.privateclouddisk.android.R;

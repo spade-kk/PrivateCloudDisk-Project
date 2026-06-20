@@ -10,19 +10,23 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:background="@color/bgPage">
 
         <!-- 工具栏 -->
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+            android:elevation="0dp"
+            android:background="@color/bgSurface">
 
             <androidx.appcompat.widget.Toolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
-                android:background="?attr/colorPrimary"
+                android:background="@color/bgSurface"
+                android:elevation="0dp"
+                app:titleTextColor="@color/textPrimary"
                 app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
         </com.google.android.material.appbar.AppBarLayout>
 
@@ -36,11 +40,10 @@
         <!-- 底部导航 -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"
+            style="@style/BottomNavigation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?android:attr/windowBackground"
-            app:menu="@menu/bottom_nav_menu"
-            app:labelVisibilityMode="labeled" />
+            app:menu="@menu/bottom_nav_menu" />
     </LinearLayout>
 
     <!-- 侧边导航栏 -->
@@ -50,7 +53,10 @@
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:fitsSystemWindows="true"
+        android:background="@color/bgSurface"
         app:headerLayout="@layout/nav_header"
-        app:menu="@menu/drawer_menu" />
+        app:menu="@menu/drawer_menu"
+        app:itemTextColor="@color/textPrimary"
+        app:itemIconTint="@color/textSecondary" />
 
 </androidx.drawerlayout.widget.DrawerLayout>

@@ -2,7 +2,10 @@ package com.privateclouddisk.android.ui.media;
 
 import android.os.Bundle;
 import android.widget.ImageView;
+import android.widget.SeekBar;
+import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.VideoView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -15,8 +18,8 @@ import javax.inject.Inject;
 import dagger.hilt.android.AndroidEntryPoint;
 
 /**
- * 媒体播放器 Activity
- * 支持图片预览、视频播放、音频播放
+ * 企业级媒体播放器
+ * 参考 YouTube/B站 播放器设计，统一品牌色调
  */
 @AndroidEntryPoint
 public class MediaPlayerActivity extends AppCompatActivity {
@@ -24,6 +27,9 @@ public class MediaPlayerActivity extends AppCompatActivity {
     @Inject FileRepository fileRepository;
 
     private ImageView ivImage;
+    private VideoView videoView;
+    private SeekBar seekBar;
+    private TextView tvCurrentTime, tvDuration;
     private String fileId, fileName, fileType;
 
     @Override
@@ -35,10 +41,21 @@ public class MediaPlayerActivity extends AppCompatActivity {
         fileName = getIntent().getStringExtra("file_name");
         fileType = getIntent().getStringExtra("file_type");
 
-        ivImage = findViewById(R.id.iv_image);
+        ivImage = findViewById(R.id.iv_file_icon);
+        videoView = findViewById(R.id.video_view);
+        seekBar = findViewById(R.id.seek_bar);
+        tvCurrentTime = findViewById(R.id.tv_current_time);
+        tvDuration = findViewById(R.id.tv_duration);
+
+        if (fileName != null) {
+            TextView tvTitle = findViewById(R.id.tv_video_title);
+            tvTitle.setText(fileName);
+        }
 
         if (fileType != null && fileType.matches("jpg|jpeg|png|gif|webp|bmp")) {
             loadImage();
+        } else if (fileType != null && fileType.matches("mp4|mkv|webm|avi|mov")) {
+            loadVideo();
         } else {
             Toast.makeText(this, "预览功能开发中: " + fileName, Toast.LENGTH_SHORT).show();
             finish();
@@ -46,7 +63,6 @@ public class MediaPlayerActivity extends AppCompatActivity {
     }
 
     private void loadImage() {
-        // 获取操作凭证后加载图片
         fileRepository.getOperationToken(fileId, "preview")
                 .subscribeOn(io.reactivex.rxjava3.schedulers.Schedulers.io())
                 .observeOn(io.reactivex.rxjava3.android.schedulers.AndroidSchedulers.mainThread())
@@ -65,5 +81,10 @@ public class MediaPlayerActivity extends AppCompatActivity {
                                     Toast.LENGTH_SHORT).show();
                         }
                 );
+    }
+
+    private void loadVideo() {
+        // 视频播放功能占位，后续集成完整播放器
+        Toast.makeText(this, "视频播放功能开发中: " + fileName, Toast.LENGTH_SHORT).show();
     }
 }

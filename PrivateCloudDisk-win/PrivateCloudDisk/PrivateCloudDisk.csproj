@@ -16,7 +16,7 @@
     <AssemblyName>PrivateCloudDisk</AssemblyName>
     <Version>1.0.0</Version>
     <Authors>PrivateCloudDisk Team</Authors>
-    <Description>PrivateCloudDisk Windows 桌面客户端 - 企业私有云盘</Description>
+    <Description>私有云 Windows 桌面客户端 - 企业私有云盘</Description>
   </PropertyGroup>
 
   <ItemGroup>

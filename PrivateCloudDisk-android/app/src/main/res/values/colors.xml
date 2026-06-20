@@ -1,31 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Primary -->
-    <color name="colorPrimary">#1976D2</color>
-    <color name="colorPrimaryDark">#1565C0</color>
-    <color name="colorPrimaryLight">#42A5F5</color>
-    <color name="colorAccent">#FF6F00</color>
+    <!-- ============================================================
+         PrivateCloudDisk Android Design System
+         与 iOS/macOS 端完全统一的企业级设计令牌
+         品牌色: #2563EB (深邃蓝)
+    ============================================================ -->
 
-    <!-- Background -->
-    <color name="colorBackground">#FAFAFA</color>
-    <color name="colorSurface">#FFFFFF</color>
-    <color name="colorError">#D32F2F</color>
+    <!-- ── 品牌主色 (与 iOS AppColors.primary 完全一致) ── -->
+    <color name="brandPrimary">#2563EB</color>
+    <color name="brandPrimaryLight">#3B82F6</color>
+    <color name="brandPrimaryDark">#1D4ED8</color>
+    <color name="brandPrimaryBg">#EFF6FF</color>
 
-    <!-- Text -->
-    <color name="textPrimary">#212121</color>
-    <color name="textSecondary">#757575</color>
-    <color name="textHint">#BDBDBD</color>
+    <!-- ── 品牌辅助色 (与 iOS AppColors.info 一致) ── -->
+    <color name="brandAccent">#6366F1</color>
+    <color name="brandAccentLight">#818CF8</color>
+    <color name="brandMagent">#A855F7</color>
 
-    <!-- File type colors -->
-    <color name="folderColor">#FFB74D</color>
-    <color name="imageColor">#4CAF50</color>
-    <color name="videoColor">#F44336</color>
-    <color name="audioColor">#9C27B0</color>
-    <color name="documentColor">#2196F3</color>
+    <!-- ── 功能色 ── -->
+    <color name="functionalSuccess">#10B981</color>
+    <color name="functionalWarning">#F59E0B</color>
+    <color name="functionalDanger">#EF4444</color>
+    <color name="functionalInfo">#6366F1</color>
 
-    <!-- Status -->
-    <color name="uploadingColor">#2196F3</color>
-    <color name="completedColor">#4CAF50</color>
-    <color name="failedColor">#F44336</color>
-    <color name="pausedColor">#FF9800</color>
+    <!-- ── 中性色 - 文字 ── -->
+    <color name="textPrimary">#1E293B</color>
+    <color name="textSecondary">#64748B</color>
+    <color name="textTertiary">#94A3B8</color>
+    <color name="textDisabled">#CBD5E1</color>
+    <color name="textOnBrand">#FFFFFF</color>
+
+    <!-- ── 中性色 - 背景 ── -->
+    <color name="bgPage">#F8FAFC</color>
+    <color name="bgSurface">#FFFFFF</color>
+    <color name="bgSurfaceHover">#F1F5F9</color>
+    <color name="bgCard">#FFFFFF</color>
+    <color name="bgInput">#F1F5F9</color>
+
+    <!-- ── 中性色 - 边框/分割线 ── -->
+    <color name="borderLight">#E2E8F0</color>
+    <color name="borderMedium">#CBD5E1</color>
+    <color name="dividerColor">#F1F5F9</color>
+
+    <!-- ── 阴影色 ── -->
+    <color name="shadowLight">#1A000000</color>
+    <color name="shadowMedium">#26000000</color>
+    <color name="shadowHeavy">#33000000</color>
+
+    <!-- ── 文件类型色 ── -->
+    <color name="folderColor">#2563EB</color>
+    <color name="imageColor">#10B981</color>
+    <color name="videoColor">#EF4444</color>
+    <color name="audioColor">#A855F7</color>
+    <color name="documentColor">#3B82F6</color>
+    <color name="archiveColor">#F59E0B</color>
+    <color name="codeColor">#6366F1</color>
+
+    <!-- ── 状态色 ── -->
+    <color name="uploadingColor">#2563EB</color>
+    <color name="completedColor">#10B981</color>
+    <color name="failedColor">#EF4444</color>
+    <color name="pausedColor">#F59E0B</color>
+
+    <!-- ── 聊天气泡色 ── -->
+    <color name="chatBubbleSent">#2563EB</color>
+    <color name="chatBubbleReceived">#FFFFFF</color>
+    <color name="chatBubbleSentText">#FFFFFF</color>
+    <color name="chatBubbleReceivedText">#1E293B</color>
+
+    <!-- ── 启动页/闪屏色 ── -->
+    <color name="splashBg1">#0A0A1A</color>
+    <color name="splashBg2">#060612</color>
+    <color name="splashBg3">#040410</color>
+
+    <!-- ── 兼容旧引用 ── -->
+    <color name="colorPrimary">@color/brandPrimary</color>
+    <color name="colorPrimaryDark">@color/brandPrimaryDark</color>
+    <color name="colorPrimaryLight">@color/brandPrimaryLight</color>
+    <color name="colorAccent">@color/brandAccent</color>
+    <color name="colorBackground">@color/bgPage</color>
+    <color name="colorSurface">@color/bgSurface</color>
+    <color name="colorError">@color/functionalDanger</color>
+    <color name="textHint">@color/textTertiary</color>
 </resources>

@@ -22,9 +22,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.List;
 
-import javax.inject.Inject;
-
-import dagger.hilt.android.AndroidEntryPoint;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import okhttp3.ResponseBody;
 import timber.log.Timber;
@@ -36,7 +33,6 @@ import timber.log.Timber;
  * 让私有云文件在系统文件管理器中以虚拟磁盘的形式呈现
  * 用户可在其他 App 中直接浏览、打开云端文件
  */
-@AndroidEntryPoint
 public class CloudDocumentsProvider extends DocumentsProvider {
 
     private static final String DEFAULT_ROOT = "cloud_root";
@@ -104,7 +100,7 @@ public class CloudDocumentsProvider extends DocumentsProvider {
                             : getMimeType(item.getEffectiveName());
                     int flags = item.isDirectory()
                             ? DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE
-                            : DocumentsContract.Document.FLAG_SUPPORTS_READ;
+                            : 0;
                     addRow(cursor, fileId, item.getEffectiveName(), mimeType, flags,
                             item.getEffectiveSize(),
                             parseTimestamp(item.getUpdatedTime()));
@@ -138,8 +134,7 @@ public class CloudDocumentsProvider extends DocumentsProvider {
                             : getMimeType(item.getEffectiveName());
                     int flags = item.isDirectory()
                             ? DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE
-                            : DocumentsContract.Document.FLAG_SUPPORTS_READ
-                                    | DocumentsContract.Document.FLAG_SUPPORTS_WRITE;
+                            : 0 | DocumentsContract.Document.FLAG_SUPPORTS_WRITE;
                     addRow(cursor, item.getEffectiveId(), item.getEffectiveName(),
                             mimeType, flags, item.getEffectiveSize(),
                             parseTimestamp(item.getUpdatedTime()));
@@ -265,21 +260,15 @@ public class CloudDocumentsProvider extends DocumentsProvider {
     }
 
     private FileRepository getFileRepository() {
+        // TODO: Proper DI integration required for production use
         if (fileRepository == null) {
-            // 通过 Hilt 获取注入的实例
-            fileRepository = ((dagger.hilt.android.internal.managers
-                    .ViewComponentManager.FragmentContextWrapper) getContext())
-                    .getApplicationContext() instanceof com.privateclouddisk.android.PrivateCloudDiskApp
-                    ? null : null;
-            // 简化：直接从全局获取
-            android.app.Application app = (android.app.Application) getContext()
-                    .getApplicationContext();
-            // 通过 Application 获取
+            throw new IllegalStateException("CloudDocumentsProvider not properly initialized");
         }
         return fileRepository;
     }
 
     private ApiClient getApiClient() {
-        return null; // 需要通过 DI 获取
+        // TODO: Proper DI integration required for production use
+        throw new IllegalStateException("CloudDocumentsProvider not properly initialized");
     }
 }

@@ -1,7 +1,7 @@
 {
-  "name": "PrivateCloudDisk",
+  "name": "私有云",
   "appid": "__UNI__PCD001",
-  "description": "PrivateCloudDisk 企业私有云盘跨平台客户端",
+  "description": "私有云 企业私有云盘跨平台客户端",
   "versionName": "1.0.0",
   "versionCode": "100",
   "transformPx": false,

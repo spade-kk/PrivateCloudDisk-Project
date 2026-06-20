@@ -123,6 +123,7 @@ dependencies {
     // ── Room Database ──
     implementation libs.room.runtime
     implementation libs.room.ktx
+    implementation libs.room.rxjava3
     ksp libs.room.compiler
 
     // ── Hilt DI ──
@@ -142,8 +143,8 @@ dependencies {
     // ── Paging ──
     implementation libs.paging.runtime
 
-    // ── WebRTC ──
-    implementation libs.webrtc
+    // ── WebRTC (not yet used) ──
+    // implementation libs.webrtc
 
     // ── CameraX ──
     implementation libs.camerax.core
@@ -151,8 +152,8 @@ dependencies {
     implementation libs.camerax.lifecycle
     implementation libs.camerax.view
 
-    // ── ML Kit ──
-    implementation libs.mlkit.document.scanner
+    // ── ML Kit (not yet used) ──
+    // implementation libs.mlkit.document.scanner
 
     // ── ExoPlayer ──
     implementation libs.exoplayer.core
@@ -172,6 +173,10 @@ dependencies {
 
     // ── EventBus ──
     implementation libs.eventbus
+
+    // ── RxJava3 ──
+    implementation libs.rxjava3
+    implementation libs.rxandroid3
 
     // ── LeakCanary (Debug only) ──
     debugImplementation libs.leakcanary

@@ -13,8 +13,8 @@
     <Nullable>enable</Nullable>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <AssemblyName>PrivateCloudDiskSetup</AssemblyName>
-    <Product>PrivateCloudDisk</Product>
-    <Company>PrivateCloudDisk</Company>
+    <Product>私有云</Product>
+    <Company>私有云</Company>
     <Version>1.0.0.0</Version>
   </PropertyGroup>
 

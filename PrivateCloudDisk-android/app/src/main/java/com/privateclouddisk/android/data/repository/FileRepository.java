@@ -39,7 +39,7 @@ public class FileRepository {
      * 获取文件列表（本地缓存优先）
      */
     public Flowable<List<NodeItem>> getFileList(String parentId, int page, int pageSize) {
-        return Single.create<List<NodeItem>>(emitter -> {
+        return Single.<List<NodeItem>>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<List<NodeItem>>> response =
                         apiClient.getFileApi().getFiles(parentId, page, pageSize).execute();
@@ -80,7 +80,7 @@ public class FileRepository {
      * 获取文件详情
      */
     public Single<NodeItem> getFileDetail(String fileId) {
-        return Single.create(emitter -> {
+        return Single.<NodeItem>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<NodeItem>> response =
                         apiClient.getFileApi().getFileDetail(fileId).execute();
@@ -101,7 +101,7 @@ public class FileRepository {
     // ── 文件操作 ──
 
     public Single<NodeItem> createFolder(String parentId, String folderName) {
-        return Single.create(emitter -> {
+        return Single.<NodeItem>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<NodeItem>> response =
                         apiClient.getFileApi().createFolder(
@@ -202,7 +202,7 @@ public class FileRepository {
 
     public Single<List<NodeItem>> searchFiles(String keyword, String fileType,
                                                int page, int pageSize) {
-        return Single.create(emitter -> {
+        return Single.<List<NodeItem>>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<List<NodeItem>>> response =
                         apiClient.getFileApi().searchFiles(keyword, fileType, page, pageSize).execute();
@@ -223,7 +223,7 @@ public class FileRepository {
     // ── 收藏 ──
 
     public Single<List<NodeItem>> getFavorites(int page, int pageSize) {
-        return Single.create(emitter -> {
+        return Single.<List<NodeItem>>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<List<NodeItem>>> response =
                         apiClient.getFavoritesApi().getFavorites(page, pageSize).execute();
@@ -280,7 +280,7 @@ public class FileRepository {
     // ── 回收站 ──
 
     public Single<List<NodeItem>> getTrashList(int page, int pageSize) {
-        return Single.create(emitter -> {
+        return Single.<List<NodeItem>>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<List<NodeItem>>> response =
                         apiClient.getTrashApi().getTrashList(page, pageSize).execute();
@@ -355,7 +355,7 @@ public class FileRepository {
     // ── 操作凭证 ──
 
     public Single<String> getOperationToken(String fileId, String operationType) {
-        return Single.create(emitter -> {
+        return Single.<String>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<OperationTokenResponse>> response =
                         apiClient.getFileApi().getOperationToken(fileId,

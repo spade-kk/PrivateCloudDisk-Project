@@ -70,8 +70,7 @@ public class LoginActivity extends AppCompatActivity {
         });
 
         viewModel.getLoginResult().observe(this, event -> {
-            if (event != null && !event.isHandled()) {
-                event.handle();
+            if (event != null) {
                 navigateToMain();
             }
         });

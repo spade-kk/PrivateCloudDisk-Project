@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">私有云盘</string>
+    <string name="app_name">私有云</string>
 
     <!-- 通知渠道 -->
     <string name="channel_upload">上传通知</string>

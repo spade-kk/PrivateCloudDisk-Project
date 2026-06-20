@@ -31,7 +31,7 @@ public class AuthRepository {
      * 登录
      */
     public Single<UserProfile> login(String account, String password) {
-        return Single.create(emitter -> {
+        return Single.<UserProfile>create(emitter -> {
             try {
                 LoginRequest request = new LoginRequest(account, password);
                 retrofit2.Response<ApiResponse<LoginResponse>> response =
@@ -79,7 +79,7 @@ public class AuthRepository {
      * 注册
      */
     public Single<UserProfile> register(String account, String userName, String password) {
-        return Single.create(emitter -> {
+        return Single.<UserProfile>create(emitter -> {
             try {
                 RegisterRequest request = new RegisterRequest(account, userName, password);
                 retrofit2.Response<ApiResponse<LoginResponse>> response =
@@ -105,7 +105,7 @@ public class AuthRepository {
      * 登出
      */
     public Single<Boolean> logout() {
-        return Single.create(emitter -> {
+        return Single.<Boolean>create(emitter -> {
             try {
                 apiClient.getAuthApi().logout().execute();
             } catch (Exception e) {
@@ -120,7 +120,7 @@ public class AuthRepository {
      * 验证 Token 并获取用户信息
      */
     public Single<UserProfile> validateToken(String token) {
-        return Single.create(emitter -> {
+        return Single.<UserProfile>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<UserProfile>> response =
                         apiClient.getAuthApi().validateToken(new TokenValidationRequest(token)).execute();
@@ -149,7 +149,7 @@ public class AuthRepository {
      * 刷新 Token
      */
     public Single<String> refreshToken(String refreshToken) {
-        return Single.create(emitter -> {
+        return Single.<String>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<TokenRefreshResponse>> response =
                         apiClient.getAuthApi().refreshToken(
@@ -183,7 +183,7 @@ public class AuthRepository {
      * 获取用户信息
      */
     public Single<UserProfile> getProfile() {
-        return Single.create(emitter -> {
+        return Single.<UserProfile>create(emitter -> {
             try {
                 retrofit2.Response<ApiResponse<UserProfile>> response =
                         apiClient.getAuthApi().getProfile().execute();

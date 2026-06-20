@@ -4,21 +4,34 @@
     android:layout_height="180dp"
     android:gravity="center"
     android:orientation="vertical"
-    android:background="?attr/colorPrimary">
+    android:background="@drawable/bg_gradient_primary">
 
-    <ImageView
-        android:id="@+id/iv_nav_avatar"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:src="@drawable/ic_default_avatar" />
+    <FrameLayout
+        android:layout_width="72dp"
+        android:layout_height="72dp">
+
+        <ImageView
+            android:id="@+id/iv_nav_avatar"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:src="@drawable/ic_default_avatar" />
+
+        <View
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="2dp"
+            android:layout_marginBottom="2dp"
+            android:background="@drawable/bg_online_dot" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/tv_nav_username"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="12dp"
         android:text="未登录"
-        android:textColor="@android:color/white"
+        android:textColor="@color/textOnBrand"
         android:textSize="16sp"
         android:textStyle="bold" />
 
@@ -26,7 +39,8 @@
         android:id="@+id/tv_nav_email"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
         android:text=""
-        android:textColor="@android:color/white"
+        android:textColor="#B0C4DE"
         android:textSize="12sp" />
 </LinearLayout>

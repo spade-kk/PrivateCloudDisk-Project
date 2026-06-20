@@ -1,16 +1,213 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ============================================================
+         PrivateCloudDisk 企业级主题
+         与 iOS/macOS 设计系统统一: 简约、浅蓝+白色、专业
+    ============================================================ -->
+
+    <!-- Base application theme - Light -->
     <style name="Theme.PrivateCloudDisk" parent="Theme.Material3.Light.NoActionBar">
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
-        <item name="colorError">@color/colorError</item>
-        <item name="android:colorBackground">@color/colorBackground</item>
-        <item name="android:statusBarColor">@color/colorPrimaryDark</item>
-        <item name="android:navigationBarColor">@color/colorSurface</item>
+        <!-- 品牌色 -->
+        <item name="colorPrimary">@color/brandPrimary</item>
+        <item name="colorPrimaryDark">@color/brandPrimaryDark</item>
+        <item name="colorAccent">@color/brandAccent</item>
+        <item name="colorError">@color/functionalDanger</item>
+        <item name="colorOnPrimary">@color/textOnBrand</item>
+        <item name="colorOnSecondary">@color/textOnBrand</item>
+        <item name="colorPrimaryContainer">@color/brandPrimaryBg</item>
+        <item name="colorOnPrimaryContainer">@color/brandPrimaryDark</item>
+
+        <!-- 背景 -->
+        <item name="android:colorBackground">@color/bgPage</item>
+        <item name="colorSurface">@color/bgSurface</item>
+        <item name="colorOnSurface">@color/textPrimary</item>
+        <item name="colorOnSurfaceVariant">@color/textSecondary</item>
+
+        <!-- 状态栏 / 导航栏 -->
+        <item name="android:statusBarColor">@color/brandPrimaryDark</item>
+        <item name="android:navigationBarColor">@color/bgSurface</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+
+        <!-- 形状 - 圆角系统 -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Large</item>
+
+        <!-- Material3 颜色 -->
+        <item name="colorSecondary">@color/brandAccent</item>
+        <item name="colorSecondaryContainer">@color/brandPrimaryBg</item>
+        <item name="colorTertiary">@color/brandMagent</item>
     </style>
 
-    <style name="TextInputLayoutHint" parent="TextAppearance.Material3.BodyLarge">
-        <item name="android:textColor">@color/textHint</item>
+    <!-- ======================== 形状 ======================== -->
+    <style name="ShapeAppearance.Small" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Medium" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Large" parent="ShapeAppearance.Material3.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- ======================== 文字 ======================== -->
+    <!-- Resolve AAPT declare-styleable MaterialTextAppearance parent reference -->
+    <style name="TextAppearance" parent="android:TextAppearance" />
+
+    <style name="TextAppearance.Headline" parent="TextAppearance.AppCompat.Headline">
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="TextAppearance.Title" parent="TextAppearance.AppCompat.Title">
+        <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="TextAppearance.Body" parent="TextAppearance.AppCompat.Body1">
+        <item name="android:textColor">@color/textPrimary</item>
+    </style>
+
+    <style name="TextAppearance.BodySecondary" parent="TextAppearance.AppCompat.Body2">
+        <item name="android:textColor">@color/textSecondary</item>
+    </style>
+
+    <style name="TextAppearance.Caption" parent="TextAppearance.AppCompat.Caption">
+        <item name="android:textColor">@color/textTertiary</item>
+    </style>
+
+    <style name="TextAppearance.SectionHeader">
+        <item name="android:textColor">@color/brandPrimary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.05</item>
+    </style>
+
+    <!-- ======================== 按钮 ======================== -->
+    <style name="Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:backgroundTint">@color/brandPrimary</item>
+        <item name="android:textColor">@color/textOnBrand</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:paddingVertical">14dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <style name="Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">@color/brandPrimary</item>
+        <item name="strokeColor">@color/brandPrimary</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:paddingVertical">14dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/brandPrimary</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- ======================== 卡片 ======================== -->
+    <style name="Card.Elevated" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/bgCard</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">2dp</item>
+        <item name="contentPadding">16dp</item>
+    </style>
+
+    <style name="Card.Filled" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/bgSurfaceHover</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="contentPadding">16dp</item>
+    </style>
+
+    <!-- ======================== 输入框 ======================== -->
+    <style name="TextInputLayout.Outlined" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/bgInput</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxStrokeColor">@color/borderLight</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="hintTextColor">@color/textTertiary</item>
+        <item name="startIconTint">@color/textSecondary</item>
+        <item name="endIconTint">@color/textSecondary</item>
+    </style>
+
+    
+
+    <!-- ======================== 底部导航 ======================== -->
+    <style name="BottomNavigation" parent="Widget.Material3.BottomNavigationView">
+        <item name="android:background">@color/bgSurface</item>
+        <item name="itemIconTint">@color/brandPrimary</item>
+        <item name="itemTextColor">@color/brandPrimary</item>
+        <item name="itemActiveIndicatorStyle">@style/BottomNavIndicator</item>
+        <item name="elevation">8dp</item>
+        <item name="labelVisibilityMode">labeled</item>
+    </style>
+
+    <style name="BottomNavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/brandPrimaryBg</item>
+        <item name="android:width">72dp</item>
+        <item name="android:height">32dp</item>
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- ======================== 工具栏 ======================== -->
+    <style name="Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/bgSurface</item>
+        <item name="titleTextColor">@color/textPrimary</item>
+        <item name="android:elevation">0dp</item>
+    </style>
+
+    <!-- ======================== 进度条 ======================== -->
+    <style name="ProgressBar.Brand" parent="Widget.Material3.CircularProgressIndicator">
+        <item name="indicatorColor">@color/brandPrimary</item>
+        <item name="trackColor">@color/brandPrimaryBg</item>
+    </style>
+
+    <style name="LinearProgress.Brand" parent="Widget.Material3.LinearProgressIndicator">
+        <item name="indicatorColor">@color/brandPrimary</item>
+        <item name="trackColor">@color/brandPrimaryBg</item>
+    </style>
+
+    <!-- ======================== 分割线 ======================== -->
+    <style name="Divider" parent="Widget.Material3.MaterialDivider">
+        <item name="dividerColor">@color/dividerColor</item>
+        <item name="dividerThickness">1dp</item>
+    </style>
+
+    <!-- ======================== 对话框 ======================== -->
+    <style name="Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/brandPrimary</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Large</item>
+    </style>
+
+    <!-- ======================== 开关 ======================== -->
+    <style name="Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="thumbColor">@color/brandPrimary</item>
+        <item name="trackColor">@color/brandPrimaryBg</item>
+    </style>
+
+    <!-- ======================== 标签 ======================== -->
+    <style name="Badge" parent="Widget.Material3.Badge">
+        <item name="backgroundColor">@color/functionalDanger</item>
+        <item name="badgeTextColor">@color/textOnBrand</item>
+    </style>
+
+    <style name="Badge.Brand" parent="Widget.Material3.Badge">
+        <item name="backgroundColor">@color/brandPrimary</item>
+        <item name="badgeTextColor">@color/textOnBrand</item>
     </style>
 </resources>

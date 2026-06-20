@@ -89,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
 
         setupToolbar();
         setupDrawer();
-        setupBottomNavigation();
+        setupBottomNavigation(savedInstanceState);
         setupObservers();
         requestPermissions();
     }
@@ -130,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
         updateNavHeader();
     }
 
-    private void setupBottomNavigation() {
+    private void setupBottomNavigation(Bundle savedInstanceState) {
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         bottomNavigationView.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
@@ -160,8 +160,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupObservers() {
         viewModel.getLogoutEvent().observe(this, event -> {
-            if (event != null && !event.isHandled()) {
-                event.handle();
+            if (event != null) {
                 stopServices();
                 Intent intent = new Intent(this, LoginActivity.class);
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
