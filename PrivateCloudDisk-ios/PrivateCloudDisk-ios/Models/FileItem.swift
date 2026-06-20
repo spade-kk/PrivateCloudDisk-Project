@@ -48,7 +48,18 @@ struct FileNode: Codable, Identifiable, Hashable {
     var isDocument: Bool {
         guard let mime = mimeType else { return false }
         return mime.contains("document") || mime.contains("spreadsheet") || mime.contains("presentation")
-            || ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv"].contains(fileType?.lowercased() ?? "")
+            || ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "rtf"].contains(fileType?.lowercased() ?? "")
+    }
+    var isArchive: Bool {
+        guard let mime = mimeType ?? fileType else { return false }
+        return ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"].contains(mime.lowercased())
+            || mime.contains("archive") || mime.contains("compressed")
+    }
+    var isCode: Bool {
+        guard let ext = fileType?.lowercased() else { return false }
+        return ["swift", "js", "ts", "py", "java", "go", "rs", "c", "cpp", "h", "html",
+                "css", "scss", "json", "xml", "yaml", "yml", "sh", "rb", "php", "sql",
+                "kt", "dart", "vue", "jsx", "tsx"].contains(ext)
     }
     var fileExtension: String {
         if isFolder { return "" }

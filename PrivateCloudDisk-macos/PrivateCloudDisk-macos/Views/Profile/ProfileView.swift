@@ -18,7 +18,7 @@ struct ProfileView: View {
     @State private var showSaveSuccess = false
     @State private var avatarScale: CGFloat = 0.8
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -66,7 +66,7 @@ struct ProfileView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [brandBlue, Color.purple.opacity(0.6)],
+                            colors: [brandBlue, AppColors.info.opacity(0.6)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -339,4 +339,8 @@ struct ProfileDivider: View {
         Divider()
             .opacity(0.3)
     }
+}
+
+#Preview {
+    ProfileView()
 }

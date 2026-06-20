@@ -24,17 +24,9 @@ struct LoginView: View {
 
     // MARK: - 品牌色
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
-    private let brandPurple = Color(red: 0.45, green: 0.35, blue: 0.95)
-    private let brandGradient = LinearGradient(
-        colors: [
-            Color(red: 0.24, green: 0.47, blue: 0.96),
-            Color(red: 0.45, green: 0.35, blue: 0.95),
-            Color(red: 0.65, green: 0.28, blue: 0.92),
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    private let brandBlue = AppColors.primary
+    private let brandPurple = AppColors.info
+    private let brandGradient = AppGradients.primary
 
     var body: some View {
         GeometryReader { geo in
@@ -53,7 +45,7 @@ struct LoginView: View {
 
                     LinearGradient(
                         colors: [
-                            Color(red: 0.12, green: 0.10, blue: 0.22),
+                            AppColors.splashBg1,
                             Color(nsColor: .windowBackgroundColor),
                         ],
                         startPoint: .leading,
@@ -78,9 +70,9 @@ struct LoginView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.10, green: 0.08, blue: 0.20),
-                    Color(red: 0.06, green: 0.05, blue: 0.16),
-                    Color(red: 0.08, green: 0.06, blue: 0.18),
+                    AppColors.splashBg1,
+                    AppColors.splashBg2,
+                    AppColors.splashBg3,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -347,7 +339,7 @@ struct LoginView: View {
             )
             .foregroundColor(isFormValid ? .white : .gray)
             .shadow(
-                color: isFormValid ? brandBlue.opacity(0.3) : .clear,
+                color: isFormValid ? AppColors.primary.opacity(0.3) : .clear,
                 radius: 12,
                 x: 0,
                 y: 4
@@ -582,7 +574,7 @@ struct FormField: View {
     @State private var isHovered = false
     @State private var showPassword = false
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -662,7 +654,7 @@ struct FeatureItem: View {
     let title: String
     let description: String
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         HStack(spacing: 14) {
@@ -686,4 +678,8 @@ struct FeatureItem: View {
             }
         }
     }
+}
+
+#Preview {
+    LoginView()
 }

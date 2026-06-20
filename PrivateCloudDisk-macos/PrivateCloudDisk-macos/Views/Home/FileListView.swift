@@ -14,7 +14,7 @@ struct FileListView: View {
     @EnvironmentObject var contentVM: ContentViewModel
     @State private var hoveredNodeId: String?
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         List(selection: $fileListVM.selectedNodeIds) {
@@ -112,7 +112,7 @@ struct FileRowView: View {
     let node: FileNode
     let isHovered: Bool
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         HStack(spacing: 12) {
@@ -207,7 +207,7 @@ struct FileGridView: View {
     @EnvironmentObject var contentVM: ContentViewModel
     @State private var hoveredNodeId: String?
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     private let columns = [
         GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 12)
@@ -271,7 +271,7 @@ struct FileGridCell: View {
     let node: FileNode
     let isHovered: Bool
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 8) {

@@ -17,7 +17,7 @@ struct SettingsView: View {
     @State private var selectedSection: SettingsSection = .general
     @State private var selectedAppearance: AppearanceMode = .system
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         case general = "通用"
@@ -441,7 +441,7 @@ struct SettingsView: View {
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(
                                     LinearGradient(
-                                        colors: [brandBlue, Color.purple],
+                                        colors: [brandBlue, AppColors.info],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )

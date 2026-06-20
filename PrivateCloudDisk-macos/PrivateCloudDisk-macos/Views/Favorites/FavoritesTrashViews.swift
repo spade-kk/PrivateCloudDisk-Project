@@ -12,7 +12,7 @@ import SwiftUI
 struct FavoritesView: View {
     @EnvironmentObject var viewModel: FavoritesTrashViewModel
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 0) {
@@ -141,7 +141,7 @@ struct TrashView: View {
     @State private var showEmptyTrashAlert = false
     @State private var showPermanentDeleteAlert = false
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 0) {
@@ -320,4 +320,9 @@ struct TrashView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
     }
+}
+
+#Preview {
+    FavoritesView()
+        .environmentObject(FavoritesTrashViewModel())
 }

@@ -2,7 +2,8 @@
 //  SharesView.swift
 //  PrivateCloudDisk-ios
 //
-//  分享管理页面 — 查看、创建、撤销分享链接
+//  分享管理 — 企业级卡片式分享管理
+//  查看、创建、撤销分享链接
 //
 
 import SwiftUI
@@ -12,24 +13,35 @@ struct SharesView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+
                 if viewModel.isLoading && viewModel.shares.isEmpty {
-                    ProgressView("加载中...")
+                    VStack(spacing: AppSpacing.lg) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(AppColors.primary)
+                        Text("加载中...")
+                            .font(AppTypography.subheadline)
+                            .foregroundColor(AppColors.textSecondary)
+                    }
                 } else if viewModel.shares.isEmpty {
-                    ContentUnavailableView(
-                        "暂无分享",
-                        systemImage: "link.badge.plus",
-                        description: Text("创建分享链接，与他人共享文件")
+                    AppEmptyState(
+                        icon: "link.badge.plus",
+                        title: "暂无分享",
+                        message: "创建分享链接，与他人共享文件"
                     )
                 } else {
-                    List {
-                        ForEach(viewModel.shares) { share in
-                            ShareRowView(share: share) {
-                                Task { await viewModel.revokeShare(shareToken: share.shareToken) }
+                    ScrollView {
+                        LazyVStack(spacing: AppSpacing.md) {
+                            ForEach(viewModel.shares) { share in
+                                ShareCardView(share: share) {
+                                    Task { await viewModel.revokeShare(shareToken: share.shareToken) }
+                                }
                             }
                         }
+                        .padding(AppSpacing.lg)
                     }
-                    .listStyle(.plain)
                 }
             }
             .navigationTitle("分享管理")
@@ -43,31 +55,51 @@ struct SharesView: View {
     }
 }
 
-// MARK: - 分享行组件
+// MARK: - 分享卡片
 
-struct ShareRowView: View {
+struct ShareCardView: View {
     let share: ShareLinkItem
     let onRevoke: () -> Void
     @State private var showCopyToast = false
+    @State private var showRevokeConfirm = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: share.targetType == .file ? "doc.fill" : "folder.fill")
-                    .foregroundStyle(.blue)
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 0) {
+            // 头部
+            HStack(spacing: AppSpacing.md) {
+                // 图标
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppRadius.md)
+                        .fill(share.targetType == .file ? AppColors.fileDocument.opacity(0.1) : AppColors.fileFolder.opacity(0.1))
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: share.targetType == .file ? "doc.fill" : "folder.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(share.targetType == .file ? AppColors.fileDocument : AppColors.fileFolder)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
                     Text(share.targetName)
-                        .font(.subheadline.bold())
+                        .font(AppTypography.subheadline.weight(.medium))
+                        .foregroundColor(AppColors.textPrimary)
                         .lineLimit(1)
                     Text(share.targetTypeLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTypography.caption2)
+                        .foregroundColor(AppColors.textSecondary)
                 }
-                Spacer()
-                statusBadge
-            }
 
-            HStack {
+                Spacer()
+
+                AppBadge(text: share.statusLabel, style: statusBadgeStyle)
+            }
+            .padding(AppSpacing.lg)
+
+            Divider()
+                .overlay(AppColors.dividerLight)
+                .padding(.leading, AppSpacing.lg)
+
+            // 操作区
+            HStack(spacing: AppSpacing.md) {
                 Button(action: {
                     UIPasteboard.general.string = share.shareURL
                     showCopyToast = true
@@ -76,76 +108,93 @@ struct ShareRowView: View {
                     }
                 }) {
                     Label("复制链接", systemImage: "doc.on.doc")
-                        .font(.caption)
+                        .font(AppTypography.caption1)
                 }
                 .buttonStyle(.bordered)
-                .tint(.blue)
+                .tint(AppColors.primary)
 
                 if share.hasPassword {
-                    Label("有密码", systemImage: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Label("密码保护", systemImage: "lock.fill")
+                        .font(AppTypography.caption2)
+                        .foregroundColor(AppColors.warning)
                 }
-
-                Text("访问 \(share.accessCount) 次")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
                 Spacer()
 
+                HStack(spacing: 4) {
+                    Image(systemName: "eye")
+                        .font(.system(size: 10))
+                    Text("\(share.accessCount)")
+                        .font(AppTypography.caption2)
+                }
+                .foregroundColor(AppColors.textSecondary)
+
                 if share.isActive {
-                    Button("撤销", role: .destructive, action: onRevoke)
-                        .font(.caption)
-                        .buttonStyle(.bordered)
+                    Button(action: { showRevokeConfirm = true }) {
+                        Text("撤销")
+                            .font(AppTypography.caption1.weight(.medium))
+                            .foregroundColor(AppColors.danger)
+                    }
                 }
             }
+            .padding(AppSpacing.lg)
 
+            // 过期时间
             if let expire = share.expireAt {
-                Text("过期时间: \(formatDate(expire))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Divider()
+                    .overlay(AppColors.dividerLight)
+                    .padding(.leading, AppSpacing.lg)
+
+                HStack {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10))
+                    Text("过期时间: \(formatDate(expire))")
+                        .font(AppTypography.caption2)
+                    Spacer()
+                }
+                .foregroundColor(AppColors.textTertiary)
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.vertical, 10)
             }
         }
-        .padding(.vertical, 6)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.lg))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
         .overlay(alignment: .topTrailing) {
             if showCopyToast {
                 Text("已复制")
-                    .font(.caption2)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial)
+                    .font(AppTypography.caption2)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(AppColors.textPrimary.opacity(0.8))
                     .clipShape(Capsule())
+                    .padding(8)
                     .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: showCopyToast)
+        .confirmationDialog("确定撤销此分享吗？", isPresented: $showRevokeConfirm, titleVisibility: .visible) {
+            Button("撤销", role: .destructive, action: onRevoke)
+            Button("取消", role: .cancel) {}
+        }
     }
 
-    private var statusBadge: some View {
-        Text(share.statusLabel)
-            .font(.caption2)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(statusColor.opacity(0.15))
-            .foregroundStyle(statusColor)
-            .clipShape(Capsule())
-    }
-
-    private var statusColor: Color {
+    private var statusBadgeStyle: AppBadge.Style {
         switch share.status {
-        case .active: return .green
-        case .revoked: return .orange
-        case .expired: return .gray
+        case .active: return .success
+        case .revoked: return .warning
+        case .expired: return .neutral
         }
     }
 
     private func formatDate(_ dateStr: String) -> String {
         let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: dateStr) {
-            let display = DateFormatter()
-            display.dateStyle = .medium
-            return display.string(from: date)
-        }
-        return dateStr
+        guard let date = formatter.date(from: dateStr) else { return dateStr }
+        let display = DateFormatter()
+        display.dateStyle = .medium
+        display.locale = Locale(identifier: "zh_CN")
+        return display.string(from: date)
     }
 }
 

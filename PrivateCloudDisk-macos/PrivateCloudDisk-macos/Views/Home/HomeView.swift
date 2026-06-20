@@ -24,7 +24,7 @@ struct HomeView: View {
     @State private var showCreateFolder = false
     @State private var newFolderName = ""
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     enum SortField: String, CaseIterable {
         case name = "名称"
@@ -631,7 +631,7 @@ struct FileListRowView: View {
     let onOpen: () -> Void
 
     @State private var isHovered = false
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         Button(action: onOpen) {
@@ -763,7 +763,7 @@ struct FileGridItemView: View {
     let onOpen: () -> Void
 
     @State private var isHovered = false
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 8) {

@@ -12,7 +12,7 @@ import SwiftUI
 struct UploadProgressView: View {
     @EnvironmentObject var uploadVM: UploadViewModel
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 0) {
@@ -118,7 +118,7 @@ struct UploadProgressView: View {
 struct UploadTaskRow: View {
     let task: UploadTask
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         HStack(spacing: 12) {
@@ -206,7 +206,7 @@ extension UploadStatus {
     }
 
     var color: Color {
-        let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+        let brandBlue = AppColors.primary
         switch self {
         case .pending: return .orange
         case .uploading: return brandBlue

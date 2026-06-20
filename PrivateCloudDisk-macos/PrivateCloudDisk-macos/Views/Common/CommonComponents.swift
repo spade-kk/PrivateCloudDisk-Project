@@ -58,7 +58,7 @@ struct Badge: View {
         case brand, success, warning, error, info, neutral
     }
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         Text(text)
@@ -100,14 +100,7 @@ struct Badge: View {
 struct GradientBadge: View {
     let text: String
 
-    private let gradient = LinearGradient(
-        colors: [
-            Color(red: 0.24, green: 0.47, blue: 0.96),
-            Color(red: 0.45, green: 0.35, blue: 0.95),
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    private let gradient = AppGradients.primary
 
     var body: some View {
         Text(text)
@@ -338,14 +331,7 @@ struct GradientButton: View {
     let isLoading: Bool
     let action: () -> Void
 
-    private let brandGradient = LinearGradient(
-        colors: [
-            Color(red: 0.24, green: 0.47, blue: 0.96),
-            Color(red: 0.45, green: 0.35, blue: 0.95),
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    private let brandGradient = AppGradients.primary
 
     init(
         title: String,
@@ -382,7 +368,7 @@ struct GradientButton: View {
             )
             .foregroundColor(.white)
             .shadow(
-                color: Color(red: 0.24, green: 0.47, blue: 0.96).opacity(0.3),
+                color: AppColors.primary.opacity(0.3),
                 radius: 8,
                 x: 0,
                 y: 3
@@ -404,7 +390,7 @@ struct EmptyState: View {
     let actionTitle: String?
     let action: (() -> Void)?
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     init(
         icon: String,
@@ -689,7 +675,7 @@ struct InfoRow: View {
 struct LoadingStateView: View {
     let message: String
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 16) {
@@ -716,7 +702,7 @@ struct EmptyStateView: View {
     let title: String
     let subtitle: String
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 16) {

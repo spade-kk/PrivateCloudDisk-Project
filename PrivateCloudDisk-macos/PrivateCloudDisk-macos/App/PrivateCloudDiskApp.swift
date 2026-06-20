@@ -140,7 +140,7 @@ struct CustomTrafficLightButtons: View {
         case close, minimize, zoom
     }
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         HStack(spacing: 8) {

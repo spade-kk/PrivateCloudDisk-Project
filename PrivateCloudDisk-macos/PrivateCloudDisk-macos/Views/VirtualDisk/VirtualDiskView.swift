@@ -16,7 +16,7 @@ struct VirtualDiskView: View {
     @State private var showClearCacheAlert = false
     @State private var statusPulse: Bool = false
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -396,7 +396,7 @@ extension SyncEvent.SyncEventType {
     }
 
     var color: Color {
-        let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+        let brandBlue = AppColors.primary
         switch self {
         case .fileCreated: return .green
         case .fileModified: return brandBlue
@@ -410,4 +410,9 @@ extension SyncEvent.SyncEventType {
         case .cacheEvicted: return .secondary
         }
     }
+}
+
+#Preview {
+    VirtualDiskView()
+        .environmentObject(VirtualDiskViewModel())
 }

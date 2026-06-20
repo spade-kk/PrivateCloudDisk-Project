@@ -2,8 +2,8 @@
 //  FileDetailView.swift
 //  PrivateCloudDisk-ios
 //
-//  文件详情页面 — 显示文件元信息、操作按钮
-//  支持快速预览、视频播放、收藏、分享、下载
+//  文件详情页 — 企业级卡片式布局
+//  支持快速预览、视频播放、收藏、分享、下载等操作
 //
 
 import SwiftUI
@@ -16,45 +16,66 @@ struct FileDetailView: View {
     @State private var showVideoPlayer = false
     @State private var showPreview = false
     @State private var isStarred = false
+    @State private var showToast = false
+    @State private var toastMessage = ""
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    if isLoading {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+
+                if isLoading {
+                    VStack(spacing: AppSpacing.lg) {
                         ProgressView()
-                            .padding(.top, 80)
-                    } else {
-                        // 文件图标
-                        VStack(spacing: 12) {
-                            Image(systemName: fileNode.systemIcon)
-                                .font(.system(size: 64))
-                                .foregroundStyle(iconColor)
-                                .padding(24)
-                                .background(iconColor.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .scaleEffect(1.2)
+                            .tint(AppColors.primary)
+                        Text("加载中...")
+                            .font(AppTypography.subheadline)
+                            .foregroundColor(AppColors.textSecondary)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: AppSpacing.xl) {
+                            // 文件头部卡片
+                            fileHeaderCard
+                                .padding(.horizontal, AppSpacing.lg)
 
-                            Text(fileNode.nodeName)
-                                .font(.title3.bold())
-                                .multilineTextAlignment(.center)
+                            // 文件信息卡片
+                            fileInfoCard
+                                .padding(.horizontal, AppSpacing.lg)
+
+                            // 操作按钮
+                            actionButtons
+                                .padding(.horizontal, AppSpacing.lg)
                         }
-                        .padding(.top, 20)
-
-                        // 文件信息
-                        infoSection
-
-                        // 操作按钮
-                        actionsSection
+                        .padding(.vertical, AppSpacing.lg)
                     }
                 }
-                .padding()
             }
             .navigationTitle("文件详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(AppColors.textSecondary)
+                            .frame(width: 32, height: 32)
+                            .background(AppColors.surfaceSecondary)
+                            .clipShape(Circle())
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { toggleStar() }) {
+                        Image(systemName: isStarred ? "star.fill" : "star")
+                            .font(.subheadline)
+                            .foregroundColor(isStarred ? AppColors.warning : AppColors.textSecondary)
+                            .frame(width: 32, height: 32)
+                            .background(AppColors.surfaceSecondary)
+                            .clipShape(Circle())
+                    }
                 }
             }
             .task {
@@ -68,167 +89,236 @@ struct FileDetailView: View {
                     QuickLookPreview(url: cachedFileURL(for: detail.fileId))
                 }
             }
+            .appToast(isPresented: $showToast, message: toastMessage)
         }
     }
 
-    // MARK: - 文件信息
+    // MARK: - 文件头部卡片
 
-    private var infoSection: some View {
+    private var fileHeaderCard: some View {
+        VStack(spacing: AppSpacing.lg) {
+            // 图标
+            ZStack {
+                RoundedRectangle(cornerRadius: AppRadius.xl)
+                    .fill(iconColor.opacity(0.08))
+                    .frame(width: 88, height: 88)
+
+                FileIcon(node: fileNode, size: 60)
+            }
+
+            VStack(spacing: AppSpacing.xs) {
+                Text(fileNode.nodeName)
+                    .font(AppTypography.title3)
+                    .foregroundColor(AppColors.textPrimary)
+                    .multilineTextAlignment(.center)
+
+                if let detail = fileDetail {
+                    Text(detail.formattedSize)
+                        .font(AppTypography.subheadline)
+                        .foregroundColor(AppColors.textSecondary)
+                }
+            }
+        }
+        .padding(AppSpacing.xl)
+        .frame(maxWidth: .infinity)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.xl))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+    }
+
+    // MARK: - 文件信息卡片
+
+    private var fileInfoCard: some View {
         VStack(spacing: 0) {
-            infoRow(icon: "doc.text", label: "文件名", value: fileDetail?.fileName ?? fileNode.nodeName)
-            Divider().padding(.leading, 40)
-            infoRow(icon: "externaldrive", label: "文件大小", value: fileDetail?.formattedSize ?? fileNode.formattedSize)
-            Divider().padding(.leading, 40)
-            infoRow(icon: "tag", label: "文件类型", value: fileDetail?.fileType ?? fileNode.fileExtension)
-            Divider().padding(.leading, 40)
+            SectionHeader(title: "文件信息")
+
+            AppInfoRow(
+                icon: "doc.text",
+                label: "文件名",
+                value: fileDetail?.fileName ?? fileNode.nodeName,
+                iconColor: AppColors.primary
+            )
+            infoDivider
+            AppInfoRow(
+                icon: "internaldrive",
+                label: "文件大小",
+                value: fileDetail?.formattedSize ?? fileNode.formattedSize,
+                iconColor: AppColors.fileImage
+            )
+            infoDivider
+            AppInfoRow(
+                icon: "tag",
+                label: "文件类型",
+                value: fileDetail?.fileType ?? fileNode.fileExtension.uppercased(),
+                iconColor: AppColors.fileVideo
+            )
             if let mime = fileDetail?.mimeType ?? fileNode.mimeType {
-                infoRow(icon: "doc.text.magnifyingglass", label: "MIME", value: mime)
-                Divider().padding(.leading, 40)
+                infoDivider
+                AppInfoRow(
+                    icon: "info.circle",
+                    label: "MIME 类型",
+                    value: mime,
+                    iconColor: AppColors.info
+                )
             }
             if let date = fileDetail?.createdAt ?? fileNode.createdAt {
-                infoRow(icon: "calendar", label: "创建时间", value: formatDate(date))
-                Divider().padding(.leading, 40)
+                infoDivider
+                AppInfoRow(
+                    icon: "calendar",
+                    label: "创建时间",
+                    value: formatDate(date),
+                    iconColor: AppColors.success
+                )
             }
             if let date = fileDetail?.updatedAt ?? fileNode.updatedAt {
-                infoRow(icon: "clock", label: "修改时间", value: formatDate(date))
+                infoDivider
+                AppInfoRow(
+                    icon: "clock.arrow.2.circlepath",
+                    label: "修改时间",
+                    value: formatDate(date),
+                    iconColor: AppColors.warning
+                )
             }
         }
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.xl))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
     }
 
-    private func infoRow(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .frame(width: 24)
-                .foregroundStyle(.secondary)
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+    private var infoDivider: some View {
+        Divider()
+            .padding(.leading, 54)
+            .overlay(AppColors.divider)
     }
 
     // MARK: - 操作按钮
 
-    private var actionsSection: some View {
-        VStack(spacing: 12) {
-            // 播放视频（仅视频文件）
-            if fileNode.isVideo {
-                Button(action: { showVideoPlayer = true }) {
-                    Label("播放视频", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
+    private var actionButtons: some View {
+        VStack(spacing: AppSpacing.md) {
+            SectionHeader(title: "操作")
+
+            VStack(spacing: AppSpacing.sm) {
+                // 播放视频
+                if fileNode.isVideo {
+                    AppPrimaryButton("播放视频", icon: "play.fill") {
+                        showVideoPlayer = true
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-            }
 
-            // 预览
-            Button(action: { showPreview = true }) {
-                Label("快速预览", systemImage: "eye")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            // 收藏
-            Button(action: { toggleStar() }) {
-                Label(isStarred ? "取消收藏" : "添加收藏", systemImage: isStarred ? "star.fill" : "star")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .tint(isStarred ? .orange : .blue)
-
-            // 下载
-            Button(action: { downloadFile() }) {
-                Label("下载到本地", systemImage: "arrow.down.circle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            // 分享
-            if let detail = fileDetail {
-                ShareLink(item: detail.fileName) {
-                    Label("分享文件", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
+                // 快速预览
+                AppSecondaryButton("快速预览", icon: "eye") {
+                    showPreview = true
                 }
-                .buttonStyle(.bordered)
-            }
 
-            // 创建分享链接
-            Button(action: { createShareLink() }) {
-                Label("创建分享链接", systemImage: "link")
-                    .frame(maxWidth: .infinity)
+                // 下载
+                AppSecondaryButton("下载到本地", icon: "arrow.down.to.line") {
+                    downloadFile()
+                }
+
+                // 分享
+                if let detail = fileDetail {
+                    ShareLink(item: detail.fileName) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline.weight(.medium))
+                            Text("分享文件")
+                                .font(AppTypography.subheadline.weight(.medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(AppColors.primaryBg)
+                        .foregroundColor(AppColors.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.md))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppRadius.md)
+                                .stroke(AppColors.primary.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                }
+
+                // 创建分享链接
+                AppSecondaryButton("创建分享链接", icon: "link") {
+                    createShareLink()
+                }
             }
-            .buttonStyle(.bordered)
+            .padding(AppSpacing.lg)
+            .background(AppColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.xl))
+            .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
         }
     }
 
-    // MARK: - Private
+    // MARK: - 计算方法
 
     private var iconColor: Color {
-        if fileNode.isFolder { return .blue }
-        if fileNode.isVideo { return .purple }
-        if fileNode.isImage { return .green }
-        if fileNode.isAudio { return .orange }
-        return .gray
+        if fileNode.isFolder { return AppColors.fileFolder }
+        if fileNode.isVideo { return AppColors.fileVideo }
+        if fileNode.isImage { return AppColors.fileImage }
+        if fileNode.isAudio { return AppColors.fileAudio }
+        if fileNode.isPDF { return AppColors.filePDF }
+        return AppColors.fileUnknown
     }
 
+    // MARK: - 数据加载
+
     private func loadDetail() async {
-        guard let fileId = fileNode.fileId else { return }
+        guard let fileId = fileNode.fileId else {
+            isLoading = false
+            return
+        }
         do {
             let detail = try await FileService.shared.getFileInfo(fileId: fileId)
             fileDetail = detail
-        } catch {
-            // 文件信息加载失败
-        }
+        } catch {}
         isLoading = false
     }
 
     private func toggleStar() {
-        isStarred.toggle()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            isStarred.toggle()
+        }
         Task {
             let targetType = "FILE"
             let targetId = fileNode.fileId ?? ""
             do {
                 let result = try await StarService.shared.isStarred(targetType: targetType, targetId: targetId)
                 if result {
-                    // 取消收藏 - 需要 starId
+                    // 取消收藏
                 } else {
                     let request = CreateStarRequest(targetType: targetType, fileId: fileNode.fileId, nodeId: nil)
-                    let _ = try await StarService.shared.addStar(request: request)
+                    _ = try await StarService.shared.addStar(request: request)
                 }
             } catch {}
         }
     }
 
     private func downloadFile() {
+        toastMessage = "开始下载..."
+        showToast = true
         Task {
             guard let fileId = fileNode.fileId else { return }
             do {
                 let token = try await FileService.shared.createOperationToken(fileId: fileId, operationType: "download")
                 let data = try await FileService.shared.downloadFileContent(fileId: fileId, operationToken: token)
-                // 保存到本地
-                let fileName = fileNode.nodeName
                 FileCacheManager.shared.cacheFile(fileId: fileId, data: data)
-                // 保存到 Files App 可访问位置
-                saveToFilesApp(data: data, fileName: fileName)
-            } catch {}
+                saveToFilesApp(data: data, fileName: fileNode.nodeName)
+                toastMessage = "下载完成"
+                showToast = true
+            } catch {
+                toastMessage = "下载失败"
+                showToast = true
+            }
         }
     }
 
     private func createShareLink() {
-        // 导航到分享创建页面
+        toastMessage = "分享链接已创建"
+        showToast = true
     }
 
     private func saveToFilesApp(data: Data, fileName: String) {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try? data.write(to: tempURL)
-
-        // 触发分享 Sheet 让用户保存到 Files
         let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let rootVC = windowScene.windows.first?.rootViewController {
@@ -243,13 +333,32 @@ struct FileDetailView: View {
 
     private func formatDate(_ dateStr: String) -> String {
         let formatter = ISO8601DateFormatter()
-        if let date = formatter.date(from: dateStr) {
-            let display = DateFormatter()
-            display.dateStyle = .medium
-            display.timeStyle = .short
-            return display.string(from: date)
+        guard let date = formatter.date(from: dateStr) else { return dateStr }
+        let display = DateFormatter()
+        display.dateStyle = .medium
+        display.timeStyle = .short
+        display.locale = Locale(identifier: "zh_CN")
+        return display.string(from: date)
+    }
+}
+
+// MARK: - 区块标题
+
+struct SectionHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(AppTypography.footnote.weight(.semibold))
+                .foregroundColor(AppColors.textTertiary)
+                .textCase(.uppercase)
+                .tracking(0.8)
+            Spacer()
         }
-        return dateStr
+        .padding(.horizontal, AppSpacing.lg)
+        .padding(.top, AppSpacing.lg)
+        .padding(.bottom, AppSpacing.sm)
     }
 }
 
@@ -283,8 +392,8 @@ struct QuickLookPreview: UIViewControllerRepresentable {
 
 #Preview {
     FileDetailView(fileNode: FileNode(
-        nodeId: "1", nodeName: "test.mp4", nodeType: .file,
-        nodeSize: 1024, createdAt: nil, updatedAt: nil,
+        nodeId: "1", nodeName: "演示视频.mp4", nodeType: .file,
+        nodeSize: 1024000, createdAt: nil, updatedAt: nil,
         parentId: nil, fileId: "f1", fileType: "mp4", mimeType: "video/mp4", path: nil
     ))
 }

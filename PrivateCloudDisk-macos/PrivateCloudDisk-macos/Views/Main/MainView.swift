@@ -20,7 +20,7 @@ struct MainView: View {
 
     @State private var columnVisibility = NavigationSplitViewVisibility.all
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         ZStack {
@@ -99,7 +99,7 @@ struct SidebarView: View {
     @State private var hoveredTab: ContentViewModel.NavigationTab?
     @State private var showProfilePopover = false
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         VStack(spacing: 0) {
@@ -181,7 +181,7 @@ struct SidebarView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(
                             LinearGradient(
-                                colors: [brandBlue, Color.purple],
+                                colors: [brandBlue, AppColors.info],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -402,7 +402,7 @@ struct SidebarView: View {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [brandBlue, Color.purple.opacity(0.6)],
+                                colors: [brandBlue, AppColors.info.opacity(0.6)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -449,7 +449,7 @@ struct SidebarView: View {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [brandBlue, Color.purple.opacity(0.6)],
+                                colors: [brandBlue, AppColors.info.opacity(0.6)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -554,7 +554,7 @@ struct ToastView: View {
         switch type {
         case .success: return .green
         case .error: return .red
-        case .info: return Color(red: 0.24, green: 0.47, blue: 0.96)
+        case .info: return AppColors.primary
         case .warning: return .orange
         }
     }

@@ -36,17 +36,8 @@ struct ContentView: View {
 
     // MARK: - 品牌色
 
-    private let brandGradient = LinearGradient(
-        colors: [
-            Color(red: 0.24, green: 0.47, blue: 0.96),
-            Color(red: 0.45, green: 0.35, blue: 0.95),
-            Color(red: 0.65, green: 0.28, blue: 0.92),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandGradient = AppGradients.primaryExtended
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         ZStack {
@@ -86,16 +77,8 @@ struct ContentView: View {
         GeometryReader { geo in
             ZStack {
                 // ── 背景层 ──
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.12, green: 0.10, blue: 0.22),
-                        Color(red: 0.08, green: 0.06, blue: 0.18),
-                        Color(red: 0.05, green: 0.04, blue: 0.14),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppGradients.splashBackground
+                    .ignoresSafeArea()
 
                 // ── 视差光晕（跟随鼠标微动） ──
                 ZStack {
@@ -118,7 +101,7 @@ struct ContentView: View {
                     Circle()
                         .fill(
                             RadialGradient(
-                                colors: [Color.purple.opacity(0.10), .clear],
+                                colors: [AppColors.info.opacity(0.10), .clear],
                                 center: .center,
                                 startRadius: 0,
                                 endRadius: 350
@@ -260,7 +243,7 @@ struct ContentView: View {
                                     RoundedRectangle(cornerRadius: 2)
                                         .fill(
                                             LinearGradient(
-                                                colors: [brandBlue, Color.purple.opacity(0.6)],
+                                                colors: [AppColors.primary, AppColors.info.opacity(0.6)],
                                                 startPoint: .leading,
                                                 endPoint: .trailing
                                             )

@@ -22,7 +22,7 @@ struct FileDetailView: View {
     @State private var sharePassword = ""
     @State private var shareExpireDays = 7
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     enum DetailTab: String, CaseIterable {
         case info = "信息"
@@ -446,7 +446,7 @@ struct DetailInfoRow: View {
     let label: String
     let value: String
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -479,7 +479,7 @@ struct ShareLinkRow: View {
     let onCopy: () -> Void
     let onDelete: () -> Void
 
-    private let brandBlue = Color(red: 0.24, green: 0.47, blue: 0.96)
+    private let brandBlue = AppColors.primary
 
     var body: some View {
         HStack(spacing: 12) {
@@ -527,4 +527,9 @@ struct ShareLinkRow: View {
                 .fill(.quaternary.opacity(0.3))
         )
     }
+}
+
+#Preview {
+    FileDetailView(nodeId: "test", nodeName: "测试文件")
+            .environmentObject(FileDetailViewModel())
 }
