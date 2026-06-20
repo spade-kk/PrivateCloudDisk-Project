@@ -34,6 +34,8 @@
               v-else-if="isVideo"
               :file-url="fileUrl"
               :file-name="node?.node_name || ''"
+              :file-size="node?.file_size || ''"
+              :file-id="node?.node_id || ''"
               :loading="loading"
             />
 
@@ -96,6 +98,7 @@
 import { ref, computed, watch } from 'vue'
 import { getFilePreviewTokenApi, getFileContentApi } from '@/api'
 import { getFileExtension } from '@/utils/helpers'
+import { getVideoStreamInfoApi, requestVideoTokenApi, buildHlsStreamUrl } from '@/api/modules/video'
 import ImagePreview from '@/components/preview/ImagePreview.vue'
 import VideoPreview from '@/components/preview/VideoPreview.vue'
 import AudioPreview from '@/components/preview/AudioPreview.vue'
@@ -149,6 +152,25 @@ const loadPreview = async () => {
       const res = await getFilePreviewTokenApi(props.node.node_id)
       if (res.code === 200 && res.data?.url) {
         fileUrl.value = res.data.url
+      }
+
+      // 视频文件：检查 HLS 可用性，如果可用则使用 HLS 流
+      if (isVideo.value && props.node.node_id) {
+        try {
+          const streamRes = await getVideoStreamInfoApi(props.node.node_id)
+          if (streamRes.code === 200 && streamRes.data?.has_hls) {
+            const tokenRes = await requestVideoTokenApi(props.node.node_id, {
+              resolution: 'auto'
+            })
+            if (tokenRes.code === 200 && tokenRes.data?.token) {
+              const hlsUrl = buildHlsStreamUrl(props.node.node_id, tokenRes.data.token)
+              fileUrl.value = hlsUrl
+            }
+          }
+        } catch {
+          // HLS 不可用，使用原始 URL
+          console.log('HLS not available, using direct video URL')
+        }
       }
     } else if (isCode.value || isText.value) {
       // 文本和代码：获取文本内容

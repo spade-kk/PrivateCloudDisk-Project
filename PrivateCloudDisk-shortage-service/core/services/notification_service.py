@@ -131,6 +131,40 @@ class NotificationService:
                 raise
 
     @staticmethod
+    async def notify_hls_transcode_complete(
+        file_id: str,
+        user_id: str,
+        hls_dir: str,
+        resolutions: list,
+    ) -> bool:
+        """通知业务服务：HLS 转码完成"""
+        logger.info(
+            f"通知 HLS 转码完成: file_id={file_id}, "
+            f"resolutions={len(resolutions)}"
+        )
+        async with httpx.AsyncClient(
+            timeout=_CLIENT_TIMEOUT,
+            limits=_CLIENT_LIMITS,
+            trust_env=False,
+        ) as client:
+            try:
+                resp = await client.post(
+                    f"{settings.business_service_url}/api/v1/business/internal/storage/files/{file_id}/hls-ready",
+                    params={"uid": user_id},
+                    json={
+                        "hls_dir": hls_dir,
+                        "resolutions": resolutions,
+                        "has_hls": True,
+                    },
+                )
+                resp.raise_for_status()
+                logger.info(f"HLS 转码通知成功: file_id={file_id}")
+                return True
+            except Exception as e:
+                logger.error(f"HLS 转码通知失败: file_id={file_id}, error={e}")
+                raise
+
+    @staticmethod
     async def notify_security_event(
         file_id: str,
         user_id: str,

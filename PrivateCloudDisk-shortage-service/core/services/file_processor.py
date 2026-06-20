@@ -12,6 +12,7 @@ from core.pipeline.hash_pipeline import HashPipeline, HashResult
 from core.pipeline.virus_scan_pipeline import VirusScanPipeline, VirusScanResult
 from core.pipeline.thumbnail_pipeline import ThumbnailPipeline, ThumbnailResult
 from core.pipeline.transcode_pipeline import TranscodePipeline, TranscodeResult
+from core.pipeline.hls_transcode_pipeline import HlsTranscodePipeline, HlsTranscodeResult
 from core.pipeline.mark_active_pipeline import MarkActivePipeline, MarkActiveResult
 from core.pipeline.content_index_pipeline import ContentIndexPipeline, ContentIndexResult
 from core.services.notification_service import NotificationService
@@ -39,6 +40,7 @@ class FileProcessor:
     - virus_scan → VirusScanPipeline
     - thumbnail → ThumbnailPipeline
     - video_transcode → TranscodePipeline
+    - hls_transcode → HlsTranscodePipeline
     - mark_active → MarkActivePipeline
     - content_index → ContentIndexPipeline
     """
@@ -69,6 +71,8 @@ class FileProcessor:
                     return await FileProcessor._do_thumbnail(event)
                 case TaskTypes.VIDEO_TRANSCODE:
                     return await FileProcessor._do_video_transcode(event)
+                case TaskTypes.HLS_TRANSCODE:
+                    return await FileProcessor._do_hls_transcode(event)
                 case TaskTypes.MARK_ACTIVE:
                     return await FileProcessor._do_mark_active(event)
                 case TaskTypes.CONTENT_INDEX:
@@ -178,6 +182,27 @@ class FileProcessor:
             error=result.error,
             data={
                 "transcoded_files": result.transcoded_files,
+                "skipped": result.skipped,
+            },
+        )
+
+    @staticmethod
+    async def _do_hls_transcode(event) -> ProcessResult:
+        result: HlsTranscodeResult = await HlsTranscodePipeline.execute(
+            file_id=event.file_id,
+            storage_path=event.storage_path,
+            file_type=event.file_type,
+        )
+        return ProcessResult(
+            success=result.success,
+            task_type=TaskTypes.HLS_TRANSCODE,
+            failure_reason=result.failure_reason,
+            error=result.error,
+            data={
+                "hls_dir": result.hls_dir,
+                "hls_master_playlist": result.hls_master_playlist,
+                "hls_resolutions": result.hls_resolutions,
+                "resolutions": result.resolutions,
                 "skipped": result.skipped,
             },
         )

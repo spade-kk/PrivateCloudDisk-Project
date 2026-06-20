@@ -68,6 +68,12 @@ TAGS_METADATA = [
                        "可查询合并、哈希计算、病毒扫描、缩略图生成、视频转码等任务进度。\n"
                        "任务状态包括：pending / processing / completed / failed。",
     },
+    {
+        "name": "视频流媒体",
+        "description": "HLS 视频流媒体播放接口。\n\n"
+                       "提供多码率自适应 HLS 流媒体播放，支持 360p/480p/720p/1080p 分辨率。\n"
+                       "包含流信息查询、Token 鉴权、m3u8 播放列表和 TS 分片获取。",
+    },
 ]
 
 

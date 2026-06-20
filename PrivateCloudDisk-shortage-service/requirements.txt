@@ -20,3 +20,4 @@ pypdf
 python-pptx
 Pillow
 pytesseract
+ffmpeg-python

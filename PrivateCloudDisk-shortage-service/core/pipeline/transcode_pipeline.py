@@ -1,12 +1,13 @@
 """
 视频转码流水线
-使用 ffmpeg 将视频转码为多分辨率 H.264 + AAC 格式
+使用 ffmpeg-python 库将视频转码为多分辨率 H.264 + AAC 格式
 """
 from __future__ import annotations
 import logging
 import os
 import asyncio
 from dataclasses import dataclass, field
+import ffmpeg
 from core.config import settings, FailureReason, VIDEO_TYPES
 
 logger = logging.getLogger("transcode_pipeline")
@@ -120,15 +121,16 @@ class TranscodePipeline:
 
     @staticmethod
     async def _ffmpeg_available() -> bool:
-        """检查 ffmpeg 是否可用"""
+        """检查 ffmpeg 是否可用（使用 ffmpeg-python 探测）"""
         try:
-            proc = await asyncio.create_subprocess_exec(
-                "ffmpeg", "-version",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+            await asyncio.to_thread(
+                ffmpeg.probe, "dummy",
             )
-            await proc.wait()
-            return proc.returncode == 0
+            # ffmpeg.probe 会抛出 Error 如果 ffmpeg 不可用
+            return False
+        except ffmpeg.Error:
+            # ffmpeg 存在但 dummy 不是有效文件，说明 ffmpeg 可用
+            return True
         except FileNotFoundError:
             return False
 
@@ -139,26 +141,26 @@ class TranscodePipeline:
         """生成视频预览图 (第 1 秒帧)"""
         preview_path = os.path.join(output_dir, f"{file_id}_preview.jpg")
         try:
-            proc = await asyncio.create_subprocess_exec(
-                "ffmpeg",
-                "-i", input_path,
-                "-ss", "00:00:01",
-                "-vframes", "1",
-                "-q:v", "2",
-                "-y",
-                preview_path,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: (
+                        ffmpeg
+                        .input(input_path, ss="00:00:01")
+                        .output(preview_path, vframes=1, q="2")
+                        .overwrite_output()
+                        .run(capture_stdout=True, capture_stderr=True)
+                    )
+                ),
+                timeout=60,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
-            if proc.returncode == 0 and os.path.exists(preview_path):
+            if os.path.exists(preview_path):
                 return preview_path
-            else:
-                stderr_text = stderr.decode("utf-8", errors="replace") if stderr else ""
-                logger.warning(f"预览图生成失败: {stderr_text[:200]}")
-                return None
+            return None
         except asyncio.TimeoutError:
             logger.warning("预览图生成超时")
+            return None
+        except ffmpeg.Error as e:
+            logger.warning(f"预览图生成失败: {e.stderr.decode('utf-8', errors='replace')[:200] if e.stderr else 'unknown'}")
             return None
         except Exception as e:
             logger.warning(f"预览图生成异常: {e}")
@@ -169,32 +171,37 @@ class TranscodePipeline:
         input_path: str, output_path: str, preset: dict,
     ) -> bool:
         """转码单个分辨率"""
-        cmd = [
-            "ffmpeg",
-            "-i", input_path,
-            "-s", f"{preset['width']}x{preset['height']}",
-            "-b:v", preset["bitrate"],
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", preset["crf"],
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
-            "-y",
-            output_path,
-        ]
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-
-        if proc.returncode != 0:
-            stderr_text = stderr.decode("utf-8", errors="replace") if stderr else ""
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: (
+                        ffmpeg
+                        .input(input_path)
+                        .output(
+                            output_path,
+                            vcodec="libx264",
+                            preset="medium",
+                            crf=preset["crf"],
+                            s=f"{preset['width']}x{preset['height']}",
+                            **{"b:v": preset["bitrate"]},
+                            acodec="aac",
+                            **{"b:a": "128k"},
+                            movflags="+faststart",
+                        )
+                        .overwrite_output()
+                        .run(capture_stdout=True, capture_stderr=True)
+                    )
+                ),
+                timeout=600,
+            )
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(f"转码超时: {preset['label']}")
+            return False
+        except ffmpeg.Error as e:
+            stderr_text = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
             logger.warning(f"转码失败 {preset['label']}: {stderr_text[:200]}")
             return False
-
-        return True
+        except Exception as e:
+            logger.warning(f"转码异常 {preset['label']}: {e}")
+            return False

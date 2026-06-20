@@ -111,6 +111,7 @@ class TaskTypes:
     VIRUS_SCAN = "virus_scan"
     THUMBNAIL = "thumbnail"
     VIDEO_TRANSCODE = "video_transcode"
+    HLS_TRANSCODE = "hls_transcode"          # HLS 流媒体转码 (多码率 + 切片)
     MARK_ACTIVE = "mark_active"
     CONTENT_INDEX = "content_index"  # 文件内容索引 (OpenSearch)
 
@@ -165,5 +166,6 @@ TASK_PIPELINE = [
     TaskTypes.MARK_ACTIVE,
     TaskTypes.THUMBNAIL,
     TaskTypes.VIDEO_TRANSCODE,
+    TaskTypes.HLS_TRANSCODE,
     TaskTypes.CONTENT_INDEX,
 ]

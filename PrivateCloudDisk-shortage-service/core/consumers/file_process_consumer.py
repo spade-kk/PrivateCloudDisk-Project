@@ -68,6 +68,7 @@ class FileProcessConsumer:
     HEAVY_TASK_TYPES = frozenset({
         TaskTypes.MERGE,
         TaskTypes.VIDEO_TRANSCODE,
+        TaskTypes.HLS_TRANSCODE,
         TaskTypes.VIRUS_SCAN,
     })
 
@@ -197,6 +198,14 @@ class FileProcessConsumer:
             accumulated.setdefault("transcoded_files", []).extend(
                 result.data["transcoded_files"]
             )
+        if result.data.get("hls_resolutions"):
+            accumulated.setdefault("hls_resolutions", []).extend(
+                result.data["hls_resolutions"]
+            )
+        if result.data.get("hls_dir"):
+            accumulated["hls_dir"] = result.data["hls_dir"]
+        if result.data.get("hls_master_playlist"):
+            accumulated["hls_master_playlist"] = result.data["hls_master_playlist"]
         if result.data.get("file_id"):
             accumulated["file_id"] = result.data["file_id"]
         if result.data.get("storage_path"):
@@ -391,6 +400,8 @@ class FileProcessConsumer:
         if next_task == TaskTypes.THUMBNAIL and file_type not in IMAGE_TYPES:
             return FileProcessConsumer._get_next_task(next_task, file_type)
         if next_task == TaskTypes.VIDEO_TRANSCODE and file_type not in VIDEO_TYPES:
+            return FileProcessConsumer._get_next_task(next_task, file_type)
+        if next_task == TaskTypes.HLS_TRANSCODE and file_type not in VIDEO_TYPES:
             return FileProcessConsumer._get_next_task(next_task, file_type)
 
         return next_task

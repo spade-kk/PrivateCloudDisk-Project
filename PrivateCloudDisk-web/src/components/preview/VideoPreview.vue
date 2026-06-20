@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 
 const props = defineProps({
@@ -122,6 +122,8 @@ const videoWidth = ref(0)
 const videoHeight = ref(0)
 const isFullscreen = ref(false)
 const errorMessage = ref('')
+const isHlsSource = ref(false)
+let hlsInstance: any = null
 
 // 计算视频URL
 const videoUrl = computed(() => {
@@ -135,8 +137,89 @@ const videoUrl = computed(() => {
   return props.fileUrl
 })
 
+// 检测是否为 HLS 源 (.m3u8)
+const checkHlsSource = () => {
+  const url = videoUrl.value
+  isHlsSource.value = url.endsWith('.m3u8')
+}
+
+// 初始化 HLS 播放器
+const initHlsPlayer = async () => {
+  if (!isHlsSource.value || !videoRef.value) return
+
+  try {
+    // 动态导入 hls.js，避免非 HLS 场景的额外加载
+    const Hls = (await import('hls.js')).default
+
+    if (Hls.isSupported()) {
+      if (hlsInstance) {
+        hlsInstance.destroy()
+      }
+
+      hlsInstance = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        startLevel: -1, // 自动选择码率
+        manifestLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3,
+        fragLoadingMaxRetry: 5,
+        debug: false,
+      })
+
+      hlsInstance.loadSource(videoUrl.value)
+      hlsInstance.attachMedia(videoRef.value)
+
+      hlsInstance.on(Hls.Events.ERROR, (_event: any, data: any) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hlsInstance?.startLoad()
+              break
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hlsInstance?.recoverMediaError()
+              break
+            default:
+              errorMessage.value = 'HLS 流媒体加载失败，请尝试切换分辨率或刷新'
+              hlsInstance?.destroy()
+              hlsInstance = null
+              break
+          }
+        }
+      })
+    } else if (videoRef.value.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari 原生 HLS 支持
+      videoRef.value.src = videoUrl.value
+    }
+  } catch (e) {
+    console.warn('HLS module not available, falling back to native video:', e)
+    // 降级到原生播放
+    if (videoRef.value) {
+      videoRef.value.src = videoUrl.value
+    }
+  }
+}
+
+// 销毁 HLS 实例
+const destroyHls = () => {
+  if (hlsInstance) {
+    hlsInstance.destroy()
+    hlsInstance = null
+  }
+}
+
+// 监听 videoUrl 变化，重新初始化 HLS
+watch(videoUrl, async (newUrl) => {
+  checkHlsSource()
+  await nextTick()
+  if (isHlsSource.value && videoRef.value) {
+    await initHlsPlayer()
+  }
+})
+
 // 方法
-const onMetadataLoaded = (event) => {
+const onMetadataLoaded = (event: any) => {
   const video = event.target
   duration.value = video.duration
   videoWidth.value = video.videoWidth
@@ -148,15 +231,15 @@ const onMetadataLoaded = (event) => {
   })
 }
 
-const onTimeUpdate = (event) => {
+const onTimeUpdate = (_event: any) => {
   // 实时更新播放进度
 }
 
-const onProgress = (event) => {
+const onProgress = (_event: any) => {
   // 缓冲进度
 }
 
-const onVideoError = (error) => {
+const onVideoError = (error: any) => {
   errorMessage.value = '无法加载视频，文件可能已损坏或格式不支持'
   emit('error', error)
 }
@@ -191,7 +274,7 @@ const openFullPlayer = () => {
   router.push({ name: 'VideoPlayer', params: { fileId: props.fileId }, query })
 }
 
-const formatDuration = (seconds) => {
+const formatDuration = (seconds: number) => {
   if (!seconds || isNaN(seconds)) return '00:00'
   const hrs = Math.floor(seconds / 3600)
   const mins = Math.floor((seconds % 3600) / 60)
@@ -204,7 +287,7 @@ const formatDuration = (seconds) => {
 }
 
 // 键盘快捷键
-const handleKeydown = (e) => {
+const handleKeydown = (e: KeyboardEvent) => {
   if (!videoRef.value) return
 
   switch (e.key) {
@@ -243,11 +326,19 @@ const handleKeydown = (e) => {
 }
 
 onMounted(() => {
+  checkHlsSource()
   document.addEventListener('keydown', handleKeydown)
+  // 初始化 HLS 播放器
+  nextTick(() => {
+    if (isHlsSource.value) {
+      initHlsPlayer()
+    }
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  destroyHls()
 })
 </script>
 
