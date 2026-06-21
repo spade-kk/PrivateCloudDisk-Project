@@ -346,6 +346,7 @@ services:
       - app-networks
     expose:
       - "8000"
+      - "8719"
     depends_on:
       - platform-service-backend
     environment:
@@ -387,6 +388,11 @@ services:
       OPERATION_TOKEN_DESTROY_USER_WINDOW_SECONDS: 60
       OPERATION_TOKEN_DESTROY_IP_LIMIT: 180
       OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS: 60
+      # Sentinel 控制台连接
+      SENTINEL_DASHBOARD_HOST: ${SENTINEL_DASHBOARD_HOST:-sentinel}
+      SENTINEL_DASHBOARD_PORT: ${SENTINEL_DASHBOARD_PORT:-8080}
+      SENTINEL_API_PORT: ${SENTINEL_API_PORT:-8719}
+      SENTINEL_APP_NAME: PrivateCloudDisk-storage-service
       # SkyWalking Python Agent
       SW_AGENT_NAME: PrivateCloudDisk-storage-service
       SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800

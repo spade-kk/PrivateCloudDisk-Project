@@ -13,6 +13,7 @@
 #   - Admin Web 管理后台    (静态资源)
 #
 # 用法:
+#	chmod +x ./scripts/build-all-clients.sh 		  # 脚本授权
 #   ./scripts/build-all-clients.sh                    # 构建所有平台
 #   ./scripts/build-all-clients.sh --platform macos   # 仅构建 macOS
 #   ./scripts/build-all-clients.sh --platform android # 仅构建 Android
@@ -115,6 +116,14 @@ while [[ $# -gt 0 ]]; do
 			BUILD_ELECTRON=false
 			BUILD_ANDROID=false
 			BUILD_IOS=false
+			BUILD_UNIAPP=false
+			BUILD_ADMIN_WEB=false
+			shift
+			;;
+		--ios-only)
+			BUILD_ELECTRON=false
+			BUILD_ANDROID=false
+			BUILD_CLI=false
 			BUILD_UNIAPP=false
 			BUILD_ADMIN_WEB=false
 			shift

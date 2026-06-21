@@ -77,10 +77,20 @@ RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua
 COPY . .
 
 EXPOSE 8000
+EXPOSE 8719
+
+# =============================================================================
+# SkyWalking Python Agent 环境变量
+# =============================================================================
+ENV SW_AGENT_NAME=${SW_AGENT_NAME:-PrivateCloudDisk-storage-service} \
+    SW_AGENT_COLLECTOR_BACKEND_SERVICES=${SW_AGENT_BACKEND:-skywalking-oap:11800} \
+    SW_AGENT_NAMESPACE=${SW_AGENT_NAMESPACE:-PrivateCloudDisk} \
+    SW_AGENT_INSTANCE_NAME=${HOSTNAME:-storage-1} \
+    SW_AGENT_LOGGING_LEVEL=${SW_LOGGING_LEVEL:-INFO}
 
 # =============================================================================
 # 入口点脚本
-# FastAPI 容器: 直接运行 uvicorn
+# FastAPI 容器: 通过 sw-python 启动（自动注入 SkyWalking 链路追踪）
 # Worker 容器: docker run 时覆盖 CMD 为 /backend_file_service/docker-entrypoint-worker.sh
 # =============================================================================
-CMD [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [ "sw-python", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
