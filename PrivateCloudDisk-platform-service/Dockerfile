@@ -1,4 +1,6 @@
+# ============================================================
 # 第一阶段：构建（使用完整 JDK）
+# ============================================================
 FROM eclipse-temurin:18-jdk AS builder
 
 WORKDIR /backend_platform_service
@@ -15,14 +17,44 @@ RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
 COPY src src
 RUN ./gradlew bootJar --no-daemon
 
-# 第二阶段：运行（精简 JRE）
+# ============================================================
+# 第二阶段：下载 SkyWalking Java Agent
+# ============================================================
+FROM eclipse-temurin:18-jdk AS agent-downloader
+
+WORKDIR /agent
+RUN apt-get update && apt-get install -y curl && \
+    curl -L -o skywalking-agent.tar.gz \
+    https://dlcdn.apache.org/skywalking/java-agent/9.4.0/apache-skywalking-java-agent-9.4.0.tgz && \
+    tar -xzf skywalking-agent.tar.gz --strip-components=1 && \
+    rm skywalking-agent.tar.gz
+
+# ============================================================
+# 第三阶段：运行（精简 JRE）
+# ============================================================
 FROM eclipse-temurin:18-jre
 
 WORKDIR /backend_platform_service
 
-# 复制构建好的 jar 包（请确认实际生成的 jar 文件名）
+# 复制 SkyWalking Agent
+COPY --from=agent-downloader /agent /backend_platform_service/skywalking-agent
+
+# 复制构建好的 jar 包
 COPY --from=builder /backend_platform_service/build/libs/*.jar app.jar
 
 EXPOSE 8081
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# SkyWalking Agent 参数
+ENTRYPOINT ["sh", "-c", "\
+java \
+  -javaagent:/backend_platform_service/skywalking-agent/skywalking-agent.jar \
+  -Dskywalking.agent.service_name=${SW_AGENT_NAME:-PrivateCloudDisk-platform-service} \
+  -Dskywalking.collector.backend_service=${SW_AGENT_BACKEND:-skywalking-oap:11800} \
+  -Dskywalking.agent.namespace=${SW_AGENT_NAMESPACE:-PrivateCloudDisk} \
+  -Dskywalking.agent.instance_name=${HOSTNAME:-platform-1} \
+  -Dskywalking.logging.level=${SW_LOGGING_LEVEL:-INFO} \
+  -Dskywalking.plugin.toolkit.log.grpc.reporter.server_host=${SW_AGENT_BACKEND:-skywalking-oap} \
+  -Dskywalking.plugin.toolkit.log.grpc.reporter.server_port=11800 \
+  -Dskywalking.agent.sample_n_per_3_secs=${SW_SAMPLE_RATE:--1} \
+  -Xms256m -Xmx512m \
+  -jar app.jar"]

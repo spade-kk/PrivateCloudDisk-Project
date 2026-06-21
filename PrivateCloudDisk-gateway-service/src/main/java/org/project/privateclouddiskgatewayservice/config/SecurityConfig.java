@@ -2,21 +2,16 @@ package org.project.privateclouddiskgatewayservice.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.project.privateclouddiskgatewayservice.dto.ApiErrorResponse;
 import org.project.privateclouddiskgatewayservice.handler.AccessDeniedHandler;
+import org.project.privateclouddiskgatewayservice.util.ResponseUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 
 /**
  * Spring Security 配置（WebFlux 版本）
@@ -67,7 +62,7 @@ public class SecurityConfig {
                             log.warn("Spring Security 认证失败: {} {}",
                                     exchange.getRequest().getMethod(),
                                     exchange.getRequest().getURI().getPath());
-                            return writeJsonError(
+                            return ResponseUtil.writeError(
                                     exchange,
                                     HttpStatus.UNAUTHORIZED,
                                     "未授权，请先登录"
@@ -89,39 +84,5 @@ public class SecurityConfig {
                 .logout(ServerHttpSecurity.LogoutSpec::disable);
 
         return http.build();
-    }
-
-    /**
-     * 写入 JSON 格式的认证失败响应
-     */
-    private Mono<Void> writeJsonError(ServerWebExchange exchange,
-                                       HttpStatus status,
-                                       String message) {
-        exchange.getResponse().setStatusCode(status);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-
-        ApiErrorResponse errorBody = ApiErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(status.value())
-                .error(status.getReasonPhrase())
-                .message(message)
-                .path(exchange.getRequest().getURI().getPath())
-                .build();
-
-        try {
-            tools.jackson.databind.ObjectMapper mapper =
-                    new tools.jackson.databind.ObjectMapper();
-            byte[] bytes = mapper.writeValueAsBytes(errorBody);
-            DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
-            return exchange.getResponse().writeWith(Mono.just(buffer));
-        } catch (Exception e) {
-            String fallback = String.format(
-                    "{\"code\":%d,\"message\":\"%s\",\"timestamp\":\"%s\"}",
-                    status.value(), message, LocalDateTime.now()
-            );
-            DataBuffer buffer = exchange.getResponse().bufferFactory()
-                    .wrap(fallback.getBytes(StandardCharsets.UTF_8));
-            return exchange.getResponse().writeWith(Mono.just(buffer));
-        }
     }
 }

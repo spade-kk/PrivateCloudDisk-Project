@@ -61,14 +61,20 @@ RUN groupadd -r aiapp && useradd -r -g aiapp -d /app aiapp \
 
 USER aiapp
 
+# SkyWalking Python Agent 环境变量（默认值，可通过 docker-compose 覆盖）
+ENV SW_AGENT_NAME=PrivateCloudDisk-ai-service \
+    SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800 \
+    SW_AGENT_NAMESPACE=PrivateCloudDisk \
+    SW_AGENT_LOGGING_LEVEL=INFO
+
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8001/health').raise_for_status()" || exit 1
 
 EXPOSE 8001
 
-# 默认启动 FastAPI HTTP 服务
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
+# 通过 sw-python 启动（自动注入 SkyWalking 链路追踪）
+CMD ["sw-python", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
 
 # Worker 进程入口（通过 docker-compose 覆盖 command）
-# CMD ["python", "app/worker.py"]
+# CMD ["sw-python", "run", "python", "app/worker.py"]

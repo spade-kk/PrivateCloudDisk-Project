@@ -3,6 +3,7 @@ package org.project.privateclouddiskgatewayservice.filter.global;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.privateclouddiskgatewayservice.config.properties.AdminGatewayProperties;
+import org.project.privateclouddiskgatewayservice.dto.ApiResponse;
 import org.project.privateclouddiskgatewayservice.utils.JwtUtil;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -14,8 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 
 /**
  * 管理员 API 网关安全过滤器
@@ -40,8 +41,7 @@ public class AdminGatewayFilter implements GlobalFilter, Ordered {
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String ADMIN_TOKEN_PREFIX = "admin:";
-    private static final tools.jackson.databind.ObjectMapper OBJECT_MAPPER =
-            new tools.jackson.databind.ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -151,18 +151,27 @@ public class AdminGatewayFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 写入错误响应
+     * 写入错误响应（统一 ApiResponse 格式）
      */
     private Mono<Void> writeErrorResponse(ServerWebExchange exchange, HttpStatus status, String message) {
         var response = exchange.getResponse();
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String body = String.format(
-                "{\"code\":%d,\"message\":\"%s\",\"timestamp\":\"%s\"}",
-                status.value(), message, LocalDateTime.now()
-        );
-        DataBuffer buffer = response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
-        return response.writeWith(Mono.just(buffer));
+
+        ApiResponse<Void> body = ApiResponse.error(status.value(), message);
+
+        try {
+            byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(body);
+            DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            String fallback = String.format(
+                    "{\"code\":%d,\"message\":\"%s\",\"data\":null}",
+                    status.value(), message
+            );
+            DataBuffer buffer = response.bufferFactory().wrap(fallback.getBytes(StandardCharsets.UTF_8));
+            return response.writeWith(Mono.just(buffer));
+        }
     }
 
     @Override

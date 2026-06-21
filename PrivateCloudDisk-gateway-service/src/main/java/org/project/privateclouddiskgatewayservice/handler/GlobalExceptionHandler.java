@@ -1,7 +1,7 @@
 package org.project.privateclouddiskgatewayservice.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.project.privateclouddiskgatewayservice.dto.ApiErrorResponse;
+import org.project.privateclouddiskgatewayservice.dto.ApiResponse;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,8 +16,8 @@ import org.springframework.web.server.WebExceptionHandler;
 import reactor.core.publisher.Mono;
 import reactor.netty.channel.AbortedException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 
 /**
  * 全局异常处理器（WebFlux 响应式版本）
@@ -39,6 +39,8 @@ import java.time.LocalDateTime;
 @Component
 @Order(-2) // 优先级高于默认的 DefaultErrorWebExceptionHandler (Order -1)
 public class GlobalExceptionHandler implements WebExceptionHandler {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
@@ -123,25 +125,16 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
-        ApiErrorResponse errorBody = ApiErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(status.value())
-                .error(status.getReasonPhrase())
-                .message(message)
-                .path(requestPath)
-                .build();
+        ApiResponse<Void> errorBody = ApiResponse.error(status.value(), message);
 
         try {
-            // 使用 Jackson 序列化（保证 JSON 格式正确且无注入风险）
-            tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
-            byte[] bytes = mapper.writeValueAsBytes(errorBody);
+            byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(errorBody);
             return response.writeWith(Mono.just(response.bufferFactory().wrap(bytes)));
         } catch (Exception serializationError) {
-            // 序列化失败，返回最简 JSON
             log.error("错误响应序列化失败", serializationError);
             String fallback = String.format(
-                    "{\"code\":%d,\"message\":\"%s\",\"timestamp\":\"%s\"}",
-                    status.value(), message, LocalDateTime.now()
+                    "{\"code\":%d,\"message\":\"%s\",\"data\":null}",
+                    status.value(), message
             );
             return response.writeWith(Mono.just(
                     response.bufferFactory().wrap(fallback.getBytes(StandardCharsets.UTF_8))

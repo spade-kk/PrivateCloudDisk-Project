@@ -60,6 +60,14 @@ dependencies {
     // SpringDoc OpenAPI（Swagger UI）- API 文档与测试
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
+    // ═══════════════════════════════════════════════
+    // Sentinel（系统级流量控制、熔断降级、热点参数限流）
+    // ═══════════════════════════════════════════════
+    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-sentinel'
+    implementation 'com.alibaba.csp:sentinel-annotation-aspectj'
+    implementation 'com.alibaba.csp:sentinel-datasource-nacos'
+    implementation 'com.alibaba.csp:sentinel-transport-simple-http'
+
 
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

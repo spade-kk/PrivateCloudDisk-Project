@@ -1,5 +1,7 @@
 package org.project.control;
 
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
 import lombok.RequiredArgsConstructor;
 import org.project.control.result.JsonResult;
 import org.project.model.dto.FileSearchRequest;
@@ -21,6 +23,8 @@ public class FileSearchController extends BaseController {
      * <p>接口层职责：提取 Request DTO 参数 → 调用业务层 → 返回 VO
      */
     @GetMapping("/advanced-search")
+    @SentinelResource(value = "searchFiles",
+            blockHandler = "searchFilesBlockHandler")
     public JsonResult<FileSearchVO> searchFiles(
             FileSearchRequest request,
             @RequestHeader("X-User-Id") String user_id) {
@@ -35,5 +39,13 @@ public class FileSearchController extends BaseController {
                 request.getHighlightFields(),
                 request.getSearchAfter());
         return new JsonResult<>(OK, result);
+    }
+
+    /**
+     * Sentinel 限流 BlockHandler。
+     */
+    public JsonResult<FileSearchVO> searchFilesBlockHandler(
+            FileSearchRequest request, String user_id, BlockException ex) {
+        return JsonResult.error(42902, "搜索请求过于频繁，系统限流已触发，请稍后重试");
     }
 }

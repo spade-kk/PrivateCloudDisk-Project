@@ -43,6 +43,11 @@ java \
   -javaagent:/billing_service/skywalking-agent/skywalking-agent.jar \
   -Dskywalking.agent.service_name=${SW_AGENT_NAME:-PrivateCloudDisk-billing-service} \
   -Dskywalking.collector.backend_service=${SW_AGENT_BACKEND:-skywalking-oap:11800} \
-  -Dskywalking.agent.namespace=PrivateCloudDisk \
+  -Dskywalking.agent.namespace=${SW_AGENT_NAMESPACE:-PrivateCloudDisk} \
+  -Dskywalking.agent.instance_name=${HOSTNAME:-billing-1} \
+  -Dskywalking.logging.level=${SW_LOGGING_LEVEL:-INFO} \
+  -Dskywalking.plugin.toolkit.log.grpc.reporter.server_host=${SW_AGENT_BACKEND:-skywalking-oap} \
+  -Dskywalking.plugin.toolkit.log.grpc.reporter.server_port=11800 \
+  -Dskywalking.agent.sample_n_per_3_secs=${SW_SAMPLE_RATE:--1} \
   -Xms256m -Xmx512m \
   -jar app.jar"]
