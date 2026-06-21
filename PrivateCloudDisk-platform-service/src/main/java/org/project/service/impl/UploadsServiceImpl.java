@@ -1,5 +1,6 @@
 package org.project.service.impl;
 
+import org.opensearch.search.builder.SearchSourceBuilderException;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
 import org.project.model.entity.FileEntity;
@@ -57,6 +58,14 @@ public class UploadsServiceImpl implements UploadsService {
                 throw new FileNameDuplicatedException("同目录下已存在同名文件");
             }
         }
+
+        //检查当前用户的上传会话活跃的是否超过 MAX 限制
+        List<UploadsSessionEntity> activeUploads = uploadsMapper.findUserActiveUploadsSession(user_id);
+        if(activeUploads.size() >= 12) {
+            throw new ServiceException("超过同时最大并发上传文件限制");
+        }
+
+
         //Lock Parent Node
         folderNodeMapper.updateFolderNodeStatusByIdAndUserId(FolderNodeEntity.NodeStatus.lock, node_id, user_id);
 
@@ -200,6 +209,21 @@ public class UploadsServiceImpl implements UploadsService {
 
         // 删除上传会话数据 会自动把关联的分块数据也删除
         uploadsMapper.deleteUploadsSessionById(uploads_id);
+    }
+
+    @Override
+    public void cancelUploadSession(UUID uploads_id, UUID user_id) {
+        //取消上传会话
+        if(!isValidUploadsSession(uploads_id)) {
+            throw new InvalidUploadsSessionException("上传会话无效");
+        }
+
+        UploadsSessionEntity uploadsSessionData = queryUploadsSessionById(uploads_id);
+        if(uploadsSessionData.getStatus() != UploadsSessionEntity.UploadsSessionStatus.uploading) {
+            throw new UploadsSessionStatusException("上传会话状态错误");
+        }
+
+        uploadsMapper.updateUploadsSessionStatusById(UploadsSessionEntity.UploadsSessionStatus.canceled, uploads_id);
     }
 
     @Transactional

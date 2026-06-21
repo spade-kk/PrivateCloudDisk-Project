@@ -22,6 +22,10 @@
         select * from pcd_uploads_session_table where uploads_id=#{uploads_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>
 
+    <select id="findUserActiveUploadsSession"  resultMap="UploadsSessionEntityMap">
+        select * from pcd_uploads_session_table where user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and uploads_status not in ('cancel', 'completed');
+    </select>
+
     <insert id="insertUploadsSession" useGeneratedKeys="true" keyProperty="uploads_id" parameterType="org.project.model.entity.UploadsSessionEntity">
         insert into pcd_uploads_session_table (uploads_id, uploads_user_id, uploads_total_chunks, uploads_starting_time, uploads_endding_time, uploads_file_size, uploads_file_checksum, uploads_chunks_max_size, uploads_file_name, uploads_file_type, uploads_node_id, uploads_status)
         values(#{uploads_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{total_chunks}, #{starting_time}, #{endding_time}, #{file_size}, #{file_checksum}, #{chunks_max_size}, #{file_name}, #{file_type}, #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{status});

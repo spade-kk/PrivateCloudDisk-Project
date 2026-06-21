@@ -3,6 +3,7 @@ package org.project.mapper;
 import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.UploadsSessionEntity;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface UploadsMapper {
@@ -12,6 +13,11 @@ public interface UploadsMapper {
      * @return 上传会话数据
      */
     UploadsSessionEntity findUploadsSessionById(@Param("uploads_id") UUID uploads_id);
+
+    /**
+     *
+     */
+    List<UploadsSessionEntity> findUserActiveUploadsSession(@Param("user_id") UUID user_id);
 
     /**
      * 插入用户数据

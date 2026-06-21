@@ -68,6 +68,13 @@ public interface UploadsService {
     void completeUploads(UUID uploads_id, UUID file_id, String file_storage_path, UUID user_id);
 
     /**
+     * 取消上传会话
+     * @param uploads_id
+     * @param user_id
+     */
+    void cancelUploadSession(UUID uploads_id, UUID user_id);
+
+    /**
      * 合并上传会话分块的通知
      * @param uploads_id 上传会话ID
      * @return  file_id 生成文件事务记录的id

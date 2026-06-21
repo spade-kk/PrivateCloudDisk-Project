@@ -27,7 +27,7 @@
     </sql>
 
     <insert id="insert" parameterType="org.project.im.platform.entity.ImConversation">
-        INSERT INTO im_conversation (<include refid="BaseColumns"/>)
+        INSERT INTO pcd_im_conversation (<include refid="BaseColumns"/>)
         VALUES (#{conversationId}, #{conversationType}, #{userId}, #{targetId},
                 #{lastMessage}, #{lastMessageType}, #{lastMessageTime},
                 #{unreadCount}, #{isTop}, #{isMuted}, #{status}, #{createTime}, #{updateTime})
@@ -35,19 +35,19 @@
 
     <select id="selectByConversationId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_conversation
+        FROM pcd_im_conversation
         WHERE conversation_id = #{conversationId} AND status = 0
     </select>
 
     <select id="selectByUserId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_conversation
+        FROM pcd_im_conversation
         WHERE user_id = #{userId} AND status = 0
         ORDER BY COALESCE(last_message_time, create_time) DESC
     </select>
 
     <update id="updateLastMessage">
-        UPDATE im_conversation
+        UPDATE pcd_im_conversation
         SET last_message = #{lastMessage},
             last_message_type = #{lastMessageType},
             last_message_time = #{lastMessageTime},
@@ -56,38 +56,38 @@
     </update>
 
     <update id="incrementUnreadCount">
-        UPDATE im_conversation
+        UPDATE pcd_im_conversation
         SET unread_count = unread_count + 1, update_time = NOW()
         WHERE conversation_id = #{conversationId}
     </update>
 
     <update id="clearUnreadCount">
-        UPDATE im_conversation
+        UPDATE pcd_im_conversation
         SET unread_count = 0, update_time = NOW()
         WHERE conversation_id = #{conversationId}
     </update>
 
     <update id="updateTopStatus">
-        UPDATE im_conversation
+        UPDATE pcd_im_conversation
         SET is_top = #{isTop}, update_time = NOW()
         WHERE conversation_id = #{conversationId}
     </update>
 
     <update id="updateMuteStatus">
-        UPDATE im_conversation
+        UPDATE pcd_im_conversation
         SET is_muted = #{isMuted}, update_time = NOW()
         WHERE conversation_id = #{conversationId}
     </update>
 
     <update id="softDelete">
-        UPDATE im_conversation
+        UPDATE pcd_im_conversation
         SET status = 1, update_time = NOW()
         WHERE conversation_id = #{conversationId}
     </update>
 
     <select id="selectByUserIdAndTargetId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_conversation
+        FROM pcd_im_conversation
         WHERE user_id = #{userId}
           AND target_id = #{targetId}
           AND conversation_type = #{conversationType}
@@ -96,7 +96,7 @@
 
     <select id="selectTotalUnreadCount" resultType="java.lang.Integer">
         SELECT COALESCE(SUM(unread_count), 0)
-        FROM im_conversation
+        FROM pcd_im_conversation
         WHERE user_id = #{userId} AND status = 0
     </select>
 </mapper>

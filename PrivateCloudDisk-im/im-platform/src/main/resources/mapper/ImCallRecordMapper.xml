@@ -26,7 +26,7 @@
 
     <insert id="insert" parameterType="org.project.im.platform.entity.ImCallRecord"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO im_call_record (
+        INSERT INTO pcd_im_call_record (
             call_id, room_id, call_type, call_mode,
             caller_id, callee_id, status,
             start_time, end_time, duration, reject_reason,
@@ -42,7 +42,7 @@
     </insert>
 
     <update id="update" parameterType="org.project.im.platform.entity.ImCallRecord">
-        UPDATE im_call_record
+        UPDATE pcd_im_call_record
         <set>
             <if test="status != null">status = #{status},</if>
             <if test="endTime != null">end_time = #{endTime},</if>
@@ -58,11 +58,11 @@
     </update>
 
     <select id="selectByCallId" resultMap="CallRecordResultMap">
-        SELECT * FROM im_call_record WHERE call_id = #{callId}
+        SELECT * FROM pcd_im_call_record WHERE call_id = #{callId}
     </select>
 
     <select id="selectByUserId" resultMap="CallRecordResultMap">
-        SELECT * FROM im_call_record
+        SELECT * FROM pcd_im_call_record
         WHERE caller_id = #{userId} OR callee_id = #{userId}
            OR JSON_CONTAINS(participants, JSON_QUOTE(#{userId}))
         ORDER BY create_time DESC
@@ -70,13 +70,13 @@
     </select>
 
     <select id="countByUserId" resultType="int">
-        SELECT COUNT(*) FROM im_call_record
+        SELECT COUNT(*) FROM pcd_im_call_record
         WHERE caller_id = #{userId} OR callee_id = #{userId}
            OR JSON_CONTAINS(participants, JSON_QUOTE(#{userId}))
     </select>
 
     <select id="selectByTimeRange" resultMap="CallRecordResultMap">
-        SELECT * FROM im_call_record
+        SELECT * FROM pcd_im_call_record
         WHERE (caller_id = #{userId} OR callee_id = #{userId}
                OR JSON_CONTAINS(participants, JSON_QUOTE(#{userId})))
           AND create_time BETWEEN #{startTime} AND #{endTime}
@@ -84,7 +84,7 @@
     </select>
 
     <delete id="deleteByIds">
-        DELETE FROM im_call_record WHERE id IN
+        DELETE FROM pcd_im_call_record WHERE id IN
         <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>

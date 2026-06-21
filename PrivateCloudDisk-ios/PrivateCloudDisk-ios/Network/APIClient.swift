@@ -70,7 +70,7 @@ actor APIClient {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         session = URLSession(configuration: config)
 
-        baseURL = "https://api.cloud.example.com"
+        baseURL = "https://api.cloud.example.com/api/v1"
         decoder = JSONDecoder()
         encoder = JSONEncoder()
 

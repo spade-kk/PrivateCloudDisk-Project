@@ -29,7 +29,7 @@ public class FileStarServiceImpl implements FileStarService {
     // ═══════════════════════════════════════════════
 
     @Override
-    public void addFileStar(String user_id, String file_id) {
+    public void addFileStar(UUID user_id, UUID file_id) {
         // 检查是否已收藏
         FileStarEntity existing = fileStarMapper.findFileStarByUserIdAndFileId(user_id, file_id);
         if (existing != null) {
@@ -38,8 +38,8 @@ public class FileStarServiceImpl implements FileStarService {
         }
 
         FileStarEntity fileStar = new FileStarEntity();
-        fileStar.setUser_id(UUID.fromString(user_id));
-        fileStar.setFile_id(UUID.fromString(file_id));
+        fileStar.setUser_id(user_id);
+        fileStar.setFile_id(file_id);
         fileStar.setStarred_at(LocalDateTime.now());
 
         int rows = fileStarMapper.insertFileStar(fileStar);
@@ -50,7 +50,7 @@ public class FileStarServiceImpl implements FileStarService {
     }
 
     @Override
-    public void removeFileStar(String user_id, String file_id) {
+    public void removeFileStar(UUID user_id, UUID file_id) {
         int rows = fileStarMapper.deleteFileStar(user_id, file_id);
         if (rows == 0) {
             log.warn("取消文件收藏失败，收藏不存在: userId={}, fileId={}", user_id, file_id);
@@ -60,7 +60,7 @@ public class FileStarServiceImpl implements FileStarService {
     }
 
     @Override
-    public boolean isFileStarred(String user_id, String file_id) {
+    public boolean isFileStarred(UUID user_id, UUID file_id) {
         return fileStarMapper.findFileStarByUserIdAndFileId(user_id, file_id) != null;
     }
 
@@ -69,7 +69,7 @@ public class FileStarServiceImpl implements FileStarService {
     // ═══════════════════════════════════════════════
 
     @Override
-    public void addFolderStar(String user_id, String node_id) {
+    public void addFolderStar(UUID user_id, UUID node_id) {
         FileStarEntity existing = fileStarMapper.findFolderStarByUserIdAndNodeId(user_id, node_id);
         if (existing != null) {
             log.info("文件夹已被收藏: userId={}, nodeId={}", user_id, node_id);
@@ -77,8 +77,8 @@ public class FileStarServiceImpl implements FileStarService {
         }
 
         FileStarEntity fileStar = new FileStarEntity();
-        fileStar.setUser_id(UUID.fromString(user_id));
-        fileStar.setNode_id(UUID.fromString(node_id));
+        fileStar.setUser_id(user_id);
+        fileStar.setNode_id(node_id);
         fileStar.setStarred_at(LocalDateTime.now());
 
         int rows = fileStarMapper.insertFolderStar(fileStar);
@@ -89,7 +89,7 @@ public class FileStarServiceImpl implements FileStarService {
     }
 
     @Override
-    public void removeFolderStar(String user_id, String node_id) {
+    public void removeFolderStar(UUID user_id, UUID node_id) {
         int rows = fileStarMapper.deleteFolderStar(user_id, node_id);
         if (rows == 0) {
             log.warn("取消文件夹收藏失败，收藏不存在: userId={}, nodeId={}", user_id, node_id);
@@ -99,7 +99,7 @@ public class FileStarServiceImpl implements FileStarService {
     }
 
     @Override
-    public boolean isFolderStarred(String user_id, String node_id) {
+    public boolean isFolderStarred(UUID user_id, UUID node_id) {
         return fileStarMapper.findFolderStarByUserIdAndNodeId(user_id, node_id) != null;
     }
 
@@ -108,23 +108,23 @@ public class FileStarServiceImpl implements FileStarService {
     // ═══════════════════════════════════════════════
 
     @Override
-    public List<String> getStarredFileIds(String user_id) {
+    public List<String> getStarredFileIds(UUID user_id) {
         return fileStarMapper.findStarredFileIdsByUserId(user_id);
     }
 
     @Override
-    public List<String> getStarredNodeIds(String user_id) {
+    public List<String> getStarredNodeIds(UUID user_id) {
         return fileStarMapper.findStarredNodeIdsByUserId(user_id);
     }
 
     @Override
-    public List<FileStarEntity> getStarredItems(String user_id, Integer page, Integer pageSize) {
+    public List<FileStarEntity> getStarredItems(UUID user_id, Integer page, Integer pageSize) {
         int offset = (page - 1) * pageSize;
         return fileStarMapper.findStarredItemsByUserId(user_id, offset, pageSize);
     }
 
     @Override
-    public Integer countStarredItems(String user_id) {
+    public Integer countStarredItems(UUID user_id) {
         return fileStarMapper.countStarredItemsByUserId(user_id);
     }
 }

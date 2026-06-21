@@ -1,7 +1,6 @@
 package org.project.control;
 
-import com.alibaba.csp.sentinel.annotation.SentinelResource;
-import com.alibaba.csp.sentinel.slots.block.BlockException;
+import io.swagger.v3.core.util.Json;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.project.control.result.JsonResult;
@@ -44,6 +43,15 @@ public class UploadsController extends BaseController {
                 clientIp);
 
         return new JsonResult<String>(OK, uploads_id.toString());
+    }
+
+    @DeleteMapping("/{uploads_id}")
+    public JsonResult<String> cancelUploadsSession(
+            @RequestHeader("X-User-Id") String user_id,
+            @PathVariable("uplodas_id") String uploads_id )
+    {
+        uploadsService.cancelUploadSession(UUID.fromString(uploads_id), UUID.fromString(user_id));
+        return new JsonResult<String>(OK, null);
     }
 
 }

@@ -37,7 +37,7 @@ class MessagesViewModel: ObservableObject {
     init() {
         setupWebSocketHandlers()
     }
-
+    
     // MARK: - WebSocket
 
     private func setupWebSocketHandlers() {
