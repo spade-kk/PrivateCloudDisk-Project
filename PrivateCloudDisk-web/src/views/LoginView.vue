@@ -1,6 +1,9 @@
 <template>
   <main class="h-screen h-[100dvh] overflow-y-auto overscroll-contain bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50 px-3 py-4 sm:px-5 sm:py-6 xl:px-8">
     <div class="mx-auto grid min-h-full max-w-[1240px] gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.12fr)_minmax(430px,0.88fr)]">
+      <!-- ============================================================ -->
+      <!-- 左侧：产品介绍面板（保持原有设计） -->
+      <!-- ============================================================ -->
       <section
         class="relative hidden min-h-[660px] flex-col overflow-hidden rounded-lg border border-slate-300/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl xl:flex"
         aria-label="CloudDrive product introduction"
@@ -110,8 +113,12 @@
         </div>
       </section>
 
+      <!-- ============================================================ -->
+      <!-- 右侧：登录面板（多认证方式） -->
+      <!-- ============================================================ -->
       <section class="flex min-h-full items-start justify-center py-1 sm:py-3 xl:items-center xl:py-0">
         <div class="w-full max-w-[460px] animate-fadeIn rounded-lg border border-slate-300/70 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-7 xl:max-w-none xl:p-8">
+          <!-- 移动端品牌标识 -->
           <div class="mb-5 flex items-center justify-between gap-3 rounded-lg border border-primary/10 bg-primary/5 p-3 xl:hidden">
             <div class="flex min-w-0 items-center gap-3">
               <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-white shadow-[0_10px_24px_rgba(22,93,255,0.22)]">
@@ -127,6 +134,7 @@
             </span>
           </div>
 
+          <!-- 标题 -->
           <div>
             <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1.5 text-xs font-extrabold text-primary">
               <i class="fa fa-shield"></i>
@@ -136,122 +144,154 @@
             <p class="mt-2 text-sm leading-6 text-slate-500 sm:text-base">登录后继续管理文件、分享链接和协作消息。</p>
           </div>
 
-          <form class="mt-6 grid gap-4 sm:mt-7" @submit.prevent="handleLogin">
-            <label class="grid gap-2">
-              <span class="text-sm font-extrabold text-slate-700">手机号</span>
-              <div
-                class="flex min-h-12 items-center gap-2.5 rounded-lg border bg-white px-3 transition duration-200"
-                :class="focusedField === 'phone' ? '-translate-y-px border-primary shadow-[0_0_0_4px_rgba(22,93,255,0.10)]' : 'border-slate-200'"
+          <!-- ============================================================ -->
+          <!-- 登录方式 Tab 切换 -->
+          <!-- ============================================================ -->
+          <div class="mt-6">
+            <div class="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <button
+                v-for="tab in loginTabs"
+                :key="tab.key"
+                type="button"
+                class="flex-1 rounded-md px-3 py-2 text-sm font-extrabold transition duration-200"
+                :class="activeTab === tab.key
+                  ? 'bg-white text-primary shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'"
+                @click="activeTab = tab.key"
               >
-                <i class="fa fa-mobile text-slate-400"></i>
-                <input
-                  v-model.trim="phone"
-                  type="tel"
-                  inputmode="tel"
-                  autocomplete="tel"
-                  class="min-w-0 flex-1 border-0 bg-transparent outline-none"
-                  placeholder="请输入手机号"
-                  required
-                  @focus="focusedField = 'phone'"
-                  @blur="focusedField = ''"
-                  @input="clearFormError"
-                >
-              </div>
-              <small v-if="phone && !phoneValid" class="text-danger">请输入 11 位手机号</small>
-            </label>
-
-            <label class="grid gap-2">
-              <span class="text-sm font-extrabold text-slate-700">密码</span>
-              <div
-                class="flex min-h-12 items-center gap-2.5 rounded-lg border bg-white px-3 transition duration-200"
-                :class="focusedField === 'password' ? '-translate-y-px border-primary shadow-[0_0_0_4px_rgba(22,93,255,0.10)]' : 'border-slate-200'"
-              >
-                <i class="fa fa-lock text-slate-400"></i>
-                <input
-                  v-model="password"
-                  :type="showPassword ? 'text' : 'password'"
-                  autocomplete="current-password"
-                  class="min-w-0 flex-1 border-0 bg-transparent outline-none"
-                  placeholder="请输入账号密码"
-                  required
-                  @focus="focusedField = 'password'"
-                  @blur="focusedField = ''"
-                  @input="clearFormError"
-                >
-                <button
-                  type="button"
-                  class="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-primary"
-                  :aria-label="showPassword ? '隐藏密码' : '显示密码'"
-                  @click="showPassword = !showPassword"
-                >
-                  <i :class="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-                </button>
-              </div>
-            </label>
-
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-                <input v-model="rememberDevice" type="checkbox" class="accent-primary">
-                <span>信任此设备</span>
-              </label>
-              <span class="text-xs text-slate-500">建议仅在个人设备启用</span>
+                <i :class="tab.icon" class="mr-1.5 hidden sm:inline"></i>
+                {{ tab.label }}
+              </button>
             </div>
+          </div>
 
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div class="mb-2.5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <strong class="text-sm font-extrabold text-slate-700">安全验证</strong>
-                  <p class="text-sm text-slate-500">Cloudflare Turnstile 防护</p>
-                </div>
-                <span
-                  class="w-fit rounded-full px-2 py-1 text-xs font-extrabold"
-                  :class="captchaToken ? 'bg-success/10 text-green-700' : captchaError ? 'bg-danger/10 text-danger' : 'bg-slate-100 text-slate-500'"
-                >
-                  {{ captchaStatusText }}
-                </span>
-              </div>
-
-              <div class="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-3">
+          <!-- ============================================================ -->
+          <!-- Tab 1: 密码登录 -->
+          <!-- ============================================================ -->
+          <div v-show="activeTab === 'password'" class="mt-6">
+            <form class="grid gap-4" @submit.prevent="handlePasswordLogin">
+              <label class="grid gap-2">
+                <span class="text-sm font-extrabold text-slate-700">手机号</span>
                 <div
-                  ref="turnstileContainer"
-                  class="turnstile-widget"
-                  :class="{ hidden: !turnstileSiteKey }"
-                ></div>
-                <div v-if="!turnstileSiteKey" class="text-center text-sm text-danger">
-                  未配置 Turnstile Site Key
+                  class="flex min-h-12 items-center gap-2.5 rounded-lg border bg-white px-3 transition duration-200"
+                  :class="focusedField === 'phone' ? '-translate-y-px border-primary shadow-[0_0_0_4px_rgba(22,93,255,0.10)]' : 'border-slate-200'"
+                >
+                  <i class="fa fa-mobile text-slate-400"></i>
+                  <input
+                    v-model.trim="phone"
+                    type="tel"
+                    inputmode="tel"
+                    autocomplete="tel"
+                    class="min-w-0 flex-1 border-0 bg-transparent outline-none"
+                    placeholder="请输入手机号"
+                    required
+                    @focus="focusedField = 'phone'"
+                    @blur="focusedField = ''"
+                    @input="clearFormError"
+                  >
                 </div>
-                <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-slate-500">
-                  <i class="fa fa-spinner fa-spin"></i>
-                  正在加载验证组件
+                <small v-if="phone && !phoneValid" class="text-danger">请输入 11 位手机号</small>
+              </label>
+
+              <label class="grid gap-2">
+                <span class="text-sm font-extrabold text-slate-700">密码</span>
+                <div
+                  class="flex min-h-12 items-center gap-2.5 rounded-lg border bg-white px-3 transition duration-200"
+                  :class="focusedField === 'password' ? '-translate-y-px border-primary shadow-[0_0_0_4px_rgba(22,93,255,0.10)]' : 'border-slate-200'"
+                >
+                  <i class="fa fa-lock text-slate-400"></i>
+                  <input
+                    v-model="password"
+                    :type="showPassword ? 'text' : 'password'"
+                    autocomplete="current-password"
+                    class="min-w-0 flex-1 border-0 bg-transparent outline-none"
+                    placeholder="请输入账号密码"
+                    required
+                    @focus="focusedField = 'password'"
+                    @blur="focusedField = ''"
+                    @input="clearFormError"
+                  >
+                  <button
+                    type="button"
+                    class="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-primary"
+                    :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                    @click="showPassword = !showPassword"
+                  >
+                    <i :class="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+                  </button>
                 </div>
+              </label>
+
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
+                  <input v-model="rememberDevice" type="checkbox" class="accent-primary">
+                  <span>信任此设备</span>
+                </label>
+                <span class="text-xs text-slate-500">建议仅在个人设备启用</span>
               </div>
-              <p v-if="captchaError" class="mt-2 text-xs text-danger">{{ captchaError }}</p>
-            </div>
 
-            <transition
-              enter-active-class="transition duration-150 ease-out"
-              enter-from-class="-translate-y-1 opacity-0"
-              enter-to-class="translate-y-0 opacity-100"
-              leave-active-class="transition duration-150 ease-in"
-              leave-from-class="translate-y-0 opacity-100"
-              leave-to-class="-translate-y-1 opacity-0"
-            >
-              <div v-if="formError" class="flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-2.5 text-sm text-danger">
-                <i class="fa fa-exclamation-circle"></i>
-                <span>{{ formError }}</span>
-              </div>
-            </transition>
+              <!-- Turnstile 人机验证 -->
+              <div
+                ref="turnstileContainer"
+                :class="{ hidden: !turnstileSiteKey }"
+              ></div>
+              <p v-if="!turnstileSiteKey" class="text-xs text-danger">未配置 Turnstile Site Key</p>
+              <p v-else-if="captchaError" class="text-xs text-danger">{{ captchaError }}</p>
 
-            <button
-              type="submit"
-              class="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-primary font-extrabold text-white shadow-[0_14px_30px_rgba(22,93,255,0.25)] transition duration-200 hover:-translate-y-px hover:bg-[#0e4fe0] hover:shadow-[0_18px_40px_rgba(22,93,255,0.30)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-              :disabled="submitDisabled"
-            >
-              <span>{{ loading ? '正在登录' : '登录工作台' }}</span>
-              <i :class="loading ? 'fa fa-spinner fa-spin' : 'fa fa-arrow-right'"></i>
-            </button>
-          </form>
+              <transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="-translate-y-1 opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="translate-y-0 opacity-100"
+                leave-to-class="-translate-y-1 opacity-0"
+              >
+                <div v-if="formError" class="flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-2.5 text-sm text-danger">
+                  <i class="fa fa-exclamation-circle"></i>
+                  <span>{{ formError }}</span>
+                </div>
+              </transition>
 
+              <button
+                type="submit"
+                class="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-primary font-extrabold text-white shadow-[0_14px_30px_rgba(22,93,255,0.25)] transition duration-200 hover:-translate-y-px hover:bg-[#0e4fe0] hover:shadow-[0_18px_40px_rgba(22,93,255,0.30)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                :disabled="submitDisabled"
+              >
+                <span>{{ loading ? '正在登录' : '登录工作台' }}</span>
+                <i :class="loading ? 'fa fa-spinner fa-spin' : 'fa fa-arrow-right'"></i>
+              </button>
+            </form>
+          </div>
+
+          <!-- ============================================================ -->
+          <!-- Tab 2: 验证码登录 -->
+          <!-- ============================================================ -->
+          <div v-show="activeTab === 'code'" class="mt-6">
+            <LoginFormCode
+              @login-success="handleLoginSuccess"
+              @login-error="(msg: string) => formError = msg"
+            />
+          </div>
+
+          <!-- ============================================================ -->
+          <!-- Tab 3: 扫码登录 -->
+          <!-- ============================================================ -->
+          <div v-show="activeTab === 'qr'" class="mt-6">
+            <LoginFormQR
+              @login-success="handleLoginSuccess"
+            />
+          </div>
+
+          <!-- ============================================================ -->
+          <!-- 第三方登录（所有 Tab 底部显示） -->
+          <!-- ============================================================ -->
+          <div class="mt-6">
+            <LoginFormThirdParty
+              @login-success="handleLoginSuccess"
+            />
+          </div>
+
+          <!-- 注册入口 -->
           <div class="mt-5 text-center text-sm text-slate-500">
             <span>还没有团队账号？</span>
             <router-link to="/register" class="font-extrabold text-primary hover:underline">创建账号</router-link>
@@ -266,12 +306,30 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import LoginFormCode from '@/components/auth/LoginFormCode.vue'
+import LoginFormQR from '@/components/auth/LoginFormQR.vue'
+import LoginFormThirdParty from '@/components/auth/LoginFormThirdParty.vue'
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+// ============================================================
+// 登录方式 Tab
+// ============================================================
+const activeTab = ref<'password' | 'code' | 'qr'>('password')
+
+const loginTabs = [
+  { key: 'password' as const, label: '密码登录', icon: 'fa fa-lock' },
+  { key: 'code' as const, label: '验证码', icon: 'fa fa-shield' },
+  { key: 'qr' as const, label: '扫码', icon: 'fa fa-qrcode' },
+]
+
+// ============================================================
+// 密码登录状态
+// ============================================================
 const phone = ref(import.meta.env.VITE_DEMO_LOGIN_PHONE || '')
 const password = ref(import.meta.env.VITE_DEMO_LOGIN_PASSWORD || '')
 const loading = ref(false)
@@ -309,14 +367,6 @@ const trustSignals = [
 
 const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
 
-const captchaStatusText = computed(() => {
-  if (!turnstileSiteKey) return '未配置'
-  if (captchaToken.value) return '已通过'
-  if (captchaError.value) return '需重试'
-  if (captchaLoading.value) return '加载中'
-  return '待验证'
-})
-
 const submitDisabled = computed(() => {
   return loading.value || !phoneValid.value || !password.value || !turnstileSiteKey || !captchaToken.value
 })
@@ -325,6 +375,45 @@ function clearFormError() {
   formError.value = ''
 }
 
+// ============================================================
+// 登录成功处理
+// ============================================================
+function handleLoginSuccess() {
+  if (rememberDevice.value) localStorage.setItem('cloudDriveTrustedDevice', '1')
+  router.push('/')
+}
+
+// ============================================================
+// 密码登录
+// ============================================================
+async function handlePasswordLogin() {
+  formError.value = ''
+  captchaError.value = ''
+
+  if (!phoneValid.value) {
+    formError.value = '请输入正确的手机号'
+    return
+  }
+  if (!captchaToken.value) {
+    captchaError.value = '请先完成安全验证'
+    return
+  }
+
+  loading.value = true
+  const result = await authStore.login(phone.value, password.value, captchaToken.value)
+  loading.value = false
+  if (result.success) {
+    handleLoginSuccess()
+    return
+  }
+
+  resetTurnstile()
+  formError.value = result.message || (result.scope === 'form' ? '手机号或密码错误' : '网络错误，请稍后重试')
+}
+
+// ============================================================
+// Turnstile 验证
+// ============================================================
 function loadTurnstileScript() {
   if (window.turnstile) return Promise.resolve()
 
@@ -364,7 +453,7 @@ async function renderTurnstile() {
       action: 'login',
       theme: 'light',
       size: 'normal',
-      callback: (token) => {
+      callback: (token: string) => {
         captchaToken.value = token
         captchaError.value = ''
       },
@@ -392,32 +481,6 @@ function resetTurnstile() {
   }
 }
 
-async function handleLogin() {
-  formError.value = ''
-  captchaError.value = ''
-
-  if (!phoneValid.value) {
-    formError.value = '请输入正确的手机号'
-    return
-  }
-  if (!captchaToken.value) {
-    captchaError.value = '请先完成安全验证'
-    return
-  }
-
-  loading.value = true
-  const result = await authStore.login(phone.value, password.value, captchaToken.value)
-  loading.value = false
-  if (result.success) {
-    if (rememberDevice.value) localStorage.setItem('cloudDriveTrustedDevice', '1')
-    router.push('/')
-    return
-  }
-
-  resetTurnstile()
-  formError.value = result.message || (result.scope === 'form' ? '手机号或密码错误' : '网络错误，请稍后重试')
-}
-
 onMounted(() => {
   renderTurnstile()
 })
@@ -428,3 +491,13 @@ onBeforeUnmount(() => {
   }
 })
 </script>
+
+<style scoped>
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
