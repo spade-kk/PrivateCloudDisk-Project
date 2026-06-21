@@ -1,14 +1,7 @@
 package org.project.privateclouddiskgatewayservice;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.core.env.Environment;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 /**
  * PrivateCloudDisk API 网关 — 微服务统一入口
@@ -22,8 +15,6 @@ import java.net.UnknownHostException;
  *   <li><b>限流保护</b>：多维度（IP + 设备指纹 + 用户）限流</li>
  *   <li><b>响应标准化</b>：统一所有上游服务的错误响应格式</li>
  *   <li><b>跨域处理</b>：统一 CORS 配置</li>
- *   <li><b>熔断降级</b>：上游服务不可用时返回友好降级响应</li>
- *   <li><b>服务发现</b>：通过 Nacos 自动发现和负载均衡</li>
  * </ul>
  *
  * <h2>API 路由策略</h2>
@@ -43,58 +34,12 @@ import java.net.UnknownHostException;
  * Order MAX:   UpstreamResponseNormalizerFilter — 上游响应标准化（最后执行）
  * </pre>
  */
-@Slf4j
+
 @SpringBootApplication
-@EnableDiscoveryClient
 public class PrivateCloudDiskGatewayServiceApplication {
 
     public static void main(String[] args) {
-        ConfigurableApplicationContext context = SpringApplication.run(
-                PrivateCloudDiskGatewayServiceApplication.class, args);
-
-        printStartupBanner(context);
+        SpringApplication.run(PrivateCloudDiskGatewayServiceApplication.class, args);
     }
 
-    /**
-     * 启动成功后打印服务信息
-     */
-    private static void printStartupBanner(ConfigurableApplicationContext context) {
-        Environment env = context.getEnvironment();
-
-        String protocol = "http";
-        String hostAddress;
-        try {
-            hostAddress = InetAddress.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
-            hostAddress = "localhost";
-        }
-
-        String port = env.getProperty("server.port", "8080");
-        String contextPath = env.getProperty("server.servlet.context-path", "");
-        String appName = env.getProperty("spring.application.name", "Gateway");
-        String nacosAddr = env.getProperty("nacos.discovery.server-addr", "127.0.0.1:8848");
-
-        boolean discoveryEnabled = Boolean.parseBoolean(
-                env.getProperty("gateway.routes.use-service-discovery", "true"));
-
-        log.info("""
-                        
-                        ============================================================
-                        🚀 {} 启动成功！
-                        ============================================================
-                        📍 本地地址:    {}://{}:{}{}
-                        📋 健康检查:    {}://{}:{}{}/actuator/health
-                        🔍 服务发现:    {} (Nacos: {})
-                        🔐 认证模式:    JWT (RS256)
-                        🛡️ 限流存储:    Redis
-                        ⚡ 响应标准化:  已启用 (UpstreamResponseNormalizerFilter)
-                        ============================================================
-                        """,
-                appName,
-                protocol, hostAddress, port, contextPath,
-                protocol, hostAddress, port, contextPath,
-                discoveryEnabled ? "Nacos (lb://)" : "直接 URL 模式",
-                nacosAddr
-        );
-    }
 }

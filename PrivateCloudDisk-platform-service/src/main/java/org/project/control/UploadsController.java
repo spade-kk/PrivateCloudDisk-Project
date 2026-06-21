@@ -25,8 +25,6 @@ public class UploadsController extends BaseController {
      * @return JsonResult data String
      */
     @PostMapping("/")
-    @SentinelResource(value = "createUploadSession",
-            blockHandler = "createUploadSessionBlockHandler")
     public JsonResult<String> createUploadsSession(
             @RequestHeader("X-User-Id") String user_id,
             @Valid @RequestBody CreateUploadsSessionRequest createUploadsSessionRequest,
@@ -48,11 +46,4 @@ public class UploadsController extends BaseController {
         return new JsonResult<String>(OK, uploads_id.toString());
     }
 
-    /**
-     * Sentinel 限流 BlockHandler。
-     */
-    public JsonResult<String> createUploadSessionBlockHandler(
-            String user_id, CreateUploadsSessionRequest req, HttpServletRequest request, BlockException ex) {
-        return JsonResult.error(42902, "上传会话创建过于频繁，系统限流已触发，请稍后重试");
-    }
 }

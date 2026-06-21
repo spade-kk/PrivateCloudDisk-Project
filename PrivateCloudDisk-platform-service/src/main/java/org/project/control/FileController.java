@@ -1,7 +1,5 @@
 package org.project.control;
 
-import com.alibaba.csp.sentinel.annotation.SentinelResource;
-import com.alibaba.csp.sentinel.slots.block.BlockException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import org.project.control.result.JsonResult;
@@ -57,9 +55,6 @@ public class FileController extends BaseController {
     }
 
     @DeleteMapping({"/files/{file_id}", "/files/{file_id}/"})
-    @SentinelResource(value = "deleteFiles",
-            blockHandler = "deleteFilesBlockHandler",
-            fallback = "deleteFilesFallback")
     public JsonResult<Void> deleteFileByFileId(
             @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     message = "file_id必须是有效的UUID格式")
@@ -67,21 +62,5 @@ public class FileController extends BaseController {
             @RequestHeader("X-User-Id") String user_id ) {
         fileService.deleteFileByFileId(UUID.fromString(file_id), UUID.fromString(user_id));
         return new JsonResult<>(OK);
-    }
-
-    /**
-     * Sentinel 限流/熔断 BlockHandler（仅 BlockException 触发）。
-     */
-    public JsonResult<Void> deleteFilesBlockHandler(
-            String file_id, String user_id, BlockException ex) {
-        return JsonResult.error(42902, "文件删除操作过于频繁，系统限流已触发，请稍后重试");
-    }
-
-    /**
-     * Sentinel 熔断降级 Fallback（业务异常触发）。
-     */
-    public JsonResult<Void> deleteFilesFallback(
-            String file_id, String user_id, Throwable ex) {
-        return JsonResult.error(50301, "文件删除服务暂时不可用，请稍后重试");
     }
 }

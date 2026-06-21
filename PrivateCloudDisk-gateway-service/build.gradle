@@ -24,62 +24,26 @@ repositories {
 
 ext {
     set('springCloudVersion', "2025.1.1")
-    set('springCloudAlibabaVersion', "2023.0.3.2")
 }
 
 dependencies {
-    // ═══════════════════════════════════════════════
-    // 一、核心网关 + 服务发现 + 负载均衡
-    // ═══════════════════════════════════════════════
-    implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
-    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
-
-    // Nacos 服务发现（原生 SDK，不依赖 Spring Cloud Alibaba）
-    implementation 'com.alibaba.nacos:nacos-client:2.4.3'
-
-    // ═══════════════════════════════════════════════
-    // 二、安全 + 认证
-    // ═══════════════════════════════════════════════
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
-
-    // ═══════════════════════════════════════════════
-    // 三、Redis（限流、设备声誉、分布式会话）
-    // ═══════════════════════════════════════════════
+    implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
-
     // ═══════════════════════════════════════════════
-    // 三.五、Sentinel（系统级流量控制、熔断降级）
-    // ═══════════════════════════════════════════════
-    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-sentinel'
-    implementation 'com.alibaba.csp:sentinel-spring-cloud-gateway-adapter'
-    implementation 'com.alibaba.csp:sentinel-datasource-nacos'
-    implementation 'com.alibaba.csp:sentinel-transport-simple-http'
-
-    // ═══════════════════════════════════════════════
-    // 四、JWT 解析库 (JJWT 0.13.0)
+    // 二、JWT 解析库 (JJWT 0.13.0 — 最新 API)
     // ═══════════════════════════════════════════════
     implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
 
-    // ═══════════════════════════════════════════════
-    // 五、Actuator（健康检查、指标、优雅关闭）
-    // ═══════════════════════════════════════════════
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-
-    // ═══════════════════════════════════════════════
-    // 六、工具
-    // ═══════════════════════════════════════════════
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
     // Jackson（用于 JSON 解析，PlatformAttestationVerifier 等安全组件使用）
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
-    // ═══════════════════════════════════════════════
-    // 七、测试
-    // ═══════════════════════════════════════════════
     testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -88,7 +52,6 @@ dependencies {
 dependencyManagement {
     imports {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
-        mavenBom "com.alibaba.cloud:spring-cloud-alibaba-dependencies:${springCloudAlibabaVersion}"
     }
 }
 
