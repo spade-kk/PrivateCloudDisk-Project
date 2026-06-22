@@ -151,6 +151,9 @@ class DeadLetterConsumer:
             except Exception as e:
                 logger.error(f"通知业务服务失败: {e}")
 
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_merge_failed_event(data, "合并 I/O 错误")
+
         await self._log_dlq_action(data, "CLEANUP_RESIDUALS", "已清理合并残留文件")
         return True
 
@@ -173,6 +176,9 @@ class DeadLetterConsumer:
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
 
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_merge_failed_event(data, "磁盘空间不足")
+
         # 也清理残留文件
         await self._handle_merge_error(data)
         return True
@@ -191,6 +197,9 @@ class DeadLetterConsumer:
             )
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
+
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_merge_failed_event(data, "分片缺失")
 
         await self._handle_merge_error(data)
         return True
@@ -217,6 +226,9 @@ class DeadLetterConsumer:
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
 
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_merge_failed_event(data, "校验和不匹配")
+
         return True
 
     # ========== Hash ==========
@@ -235,6 +247,9 @@ class DeadLetterConsumer:
             )
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
+
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_merge_failed_event(data, "Hash 计算失败")
 
         return True
 
@@ -256,6 +271,9 @@ class DeadLetterConsumer:
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
 
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_scan_failed_event(data, "病毒扫描器异常")
+
         return True
 
     async def _handle_virus_scanner_unavailable(self, data: dict) -> bool:
@@ -272,6 +290,10 @@ class DeadLetterConsumer:
             )
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
+
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_scan_failed_event(data, "病毒扫描器不可用")
+
         return True
 
     # ========== 缩略图/转码 (降级处理) ==========
@@ -370,6 +392,62 @@ class DeadLetterConsumer:
         return True
 
     # ========== 辅助方法 ==========
+
+    @staticmethod
+    async def _publish_file_merge_failed_event(data: dict, fail_reason: str):
+        """发布文件合并失败 MQ 事件 → 主业务服务回滚配额"""
+        try:
+            import uuid
+            from datetime import datetime, timezone
+
+            event = {
+                "eventId": uuid.uuid4().hex,
+                "fileId": data.get("file_id", ""),
+                "fileName": data.get("file_name", ""),
+                "fileSize": data.get("file_size", 0),
+                "fileType": data.get("file_type", ""),
+                "userId": data.get("user_id", ""),
+                "uploadsSessionId": data.get("uploads_id", ""),
+                "failReason": fail_reason,
+                "eventTime": datetime.now(timezone.utc).isoformat(),
+            }
+            await rabbitmq_service.publish_file_event(
+                settings.file_merge_failed_routing_key, event
+            )
+            logger.info(
+                f"已发布 file.merge.failed 事件: fileId={data.get('file_id')}, "
+                f"reason={fail_reason}"
+            )
+        except Exception as e:
+            logger.error(f"发布 file.merge.failed 事件失败: {e}", exc_info=True)
+
+    @staticmethod
+    async def _publish_file_scan_failed_event(data: dict, threat_name: str):
+        """发布文件扫毒失败 MQ 事件 → 主业务服务回滚配额"""
+        try:
+            import uuid
+            from datetime import datetime, timezone
+
+            event = {
+                "eventId": uuid.uuid4().hex,
+                "fileId": data.get("file_id", ""),
+                "fileName": data.get("file_name", ""),
+                "fileSize": data.get("file_size", 0),
+                "fileType": data.get("file_type", ""),
+                "userId": data.get("user_id", ""),
+                "uploadsSessionId": data.get("uploads_id", ""),
+                "threatName": threat_name,
+                "eventTime": datetime.now(timezone.utc).isoformat(),
+            }
+            await rabbitmq_service.publish_file_event(
+                settings.file_scan_failed_routing_key, event
+            )
+            logger.info(
+                f"已发布 file.scan.failed 事件: fileId={data.get('file_id')}, "
+                f"threat={threat_name}"
+            )
+        except Exception as e:
+            logger.error(f"发布 file.scan.failed 事件失败: {e}", exc_info=True)
 
     @staticmethod
     async def _log_dlq_action(data: dict, action: str, detail: str):
