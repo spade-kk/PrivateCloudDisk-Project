@@ -250,6 +250,17 @@ class MessagesViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 预览数据（仅 #Preview 使用）
+
+    func loadPreviewData() {
+        conversations = Conversation.previewConversations
+        friends = Friend.previewFriends
+    }
+
+    func loadPreviewMessages(conversationId: String) {
+        messages = ChatMessage.previewMessages(conversationId: conversationId)
+    }
+
     func addFriend() async {
         guard !friendAccount.isEmpty else { return }
         do {
