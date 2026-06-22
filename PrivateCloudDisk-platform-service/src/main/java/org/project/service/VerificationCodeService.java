@@ -103,7 +103,7 @@ public class VerificationCodeService {
     private static final int RESEND_INTERVAL_SECONDS = 60;
 
     /** 同一 IP+目标每小时最大发送次数 */
-    private static final int MAX_SENDS_PER_HOUR = 5;
+    private static final int MAX_SENDS_PER_HOUR = 50;
 
     /** 重新发送最大次数 */
     public static final int MAX_RESENDS = 8;

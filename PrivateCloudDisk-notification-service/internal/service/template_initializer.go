@@ -54,7 +54,7 @@ func (ti *TemplateInitializer) Initialize() error {
 
 // InitializeIfEmpty 仅在模板表为空时初始化
 func (ti *TemplateInitializer) InitializeIfEmpty() error {
-	total, _, err := ti.repo.List("", 0, 1)
+	_, total, err := ti.repo.List("", 0, 1)
 	if err != nil {
 		log.Printf("[TemplateInit] 查询模板数量失败: %v，跳过初始化", err)
 		return err

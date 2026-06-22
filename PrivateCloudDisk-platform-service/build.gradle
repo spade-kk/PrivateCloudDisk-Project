@@ -44,6 +44,8 @@ dependencies {
     // Redis 依赖
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.apache.commons:commons-pool2'
+    // Redisson 分布式锁（企业级 Redis 客户端）
+    implementation 'org.redisson:redisson-spring-boot-starter:3.38.1'
     // JWT 生成与解析（jjwt）
     implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'

@@ -21,21 +21,23 @@ const (
 	ExchangeNotificationDLX = "pcd.notification.dlx"
 
 	// 队列
-	QueueEmail    = "pcd.notification.email.queue"
-	QueueSMS      = "pcd.notification.sms.queue"
-	QueuePush     = "pcd.notification.push.queue"
-	QueueBatch    = "pcd.notification.batch.queue"
-	QueueDLQ      = "pcd.notification.dlq"
+	QueueEmail        = "pcd.notification.email.queue"
+	QueueSMS          = "pcd.notification.sms.queue"
+	QueuePush         = "pcd.notification.push.queue"
+	QueueBatch        = "pcd.notification.batch.queue"
+	QueueVerification = "pcd.notification.verification.queue" // 验证码队列
+	QueueDLQ          = "pcd.notification.dlq"
 
 	// 路由键
-	RoutingEmail    = "notification.email"
-	RoutingSMS      = "notification.sms"
-	RoutingPush     = "notification.push"
-	RoutingBatch    = "notification.batch"
-	RoutingDLQ      = "notification.dlq"
+	RoutingEmail        = "notification.email"
+	RoutingSMS          = "notification.sms"
+	RoutingPush         = "notification.push"
+	RoutingBatch        = "notification.batch"
+	RoutingVerification = "notification.verification" // 验证码路由键
+	RoutingDLQ          = "notification.dlq"
 
 	// 消息 TTL
-	MessageTTLVerification = 10 * 60 * 1000  // 验证码 10 分钟
+	MessageTTLVerification = 10 * 60 * 1000     // 验证码 10 分钟
 	MessageTTLNormal       = 24 * 60 * 60 * 1000 // 普通消息 24 小时
 )
 
@@ -103,6 +105,7 @@ func (c *Connection) DeclareTopology() error {
 		{QueueSMS, RoutingSMS, MessageTTLNormal},
 		{QueuePush, RoutingPush, MessageTTLNormal},
 		{QueueBatch, RoutingBatch, MessageTTLNormal},
+		{QueueVerification, RoutingVerification, MessageTTLVerification},
 	}
 
 	for _, q := range queues {

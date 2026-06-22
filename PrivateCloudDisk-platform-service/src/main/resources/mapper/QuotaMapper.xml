@@ -8,6 +8,7 @@
         <result column="quota_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="quota_total_capacity" property="total_capacity"/>
         <result column="quota_used_capacity" property="used_capacity"/>
+        <result column="quota_released_capacity" property="released_capacity"/>
         <result column="quota_file_count" property="file_count"/>
         <result column="quota_version" property="version"/>
         <result column="quota_created_at" property="created_at"/>
@@ -89,4 +90,43 @@
     <delete id="deleteQuotaByUserId">
         delete from pcd_user_quota_table where quota_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </delete>
+
+    <!-- ==================== 预占+提交模式：released 容量操作 ==================== -->
+
+    <!-- 预占配额容量（released += size），校验可用容量 >= size -->
+    <update id="increaseQuotaReleasedCapacity">
+        UPDATE pcd_user_quota_table
+        SET quota_released_capacity = quota_released_capacity + #{size},
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_total_capacity - (quota_used_capacity + quota_released_capacity) >= #{size}
+          AND quota_version = #{version}
+    </update>
+
+    <!-- 提交配额预占：released -= size, used += size, file_count += 1 -->
+    <update id="commitQuotaReleasedToUsed">
+        UPDATE pcd_user_quota_table
+        SET quota_released_capacity = quota_released_capacity - #{size},
+            quota_used_capacity = quota_used_capacity + #{size},
+            quota_file_count = quota_file_count + 1,
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_released_capacity >= #{size}
+          AND quota_version = #{version}
+    </update>
+
+    <!-- 回滚配额预占：released -= size -->
+    <update id="decreaseQuotaReleasedCapacity">
+        UPDATE pcd_user_quota_table
+        SET quota_released_capacity = quota_released_capacity - #{size},
+            quota_version = quota_version + 1
+        WHERE quota_user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND quota_released_capacity >= #{size}
+          AND quota_version = #{version}
+    </update>
+
+    <!-- 查询所有用户ID（用于配额对账） -->
+    <select id="findAllUserIds" resultType="java.util.UUID">
+        SELECT quota_user_id FROM pcd_user_quota_table
+    </select>
 </mapper>

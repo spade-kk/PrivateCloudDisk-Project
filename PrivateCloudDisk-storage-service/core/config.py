@@ -93,6 +93,34 @@ class Settings(BaseSettings):
     content_index_dlq_routing_key: str = "content.index.dlq"
     content_index_max_retries: int = 3
 
+    # ========== 上传会话事件交换机 & 队列（与 Spring Boot 主业务服务一致） ==========
+    # --- 上传会话事件主交换机 ---
+    uploads_event_exchange: str = "pcd.uploads.event.exchange"
+    # --- 上传会话事件死信交换机 ---
+    uploads_event_dlx: str = "pcd.uploads.event.dlx"
+    # --- 上传会话事件死信队列 ---
+    uploads_event_dlq: str = "pcd.uploads.event.dlq"
+    uploads_event_dlq_routing_key: str = "uploads.event.dlq"
+    # --- 上传会话删除事件（文件存储服务消费 → 删除物理分块文件） ---
+    uploads_session_delete_queue: str = "pcd.uploads.session.delete.queue"
+    uploads_session_delete_routing_key: str = "uploads.session.delete"
+    # --- 上传会话已删除事件（主业务服务消费 → 释放配额） ---
+    uploads_session_deleted_queue: str = "pcd.uploads.session.deleted.queue"
+    uploads_session_deleted_routing_key: str = "uploads.session.deleted"
+
+    # ========== 文件事件交换机 & 队列（与 Spring Boot 主业务服务一致） ==========
+    # 文件事件由主业务服务监听，存储服务负责发布这些事件
+    file_event_exchange: str = "pcd.file.event.exchange"
+    file_event_dlx: str = "pcd.file.event.dlx"
+    file_event_dlq: str = "pcd.file.event.dlq"
+    file_event_dlq_routing_key: str = "file.event.dlq"
+    file_available_queue: str = "pcd.file.available.queue"
+    file_available_routing_key: str = "file.available"
+    file_merge_failed_queue: str = "pcd.file.merge.failed.queue"
+    file_merge_failed_routing_key: str = "file.merge.failed"
+    file_scan_failed_queue: str = "pcd.file.scan.failed.queue"
+    file_scan_failed_routing_key: str = "file.scan.failed"
+
     # ========== OpenAPI 文档开关 ==========
     # 生产环境设为 false 关闭 /docs /redoc /openapi.json
     enable_docs: bool = True

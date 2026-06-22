@@ -50,6 +50,7 @@ from core.consumers import (
     on_file_delete_message,
     on_dead_letter_message,
     on_content_index_message,
+    on_uploads_session_delete_message,
 )
 from app.core.logging_config import setup_logging, get_logger
 
@@ -101,6 +102,24 @@ CONFIG = {
     },
     "dlq_content": {
         "queue": settings.content_index_dlq,
+        "callback": on_dead_letter_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
+    },
+    "uploads_session_delete": {
+        "queue": settings.uploads_session_delete_queue,
+        "callback": on_uploads_session_delete_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_USD", "4")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_USD", "4")),
+    },
+    "dlq_uploads_event": {
+        "queue": settings.uploads_event_dlq,
+        "callback": on_dead_letter_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
+    },
+    "dlq_file_event": {
+        "queue": settings.file_event_dlq,
         "callback": on_dead_letter_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),

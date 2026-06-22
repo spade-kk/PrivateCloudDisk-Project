@@ -114,6 +114,46 @@ public class RabbitMQConifgure {
     public static final String QUOTA_UPDATE_EXCHANGE = "pcd.quota.update.exchange";
     public static final String QUOTA_UPDATE_ROUTING_KEY = "quota.update";
 
+    // ==================== 文件事件交换机（预占+提交模式） ====================
+
+    /** 文件事件主交换机（Topic），发布文件生命周期事件 */
+    public static final String FILE_EVENT_EXCHANGE = "pcd.file.event.exchange";
+    /** 文件事件死信交换机 */
+    public static final String FILE_EVENT_DLX = "pcd.file.event.dlx";
+    /** 文件事件死信队列 */
+    public static final String FILE_EVENT_DLQ = "pcd.file.event.dlq";
+    public static final String FILE_EVENT_DLQ_ROUTING_KEY = "file.event.dlq";
+
+    // 文件可获得事件（消费者：主业务服务 → 提交配额）
+    public static final String QUEUE_FILE_AVAILABLE = "pcd.file.available.queue";
+    public static final String ROUTING_FILE_AVAILABLE = "file.available";
+
+    // 文件合并失败事件（消费者：主业务服务 → 回滚配额）
+    public static final String QUEUE_FILE_MERGE_FAILED = "pcd.file.merge.failed.queue";
+    public static final String ROUTING_FILE_MERGE_FAILED = "file.merge.failed";
+
+    // 文件扫毒失败事件（消费者：主业务服务 → 回滚配额）
+    public static final String QUEUE_FILE_SCAN_FAILED = "pcd.file.scan.failed.queue";
+    public static final String ROUTING_FILE_SCAN_FAILED = "file.scan.failed";
+
+    // ==================== 上传会话事件交换机 ====================
+
+    /** 上传会话事件主交换机（Topic），发布上传会话生命周期事件 */
+    public static final String UPLOADS_EVENT_EXCHANGE = "pcd.uploads.event.exchange";
+    /** 上传会话事件死信交换机 */
+    public static final String UPLOADS_EVENT_DLX = "pcd.uploads.event.dlx";
+    /** 上传会话事件死信队列 */
+    public static final String UPLOADS_EVENT_DLQ = "pcd.uploads.event.dlq";
+    public static final String UPLOADS_EVENT_DLQ_ROUTING_KEY = "uploads.event.dlq";
+
+    // 上传会话删除事件（消费者：文件存储服务 → 删除物理分块文件）
+    public static final String QUEUE_UPLOADS_SESSION_DELETE = "pcd.uploads.session.delete.queue";
+    public static final String ROUTING_UPLOADS_SESSION_DELETE = "uploads.session.delete";
+
+    // 上传会话已删除事件（消费者：主业务服务 → 释放配额）
+    public static final String QUEUE_UPLOADS_SESSION_DELETED = "pcd.uploads.session.deleted.queue";
+    public static final String ROUTING_UPLOADS_SESSION_DELETED = "uploads.session.deleted";
+
     // 消息存活时间（毫秒）：业务消息24小时
     public static final long MESSAGE_TTL_BUSINESS_MS = 24 * 60 * 60 * 1000L;
 
@@ -366,6 +406,198 @@ public class RabbitMQConifgure {
                 .bind(quotaUpdateQueue())
                 .to(quotaUpdateExchange())
                 .with(QUOTA_UPDATE_ROUTING_KEY);
+    }
+
+    // ==================== 文件事件交换机及队列 ====================
+
+    /**
+     * 文件事件主交换机（Topic）
+     * <p>发布文件生命周期事件：file.available, file.merge.failed, file.scan.failed
+     */
+    @Bean
+    public TopicExchange fileEventExchange() {
+        return ExchangeBuilder
+                .topicExchange(FILE_EVENT_EXCHANGE)
+                .durable(true)
+                .build();
+    }
+
+    /**
+     * 文件事件死信交换机（Topic）
+     */
+    @Bean
+    public TopicExchange fileEventDlxExchange() {
+        return ExchangeBuilder
+                .topicExchange(FILE_EVENT_DLX)
+                .durable(true)
+                .build();
+    }
+
+    /**
+     * 文件事件死信队列（集中存放所有失败的文件事件消息）
+     */
+    @Bean
+    public Queue fileEventDlq() {
+        return QueueBuilder
+                .durable(FILE_EVENT_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Binding fileEventDlqBinding() {
+        return BindingBuilder
+                .bind(fileEventDlq())
+                .to(fileEventDlxExchange())
+                .with(FILE_EVENT_DLQ_ROUTING_KEY);
+    }
+
+    /**
+     * 文件可获得事件队列（消费者：主业务服务 → 提交配额）
+     */
+    @Bean
+    public Queue fileAvailableQueue() {
+        return QueueBuilder
+                .durable(QUEUE_FILE_AVAILABLE)
+                .deadLetterExchange(FILE_EVENT_DLX)
+                .deadLetterRoutingKey(FILE_EVENT_DLQ_ROUTING_KEY)
+                .ttl(7 * 24 * 60 * 60 * 1000) // 7 天
+                .build();
+    }
+
+    @Bean
+    public Binding fileAvailableBinding() {
+        return BindingBuilder
+                .bind(fileAvailableQueue())
+                .to(fileEventExchange())
+                .with(ROUTING_FILE_AVAILABLE);
+    }
+
+    /**
+     * 文件合并失败事件队列（消费者：主业务服务 → 回滚配额）
+     */
+    @Bean
+    public Queue fileMergeFailedQueue() {
+        return QueueBuilder
+                .durable(QUEUE_FILE_MERGE_FAILED)
+                .deadLetterExchange(FILE_EVENT_DLX)
+                .deadLetterRoutingKey(FILE_EVENT_DLQ_ROUTING_KEY)
+                .ttl(7 * 24 * 60 * 60 * 1000)
+                .build();
+    }
+
+    @Bean
+    public Binding fileMergeFailedBinding() {
+        return BindingBuilder
+                .bind(fileMergeFailedQueue())
+                .to(fileEventExchange())
+                .with(ROUTING_FILE_MERGE_FAILED);
+    }
+
+    /**
+     * 文件扫毒失败事件队列（消费者：主业务服务 → 回滚配额）
+     */
+    @Bean
+    public Queue fileScanFailedQueue() {
+        return QueueBuilder
+                .durable(QUEUE_FILE_SCAN_FAILED)
+                .deadLetterExchange(FILE_EVENT_DLX)
+                .deadLetterRoutingKey(FILE_EVENT_DLQ_ROUTING_KEY)
+                .ttl(7 * 24 * 60 * 60 * 1000)
+                .build();
+    }
+
+    @Bean
+    public Binding fileScanFailedBinding() {
+        return BindingBuilder
+                .bind(fileScanFailedQueue())
+                .to(fileEventExchange())
+                .with(ROUTING_FILE_SCAN_FAILED);
+    }
+
+    // ==================== 上传会话事件交换机及队列 ====================
+
+    /**
+     * 上传会话事件主交换机（Topic）
+     * <p>发布上传会话生命周期事件：uploads.session.delete, uploads.session.deleted
+     */
+    @Bean
+    public TopicExchange uploadsEventExchange() {
+        return ExchangeBuilder
+                .topicExchange(UPLOADS_EVENT_EXCHANGE)
+                .durable(true)
+                .build();
+    }
+
+    /**
+     * 上传会话事件死信交换机（Topic）
+     */
+    @Bean
+    public TopicExchange uploadsEventDlxExchange() {
+        return ExchangeBuilder
+                .topicExchange(UPLOADS_EVENT_DLX)
+                .durable(true)
+                .build();
+    }
+
+    /**
+     * 上传会话事件死信队列
+     */
+    @Bean
+    public Queue uploadsEventDlq() {
+        return QueueBuilder
+                .durable(UPLOADS_EVENT_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Binding uploadsEventDlqBinding() {
+        return BindingBuilder
+                .bind(uploadsEventDlq())
+                .to(uploadsEventDlxExchange())
+                .with(UPLOADS_EVENT_DLQ_ROUTING_KEY);
+    }
+
+    /**
+     * 上传会话删除事件队列（消费者：文件存储服务 → 删除物理分块文件）
+     * <p>TTL 较短，因为删除操作时效性要求高
+     */
+    @Bean
+    public Queue uploadsSessionDeleteQueue() {
+        return QueueBuilder
+                .durable(QUEUE_UPLOADS_SESSION_DELETE)
+                .deadLetterExchange(UPLOADS_EVENT_DLX)
+                .deadLetterRoutingKey(UPLOADS_EVENT_DLQ_ROUTING_KEY)
+                .ttl(1 * 24 * 60 * 60 * 1000) // 1 天
+                .build();
+    }
+
+    @Bean
+    public Binding uploadsSessionDeleteBinding() {
+        return BindingBuilder
+                .bind(uploadsSessionDeleteQueue())
+                .to(uploadsEventExchange())
+                .with(ROUTING_UPLOADS_SESSION_DELETE);
+    }
+
+    /**
+     * 上传会话已删除事件队列（消费者：主业务服务 → 释放配额）
+     */
+    @Bean
+    public Queue uploadsSessionDeletedQueue() {
+        return QueueBuilder
+                .durable(QUEUE_UPLOADS_SESSION_DELETED)
+                .deadLetterExchange(UPLOADS_EVENT_DLX)
+                .deadLetterRoutingKey(UPLOADS_EVENT_DLQ_ROUTING_KEY)
+                .ttl(3 * 24 * 60 * 60 * 1000) // 3 天
+                .build();
+    }
+
+    @Bean
+    public Binding uploadsSessionDeletedBinding() {
+        return BindingBuilder
+                .bind(uploadsSessionDeletedQueue())
+                .to(uploadsEventExchange())
+                .with(ROUTING_UPLOADS_SESSION_DELETED);
     }
 
     // ==================== 绑定关系（主交换机 -> 业务队列） ====================

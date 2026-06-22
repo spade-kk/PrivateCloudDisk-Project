@@ -38,4 +38,17 @@
     <delete id="deleteUploadsSessionById" parameterType="string">
         delete from pcd_uploads_session_table where uploads_id=#{uploads_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </delete>
+
+    <!-- 查询过期的上传会话（uploading/merging 状态且超过过期时间） -->
+    <select id="findExpiredUploadsSessions" resultMap="UploadsSessionEntityMap">
+        select * from pcd_uploads_session_table
+        where uploads_status in ('uploading', 'merging')
+          and uploads_starting_time &lt; #{expireTime};
+    </select>
+
+    <!-- 查询已取消（canceled）状态的上传会话 -->
+    <select id="findCanceledUploadsSessions" resultMap="UploadsSessionEntityMap">
+        select * from pcd_uploads_session_table
+        where uploads_status = 'canceled';
+    </select>
 </mapper>

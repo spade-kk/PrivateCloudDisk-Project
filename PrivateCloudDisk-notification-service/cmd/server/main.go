@@ -17,12 +17,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/privateclouddisk/notification-service/internal/channel"
 	"github.com/privateclouddisk/notification-service/internal/config"
 	"github.com/privateclouddisk/notification-service/internal/database"
 	httpHandler "github.com/privateclouddisk/notification-service/internal/handler/http"
 	"github.com/privateclouddisk/notification-service/internal/rabbitmq"
+	"github.com/privateclouddisk/notification-service/internal/redisutil"
 	"github.com/privateclouddisk/notification-service/internal/repository"
 	"github.com/privateclouddisk/notification-service/internal/service"
 )
@@ -53,6 +55,18 @@ func main() {
 		log.Fatalf("[Notification] RabbitMQ 连接失败: %v", err)
 	}
 	defer rmqConn.Close()
+
+	// 4.5. 连接 Redis
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     cfg.Redis.Addr(),
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatalf("[Notification] Redis 连接失败: %v", err)
+	}
+	defer redisClient.Close()
+	log.Printf("[Notification] Redis 连接成功: %s", cfg.Redis.Addr())
 
 	// 5. 初始化 Repository
 	db := database.DB
@@ -128,6 +142,12 @@ func main() {
 		log.Println("[Notification] 嵌入邮件模板初始化完成")
 	}
 
+	// 8.5. 初始化验证码服务（从 Spring Boot 平台服务完整迁移）
+	verificationRepo := redisutil.NewVerificationRepo(redisClient)
+	verificationService := service.NewVerificationCodeService(cfg, verificationRepo, channelManager)
+	verificationHandler := httpHandler.NewVerificationHandler(verificationService)
+	log.Println("[Verification] 验证码服务初始化完成")
+
 	// 9. 初始化消费者
 	consumer := rabbitmq.NewConsumer(rmqConn, cfg, notifService)
 	if err := consumer.Start(); err != nil {
@@ -144,6 +164,7 @@ func main() {
 	gin.SetMode(cfg.Server.Mode)
 	router := gin.Default()
 	handler.RegisterRoutes(router)
+	verificationHandler.RegisterRoutes(router) // 注册验证码路由
 
 	// 启动聚合窗口定时检查
 	go startAggregationWorker(context.Background(), notifService, cfg)

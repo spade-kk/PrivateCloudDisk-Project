@@ -217,6 +217,121 @@ class RabbitMQService:
             routing_key=settings.content_index_dlq_routing_key,
         )
 
+        # ========== 上传会话事件交换机（与 Spring Boot 主业务服务一致） ==========
+        ue_exchange = await self.channel.declare_exchange(
+            settings.uploads_event_exchange,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.uploads_event_exchange] = ue_exchange
+
+        # ========== 上传会话事件死信交换机 ==========
+        ue_dlx = await self.channel.declare_exchange(
+            settings.uploads_event_dlx,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.uploads_event_dlx] = ue_dlx
+
+        # ========== 上传会话删除队列（文件存储服务消费 → 删除物理分块文件） ==========
+        usd_queue = await self._declare_queue_safe(
+            settings.uploads_session_delete_queue,
+            arguments={
+                "x-message-ttl": 86400000,  # 1 天
+                "x-dead-letter-exchange": settings.uploads_event_dlx,
+                "x-dead-letter-routing-key": settings.uploads_event_dlq_routing_key,
+            },
+        )
+        await usd_queue.bind(
+            ue_exchange,
+            routing_key=settings.uploads_session_delete_routing_key,
+        )
+
+        # ========== 上传会话事件死信队列 ==========
+        ue_dlq = await self.channel.declare_queue(
+            settings.uploads_event_dlq,
+            durable=True,
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
+        )
+        await ue_dlq.bind(
+            ue_dlx,
+            routing_key=settings.uploads_event_dlq_routing_key,
+        )
+
+        # ========== 文件事件交换机（与 Spring Boot 主业务服务一致） ==========
+        # 存储服务负责发布这些事件，主业务服务负责消费
+        fe_exchange = await self.channel.declare_exchange(
+            settings.file_event_exchange,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.file_event_exchange] = fe_exchange
+
+        # ========== 文件事件死信交换机 ==========
+        fe_dlx = await self.channel.declare_exchange(
+            settings.file_event_dlx,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.file_event_dlx] = fe_dlx
+
+        # ========== 文件可获得队列（由主业务服务消费，此处声明以确保拓扑完整） ==========
+        fa_queue = await self._declare_queue_safe(
+            settings.file_available_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fa_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_available_routing_key,
+        )
+
+        # ========== 文件合并失败队列 ==========
+        fmf_queue = await self._declare_queue_safe(
+            settings.file_merge_failed_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fmf_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_merge_failed_routing_key,
+        )
+
+        # ========== 文件扫毒失败队列 ==========
+        fsf_queue = await self._declare_queue_safe(
+            settings.file_scan_failed_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fsf_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_scan_failed_routing_key,
+        )
+
+        # ========== 文件事件死信队列 ==========
+        fe_dlq = await self.channel.declare_queue(
+            settings.file_event_dlq,
+            durable=True,
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
+        )
+        await fe_dlq.bind(
+            fe_dlx,
+            routing_key=settings.file_event_dlq_routing_key,
+        )
+
         logger.info(
             f"RabbitMQ 拓扑声明完成: "
             f"exchanges={len(self.exchanges)}, "

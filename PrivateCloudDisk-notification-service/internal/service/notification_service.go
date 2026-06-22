@@ -464,7 +464,7 @@ func (s *NotificationService) ProcessAggregation(ctx context.Context) error {
 
 		// 构造聚合消息
 		title := fmt.Sprintf("您有 %d 条新通知", len(records))
-		body := s.buildAggregationBody(records)
+		_ = s.buildAggregationBody(records)
 
 		// 发送聚合通知
 		// TODO: 调用 ChannelManager 发送聚合消息
