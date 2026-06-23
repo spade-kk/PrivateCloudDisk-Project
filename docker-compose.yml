@@ -161,10 +161,7 @@ services:
       SW_CORE_RECORD_DATA_TTL: 7
       SW_CORE_METRICS_DATA_TTL: 7
       SW_CORE_TRACE_DATA_TTL: 7
-      JAVA_OPTS: "-Xms512m -Xmx1g \
-      -Dskywalking.elasticsearch.trustAll=true \
-      -Dskywalking.elasticsearch.insecure=true \
-      -Djavax.net.ssl.trustAll=true"
+      JAVA_OPTS: -Xms512m -Xmx1g
     depends_on:
         opensearch:
           condition: service_healthy          # 添加健康检查依赖
