@@ -161,7 +161,7 @@ CREATE TABLE pcd_uploads_session_table (
     uploads_file_name       VARCHAR(150)    NOT NULL                                                COMMENT '文件名称',
     uploads_file_type       VARCHAR(60)     NOT NULL                                                COMMENT '文件类型',
     uploads_node_id         BINARY(16)     NOT NULL                                                 COMMENT '文件所在目录节点ID',
-    uploads_status          ENUM('uploading', 'completed', 'failed') DEFAULT 'uploading'            COMMENT '上传状态'
+    uploads_status          ENUM('uploading', 'merging', 'completed', 'canceled', 'failed', 'deleted') DEFAULT 'uploading' COMMENT '上传状态：uploading→merging→completed | uploading→canceled→deleted'
 ) COMMENT='文件上传会话表';
 
 CREATE TABLE pcd_upload_chunks_table (
@@ -219,12 +219,13 @@ CREATE TABLE pcd_user_quota_table (
     FOREIGN KEY (quota_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     quota_total_capacity  BIGINT          NOT NULL DEFAULT 10737418240 COMMENT '总额度（字节），默认10GB = 10*1024^3',
     quota_used_capacity   BIGINT          NOT NULL DEFAULT 0 COMMENT '已用容量（字节）',
+    quota_released_capacity BIGINT        NOT NULL DEFAULT 0 COMMENT '预占容量（字节）：正在上传中尚未提交的文件容量',
     quota_file_count      INT             NOT NULL DEFAULT 0 COMMENT '已上传文件数量',
     quota_version         INT             NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
     quota_created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     quota_updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_user_id (quota_user_id)
-) COMMENT='用户存储配额表';
+) COMMENT='用户存储配额表（预占+提交模式：available = total - (used + released)）';
 
 CREATE TABLE pcd_user_quota_log_table (
     quota_log_id            BIGINT        PRIMARY KEY AUTO_INCREMENT,

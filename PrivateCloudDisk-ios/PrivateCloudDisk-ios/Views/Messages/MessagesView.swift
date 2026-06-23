@@ -31,6 +31,9 @@ struct MessagesView: View {
     @State private var callPeerName = ""
     @State private var callType = "video"
 
+    /// 预览模式：跳过网络请求，直接加载 mock 数据
+    var previewMode = false
+
     var body: some View {
         NavigationStack {
             if viewModel.activeConversation == nil {
@@ -40,11 +43,17 @@ struct MessagesView: View {
             }
         }
         .task {
-            await viewModel.loadConversations()
-            await viewModel.loadFriends()
+            if previewMode {
+                viewModel.loadPreviewData()
+            } else {
+                await viewModel.loadConversations()
+                await viewModel.loadFriends()
+            }
         }
         .onAppear {
-            viewModel.connectWebSocket()
+            if !previewMode {
+                viewModel.connectWebSocket()
+            }
         }
         .overlay {
             if viewModel.incomingCall {
@@ -1397,6 +1406,336 @@ struct CallControlButton: View {
     }
 }
 
-#Preview {
-    MessagesView()
+// MARK: - Preview
+
+#Preview("消息列表 - 会话列表") {
+    MessagesView(previewMode: true)
+}
+
+#Preview("消息列表 - 暗色模式") {
+    MessagesView(previewMode: true)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("聊天界面 - 聊天记录") {
+    ChatPreviewView()
+}
+
+#Preview("聊天界面 - 暗色模式") {
+    ChatPreviewView()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("联系人 - 好友列表") {
+    FriendsPreviewView()
+}
+
+#Preview("联系人 - 暗色模式") {
+    FriendsPreviewView()
+        .preferredColorScheme(.dark)
+}
+
+#Preview("通话界面 - 视频通话") {
+    CallViewPreview()
+}
+
+#Preview("通话界面 - 语音通话") {
+    CallViewPreview(callType: "voice")
+}
+
+// MARK: - 聊天界面预览容器
+
+private struct ChatPreviewView: View {
+    @StateObject private var viewModel = MessagesViewModel()
+
+    var body: some View {
+        MessagesView_ChatPreviewContent(viewModel: viewModel)
+            .task {
+                viewModel.conversations = Conversation.previewConversations
+                viewModel.activeConversation = Conversation.previewConversations.first
+                viewModel.loadPreviewMessages(conversationId: Conversation.previewConversations.first?.id ?? "")
+            }
+    }
+}
+
+// MARK: - 聊天界面预览（复用 MessagesView 的聊天子视图）
+
+private struct MessagesView_ChatPreviewContent: View {
+    @ObservedObject var viewModel: MessagesViewModel
+    @State private var callPeerName = ""
+    @State private var callType = "video"
+    @State private var showCallView = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 聊天导航栏（复刻原版）
+            chatPreviewNavBar
+
+            // 消息列表
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    Color.clear.frame(height: 8)
+
+                    ForEach(groupedMessages, id: \.dateKey) { group in
+                        MessageTimeStampView(timeText: group.formattedTime)
+                            .padding(.vertical, AppSpacing.md)
+
+                        ForEach(group.messages) { msg in
+                            ChatBubbleRow(
+                                message: msg,
+                                showAvatar: shouldShowAvatar(for: msg, in: group.messages),
+                                onRetry: {}
+                            )
+                            .id(msg.id)
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    Color.clear.frame(height: 8)
+                }
+            }
+            .defaultScrollAnchor(.bottom)
+
+            // 输入工具栏
+            ChatInputBar(viewModel: viewModel)
+        }
+        .background(Color.chatBg)
+    }
+
+    private var chatPreviewNavBar: some View {
+        HStack(spacing: 0) {
+            Image(systemName: "chevron.left")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(AppColors.textPrimary)
+                .frame(width: 36, height: 36)
+
+            HStack(spacing: AppSpacing.sm) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [AppColors.primaryLight, AppColors.primary],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 36, height: 36)
+                    Text(viewModel.activeConversation?.initial ?? "?")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(viewModel.activeConversation?.title ?? "")
+                        .font(AppTypography.subheadline.weight(.semibold))
+                        .foregroundColor(AppColors.textPrimary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            HStack(spacing: AppSpacing.xs) {
+                ForEach(["phone", "video", "ellipsis"], id: \.self) { icon in
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundColor(AppColors.textPrimary)
+                        .frame(width: 36, height: 36)
+                }
+            }
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.top, 48)
+        .padding(.bottom, 8)
+        .background(
+            AppColors.surface
+                .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+        )
+    }
+
+    private var groupedMessages: [(dateKey: String, formattedTime: String, messages: [ChatMessage])] {
+        var groups: [(dateKey: String, formattedTime: String, messages: [ChatMessage])] = []
+        let formatter = ISO8601DateFormatter()
+        for msg in viewModel.messages {
+            let date = formatter.date(from: msg.createdAt) ?? Date()
+            let timeKey = formatTimeStamp(date)
+            if let last = groups.last,
+               let lastDate = formatter.date(from: last.messages.last?.createdAt ?? ""),
+               abs(date.timeIntervalSince(lastDate)) < 180 {
+                var updatedMessages = last.messages
+                updatedMessages.append(msg)
+                groups[groups.count - 1] = (last.dateKey, last.formattedTime, updatedMessages)
+            } else {
+                groups.append((timeKey, timeKey, [msg]))
+            }
+        }
+        return groups
+    }
+
+    private func formatTimeStamp(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let fmt = DateFormatter()
+        if calendar.isDateInToday(date) {
+            fmt.dateFormat = "HH:mm"
+        } else if calendar.isDateInYesterday(date) {
+            return "昨天 \(DateFormatter.localizedString(from: date, dateStyle: .none, timeStyle: .short))"
+        } else if calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            fmt.dateFormat = "MM月dd日 HH:mm"
+        } else {
+            fmt.dateFormat = "yyyy年MM月dd日 HH:mm"
+        }
+        return fmt.string(from: date)
+    }
+
+    private func shouldShowAvatar(for msg: ChatMessage, in messages: [ChatMessage]) -> Bool {
+        guard !msg.isFromMe else { return false }
+        guard let index = messages.firstIndex(where: { $0.id == msg.id }) else { return true }
+        if index == 0 { return true }
+        let prev = messages[index - 1]
+        return prev.isFromMe || prev.senderId != msg.senderId
+    }
+}
+
+// MARK: - 联系人列表预览容器
+
+private struct FriendsPreviewView: View {
+    @StateObject private var viewModel = MessagesViewModel()
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+                List {
+                    Section {
+                        HStack(spacing: AppSpacing.md) {
+                            TextField("输入好友账号", text: .constant(""))
+                                .font(AppTypography.subheadline)
+                            Button("添加") {}
+                                .font(AppTypography.subheadline.weight(.medium))
+                                .foregroundColor(AppColors.primary)
+                        }
+                        .padding(.vertical, 4)
+                    } header: {
+                        Text("添加好友")
+                            .font(AppTypography.footnote.weight(.semibold))
+                            .foregroundColor(AppColors.textTertiary)
+                    }
+                    Section {
+                        ForEach(viewModel.friends) { friend in
+                            FriendRow(friend: friend, onMessage: {}, onVideoCall: {})
+                        }
+                    } header: {
+                        Text("好友列表 (\(viewModel.friends.count))")
+                            .font(AppTypography.footnote.weight(.semibold))
+                            .foregroundColor(AppColors.textTertiary)
+                    }
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("联系人")
+            .navigationBarTitleDisplayMode(.large)
+        }
+        .task {
+            viewModel.loadPreviewData()
+        }
+    }
+}
+
+// MARK: - 通话界面预览容器
+
+private struct CallViewPreview: View {
+    var callType: String = "video"
+    @StateObject private var viewModel = MessagesViewModel()
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: "#1a1a2e"), Color(hex: "#16213e"), Color(hex: "#0f3460")],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // 顶部导航
+                HStack(spacing: AppSpacing.md) {
+                    Image(systemName: "chevron.down")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                    Spacer()
+                    Text("通话中")
+                        .font(AppTypography.subheadline.weight(.medium))
+                        .foregroundColor(.white.opacity(0.8))
+                    Spacer()
+                    Image(systemName: "person.badge.plus")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                }
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.top, 48)
+                .padding(.bottom, 8)
+
+                Spacer()
+
+                // 用户信息
+                VStack(spacing: AppSpacing.lg) {
+                    ZStack {
+                        Circle()
+                            .fill(.white.opacity(0.15))
+                            .frame(width: 88, height: 88)
+                        Text("张")
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+
+                    Text("张晓明")
+                        .font(AppTypography.title2)
+                        .foregroundColor(.white)
+
+                    Text("02:35")
+                        .font(AppTypography.monospacedTitle)
+                        .foregroundColor(.white.opacity(0.7))
+
+                    if callType == "voice" {
+                        HStack(spacing: 3) {
+                            ForEach(0..<5) { i in
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(AppColors.success)
+                                    .frame(width: 3, height: [12, 20, 28, 20, 12][i])
+                                    .opacity(0.8)
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // 底部控制栏
+                HStack(spacing: AppSpacing.xxl) {
+                    CallControlButton(icon: "mic.slash", label: "静音", isActive: false, activeColor: AppColors.danger) {}
+                    CallControlButton(icon: "speaker.wave.2", label: "扬声器", isActive: false, activeColor: AppColors.primary) {}
+                    if callType == "video" {
+                        CallControlButton(icon: "video", label: "摄像头", isActive: false, activeColor: AppColors.primary) {}
+                        CallControlButton(icon: "arrow.triangle.2.circlepath", label: "翻转", isActive: false, activeColor: AppColors.primary) {}
+                    }
+                }
+                .padding(.bottom, 20)
+
+                // 挂断按钮
+                Button(action: {}) {
+                    Image(systemName: "phone.down.fill")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .padding(18)
+                        .background(AppColors.danger)
+                        .clipShape(Circle())
+                        .shadow(color: AppColors.danger.opacity(0.4), radius: 10, y: 4)
+                }
+                .padding(.bottom, 48)
+            }
+        }
+        .task {
+            viewModel.loadPreviewData()
+        }
+    }
 }

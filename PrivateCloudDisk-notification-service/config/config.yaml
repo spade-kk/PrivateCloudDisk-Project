@@ -6,9 +6,9 @@ server:
 mysql:
   host: "${MYSQL_HOST:-localhost}"
   port: 3306
-  user: "${MYSQL_USER:-pcd}"
-  password: "${MYSQL_PASSWORD:-pcd_password}"
-  database: "pcd_notification"
+  user: "${MYSQL_USER:-root}"
+  password: "${MYSQL_PASSWORD:-20070315mwz}"
+  database: "private_cloud_disk"
   charset: "utf8mb4"
   max_open_conns: 50
   max_idle_conns: 10

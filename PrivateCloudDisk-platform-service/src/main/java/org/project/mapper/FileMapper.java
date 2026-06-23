@@ -119,4 +119,12 @@ public interface FileMapper {
      * @return
      */
     int cleanFailedStatusFiles();
+
+    /**
+     * 统计用户所有活跃文件的总大小（用于配额对账）
+     * <p>只统计 status='active' 的文件，即已完成全流程、用户可获得的文件。
+     * @param user_id 用户ID
+     * @return 文件总大小（字节），无文件返回 0
+     */
+    Long sumActiveFileSizeByUserId(@Param("user_id") UUID user_id);
 }

@@ -122,9 +122,8 @@ class RabbitMQService:
         )
 
         # ========== 文件处理死信队列 (DLQ) ==========
-        fp_dlq = await self.channel.declare_queue(
+        fp_dlq = await self._declare_queue_safe(
             settings.file_process_dlq,
-            durable=True,
             arguments={
                 "x-message-ttl": 2592000000,  # 30 天 TTL
             },
@@ -135,9 +134,8 @@ class RabbitMQService:
         )
 
         # ========== 安全隔离队列 ==========
-        sq_queue = await self.channel.declare_queue(
+        sq_queue = await self._declare_queue_safe(
             settings.security_quarantine_queue,
-            durable=True,
             arguments={
                 "x-message-ttl": 2592000000,  # 30 天
             },
@@ -162,9 +160,8 @@ class RabbitMQService:
         )
 
         # ========== 文件删除死信队列 ==========
-        fd_dlq = await self.channel.declare_queue(
+        fd_dlq = await self._declare_queue_safe(
             settings.file_delete_dlq,
-            durable=True,
             arguments={
                 "x-message-ttl": 2592000000,  # 30 天
             },
@@ -205,9 +202,8 @@ class RabbitMQService:
         )
 
         # ========== 内容索引死信队列 ==========
-        ci_dlq = await self.channel.declare_queue(
+        ci_dlq = await self._declare_queue_safe(
             settings.content_index_dlq,
-            durable=True,
             arguments={
                 "x-message-ttl": 2592000000,  # 30 天
             },
@@ -215,6 +211,135 @@ class RabbitMQService:
         await ci_dlq.bind(
             ci_dlx,
             routing_key=settings.content_index_dlq_routing_key,
+        )
+
+        # ========== 上传会话事件交换机（与 Spring Boot 主业务服务一致） ==========
+        ue_exchange = await self.channel.declare_exchange(
+            settings.uploads_event_exchange,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.uploads_event_exchange] = ue_exchange
+
+        # ========== 上传会话事件死信交换机 ==========
+        ue_dlx = await self.channel.declare_exchange(
+            settings.uploads_event_dlx,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.uploads_event_dlx] = ue_dlx
+
+        # ========== 上传会话删除队列（文件存储服务消费 → 删除物理分块文件） ==========
+        usd_queue = await self._declare_queue_safe(
+            settings.uploads_session_delete_queue,
+            arguments={
+                "x-message-ttl": 86400000,  # 1 天
+                "x-dead-letter-exchange": settings.uploads_event_dlx,
+                "x-dead-letter-routing-key": settings.uploads_event_dlq_routing_key,
+            },
+        )
+        await usd_queue.bind(
+            ue_exchange,
+            routing_key=settings.uploads_session_delete_routing_key,
+        )
+
+        # ========== 上传会话事件死信队列 ==========
+        ue_dlq = await self._declare_queue_safe(
+            settings.uploads_event_dlq,
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
+        )
+        await ue_dlq.bind(
+            ue_dlx,
+            routing_key=settings.uploads_event_dlq_routing_key,
+        )
+
+        # ========== 上传会话已删除队列（主业务服务消费 → 释放配额） ==========
+        # 虽然主业务服务会声明此队列，但存储服务也需声明以确保拓扑完整
+        # （防止存储服务先启动时发布消息无队列接收）
+        us_deleted_queue = await self._declare_queue_safe(
+            settings.uploads_session_deleted_queue,
+            arguments={
+                "x-message-ttl": 259200000,  # 3 天，与 Spring Boot 一致
+                "x-dead-letter-exchange": settings.uploads_event_dlx,
+                "x-dead-letter-routing-key": settings.uploads_event_dlq_routing_key,
+            },
+        )
+        await us_deleted_queue.bind(
+            ue_exchange,
+            routing_key=settings.uploads_session_deleted_routing_key,
+        )
+
+        # ========== 文件事件交换机（与 Spring Boot 主业务服务一致） ==========
+        # 存储服务负责发布这些事件，主业务服务负责消费
+        fe_exchange = await self.channel.declare_exchange(
+            settings.file_event_exchange,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.file_event_exchange] = fe_exchange
+
+        # ========== 文件事件死信交换机 ==========
+        fe_dlx = await self.channel.declare_exchange(
+            settings.file_event_dlx,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.file_event_dlx] = fe_dlx
+
+        # ========== 文件可获得队列（由主业务服务消费，此处声明以确保拓扑完整） ==========
+        fa_queue = await self._declare_queue_safe(
+            settings.file_available_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fa_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_available_routing_key,
+        )
+
+        # ========== 文件合并失败队列 ==========
+        fmf_queue = await self._declare_queue_safe(
+            settings.file_merge_failed_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fmf_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_merge_failed_routing_key,
+        )
+
+        # ========== 文件扫毒失败队列 ==========
+        fsf_queue = await self._declare_queue_safe(
+            settings.file_scan_failed_queue,
+            arguments={
+                "x-message-ttl": 604800000,  # 7 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fsf_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_scan_failed_routing_key,
+        )
+
+        # ========== 文件事件死信队列 ==========
+        fe_dlq = await self._declare_queue_safe(
+            settings.file_event_dlq,
+            arguments={
+                "x-message-ttl": 2592000000,  # 30 天
+            },
+        )
+        await fe_dlq.bind(
+            fe_dlx,
+            routing_key=settings.file_event_dlq_routing_key,
         )
 
         logger.info(
@@ -225,45 +350,88 @@ class RabbitMQService:
         )
 
     async def _declare_queue_safe(
-        self, queue_name: str, arguments: dict
+        self, queue_name: str, arguments: dict = None
     ) -> aio_pika.Queue:
-        """安全声明队列：先被动检查是否存在，不存在则创建带 DLX 参数
+        """安全声明队列：先尝试用期望参数声明，参数冲突时自动修复
 
-        关键修复：如果队列已存在但没有 DLX 参数，则记录严重警告。
-        已存在的队列无法通过代码修改参数，需要手动删除队列后重启。
+        关键设计：RabbitMQ 的 passive declare 只返回 message_count 和
+        consumer_count，不返回 arguments。因此不能通过 passive declare
+        来比对参数是否匹配。
+
+        正确流程：
+        1. 直接用期望参数声明队列（非 passive）
+           - 队列不存在 → 创建成功（参数即期望值）
+           - 队列存在且参数一致 → 声明成功，返回已有队列
+        2. 参数冲突（PRECONDITION_FAILED）→ 队列存在但参数不同
+           - 队列为空 → 自动删除并重建
+           - 队列非空 → 沿用已有配置，不丢消息，不阻塞启动
         """
+        arguments = arguments or {}
+
+        # 1. 直接用期望参数声明（队列不存在则创建，存在且参数一致则复用）
         try:
             queue = await self.channel.declare_queue(
                 queue_name,
                 durable=True,
-                passive=True,
+                arguments=arguments or None,
             )
-            logger.info(f"队列已存在，沿用已有配置: {queue_name}")
+            logger.info(
+                f"队列声明成功（参数一致或新建）: {queue_name} "
+                f"(含参数: {list(arguments.keys()) if arguments else '无'})"
+            )
+            return queue
 
-            # 检查已有队列是否缺少 DLX 参数
-            if arguments and "x-dead-letter-exchange" in arguments:
-                has_dlx = (
-                    hasattr(queue, 'arguments')
-                    and queue.arguments
-                    and "x-dead-letter-exchange" in queue.arguments
+        except aio_pika.exceptions.ChannelPreconditionFailed as precondition_err:
+            # 2. 仅捕获参数冲突（PRECONDITION_FAILED），其他异常（连接错误等）直接传播
+            logger.warning(
+                f"队列 {queue_name} 参数冲突，将检查是否可安全重建: {precondition_err}"
+            )
+            await asyncio.sleep(0.3)
+
+            # 3. 被动检查队列状态
+            try:
+                queue = await self.channel.declare_queue(
+                    queue_name,
+                    durable=True,
+                    passive=True,
                 )
-                if not has_dlx:
-                    logger.critical(
-                        f"⚠ 队列 {queue_name} 已存在但缺少 DLX 参数! "
-                        f"消息 NACK 后将不会进入死信队列。"
-                        f"请手动删除队列后重启 Worker: "
+                msg_count = getattr(queue, 'message_count', 0) or 0
+                consumer_count = getattr(queue, 'consumer_count', 0) or 0
+
+                if msg_count == 0 and consumer_count == 0:
+                    # 队列为空 → 安全删除并重建
+                    logger.warning(
+                        f"队列 {queue_name} 为空，自动删除并重建..."
+                    )
+                    await self.channel.queue_delete(queue_name)
+                    await asyncio.sleep(0.3)
+                    queue = await self.channel.declare_queue(
+                        queue_name,
+                        durable=True,
+                        arguments=arguments or None,
+                    )
+                    logger.info(
+                        f"队列 {queue_name} 重建成功 "
+                        f"(含参数: {list(arguments.keys())})"
+                    )
+                    return queue
+                else:
+                    # 队列非空 → 沿用已有配置
+                    logger.warning(
+                        f"⚠ 队列 {queue_name} 参数不匹配，"
+                        f"消息数={msg_count}, 消费者数={consumer_count}，"
+                        f"队列非空，沿用已有配置。"
+                        f"如需参数生效，请手动删除队列后重启: "
                         f"rabbitmqadmin delete queue name={queue_name}"
                     )
-            return queue
-        except Exception:
-            await asyncio.sleep(0.5)
-            queue = await self.channel.declare_queue(
-                queue_name,
-                durable=True,
-                arguments=arguments,
-            )
-            logger.info(f"队列创建成功: {queue_name} (含 DLX/参数)")
-            return queue
+                    return queue
+
+            except Exception as passive_err:
+                # 4. 被动检查也失败 → 最终回退
+                logger.error(
+                    f"队列 {queue_name} 被动检查失败: {passive_err}"
+                )
+                raise
 
     async def publish_message(
         self,
@@ -329,6 +497,22 @@ class RabbitMQService:
             settings.file_process_exchange,
             settings.security_quarantine_routing_key,
             message,
+        )
+
+    async def publish_file_event(self, routing_key: str, event_data: dict) -> None:
+        """
+        发布文件生命周期事件到主业务服务
+
+        用于替代 HTTP 通知，通过 MQ 解耦文件存储服务与主业务服务。
+        事件类型对应 routing_key：
+        - file.available  → 文件处理完成，配额提交
+        - file.merge.failed  → 合并失败，配额回滚
+        - file.scan.failed   → 扫毒失败，配额回滚
+        """
+        await self.publish_message(
+            settings.file_event_exchange,
+            routing_key,
+            event_data,
         )
 
     async def consume(
@@ -402,7 +586,7 @@ class RabbitMQService:
                     logger.debug(
                         f"[MQ-DONE] queue={queue_name} "
                         f"msg_id={msg_id} "
-                        f"slots_avail={semaphore._value + 1}/{max_concurrency}"
+                        f"slots_avail={semaphore._value}/{max_concurrency}"
                     )
 
             await queue.consume(concurrent_handler)

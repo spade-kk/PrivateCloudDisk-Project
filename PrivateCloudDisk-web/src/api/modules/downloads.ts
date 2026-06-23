@@ -18,12 +18,11 @@ import { get, post, del } from '@/utils/request'
  * 令牌有有效期限制，过期后需重新获取。
  *
  * @param file_id - 要下载的文件 ID
- * @param operation_type - 操作类型，如 "download"、"preview"、"stream"
  * @returns Promise<{ operation_token: string, expires_at: string }> 操作令牌及过期时间
  */
-export function createOperationTokenApi(file_id: string, operation_type: string): Promise<any> {
-  const data = { file_id, operation_type }
-  return post('files/operation-tokens', data)
+export function createDownloadGrantApi(file_id: string): Promise<any> {
+  const data = { file_id }
+  return post('files/dowloads-grant', data)
 }
 
 /**
@@ -32,12 +31,23 @@ export function createOperationTokenApi(file_id: string, operation_type: string)
  * 当用户取消下载或预览时，主动销毁令牌以释放后端资源。
  * 令牌过期后也会自动失效。
  *
- * @param operation_token - 要取消的操作令牌
+ * @param download_grant - 要取消的操作令牌
  * @returns Promise 取消结果
  */
-export function cancelOperationApi(operation_token: string): Promise<any> {
-  const data = { operation_token }
-  return del('files/operation-tokens/', data)
+export function cancelDownloadGrantApi(dowload_grant: string): Promise<any> {
+  const data = { dowload_grant }
+  return del('files/dowloads-grant/', data)
+}
+
+/**
+ * 成功销毁操作令牌
+ *
+ * @param download_grant - 要取消的操作令牌
+ * @returns Promise 结束结果
+ */
+export function finishDownloadGrantApi(dowload_grant: string): Promise<any> {
+  const data = { dowload_grant }
+  return post('files/dowloads-grant/finish', data)
 }
 
 // ============================================================
@@ -51,18 +61,18 @@ export function cancelOperationApi(operation_token: string): Promise<any> {
  * 返回 Blob 后前端通过 downloadBlob() 触发浏览器下载。
  *
  * @param file_id - 文件 ID
- * @param operation_token - 下载操作令牌
+ * @param download_grant - 下载操作令牌
  * @param onProgress - 可选的下载进度回调函数
  * @returns Promise<Blob> 文件二进制数据
  */
 export function getFileContentApi(
   file_id: string,
-  operation_token: string,
+  download_grant: string,
   onProgress?: (progressEvent: ProgressEvent) => void,
 ): Promise<any> {
   return get(`files/files/${file_id}/content`, {}, {
     responseType: 'blob',
-    headers: { 'X-Operation-Token': operation_token },
+    headers: { 'X-Download-Grant': download_grant },
     onDownloadProgress: onProgress,
   })
 }
@@ -74,21 +84,21 @@ export function getFileContentApi(
  * 适用于大文件下载和视频流式播放场景。
  *
  * @param file_id - 文件 ID
- * @param operation_token - 下载操作令牌
+ * @param download_grant - 下载操作令牌
  * @param start - 起始字节偏移（包含）
  * @param end - 结束字节偏移（包含）
  * @returns Promise<Blob> 指定范围的二进制数据
  */
 export function getFileContentChunkApi(
   file_id: string,
-  operation_token: string,
+  download_grant: string,
   start: number,
   end: number,
 ): Promise<any> {
   return get(`files/files/${file_id}/content`, {}, {
     responseType: 'blob',
     headers: {
-      'X-Operation-Token': operation_token,
+      headers: { 'X-Download-Grant': download_grant },
       'Range': `bytes=${start}-${end}`,
     },
   })

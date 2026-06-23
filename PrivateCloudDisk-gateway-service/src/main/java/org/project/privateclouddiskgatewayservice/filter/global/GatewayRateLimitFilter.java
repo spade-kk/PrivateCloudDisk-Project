@@ -3,6 +3,7 @@ package org.project.privateclouddiskgatewayservice.filter.global;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.privateclouddiskgatewayservice.config.properties.GatewayRateLimitProperties;
+import org.project.privateclouddiskgatewayservice.dto.ApiResponse;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -17,11 +18,11 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -32,6 +33,8 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private final ReactiveStringRedisTemplate redisTemplate;
     private final GatewayRateLimitProperties properties;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -147,13 +150,22 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
         response.getHeaders().set("Retry-After", String.valueOf(Math.max(1L, rule.getWindow().toSeconds())));
-        String body = String.format(
-                "{\"code\":429,\"message\":\"Too many requests. Please retry later.\",\"rule\":\"%s\",\"timestamp\":\"%s\"}",
-                rule.getName(),
-                LocalDateTime.now()
+
+        ApiResponse<Void> body = ApiResponse.tooManyRequests(
+                String.format("请求过于频繁，请 %d 秒后重试", Math.max(1L, rule.getWindow().toSeconds()))
         );
-        DataBuffer buffer = response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
-        return response.writeWith(Mono.just(buffer));
+
+        try {
+            byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(body);
+            DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            String fallback = String.format(
+                    "{\"code\":429,\"message\":\"请求过于频繁\",\"data\":null}"
+            );
+            DataBuffer buffer = response.bufferFactory().wrap(fallback.getBytes(StandardCharsets.UTF_8));
+            return response.writeWith(Mono.just(buffer));
+        }
     }
 
     private String normalizePath(String path) {

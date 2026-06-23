@@ -20,55 +20,55 @@
     </sql>
 
     <insert id="insert" parameterType="org.project.im.platform.entity.ImGroupMember">
-        INSERT INTO im_group_member (<include refid="BaseColumns"/>)
+        INSERT INTO pcd_im_group_member (<include refid="BaseColumns"/>)
         VALUES (#{groupId}, #{userId}, #{role}, #{alias}, #{muteUntil}, #{lastReadSeq}, #{joinTime}, #{createTime})
     </insert>
 
     <delete id="deleteByGroupIdAndUserId">
-        DELETE FROM im_group_member
+        DELETE FROM pcd_im_group_member
         WHERE group_id = #{groupId} AND user_id = #{userId}
     </delete>
 
     <select id="selectByGroupIdAndUserId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_group_member
+        FROM pcd_im_group_member
         WHERE group_id = #{groupId} AND user_id = #{userId}
     </select>
 
     <select id="selectByGroupId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_group_member
+        FROM pcd_im_group_member
         WHERE group_id = #{groupId}
         ORDER BY role ASC, join_time ASC
     </select>
 
     <select id="countByGroupId" resultType="java.lang.Integer">
         SELECT COUNT(*)
-        FROM im_group_member
+        FROM pcd_im_group_member
         WHERE group_id = #{groupId}
     </select>
 
     <update id="updateRole">
-        UPDATE im_group_member
+        UPDATE pcd_im_group_member
         SET role = #{role}
         WHERE group_id = #{groupId} AND user_id = #{userId}
     </update>
 
     <update id="updateMute">
-        UPDATE im_group_member
+        UPDATE pcd_im_group_member
         SET mute_until = #{muteUntil}
         WHERE group_id = #{groupId} AND user_id = #{userId}
     </update>
 
     <update id="updateLastReadSeq">
-        UPDATE im_group_member
+        UPDATE pcd_im_group_member
         SET last_read_seq = #{lastReadSeq}
         WHERE group_id = #{groupId} AND user_id = #{userId}
     </update>
 
     <select id="existsByGroupIdAndUserId" resultType="java.lang.Integer">
         SELECT COUNT(*)
-        FROM im_group_member
+        FROM pcd_im_group_member
         WHERE group_id = #{groupId} AND user_id = #{userId}
     </select>
 </mapper>

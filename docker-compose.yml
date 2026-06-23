@@ -2,7 +2,7 @@
 # PrivateCloudDisk - Docker Compose 编排
 # 
 # 中间件 Dockerfile 统一管理在 PrivateCloudDisk-infra/ 目录下:
-#   mysql/     redis/     rabbitmq/     minio/     opensearch/     apisix/
+#   mysql/  redis/  rabbitmq/  minio/  opensearch/  skywalking/  skywalking-ui/  apisix/
 # ============================================================
 version: '1.0'
 
@@ -18,6 +18,7 @@ volumes:
   uploads-data:
   opensearch-data:
   minio-data:
+  ai-models:
   # 下载文件卷（与 uploader 共享，可选 bind mount 替代）
   # 若使用 bind mount 方式（CI/CD 直接 rsync），取消下面注释：
   #   frontend 和 uploader 均改为 bind mount 到 ./downloads/binaries
@@ -131,6 +132,63 @@ services:
       - "9600"
     restart: always
 
+  # ==================== SkyWalking OAP Server（链路追踪后端） ====================
+  skywalking-oap:
+    build: ./PrivateCloudDisk-infra/skywalking
+    container_name: project-skywalking-oap
+    networks:
+      - app-networks
+    expose:
+      - "11800"   # gRPC（Java Agent 上报）
+      - "12800"   # HTTP（Python Agent / UI 查询）
+    ports:
+      - "1234:1234"   # Prometheus 指标（可选）
+    environment:
+      SW_STORAGE: elasticsearch
+      SW_STORAGE_ES_CLUSTER_NODES: opensearch:9200
+      SW_STORAGE_ES_USER: admin
+      SW_STORAGE_ES_PASSWORD: MySecureP@ssw0rd
+      SW_STORAGE_ES_SSL_ENABLED: "true"
+      SW_STORAGE_ES_TRUST_CA_PATH: ""
+      SW_STORAGE_ES_INDEX_SHARDS_NUMBER: 1
+      SW_STORAGE_ES_INDEX_REPLICAS_NUMBER: 0
+      SW_CORE_RECORD_DATA_TTL: 7
+      SW_CORE_METRICS_DATA_TTL: 7
+      SW_CORE_TRACE_DATA_TTL: 7
+      JAVA_OPTS: "-Xms512m -Xmx1g"
+    depends_on:
+      - opensearch
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:12800/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== SkyWalking UI（链路追踪可视化） ====================
+  skywalking-ui:
+    build: ./PrivateCloudDisk-infra/skywalking-ui
+    container_name: project-skywalking-ui
+    networks:
+      - app-networks
+    ports:
+      - "8082:8080"
+    environment:
+      SW_OAP_ADDRESS: http://skywalking-oap:12800
+      SW_TIMEOUT: 60000
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    depends_on:
+      skywalking-oap:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   # ============================================================
   #                         业务服务层
   # ============================================================
@@ -151,6 +209,12 @@ services:
       FILE_SERVICE_URL: http://file-service-backend:8000
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
+      # SkyWalking Agent
+      SW_AGENT_NAME: PrivateCloudDisk-gateway-service
+      SW_AGENT_BACKEND: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_LOGGING_LEVEL: INFO
+      SW_SAMPLE_RATE: "-1"
     restart: always
 
   # -------------------- SpringBoot 业务服务 --------------------
@@ -177,11 +241,19 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
-      SECURITY_CAPTCHA_TURNSTILE_ENABLED: ${SECURITY_CAPTCHA_TURNSTILE_ENABLED:-false}
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      SECURITY_CAPTCHA_TURNSTILE_ENABLED: ${SECURITY_CAPTCHA_TURNSTILE_ENABLED:-true}
       SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY: ${SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY:-0x4AAAAAADf7Z-kpJMtKhi_3xlpjOjBm42w}
       SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME: ${SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME:-www.hellomyservice.xyz}
       SPRINGDOC_API_DOCS_ENABLED: true
       SPRINGDOC_SWAGGER_UI_ENABLED: true
+      # SkyWalking Agent
+      SW_AGENT_NAME: PrivateCloudDisk-platform-service
+      SW_AGENT_BACKEND: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_LOGGING_LEVEL: INFO
+      SW_SAMPLE_RATE: "-1"
     restart: always
 
   # -------------------- SpringBoot 计费与订阅服务 --------------------
@@ -211,6 +283,12 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      # SkyWalking Agent
+      SW_AGENT_NAME: PrivateCloudDisk-billing-service
+      SW_AGENT_BACKEND: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_LOGGING_LEVEL: INFO
+      SW_SAMPLE_RATE: "-1"
       # 支付配置 (默认关闭，生产环境通过环境变量注入)
       PAYMENT_ALIPAY_ENABLED: ${PAYMENT_ALIPAY_ENABLED:-false}
       PAYMENT_ALIPAY_APP_ID: ${PAYMENT_ALIPAY_APP_ID:-}
@@ -227,8 +305,6 @@ services:
       BILLING_ORDER_EXPIRE_MINUTES: ${BILLING_ORDER_EXPIRE_MINUTES:-30}
       BILLING_GRACE_PERIOD_DAYS: ${BILLING_GRACE_PERIOD_DAYS:-7}
       # 企业级中间件
-      SW_AGENT_NAME: PrivateCloudDisk-billing-service
-      SW_AGENT_BACKEND: ${SW_AGENT_BACKEND:-skywalking-oap:11800}
       NACOS_DISCOVERY_ENABLED: ${NACOS_DISCOVERY_ENABLED:-true}
       NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR:-nacos:8848}
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
@@ -270,6 +346,7 @@ services:
       - app-networks
     expose:
       - "8000"
+      - "8719"
     depends_on:
       - platform-service-backend
     environment:
@@ -311,6 +388,16 @@ services:
       OPERATION_TOKEN_DESTROY_USER_WINDOW_SECONDS: 60
       OPERATION_TOKEN_DESTROY_IP_LIMIT: 180
       OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS: 60
+      # Sentinel 控制台连接
+      SENTINEL_DASHBOARD_HOST: ${SENTINEL_DASHBOARD_HOST:-sentinel}
+      SENTINEL_DASHBOARD_PORT: ${SENTINEL_DASHBOARD_PORT:-8080}
+      SENTINEL_API_PORT: ${SENTINEL_API_PORT:-8719}
+      SENTINEL_APP_NAME: PrivateCloudDisk-storage-service
+      # SkyWalking Python Agent
+      SW_AGENT_NAME: PrivateCloudDisk-storage-service
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_AGENT_LOGGING_LEVEL: INFO
     volumes:
       - uploads-data:/data/uploads
     restart: always
@@ -350,6 +437,11 @@ services:
 
       MAX_CONCURRENT: 3
       OPERATION_TOKEN_EXPIRE_SECONDS: 3600
+      # SkyWalking Python Agent
+      SW_AGENT_NAME: PrivateCloudDisk-storage-worker
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_AGENT_LOGGING_LEVEL: INFO
     volumes:
       - uploads-data:/data/uploads
     restart: always
@@ -399,6 +491,12 @@ services:
 
       # JVM 内存限制
       JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/"
+      # SkyWalking Agent
+      SW_AGENT_NAME: PrivateCloudDisk-im-platform
+      SW_AGENT_BACKEND: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_LOGGING_LEVEL: INFO
+      SW_SAMPLE_RATE: "-1"
     restart: always
     deploy:
       resources:
@@ -463,6 +561,12 @@ services:
 
       # JVM 内存限制
       JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/"
+      # SkyWalking Agent
+      SW_AGENT_NAME: PrivateCloudDisk-im-server
+      SW_AGENT_BACKEND: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_LOGGING_LEVEL: INFO
+      SW_SAMPLE_RATE: "-1"
     restart: always
     deploy:
       resources:
@@ -485,6 +589,68 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+
+  # ============================================================
+  #                       AI 智能服务层
+  # ============================================================
+
+  # -------------------- AI 智能服务（FastAPI + PyTorch/ONNX） --------------------
+  ai-service-backend:
+    build: ./PrivateCloudDisk-ai-service
+    container_name: backend-ai-service
+    networks:
+      - app-networks
+    expose:
+      - "8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # 基础配置
+      AI_SERVICE_PORT: 8001
+      ENABLE_DOCS: ${ENABLE_DOCS:-false}
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      # 业务服务回调
+      BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
+      # 模型路径
+      MODELS_PATH: /app/models
+      # SkyWalking Python Agent
+      SW_AGENT_NAME: PrivateCloudDisk-ai-service
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
+      SW_AGENT_NAMESPACE: PrivateCloudDisk
+      SW_AGENT_LOGGING_LEVEL: INFO
+    volumes:
+      - ai-models:/app/models
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   # ============================================================
   #                         前端层

@@ -63,3 +63,6 @@ scikit-learn==1.5.2
 python-multipart==0.0.18
 httpx==0.28.1
 python-dotenv==1.0.1
+
+# SkyWalking APM — 分布式链路追踪
+apache-skywalking

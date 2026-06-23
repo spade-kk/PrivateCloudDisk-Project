@@ -13,18 +13,20 @@ import (
 
 // Config 通知服务全局配置
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	MySQL    MySQLConfig    `yaml:"mysql"`
-	Redis    RedisConfig    `yaml:"redis"`
-	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
-	APNs     APNsConfig     `yaml:"apns"`
-	FCM      FCMConfig      `yaml:"fcm"`
-	Email    EmailConfig    `yaml:"email"`
-	SMS      SMSConfig      `yaml:"sms"`
-	WeChatMP WeChatMPConfig `yaml:"wechat_mp"`
-	AlipayMP AlipayMPConfig `yaml:"alipay_mp"`
-	WebPush  WebPushConfig  `yaml:"webpush"`
-	Worker   WorkerConfig   `yaml:"worker"`
+	Server       ServerConfig       `yaml:"server"`
+	MySQL        MySQLConfig        `yaml:"mysql"`
+	Redis        RedisConfig        `yaml:"redis"`
+	RabbitMQ     RabbitMQConfig     `yaml:"rabbitmq"`
+	APNs         APNsConfig         `yaml:"apns"`
+	FCM          FCMConfig          `yaml:"fcm"`
+	Email        EmailConfig        `yaml:"email"`
+	SMS          SMSConfig          `yaml:"sms"`
+	WeChatMP     WeChatMPConfig     `yaml:"wechat_mp"`
+	AlipayMP     AlipayMPConfig     `yaml:"alipay_mp"`
+	WebPush      WebPushConfig      `yaml:"webpush"`
+	Worker       WorkerConfig       `yaml:"worker"`
+	Turnstile    TurnstileConfig    `yaml:"turnstile"`
+	Verification VerificationConfig `yaml:"verification"`
 }
 
 // ServerConfig HTTP 服务配置
@@ -155,6 +157,22 @@ type WorkerConfig struct {
 	LogRetentionDays          int `yaml:"log_retention_days"`           // 日志保留天数
 }
 
+// TurnstileConfig Cloudflare Turnstile 人机验证配置（完整对齐 Java CaptchaProperties）
+type TurnstileConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	SiteKey          string `yaml:"site_key"`
+	SecretKey        string `yaml:"secret_key"`
+	SiteverifyURL    string `yaml:"siteverify_url"`     // 默认: https://challenges.cloudflare.com/turnstile/v0/siteverify
+	ExpectedHostname string `yaml:"expected_hostname"`   // 可选，验证来源hostname
+	ValidateAction   bool   `yaml:"validate_action"`     // 是否验证action一致性，默认true
+	TimeoutSec       int    `yaml:"timeout_sec"`         // 请求超时秒数，默认3
+}
+
+// VerificationConfig 验证码管理配置
+type VerificationConfig struct {
+	BlockedDomains string `yaml:"blocked_domains"` // 禁止邮箱域名，逗号分隔，默认: qq.com,163.com,126.com
+}
+
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
@@ -166,9 +184,9 @@ func DefaultConfig() *Config {
 		},
 		MySQL: MySQLConfig{
 			Host:            envStr("MYSQL_HOST", "localhost"),
-			Port:            envInt("MYSQL_PORT", 3307),
+			Port:            envInt("MYSQL_PORT", 3306),
 			User:            envStr("MYSQL_USER", "root"),
-			Password:        envStr("MYSQL_PASSWORD", "123456"),
+			Password:        envStr("MYSQL_PASSWORD", "20070315mwz"),
 			Database:        envStr("MYSQL_DATABASE", "private_cloud_disk"),
 			MaxOpenConns:    envInt("MYSQL_MAX_OPEN_CONNS", 25),
 			MaxIdleConns:    envInt("MYSQL_MAX_IDLE_CONNS", 10),
@@ -176,13 +194,13 @@ func DefaultConfig() *Config {
 		},
 		Redis: RedisConfig{
 			Host:     envStr("REDIS_HOST", "localhost"),
-			Port:     envInt("REDIS_PORT", 6389),
+			Port:     envInt("REDIS_PORT", 6379),
 			Password: envStr("REDIS_PASSWORD", ""),
 			DB:       envInt("REDIS_DB", 0),
 		},
 		RabbitMQ: RabbitMQConfig{
 			Host:     envStr("RABBITMQ_HOST", "localhost"),
-			Port:     envInt("RABBITMQ_PORT", 5673),
+			Port:     envInt("RABBITMQ_PORT", 5672),
 			User:     envStr("RABBITMQ_USER", "guest"),
 			Password: envStr("RABBITMQ_PASSWORD", "guest"),
 			VHost:    envStr("RABBITMQ_VHOST", "/"),
@@ -200,15 +218,15 @@ func DefaultConfig() *Config {
 			CredentialsPath: envStr("FCM_CREDENTIALS_PATH", ""),
 		},
 		Email: EmailConfig{
-			Enabled:     envBool("EMAIL_ENABLED", false),
-			SMTPHost:    envStr("EMAIL_SMTP_HOST", ""),
+			Enabled:     envBool("EMAIL_ENABLED", true),
+			SMTPHost:    envStr("EMAIL_SMTP_HOST", "smtp.qq.com"),
 			SMTPPort:    envInt("EMAIL_SMTP_PORT", 587),
-			Username:    envStr("EMAIL_USERNAME", ""),
-			Password:    envStr("EMAIL_PASSWORD", ""),
+			Username:    envStr("EMAIL_USERNAME", "ilikemwz@qq.com"),
+			Password:    envStr("EMAIL_PASSWORD", "ddcsahcwuworfdeh"),
 			FromName:    envStr("EMAIL_FROM_NAME", "私有云"),
-			FromAddr:    envStr("EMAIL_FROM_ADDR", ""),
+			FromAddr:    envStr("EMAIL_FROM_ADDR", "ilikemwz@qq.com"),
 			UseTLS:      envBool("EMAIL_USE_TLS", true),
-			FrontendURL: envStr("FRONTEND_URL", "https://privateclouddisk.com"),
+			FrontendURL: envStr("FRONTEND_URL", "http://localhost:5173/login"),
 		},
 		SMS: SMSConfig{
 			Enabled:    envBool("SMS_ENABLED", false),
@@ -244,6 +262,18 @@ func DefaultConfig() *Config {
 			MaxAggregationSize:         envInt("MAX_AGGREGATION_SIZE", 10),
 			AggregationCheckIntervalSec: envInt("AGGREGATION_CHECK_INTERVAL_SEC", 30),
 			LogRetentionDays:           envInt("LOG_RETENTION_DAYS", 90),
+		},
+		Turnstile: TurnstileConfig{
+			Enabled:          envBool("TURNSTILE_ENABLED", false),
+			SiteKey:          envStr("TURNSTILE_SITE_KEY", ""),
+			SecretKey:        envStr("TURNSTILE_SECRET_KEY", ""),
+			SiteverifyURL:    envStr("TURNSTILE_SITEVERIFY_URL", "https://challenges.cloudflare.com/turnstile/v0/siteverify"),
+			ExpectedHostname: envStr("TURNSTILE_EXPECTED_HOSTNAME", ""),
+			ValidateAction:   envBool("TURNSTILE_VALIDATE_ACTION", true),
+			TimeoutSec:       envInt("TURNSTILE_TIMEOUT_SEC", 3),
+		},
+		Verification: VerificationConfig{
+			BlockedDomains: envStr("VERIFICATION_BLOCKED_DOMAINS", "qq.com,163.com,126.com"),
 		},
 	}
 }

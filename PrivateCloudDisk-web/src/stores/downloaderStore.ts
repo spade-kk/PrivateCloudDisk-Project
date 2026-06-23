@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getFileContentApi, getFileContentChunkApi, createOperationTokenApi } from '@/api'
+import { getFileContentApi, getFileContentChunkApi, createDownloadGrantApi, cancelDownloadGrantApi, finishDownloadGrantApi } from '@/api'
 import { CHUNK_SIZE, MAX_CONCURRENT_DOWNLOADS, UPLOAD_THRESHOLD } from '@/utils/constants'
 import { useToastStore } from './toastStore'
 import { useTransferStore } from './transferStore'
@@ -23,18 +23,19 @@ export const useDownloaderStore = defineStore('downloader', () => {
       transferStore.updateProgress(transferId, percent, '')
     }
 
+    let dowloadGrant = ''
     try {
-      const initRes = await createOperationTokenApi(nodeId, 'download')
+      const initRes = await createDownloadGrantApi(nodeId)
       if (initRes.code !== 200) {
         const msg = initRes.message || '获取下载令牌失败'
         transferStore.failRecord(transferId, msg)
         throw new Error(msg)
       }
-      const operationToken = initRes.data.operation_token
+      dowloadGrant = initRes.data.dowload_grant
 
       let result: Blob
       if (fileSize < UPLOAD_THRESHOLD) {
-        result = await getFileContentApi(nodeId, operationToken, (progressEvent: ProgressEvent) => {
+        result = await getFileContentApi(nodeId, dowloadGrant, (progressEvent: ProgressEvent) => {
           if (progressEvent.total) {
             const percent = (progressEvent.loaded / progressEvent.total) * 100
             onProgress(percent)
@@ -42,9 +43,10 @@ export const useDownloaderStore = defineStore('downloader', () => {
         })
         onProgress(100)
       } else {
-        result = await downloadLargeFile(nodeId, fileSize, operationToken, onProgress)
+        result = await downloadLargeFile(nodeId, fileSize, dowloadGrant, onProgress)
       }
-
+      //成功记得结束DownloadGrant防止影响后续下载
+      await finishDownloadGrantApi(dowloadGrant)
       transferStore.finishRecord(transferId)
       return result
     } catch (error: any) {
@@ -52,6 +54,8 @@ export const useDownloaderStore = defineStore('downloader', () => {
       if (record && record.status !== 'failed') {
         transferStore.failRecord(transferId, error.message || '下载失败')
       }
+      //失败记得销毁DownloadGrant防止影响后续下载
+      await cancelDownloadGrantApi(dowloadGrant)
       toastStore.showToast('下载失败：' + (error.message || '网络错误'), 'error')
       throw error
     } finally {

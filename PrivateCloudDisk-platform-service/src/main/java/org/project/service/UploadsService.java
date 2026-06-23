@@ -68,6 +68,13 @@ public interface UploadsService {
     void completeUploads(UUID uploads_id, UUID file_id, String file_storage_path, UUID user_id);
 
     /**
+     * 取消上传会话
+     * @param uploads_id
+     * @param user_id
+     */
+    void cancelUploadSession(UUID uploads_id, UUID user_id);
+
+    /**
      * 合并上传会话分块的通知
      * @param uploads_id 上传会话ID
      * @return  file_id 生成文件事务记录的id
@@ -87,4 +94,11 @@ public interface UploadsService {
      * @param user_id
      */
     void activateFileStatus(UUID file_id, UUID user_id);
+
+    /**
+     * 文件存储服务完成物理文件删除后，同步调用标记上传会话为 deleted
+     * <p>内部会发布 uploads.session.deleted 事件，通知主业务服务释放配额。
+     * @param uploads_id 上传会话ID
+     */
+    void markUploadSessionDeleted(UUID uploads_id);
 }

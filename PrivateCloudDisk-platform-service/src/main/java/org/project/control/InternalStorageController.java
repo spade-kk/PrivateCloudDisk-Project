@@ -119,4 +119,17 @@ public class InternalStorageController extends BaseController {
         return new JsonResult<>(OK);
     }
 
+    /**
+     * 文件存储服务完成物理文件删除后，同步调用此接口
+     * <p>内部会更新上传会话状态为 deleted 并发布事件释放配额
+     */
+    @PostMapping("uploads/{uploads_id}/delete-complete")
+    public JsonResult<Void> uploads_session_delete_complete(
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "uploads_id必须是有效的UUID格式")
+            @PathVariable String uploads_id) {
+        uploadsService.markUploadSessionDeleted(UUID.fromString(uploads_id));
+        return new JsonResult<>(OK);
+    }
+
 }

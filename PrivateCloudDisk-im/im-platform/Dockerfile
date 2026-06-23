@@ -1,8 +1,9 @@
 # ============================================================
-# IM Platform — Docker 多阶段构建
+# IM Platform — Docker 多阶段构建（含 SkyWalking Agent）
 # ============================================================
 # 阶段 1：Maven 编译（JDK 18 + Maven 3.9）
-# 阶段 2：JRE 运行时（精简镜像）
+# 阶段 2：下载 SkyWalking Java Agent
+# 阶段 3：JRE 运行时（精简镜像）
 # ============================================================
 
 # ---- 阶段 1：构建 ----
@@ -27,13 +28,26 @@ COPY im-platform/src im-platform/src/
 # 4. 编译 im-platform（同时编译其依赖模块 im-common）
 RUN mvn clean package -pl im-platform -am -DskipTests -B -q
 
-# ---- 阶段 2：运行 ----
+# ---- 阶段 2：下载 SkyWalking Agent ----
+FROM eclipse-temurin:18-jdk AS agent-downloader
+
+WORKDIR /agent
+RUN apt-get update && apt-get install -y curl && \
+    curl -L -o skywalking-agent.tar.gz \
+    https://dlcdn.apache.org/skywalking/java-agent/9.4.0/apache-skywalking-java-agent-9.4.0.tgz && \
+    tar -xzf skywalking-agent.tar.gz --strip-components=1 && \
+    rm skywalking-agent.tar.gz
+
+# ---- 阶段 3：运行 ----
 FROM eclipse-temurin:18-jre
 
 WORKDIR /app
 
 # 创建非 root 用户
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
+# 复制 SkyWalking Agent
+COPY --from=agent-downloader /agent /app/skywalking-agent
 
 # 复制构建产物
 COPY --from=builder /build/im-platform/target/*.jar app.jar
@@ -58,4 +72,16 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOut
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=60s \
   CMD curl -f http://localhost:8088/im/api/v1/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]
+# SkyWalking Agent 参数
+ENTRYPOINT ["sh", "-c", "\
+java ${JAVA_OPTS} \
+  -javaagent:/app/skywalking-agent/skywalking-agent.jar \
+  -Dskywalking.agent.service_name=${SW_AGENT_NAME:-PrivateCloudDisk-im-platform} \
+  -Dskywalking.collector.backend_service=${SW_AGENT_BACKEND:-skywalking-oap:11800} \
+  -Dskywalking.agent.namespace=${SW_AGENT_NAMESPACE:-PrivateCloudDisk} \
+  -Dskywalking.agent.instance_name=${HOSTNAME:-im-platform-1} \
+  -Dskywalking.logging.level=${SW_LOGGING_LEVEL:-INFO} \
+  -Dskywalking.plugin.toolkit.log.grpc.reporter.server_host=${SW_AGENT_BACKEND:-skywalking-oap} \
+  -Dskywalking.plugin.toolkit.log.grpc.reporter.server_port=11800 \
+  -Dskywalking.agent.sample_n_per_3_secs=${SW_SAMPLE_RATE:--1} \
+  -jar app.jar"]

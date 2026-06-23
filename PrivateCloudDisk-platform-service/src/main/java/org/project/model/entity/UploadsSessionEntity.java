@@ -15,7 +15,8 @@ public class UploadsSessionEntity implements Serializable {
         merging,
         completed,
         canceled,
-        failed
+        failed,
+        deleted
     }
     public enum UploadsSessionEvent {
         Merge,

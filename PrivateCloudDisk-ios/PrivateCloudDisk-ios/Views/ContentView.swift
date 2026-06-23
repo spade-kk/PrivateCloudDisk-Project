@@ -30,6 +30,8 @@ struct MainTabView: View {
     @EnvironmentObject var authVM: AuthViewModel
     @State private var selectedTab: Tab = .files
     @State private var previousTab: Tab = .files
+    @State private var showActionMenu = false
+    @State private var showScanView = false
 
     enum Tab: String, CaseIterable {
         case files, starred, shares, messages, profile
@@ -101,13 +103,34 @@ struct MainTabView: View {
             }
             previousTab = newTab
         }
+        .confirmationDialog("快捷操作", isPresented: $showActionMenu, titleVisibility: .visible) {
+            Button("扫一扫") {
+                showScanView = true
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $showScanView) {
+            QRCodeScanView { result in
+                showScanView = false
+                handleScanResult(result)
+            }
+        }
     }
 
     // MARK: - 悬浮 TabBar
 
     private var floatingTabBar: some View {
         HStack(spacing: 0) {
-            ForEach(Tab.allCases, id: \.self) { tab in
+            // 左侧 3 个 tab
+            ForEach(Array(Tab.allCases.prefix(3)), id: \.self) { tab in
+                tabBarButton(tab)
+            }
+
+            // 中心 + 按钮
+            centerActionButton
+
+            // 右侧 2 个 tab
+            ForEach(Array(Tab.allCases.suffix(2)), id: \.self) { tab in
                 tabBarButton(tab)
             }
         }
@@ -125,6 +148,53 @@ struct MainTabView: View {
         )
         .padding(.horizontal, AppSpacing.xl)
         .padding(.bottom, 4)
+    }
+
+    // MARK: - 中心操作按钮
+
+    private var centerActionButton: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                showActionMenu = true
+            }
+        }) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryLight],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 40, height: 40)
+                    .shadow(color: AppColors.primary.opacity(0.35), radius: 8, y: 3)
+
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .frame(height: 50)
+        .offset(y: -2)
+    }
+
+    // MARK: - 扫码结果处理
+
+    private func handleScanResult(_ result: QRScanResult) {
+        switch result {
+        case .success(let code):
+            // 处理扫描到的二维码内容
+            // 例如：如果是登录授权链接，触发设备授权流程
+            // 如果是文件分享链接，导航到对应文件
+            print("[QRScan] Scanned: \(code)")
+        case .cancelled:
+            break
+        case .error(let msg):
+            print("[QRScan] Error: \(msg)")
+        }
     }
 
     private func tabBarButton(_ tab: Tab) -> some View {
@@ -286,6 +356,22 @@ extension Notification.Name {
     static let tabDoubleTapped = Notification.Name("tabDoubleTapped")
 }
 
-#Preview {
+#Preview("主界面 - 含扫码入口") {
     ContentView()
+}
+
+#Preview("扫码页 - 正常状态") {
+    QRCodeScanView()
+}
+
+#Preview("扫码页 - 模拟设备授权") {
+    QRCodeScanView(
+        debugSimulatedCode: "https://clouddrive.example.com/device/authorize?user_code=KD8X-2P9A&device_token=eyJhbGciOiJSUzI1NiJ9.xxx"
+    )
+}
+
+#Preview("扫码页 - 模拟分享链接") {
+    QRCodeScanView(
+        debugSimulatedCode: "https://clouddrive.example.com/share/s/7f3a8b2c1d?token=abc123def456&type=file"
+    )
 }

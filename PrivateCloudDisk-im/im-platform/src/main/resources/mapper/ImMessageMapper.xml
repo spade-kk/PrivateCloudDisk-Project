@@ -28,7 +28,7 @@
     </sql>
 
     <insert id="insert" parameterType="org.project.im.platform.entity.ImMessage">
-        INSERT INTO im_message (<include refid="BaseColumns"/>)
+        INSERT INTO pcd_im_message (<include refid="BaseColumns"/>)
         VALUES (#{messageId}, #{conversationId}, #{conversationType}, #{messageType},
                 #{senderId}, #{receiverId}, #{content}, #{extra}, #{status}, #{serverSeq},
                 #{replyTo}, #{sendTime}, #{createTime}, #{updateTime})
@@ -36,13 +36,13 @@
 
     <select id="selectByMessageId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_message
+        FROM pcd_im_message
         WHERE message_id = #{messageId}
     </select>
 
     <select id="selectHistoryByConversationId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_message
+        FROM pcd_im_message
         WHERE conversation_id = #{conversationId}
           AND status != 6
         ORDER BY server_seq DESC
@@ -51,7 +51,7 @@
 
     <select id="selectMessagesAfterSeq" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_message
+        FROM pcd_im_message
         WHERE conversation_id = #{conversationId}
           AND server_seq > #{serverSeq}
           AND status != 6
@@ -60,13 +60,13 @@
     </select>
 
     <update id="updateStatus">
-        UPDATE im_message
+        UPDATE pcd_im_message
         SET status = #{status}, update_time = NOW()
         WHERE message_id = #{messageId}
     </update>
 
     <update id="batchUpdateRead">
-        UPDATE im_message
+        UPDATE pcd_im_message
         SET status = 3, update_time = NOW()
         WHERE conversation_id = #{conversationId}
           AND receiver_id = #{receiverId}
@@ -75,20 +75,20 @@
     </update>
 
     <update id="recallMessage">
-        UPDATE im_message
+        UPDATE pcd_im_message
         SET status = 5, content = '该消息已被撤回', update_time = NOW()
         WHERE message_id = #{messageId}
     </update>
 
     <select id="selectMaxSeqByConversationId" resultType="java.lang.Long">
         SELECT COALESCE(MAX(server_seq), 0)
-        FROM im_message
+        FROM pcd_im_message
         WHERE conversation_id = #{conversationId}
     </select>
 
     <select id="selectLastMessage" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_message
+        FROM pcd_im_message
         WHERE conversation_id = #{conversationId}
           AND status != 6
         ORDER BY server_seq DESC

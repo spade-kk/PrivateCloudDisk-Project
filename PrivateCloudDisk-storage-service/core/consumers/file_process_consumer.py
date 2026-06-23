@@ -216,6 +216,11 @@ class FileProcessConsumer:
         # 发送下一个任务（在 ACK 之前，确保流水线触发）
         await self._send_next_task(event, accumulated)
 
+        # 当 MARK_ACTIVE 成功时，发布 file.available MQ 事件
+        # 通知主业务服务提交配额（released -= fileSize, used += fileSize）
+        if event.task_type == TaskTypes.MARK_ACTIVE:
+            await self._publish_file_available_event(event)
+
         # 最后 ACK：确保所有后续操作都成功后才确认消息消费
         await message.ack()
         logger.debug(
@@ -271,6 +276,11 @@ class FileProcessConsumer:
             )
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
+
+        # 发布 MQ 事件：通知主业务服务回滚配额
+        await self._publish_file_scan_failed_event(
+            event, result.data.get('threat_name', 'unknown')
+        )
 
         # 最后 ACK：确保状态更新和通知都完成后才确认
         await message.ack()
@@ -428,6 +438,72 @@ class FileProcessConsumer:
             await redis_client.hset(task_key, mapping=mapping)
         except Exception as e:
             logger.error(f"更新任务状态失败: {e}")
+
+    @staticmethod
+    async def _publish_file_scan_failed_event(event: FileProcessEvent, threat_name: str):
+        """
+        发布文件扫毒失败 MQ 事件 → 主业务服务回滚配额
+
+        在以下场景中调用：
+        1. 发现病毒/木马（_handle_virus_found）
+        2. 病毒扫描器异常（进入 DLQ 后由 DeadLetterConsumer 处理）
+        """
+        try:
+            import uuid
+            from core.config import settings as _settings
+            from core.rabbitmq import rabbitmq_service as _rabbitmq
+
+            event_data = {
+                "eventId": uuid.uuid4().hex,
+                "fileId": event.file_id,
+                "fileName": event.file_name,
+                "fileSize": event.file_size,
+                "fileType": event.file_type,
+                "userId": event.user_id,
+                "uploadsSessionId": getattr(event, 'uploads_id', ''),
+                "threatName": threat_name,
+                "eventTime": datetime.now(timezone.utc).isoformat(),
+            }
+            await _rabbitmq.publish_file_event(
+                _settings.file_scan_failed_routing_key, event_data
+            )
+            logger.info(
+                f"已发布 file.scan.failed 事件: fileId={event.file_id}, "
+                f"threat={threat_name}"
+            )
+        except Exception as e:
+            logger.error(f"发布 file.scan.failed 事件失败: {e}", exc_info=True)
+
+    @staticmethod
+    async def _publish_file_available_event(event: FileProcessEvent):
+        """
+        发布文件可获得 MQ 事件 → 主业务服务提交配额
+
+        在 mark_active 流水线成功完成后调用。
+        """
+        try:
+            import uuid
+            from core.config import settings as _settings
+            from core.rabbitmq import rabbitmq_service as _rabbitmq
+
+            event_data = {
+                "eventId": uuid.uuid4().hex,
+                "fileId": event.file_id,
+                "fileName": event.file_name,
+                "fileSize": event.file_size,
+                "fileType": event.file_type,
+                "userId": event.user_id,
+                "uploadsSessionId": getattr(event, 'uploads_id', ''),
+                "eventTime": datetime.now(timezone.utc).isoformat(),
+            }
+            await _rabbitmq.publish_file_event(
+                _settings.file_available_routing_key, event_data
+            )
+            logger.info(
+                f"已发布 file.available 事件: fileId={event.file_id}"
+            )
+        except Exception as e:
+            logger.error(f"发布 file.available 事件失败: {e}", exc_info=True)
 
 
 # =============================================================================

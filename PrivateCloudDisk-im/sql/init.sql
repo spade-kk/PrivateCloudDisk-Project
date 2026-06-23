@@ -4,7 +4,7 @@
 -- ============================================================
 
 -- ==================== 消息表 ====================
-CREATE TABLE IF NOT EXISTS `im_message` (
+CREATE TABLE IF NOT EXISTS `pcd_im_message` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
     `message_id` VARCHAR(64) NOT NULL COMMENT '消息唯一 ID（雪花算法）',
     `conversation_id` VARCHAR(128) NOT NULL COMMENT '会话 ID',
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS `im_message` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 消息表';
 
 -- ==================== 会话表 ====================
-CREATE TABLE IF NOT EXISTS `im_conversation` (
+CREATE TABLE IF NOT EXISTS `pcd_im_conversation` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
     `conversation_id` VARCHAR(128) NOT NULL COMMENT '会话唯一 ID',
     `conversation_type` TINYINT NOT NULL DEFAULT 1 COMMENT '会话类型：1-单聊 2-群聊',
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `im_conversation` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 会话表';
 
 -- ==================== 群组表 ====================
-CREATE TABLE IF NOT EXISTS `im_group` (
+CREATE TABLE IF NOT EXISTS `pcd_im_group` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
     `group_id` VARCHAR(64) NOT NULL COMMENT '群组唯一 ID（雪花算法）',
     `group_name` VARCHAR(128) NOT NULL COMMENT '群组名称',
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS `im_group` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 群组表';
 
 -- ==================== 群组成员表 ====================
-CREATE TABLE IF NOT EXISTS `im_group_member` (
+CREATE TABLE IF NOT EXISTS `pcd_im_group_member` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
     `group_id` VARCHAR(64) NOT NULL COMMENT '群组 ID',
     `user_id` VARCHAR(64) NOT NULL COMMENT '用户 ID',
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS `im_group_member` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 群组成员表';
 
 -- ==================== 通话记录表 ====================
-CREATE TABLE IF NOT EXISTS `im_call_record` (
+CREATE TABLE IF NOT EXISTS `pcd_im_call_record` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
     `call_id` VARCHAR(64) NOT NULL COMMENT '通话唯一 ID',
     `room_id` VARCHAR(64) DEFAULT NULL COMMENT '通话房间 ID（群组通话时使用）',

@@ -64,4 +64,4 @@ fi
 echo "[entrypoint] 启动 Worker 进程..."
 echo "============================================"
 
-exec python worker.py
+exec sw-python run python worker.py

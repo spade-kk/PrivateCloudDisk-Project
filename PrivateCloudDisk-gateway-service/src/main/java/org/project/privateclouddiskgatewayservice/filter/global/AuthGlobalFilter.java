@@ -7,24 +7,19 @@ import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.project.privateclouddiskgatewayservice.dto.ApiErrorResponse;
+import org.project.privateclouddiskgatewayservice.util.ResponseUtil;
 import org.project.privateclouddiskgatewayservice.utils.JwtUtil;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -49,10 +44,6 @@ import java.util.List;
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
-
-    // Jackson ObjectMapper（线程安全，可复用）
-    private static final tools.jackson.databind.ObjectMapper OBJECT_MAPPER =
-            new tools.jackson.databind.ObjectMapper();
 
     // ═══════════════════════════════════════════════
     // 白名单路径配置
@@ -98,7 +89,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         if (authHeader == null) {
             log.warn("认证失败 - 缺少 Authorization 头: {} {}", requestMethod, requestPath);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "缺少认证令牌，请先登录"
@@ -108,7 +99,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         if (!authHeader.startsWith("Bearer ")) {
             log.warn("认证失败 - Authorization 头格式错误 (非 Bearer): {} {}",
                     requestMethod, requestPath);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌格式错误"
@@ -119,7 +110,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         if (token.isEmpty()) {
             log.warn("认证失败 - Bearer Token 为空: {} {}", requestMethod, requestPath);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌不能为空"
@@ -146,7 +137,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         } catch (ExpiredJwtException e) {
             log.warn("认证失败 - JWT 已过期: {} {}, 过期时间: {}",
                     requestMethod, requestPath, e.getClaims().getExpiration());
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌已过期，请重新登录"
@@ -154,7 +145,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         } catch (SignatureException e) {
             log.warn("认证失败 - JWT 签名无效 (可能被篡改): {} {}", requestMethod, requestPath);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌无效"
@@ -162,7 +153,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         } catch (MalformedJwtException e) {
             log.warn("认证失败 - JWT 格式错误: {} {}", requestMethod, requestPath);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌格式无效"
@@ -170,7 +161,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         } catch (UnsupportedJwtException e) {
             log.warn("认证失败 - 不支持的 JWT 类型: {} {}", requestMethod, requestPath);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌类型不支持"
@@ -180,7 +171,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             // 其他 JWT 异常
             log.warn("认证失败 - JWT 验证异常: {} {}, 原因: {}",
                     requestMethod, requestPath, e.getMessage());
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
                     "认证令牌验证失败"
@@ -190,7 +181,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             // JWT 解析过程中不可预期的内部错误（如公钥加载失败）
             log.error("认证过程内部错误: {} {}, 异常类型: {}",
                     requestMethod, requestPath, e.getClass().getSimpleName(), e);
-            return writeErrorResponse(
+            return ResponseUtil.writeError(
                     sanitizedExchange,
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "认证服务暂时不可用"
@@ -241,70 +232,6 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                         pathMatcher.match(excluded.pathPattern(), requestPath)
                         && ("*".equals(excluded.method()) || excluded.method().equals(requestMethod))
                 );
-    }
-
-    /**
-     * 统一写入 JSON 错误响应
-     * <p>
-     * 使用 ApiErrorResponse DTO 和 Jackson 序列化，保证：
-     * - 响应格式与 GlobalExceptionHandler 一致
-     * - JSON 转义正确（防止响应注入）
-     * - 包含 timestamp 便于问题定位
-     */
-    private Mono<Void> writeErrorResponse(ServerWebExchange exchange,
-                                           HttpStatus status,
-                                           String message) {
-        ServerHttpResponse response = exchange.getResponse();
-
-        // 防止重复写入（如果响应已提交）
-        if (response.isCommitted()) {
-            log.warn("响应已提交，无法写入错误信息: {} {}", status.value(), message);
-            return Mono.empty();
-        }
-
-        response.setStatusCode(status);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-
-        ApiErrorResponse errorBody = ApiErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(status.value())
-                .error(status.getReasonPhrase())
-                .message(message)
-                .path(exchange.getRequest().getURI().getPath())
-                .build();
-
-        try {
-            byte[] bytes = OBJECT_MAPPER.writeValueAsBytes(errorBody);
-            DataBuffer buffer = response.bufferFactory().wrap(bytes);
-            return response.writeWith(Mono.just(buffer));
-        } catch (Exception e) {
-            // Jackson 序列化失败（极端情况），返回手写 JSON
-            log.error("错误响应序列化失败", e);
-            String fallback = String.format(
-                    "{\"code\":%d,\"message\":\"%s\",\"timestamp\":\"%s\"}",
-                    status.value(),
-                    escapeJson(message),
-                    LocalDateTime.now()
-            );
-            DataBuffer buffer = response.bufferFactory()
-                    .wrap(fallback.getBytes(StandardCharsets.UTF_8));
-            return response.writeWith(Mono.just(buffer));
-        }
-    }
-
-    /**
-     * 对消息中的 JSON 特殊字符进行转义
-     * <p>
-     * 仅在 Jackson 序列化失败时作为兜底使用
-     */
-    private String escapeJson(String value) {
-        if (value == null) return "";
-        return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
     }
 
     /**

@@ -8,7 +8,7 @@ import java.time.Duration;
 @Data
 @ConfigurationProperties(prefix = "security.captcha.turnstile")
 public class CaptchaProperties {
-    private boolean enabled = false;
+    private boolean enabled = true;
     private String secretKey = "";
     private String siteverifyUrl = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
     private String expectedHostname = "";

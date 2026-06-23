@@ -21,3 +21,6 @@ python-pptx
 Pillow
 pytesseract
 ffmpeg-python
+
+# SkyWalking APM — 分布式链路追踪
+apache-skywalking

@@ -37,7 +37,7 @@ class MessagesViewModel: ObservableObject {
     init() {
         setupWebSocketHandlers()
     }
-
+    
     // MARK: - WebSocket
 
     private func setupWebSocketHandlers() {
@@ -248,6 +248,17 @@ class MessagesViewModel: ObservableObject {
         } catch {
             errorMessage = "加载联系人失败"
         }
+    }
+
+    // MARK: - 预览数据（仅 #Preview 使用）
+
+    func loadPreviewData() {
+        conversations = Conversation.previewConversations
+        friends = Friend.previewFriends
+    }
+
+    func loadPreviewMessages(conversationId: String) {
+        messages = ChatMessage.previewMessages(conversationId: conversationId)
     }
 
     func addFriend() async {

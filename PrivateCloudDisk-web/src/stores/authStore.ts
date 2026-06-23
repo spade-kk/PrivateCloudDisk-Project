@@ -2,10 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { loginApi } from '@/api/index'
 import { getMyUserInfoApi } from '@/api/modules/users'
+import { codeLoginApi, refreshTokenApi, thirdPartyCallbackApi } from '@/api/modules/auth'
 import { cookie } from '@/utils/cookie'
 import { hashPasswordForTransport } from '@/utils/crypto'
 
 const TOKEN_COOKIE_KEY = 'cloud_drive_token'
+const REFRESH_TOKEN_KEY = 'cloud_drive_refresh_token'
 
 export interface UserProfile {
   name: string
@@ -67,9 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
       const hashedPassword = await hashPasswordForTransport(password)
       const res = await loginApi(phoneNumber, hashedPassword, captchaToken, 'login')
       if (res.code === 200) {
-        token.value = res.data
-        cookie.set(TOKEN_COOKIE_KEY, token.value, { days: 7 })
-        fetchUserInfo()
+        saveTokenFromResponse(res.data)
         return { success: true }
       }
       return { success: false, message: res.message || '登录失败' }
@@ -82,12 +82,94 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** 验证码登录（短信/邮箱） */
+  async function codeLogin(target: string, code: string, loginType: 'phone' | 'email', captchaToken?: string): Promise<{ success: boolean; message?: string; scope?: string }> {
+    try {
+      const res = await codeLoginApi(target, code, loginType, captchaToken)
+      if (res.code === 200) {
+        saveTokenFromResponse(res.data)
+        return { success: true }
+      }
+      return { success: false, message: res.message || '验证码登录失败' }
+    } catch (error: unknown) {
+      const err = error as ApiErrorLike
+      if (err.isBusinessError) {
+        return { success: false, message: err.message || '验证码错误或已过期', scope: 'form' }
+      }
+      return { success: false, message: err.message || '网络错误，请稍后重试', scope: 'network' }
+    }
+  }
+
+  /** 第三方 OAuth 登录 */
+  async function thirdPartyLogin(provider: string, code: string, state: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await thirdPartyCallbackApi(provider, code, state)
+      if (res.code === 200 && res.data) {
+        saveTokenFromResponse(res.data)
+        return { success: true }
+      }
+      return { success: false, message: res.message || '第三方登录失败' }
+    } catch (error: unknown) {
+      const err = error as ApiErrorLike
+      return { success: false, message: err.message || '第三方登录失败，请重试' }
+    }
+  }
+
+  /** 设备扫码授权成功后的 Token 保存 */
+  function saveDeviceToken(accessToken: string, refreshToken?: string): void {
+    token.value = accessToken
+    cookie.set(TOKEN_COOKIE_KEY, accessToken, { days: 7 })
+    if (refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+    }
+    fetchUserInfo()
+  }
+
+  /** 刷新 Token */
+  async function refreshAccessToken(): Promise<boolean> {
+    const rt = localStorage.getItem(REFRESH_TOKEN_KEY)
+    if (!rt) return false
+    try {
+      const res = await refreshTokenApi(rt)
+      if (res.code === 200 && res.data) {
+        token.value = res.data.accessToken || res.data.access_token
+        cookie.set(TOKEN_COOKIE_KEY, token.value, { days: 7 })
+        if (res.data.refreshToken || res.data.refresh_token) {
+          localStorage.setItem(REFRESH_TOKEN_KEY, res.data.refreshToken || res.data.refresh_token)
+        }
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  /** 统一保存 Token（兼容不同响应格式） */
+  function saveTokenFromResponse(data: any): void {
+    if (typeof data === 'string') {
+      token.value = data
+    } else if (data.accessToken || data.access_token) {
+      token.value = data.accessToken || data.access_token
+    } else if (data.token) {
+      token.value = data.token
+    } else {
+      token.value = data
+    }
+    cookie.set(TOKEN_COOKIE_KEY, token.value, { days: 7 })
+    if (data.refreshToken || data.refresh_token) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken || data.refresh_token)
+    }
+    fetchUserInfo()
+  }
+
   function logout(): void {
     token.value = ''
     user.value = { name: '', account: '', email: '', phone_number: '', image_path: '' }
     cookie.remove(TOKEN_COOKIE_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem('cloudDriveToken')
   }
 
-  return { token, isLoggedIn, user, userLoading, displayName, userInitial, login, logout, fetchUserInfo }
+  return { token, isLoggedIn, user, userLoading, displayName, userInitial, login, codeLogin, thirdPartyLogin, saveDeviceToken, refreshAccessToken, logout, fetchUserInfo }
 })

@@ -11,6 +11,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 文件/文件夹收藏控制器
@@ -51,7 +52,7 @@ public class FileStarController extends BaseController {
             @Pattern(regexp = UUID_REGEX, message = "file_id 必须是有效的UUID格式")
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
-        fileStarService.addFileStar(user_id, file_id);
+        fileStarService.addFileStar(UUID.fromString(user_id), UUID.fromString(file_id));
         return new JsonResult<>(OK);
     }
 
@@ -63,7 +64,7 @@ public class FileStarController extends BaseController {
             @Pattern(regexp = UUID_REGEX, message = "file_id 必须是有效的UUID格式")
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
-        fileStarService.removeFileStar(user_id, file_id);
+        fileStarService.removeFileStar(UUID.fromString(user_id), UUID.fromString(file_id));
         return new JsonResult<>(OK);
     }
 
@@ -75,7 +76,7 @@ public class FileStarController extends BaseController {
             @Pattern(regexp = UUID_REGEX, message = "file_id 必须是有效的UUID格式")
             @PathVariable String file_id,
             @RequestHeader("X-User-Id") String user_id) {
-        boolean starred = fileStarService.isFileStarred(user_id, file_id);
+        boolean starred = fileStarService.isFileStarred(UUID.fromString(user_id), UUID.fromString(file_id));
         return new JsonResult<>(OK, starred);
     }
 
@@ -91,7 +92,7 @@ public class FileStarController extends BaseController {
             @Pattern(regexp = UUID_REGEX, message = "node_id 必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id) {
-        fileStarService.addFolderStar(user_id, node_id);
+        fileStarService.addFolderStar(UUID.fromString(user_id), UUID.fromString(node_id));
         return new JsonResult<>(OK);
     }
 
@@ -103,7 +104,7 @@ public class FileStarController extends BaseController {
             @Pattern(regexp = UUID_REGEX, message = "node_id 必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id) {
-        fileStarService.removeFolderStar(user_id, node_id);
+        fileStarService.removeFolderStar(UUID.fromString(user_id), UUID.fromString(node_id));
         return new JsonResult<>(OK);
     }
 
@@ -115,7 +116,7 @@ public class FileStarController extends BaseController {
             @Pattern(regexp = UUID_REGEX, message = "node_id 必须是有效的UUID格式")
             @PathVariable String node_id,
             @RequestHeader("X-User-Id") String user_id) {
-        boolean starred = fileStarService.isFolderStarred(user_id, node_id);
+        boolean starred = fileStarService.isFolderStarred(UUID.fromString(user_id), UUID.fromString(node_id));
         return new JsonResult<>(OK, starred);
     }
 
@@ -134,7 +135,7 @@ public class FileStarController extends BaseController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "50") Integer pageSize,
             @RequestHeader("X-User-Id") String user_id) {
-        List<FileStarEntity> items = fileStarService.getStarredItems(user_id, page, pageSize);
+        List<FileStarEntity> items = fileStarService.getStarredItems(UUID.fromString(user_id), page, pageSize);
         return new JsonResult<>(OK, VoMapper.toFileStarVOList(items));
     }
 
@@ -143,7 +144,7 @@ public class FileStarController extends BaseController {
      */
     @GetMapping("/count")
     public JsonResult<Integer> countStarredItems(@RequestHeader("X-User-Id") String user_id) {
-        Integer count = fileStarService.countStarredItems(user_id);
+        Integer count = fileStarService.countStarredItems(UUID.fromString(user_id));
         return new JsonResult<>(OK, count);
     }
 
@@ -152,7 +153,7 @@ public class FileStarController extends BaseController {
      */
     @GetMapping("/file-ids")
     public JsonResult<List<String>> getStarredFileIds(@RequestHeader("X-User-Id") String user_id) {
-        List<String> ids = fileStarService.getStarredFileIds(user_id);
+        List<String> ids = fileStarService.getStarredFileIds(UUID.fromString(user_id));
         return new JsonResult<>(OK, ids);
     }
 
@@ -161,7 +162,7 @@ public class FileStarController extends BaseController {
      */
     @GetMapping("/folder-ids")
     public JsonResult<List<String>> getStarredNodeIds(@RequestHeader("X-User-Id") String user_id) {
-        List<String> ids = fileStarService.getStarredNodeIds(user_id);
+        List<String> ids = fileStarService.getStarredNodeIds(UUID.fromString(user_id));
         return new JsonResult<>(OK, ids);
     }
 }

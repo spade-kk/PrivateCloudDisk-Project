@@ -11,6 +11,8 @@ public class QuotaEntity {
     private UUID user_id;
     private Long total_capacity;
     private Long used_capacity;
+    /** 预占容量（字节）：正在上传中尚未提交的文件容量，available = total - (used + released) */
+    private Long released_capacity;
     private Integer file_count;
     private Integer version;
     private LocalDateTime created_at;
