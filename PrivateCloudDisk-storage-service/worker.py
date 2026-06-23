@@ -51,6 +51,7 @@ from core.consumers import (
     on_dead_letter_message,
     on_content_index_message,
     on_uploads_session_delete_message,
+    on_uploads_event_dlq_message,
 )
 from app.core.logging_config import setup_logging, get_logger
 
@@ -114,7 +115,7 @@ CONFIG = {
     },
     "dlq_uploads_event": {
         "queue": settings.uploads_event_dlq,
-        "callback": on_dead_letter_message,
+        "callback": on_uploads_event_dlq_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
