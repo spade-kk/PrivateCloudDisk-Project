@@ -73,7 +73,7 @@ class UploadsSessionDeleteConsumer:
                     f"通知业务服务失败: eventId={event_id}, "
                     f"uploadsSessionId={uploads_session_id}"
                 )
-                await message.nack(requeue=True)
+                await message.nack(requeue=False)
 
         except json.JSONDecodeError:
             logger.error("上传会话删除消息 JSON 解析失败，丢弃")

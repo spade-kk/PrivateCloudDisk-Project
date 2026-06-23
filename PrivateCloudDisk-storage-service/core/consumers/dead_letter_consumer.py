@@ -114,6 +114,7 @@ class DeadLetterConsumer:
             FailureReason.MARK_ACTIVE_ERROR: self._handle_retry_notify,
             FailureReason.NOTIFY_BS_ERROR: self._handle_retry_notify,
             FailureReason.DELETE_IO_ERROR: self._handle_delete_error,
+            FailureReason.UPLODAS_DELETE_IO_ERROR: self._handle_uploads_delete_io_error,
             FailureReason.UNKNOWN: self._handle_unknown,
         }
         return handlers.get(failure_reason, self._handle_unknown)
@@ -362,6 +363,12 @@ class DeadLetterConsumer:
         storage_path = data.get("storage_path", "")
         logger.error(f"DLQ: 文件删除失败, storage_path={storage_path}")
         await self._log_dlq_action(data, "DELETE_FAILED", "文件删除失败，请手动清理")
+        return True
+
+    async def _handle_uploads_delete_io_error(self, data: dict) -> bool:
+        uplodas_id = data.get("uplodas_id", "")
+        logger.error(f"DLQ: 上传会话临时分块文件删除失败 IO ERROR, uplodas_id={uplodas_id}")
+        await self._log_dlq_action(data, "UPLODAS_DELETE_IO_ERROR", "上传会话临时分块文件删除失败，请手动清理")
         return True
 
     # ========== 未知错误 ==========

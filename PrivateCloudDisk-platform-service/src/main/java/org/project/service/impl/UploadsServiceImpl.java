@@ -1,8 +1,11 @@
 package org.project.service.impl;
 
 import org.opensearch.search.builder.SearchSourceBuilderException;
+import org.project.config.RabbitMQConifgure;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
+import org.project.model.dto.message.UploadSessionDeleteEvent;
+import org.project.model.dto.message.UploadSessionDeletedEvent;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.UploadsChunkEntity;
@@ -13,9 +16,12 @@ import org.project.security.ApiAbuseProtectionService;
 import org.project.service.DirectoryTreeService;
 import org.project.service.FileService;
 import org.project.service.UploadsService;
+import org.project.service.UserQuotaService;
 import org.project.service.ex.*;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class UploadsServiceImpl implements UploadsService {
     @Autowired
@@ -39,8 +46,13 @@ public class UploadsServiceImpl implements UploadsService {
     private FolderNodeMapper folderNodeMapper;
     @Autowired
     private ApiAbuseProtectionService apiAbuseProtectionService;
+    @Autowired
+    private UserQuotaService userQuotaService;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     @Override
+    @Transactional
     public UUID createUploadsSession(int total_chunks, long file_size, String file_checksum, int chunks_max_size, String file_name, String file_type, UUID user_id, UUID node_id, String clientIp) {
         // 防滥用检查
         apiAbuseProtectionService.checkUploadSessionCreate(
@@ -65,6 +77,9 @@ public class UploadsServiceImpl implements UploadsService {
             throw new ServiceException("超过同时最大并发上传文件限制");
         }
 
+        // ==================== 配额预占 ====================
+        // 在创建上传会话前预占配额容量（released += fileSize）
+        userQuotaService.preCommitQuota(user_id, file_size);
 
         //Lock Parent Node
         folderNodeMapper.updateFolderNodeStatusByIdAndUserId(FolderNodeEntity.NodeStatus.lock, node_id, user_id);
@@ -109,7 +124,6 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
-    @Cacheable(cacheNames = "uploadsSession", key = "#uploads_id")
     public UploadsSessionEntity queryUploadsSessionById(UUID uploads_id) {
         if(!isValidUploadsSession(uploads_id)) {
             throw new InvalidUploadsSessionException("上传会话无效");
@@ -212,18 +226,91 @@ public class UploadsServiceImpl implements UploadsService {
     }
 
     @Override
+    @Transactional
     public void cancelUploadSession(UUID uploads_id, UUID user_id) {
         //取消上传会话
-        if(!isValidUploadsSession(uploads_id)) {
-            throw new InvalidUploadsSessionException("上传会话无效");
+        UploadsSessionEntity uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
+        if (uploadsSessionData == null) {
+            throw new InvalidUploadsSessionException("上传会话不存在");
         }
 
-        UploadsSessionEntity uploadsSessionData = queryUploadsSessionById(uploads_id);
-        if(uploadsSessionData.getStatus() != UploadsSessionEntity.UploadsSessionStatus.uploading) {
-            throw new UploadsSessionStatusException("上传会话状态错误");
+        // 检查上传会话状态：只有 uploading 状态才能取消
+        if (uploadsSessionData.getStatus() != UploadsSessionEntity.UploadsSessionStatus.uploading) {
+            throw new UploadsSessionStatusException("上传会话状态错误，当前状态: " + uploadsSessionData.getStatus());
         }
 
-        uploadsMapper.updateUploadsSessionStatusById(UploadsSessionEntity.UploadsSessionStatus.canceled, uploads_id);
+        // 验证用户权限
+        if (!uploadsSessionData.getUser_id().equals(user_id)) {
+            throw new OverstepAuthorityException("无权取消此上传会话");
+        }
+
+        // 步骤1: 更新上传会话状态为 canceled
+        int rows = uploadsMapper.updateUploadsSessionStatusById(
+                UploadsSessionEntity.UploadsSessionStatus.canceled, uploads_id);
+        if (rows != 1) {
+            throw new UpdateException("更新上传会话状态失败");
+        }
+
+        // 步骤2: 发布上传会话 delete 事件（文件存储服务监听，删除物理分块文件）
+        UploadSessionDeleteEvent deleteEvent = UploadSessionDeleteEvent.builder()
+                .eventId("EVT-DEL-" + uploads_id.toString())
+                .uploadsSessionId(uploads_id)
+                .userId(user_id)
+                .fileName(uploadsSessionData.getFile_name())
+                .fileSize(uploadsSessionData.getFile_size())
+                .fileType(uploadsSessionData.getFile_type())
+                .nodeId(uploadsSessionData.getNode_id())
+                .eventTime(LocalDateTime.now())
+                .build();
+
+        rabbitTemplate.convertAndSend(
+                RabbitMQConifgure.UPLOADS_EVENT_EXCHANGE,
+                RabbitMQConifgure.ROUTING_UPLOADS_SESSION_DELETE,
+                deleteEvent
+        );
+
+        log.info("上传会话取消，已发布delete事件: uploadsId={}, userId={}, fileName={}",
+                uploads_id, user_id, uploadsSessionData.getFile_name());
+    }
+
+    /**
+     * 文件存储服务完成物理文件删除后，同步调用此接口更新状态为 deleted
+     * 并发布 uploads.session.deleted 事件通知主业务服务释放配额
+     */
+    @Transactional
+    public void markUploadSessionDeleted(UUID uploads_id) {
+        UploadsSessionEntity uploadsSessionData = uploadsMapper.findUploadsSessionById(uploads_id);
+        if (uploadsSessionData == null) {
+            log.warn("上传会话不存在，跳过: uploadsId={}", uploads_id);
+            return;
+        }
+
+        if (uploadsSessionData.getStatus() == UploadsSessionEntity.UploadsSessionStatus.deleted) {
+            log.warn("上传会话已标记为deleted，跳过: uploadsId={}", uploads_id);
+            return;
+        }
+
+        // 更新状态为 deleted
+        uploadsMapper.updateUploadsSessionStatusById(
+                UploadsSessionEntity.UploadsSessionStatus.deleted, uploads_id);
+
+        // 发布 uploads.session.deleted 事件 → 主业务服务监听并释放配额
+        UploadSessionDeletedEvent deletedEvent = UploadSessionDeletedEvent.builder()
+                .eventId("EVT-DELETED-" + uploads_id.toString())
+                .uploadsSessionId(uploads_id)
+                .userId(uploadsSessionData.getUser_id())
+                .fileName(uploadsSessionData.getFile_name())
+                .fileSize(uploadsSessionData.getFile_size())
+                .eventTime(LocalDateTime.now())
+                .build();
+
+        rabbitTemplate.convertAndSend(
+                RabbitMQConifgure.UPLOADS_EVENT_EXCHANGE,
+                RabbitMQConifgure.ROUTING_UPLOADS_SESSION_DELETED,
+                deletedEvent
+        );
+
+        log.info("上传会话标记为deleted，已发布deleted事件: uploadsId={}", uploads_id);
     }
 
     @Transactional

@@ -246,7 +246,7 @@ async def complete_uploads_internal(
     
     # 2. 提交合并状态申请（逻辑锁）
     response = requests.post(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/merge"
+        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/merging"
     )
     merging_result = response.json()
 

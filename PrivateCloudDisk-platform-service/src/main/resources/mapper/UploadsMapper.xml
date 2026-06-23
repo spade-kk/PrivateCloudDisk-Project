@@ -23,7 +23,7 @@
     </select>
 
     <select id="findUserActiveUploadsSession"  resultMap="UploadsSessionEntityMap">
-        select * from pcd_uploads_session_table where user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and uploads_status not in ('cancel', 'completed');
+        select * from pcd_uploads_session_table where uploads_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and uploads_status not in ('canceled', 'completed', 'deleted');
     </select>
 
     <insert id="insertUploadsSession" useGeneratedKeys="true" keyProperty="uploads_id" parameterType="org.project.model.entity.UploadsSessionEntity">

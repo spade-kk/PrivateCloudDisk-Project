@@ -435,11 +435,13 @@ public class RabbitMQConifgure {
 
     /**
      * 文件事件死信队列（集中存放所有失败的文件事件消息）
+     * <p>与 Python 存储服务保持一致：30 天 TTL
      */
     @Bean
     public Queue fileEventDlq() {
         return QueueBuilder
                 .durable(FILE_EVENT_DLQ)
+                .withArgument("x-message-ttl", 2592000000L) // 30 天，与 Python Worker 一致
                 .build();
     }
 
@@ -541,11 +543,13 @@ public class RabbitMQConifgure {
 
     /**
      * 上传会话事件死信队列
+     * <p>与 Python 存储服务保持一致：30 天 TTL
      */
     @Bean
     public Queue uploadsEventDlq() {
         return QueueBuilder
                 .durable(UPLOADS_EVENT_DLQ)
+                .withArgument("x-message-ttl", 2592000000L) // 30 天，与 Python Worker 一致
                 .build();
     }
 
