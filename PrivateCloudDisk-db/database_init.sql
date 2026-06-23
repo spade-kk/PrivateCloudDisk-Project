@@ -1,6 +1,7 @@
 
 /* 
     登录数据库 /usr/local/mysql-8.0.31-macos12-arm64/bin/mysql -u root -p
+    /usr/local/mysql-8.0.31-macos12-arm64/bin/mysqldump -u root -p private_cloud_disk  > PrivateCloudDisk-infra/mysql/init.sql
     创建项目主数据库 
 */
 CREATE DATABASE private_cloud_disk;
