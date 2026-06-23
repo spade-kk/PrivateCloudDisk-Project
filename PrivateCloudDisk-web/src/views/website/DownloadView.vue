@@ -354,6 +354,7 @@
 // ============================================================
 
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   fetchVersionManifest,
   detectCurrentPlatform,
@@ -361,6 +362,8 @@ import {
   type ClientDownload,
   type VersionManifest,
 } from '@/api/modules/clientDownloads'
+
+const router = useRouter()
 
 // ============================================================
 // 响应式状态
@@ -453,8 +456,17 @@ function handleDownload(client: ClientDownload): void {
     return
   }
 
-  // 桌面端直接触发浏览器下载
-  window.location.href = client.downloadPath
+  // 桌面端：跳转到下载感谢页，由感谢页的 JS 脚本触发浏览器下载
+  router.push({
+    name: 'DownloadThanks',
+    query: {
+      platform: client.platform,
+      version: client.version,
+      displayName: client.displayName,
+      downloadPath: client.downloadPath,
+      extension: client.extension,
+    },
+  })
 }
 
 /**

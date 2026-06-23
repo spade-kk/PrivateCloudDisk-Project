@@ -65,11 +65,11 @@ class Settings(BaseSettings):
     min_free_disk_bytes: int = 500 * 1024 * 1024  # 合并前至少 500MB 可用
 
     # ========== OpenSearch 配置 ==========
-    opensearch_host: str = "https://localhost:9200"
-    opensearch_username: str = "admin"
-    opensearch_password: str = "MySecureP@ssw0rd"
-    opensearch_use_ssl: bool = True
-    opensearch_verify_certs: bool = False
+    opensearch_host: str = "http://localhost:9200"
+    # opensearch_username: str = "admin"
+    # opensearch_password: str = "MySecureP@ssw0rd"
+    opensearch_use_ssl: bool = False
+    # opensearch_verify_certs: bool = False
     opensearch_timeout: int = 30
     opensearch_max_retries: int = 3
 
