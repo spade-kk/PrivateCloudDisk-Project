@@ -1,305 +1,185 @@
 <template>
-  <main class="h-screen h-[100dvh] overflow-y-auto overscroll-contain bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50 px-3 py-4 sm:px-5 sm:py-6 xl:px-8">
-    <div class="mx-auto grid min-h-full max-w-[1240px] gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.12fr)_minmax(430px,0.88fr)]">
-      <!-- ============================================================ -->
-      <!-- 左侧：产品介绍面板（保持原有设计） -->
-      <!-- ============================================================ -->
-      <section
-        class="relative hidden min-h-[660px] flex-col overflow-hidden rounded-lg border border-slate-300/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl xl:flex"
-        aria-label="CloudDrive product introduction"
-      >
-        <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(22,93,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(22,93,255,0.08)_1px,transparent_1px)] bg-[length:44px_44px] opacity-80 [mask-image:linear-gradient(120deg,#000,transparent_72%)]"></div>
-        <div class="pointer-events-none absolute -right-28 top-16 h-72 w-72 rounded-full bg-primary/10 blur-3xl"></div>
-        <div class="pointer-events-none absolute bottom-8 left-10 h-52 w-52 rounded-full bg-teal-500/10 blur-3xl"></div>
+  <div class="login-page">
+    <!-- ============================================================
+         左侧：品牌展示区 — 大气简约，无冗余信息
+         参考：Linear / Vercel / Notion 登录页设计
+         ============================================================ -->
+    <aside class="login-brand">
+      <div class="brand-bg">
+        <div class="brand-glow brand-glow-1"></div>
+        <div class="brand-glow brand-glow-2"></div>
+        <div class="brand-grid"></div>
+      </div>
 
-        <div class="relative z-[1] flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-center gap-3">
-            <span class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-lg bg-primary text-[22px] text-white shadow-[0_12px_30px_rgba(22,93,255,0.28)]">
-              <i class="fa fa-cloud"></i>
-            </span>
-            <div>
-              <strong class="block font-extrabold text-slate-800">CloudDrive</strong>
-              <p class="text-sm text-slate-500">企业级私有云文件协作平台</p>
-            </div>
-          </div>
-          <div class="inline-flex w-fit items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-extrabold text-primary">
-            <i class="fa fa-circle text-[8px]"></i>
-            安全工作台
-          </div>
+      <div class="brand-inner">
+        <!-- Logo -->
+        <div class="brand-logo">
+          <span class="brand-logo-icon">
+            <i class="fa fa-cloud"></i>
+          </span>
+          <span class="brand-logo-text">CloudDrive</span>
         </div>
 
-        <div class="relative z-[1] mt-8 grid gap-6 xl:mt-10">
-          <div class="max-w-[720px] animate-fadeIn">
-            <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-extrabold text-primary shadow-card">
-              PRIVATE CLOUD DRIVE
+        <!-- 品牌标语 -->
+        <div class="brand-content">
+          <h1 class="brand-heading">
+            企业级私有云<br />文件协作平台
+          </h1>
+          <p class="brand-subtitle">
+            安全、高效、智能的文件管理体验
+          </p>
+        </div>
+
+        <!-- 底部信任标识 -->
+        <div class="brand-footer">
+          <div class="brand-trust">
+            <span v-for="item in trustItems" :key="item" class="trust-item">
+              <i class="fa fa-check-circle text-emerald-400"></i>
+              {{ item }}
             </span>
-            <h1 class="mt-4 max-w-[760px] text-[34px] font-black leading-[1.06] text-slate-950 sm:text-[44px] md:text-[52px] lg:text-[50px] xl:text-[58px]">
-              让企业文件从存储到协作都保持安全有序
-            </h1>
-            <p class="mt-4 max-w-[620px] text-sm leading-7 text-slate-500 sm:text-base sm:leading-8">
-              CloudDrive 将文件上传、预览、全文搜索、分享权限、回收站保护和协作消息整合为一个清晰的私有云工作台。
-            </p>
           </div>
+        </div>
+      </div>
+    </aside>
 
-          <div class="rounded-lg border border-slate-200/90 bg-white/85 p-4 shadow-[0_18px_46px_rgba(15,23,42,0.08)]">
-            <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="text-xs font-extrabold uppercase tracking-wide text-primary">Unified File Workspace</p>
-                <strong class="mt-1 block text-lg font-black text-slate-950">一个入口处理完整文件生命周期</strong>
+    <!-- ============================================================
+         右侧：登录表单区 — 简洁清晰，聚焦操作
+         ============================================================ -->
+    <main class="login-form-area">
+      <div class="login-form-inner">
+        <!-- 移动端品牌标识 -->
+        <div class="mobile-brand">
+          <span class="mobile-brand-icon">
+            <i class="fa fa-cloud"></i>
+          </span>
+          <span class="mobile-brand-name">CloudDrive</span>
+        </div>
+
+        <!-- 标题 -->
+        <div class="form-header">
+          <h2 class="form-title">欢迎回来</h2>
+          <p class="form-desc">登录您的 CloudDrive 账号以继续</p>
+        </div>
+
+        <!-- 登录方式 Tab -->
+        <div class="login-tabs">
+          <button
+            v-for="tab in loginTabs"
+            :key="tab.key"
+            type="button"
+            class="login-tab"
+            :class="{ active: activeTab === tab.key }"
+            @click="activeTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <!-- 密码登录 -->
+        <div v-show="activeTab === 'password'" class="tab-content">
+          <form class="login-form" @submit.prevent="handlePasswordLogin">
+            <!-- 手机号 -->
+            <div class="field-group">
+              <label class="field-label">手机号</label>
+              <div class="field-input-wrap" :class="{ focused: focusedField === 'phone' }">
+                <i class="fa fa-mobile field-icon"></i>
+                <input
+                  v-model.trim="phone"
+                  type="tel"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  class="field-input"
+                  placeholder="请输入手机号"
+                  required
+                  @focus="focusedField = 'phone'"
+                  @blur="focusedField = ''"
+                  @input="clearFormError"
+                />
               </div>
-              <span class="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-700">
-                <i class="fa fa-check-circle"></i>
-                权限与审计已就绪
-              </span>
+              <p v-if="phone && !phoneValid" class="field-error">请输入 11 位手机号</p>
             </div>
 
-            <div class="mt-4 grid gap-3 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-              <div
-                v-for="item in workspacePreview"
-                :key="item.title"
-                class="rounded-lg bg-slate-50 p-3"
-              >
-                <div class="flex items-center gap-2">
-                  <i :class="[item.icon, 'text-primary']"></i>
-                  <strong class="text-sm font-extrabold text-slate-900">{{ item.title }}</strong>
-                </div>
-                <p class="mt-2 text-xs leading-5 text-slate-500">{{ item.desc }}</p>
+            <!-- 密码 -->
+            <div class="field-group">
+              <label class="field-label">密码</label>
+              <div class="field-input-wrap" :class="{ focused: focusedField === 'password' }">
+                <i class="fa fa-lock field-icon"></i>
+                <input
+                  v-model="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  autocomplete="current-password"
+                  class="field-input"
+                  placeholder="请输入账号密码"
+                  required
+                  @focus="focusedField = 'password'"
+                  @blur="focusedField = ''"
+                  @input="clearFormError"
+                />
+                <button type="button" class="field-toggle" @click="showPassword = !showPassword">
+                  <i :class="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+                </button>
               </div>
             </div>
 
-            <div class="mt-4 grid gap-3 sm:grid-cols-3">
-              <div
-                v-for="flow in workspaceFlow"
-                :key="flow"
-                class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600"
-              >
-                <span class="h-2 w-2 rounded-full bg-primary"></span>
-                <span>{{ flow }}</span>
-              </div>
-            </div>
-          </div>
+            <!-- 信任此设备 -->
+            <label class="remember-row">
+              <input v-model="rememberDevice" type="checkbox" class="remember-check" />
+              <span>信任此设备（个人设备建议启用）</span>
+            </label>
 
-          <div class="grid gap-3 md:grid-cols-2">
-            <article
-              v-for="item in platformFeatures"
-              :key="item.title"
-              class="group rounded-lg border border-slate-200/90 bg-white/80 p-4 transition duration-200 hover:-translate-y-1 hover:border-primary/30 hover:bg-white hover:shadow-hover"
+            <!-- Turnstile -->
+            <div ref="turnstileContainer" class="turnstile-wrap" :class="{ hidden: !turnstileSiteKey }"></div>
+            <p v-if="!turnstileSiteKey" class="field-error">未配置 Turnstile Site Key</p>
+            <p v-else-if="captchaError" class="field-error">{{ captchaError }}</p>
+
+            <!-- 错误提示 -->
+            <transition name="form-error-fade">
+              <div v-if="formError" class="form-error-box">
+                <i class="fa fa-exclamation-circle"></i>
+                {{ formError }}
+              </div>
+            </transition>
+
+            <!-- 登录按钮 -->
+            <button
+              type="submit"
+              class="submit-btn"
+              :disabled="submitDisabled"
             >
-              <div class="flex items-start gap-3">
-                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
-                  <i :class="item.icon"></i>
-                </span>
-                <div class="min-w-0">
-                  <strong class="block text-sm font-extrabold text-slate-900">{{ item.title }}</strong>
-                  <p class="mt-1 text-xs leading-5 text-slate-500">{{ item.desc }}</p>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div class="grid gap-3 md:grid-cols-3">
-            <div
-              v-for="item in trustSignals"
-              :key="item.label"
-              class="flex items-center gap-2.5 rounded-lg border border-slate-200/90 bg-slate-50/80 p-3"
-            >
-              <i :class="[item.icon, 'text-lg text-teal-700']"></i>
-              <div>
-                <strong class="block font-extrabold text-slate-950">{{ item.value }}</strong>
-                <span class="text-xs text-slate-500">{{ item.label }}</span>
-              </div>
-            </div>
-          </div>
+              <span v-if="loading" class="spinner"></span>
+              <span>{{ loading ? '登录中...' : '登录' }}</span>
+            </button>
+          </form>
         </div>
-      </section>
 
-      <!-- ============================================================ -->
-      <!-- 右侧：登录面板（多认证方式） -->
-      <!-- ============================================================ -->
-      <section class="flex min-h-full items-start justify-center py-1 sm:py-3 xl:items-center xl:py-0">
-        <div class="w-full max-w-[460px] animate-fadeIn rounded-lg border border-slate-300/70 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-7 xl:max-w-none xl:p-8">
-          <!-- 移动端品牌标识 -->
-          <div class="mb-5 flex items-center justify-between gap-3 rounded-lg border border-primary/10 bg-primary/5 p-3 xl:hidden">
-            <div class="flex min-w-0 items-center gap-3">
-              <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-white shadow-[0_10px_24px_rgba(22,93,255,0.22)]">
-                <i class="fa fa-cloud"></i>
-              </span>
-              <div class="min-w-0">
-                <strong class="block truncate font-extrabold text-slate-800">CloudDrive</strong>
-                <p class="truncate text-xs text-slate-500">私有云文件协作平台</p>
-              </div>
-            </div>
-            <span class="hidden shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-primary shadow-card min-[430px]:inline-flex">
-              安全登录
-            </span>
-          </div>
-
-          <!-- 标题 -->
-          <div>
-            <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1.5 text-xs font-extrabold text-primary">
-              <i class="fa fa-shield"></i>
-              身份认证
-            </span>
-            <h2 class="mt-4 text-[28px] font-extrabold text-slate-800 sm:text-3xl">欢迎回来</h2>
-            <p class="mt-2 text-sm leading-6 text-slate-500 sm:text-base">登录后继续管理文件、分享链接和协作消息。</p>
-          </div>
-
-          <!-- ============================================================ -->
-          <!-- 登录方式 Tab 切换 -->
-          <!-- ============================================================ -->
-          <div class="mt-6">
-            <div class="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-              <button
-                v-for="tab in loginTabs"
-                :key="tab.key"
-                type="button"
-                class="flex-1 rounded-md px-3 py-2 text-sm font-extrabold transition duration-200"
-                :class="activeTab === tab.key
-                  ? 'bg-white text-primary shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'"
-                @click="activeTab = tab.key"
-              >
-                <i :class="tab.icon" class="mr-1.5 hidden sm:inline"></i>
-                {{ tab.label }}
-              </button>
-            </div>
-          </div>
-
-          <!-- ============================================================ -->
-          <!-- Tab 1: 密码登录 -->
-          <!-- ============================================================ -->
-          <div v-show="activeTab === 'password'" class="mt-6">
-            <form class="grid gap-4" @submit.prevent="handlePasswordLogin">
-              <label class="grid gap-2">
-                <span class="text-sm font-extrabold text-slate-700">手机号</span>
-                <div
-                  class="flex min-h-12 items-center gap-2.5 rounded-lg border bg-white px-3 transition duration-200"
-                  :class="focusedField === 'phone' ? '-translate-y-px border-primary shadow-[0_0_0_4px_rgba(22,93,255,0.10)]' : 'border-slate-200'"
-                >
-                  <i class="fa fa-mobile text-slate-400"></i>
-                  <input
-                    v-model.trim="phone"
-                    type="tel"
-                    inputmode="tel"
-                    autocomplete="tel"
-                    class="min-w-0 flex-1 border-0 bg-transparent outline-none"
-                    placeholder="请输入手机号"
-                    required
-                    @focus="focusedField = 'phone'"
-                    @blur="focusedField = ''"
-                    @input="clearFormError"
-                  >
-                </div>
-                <small v-if="phone && !phoneValid" class="text-danger">请输入 11 位手机号</small>
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-sm font-extrabold text-slate-700">密码</span>
-                <div
-                  class="flex min-h-12 items-center gap-2.5 rounded-lg border bg-white px-3 transition duration-200"
-                  :class="focusedField === 'password' ? '-translate-y-px border-primary shadow-[0_0_0_4px_rgba(22,93,255,0.10)]' : 'border-slate-200'"
-                >
-                  <i class="fa fa-lock text-slate-400"></i>
-                  <input
-                    v-model="password"
-                    :type="showPassword ? 'text' : 'password'"
-                    autocomplete="current-password"
-                    class="min-w-0 flex-1 border-0 bg-transparent outline-none"
-                    placeholder="请输入账号密码"
-                    required
-                    @focus="focusedField = 'password'"
-                    @blur="focusedField = ''"
-                    @input="clearFormError"
-                  >
-                  <button
-                    type="button"
-                    class="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-primary"
-                    :aria-label="showPassword ? '隐藏密码' : '显示密码'"
-                    @click="showPassword = !showPassword"
-                  >
-                    <i :class="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-                  </button>
-                </div>
-              </label>
-
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
-                  <input v-model="rememberDevice" type="checkbox" class="accent-primary">
-                  <span>信任此设备</span>
-                </label>
-                <span class="text-xs text-slate-500">建议仅在个人设备启用</span>
-              </div>
-
-              <!-- Turnstile 人机验证 -->
-              <div
-                ref="turnstileContainer"
-                :class="{ hidden: !turnstileSiteKey }"
-              ></div>
-              <p v-if="!turnstileSiteKey" class="text-xs text-danger">未配置 Turnstile Site Key</p>
-              <p v-else-if="captchaError" class="text-xs text-danger">{{ captchaError }}</p>
-
-              <transition
-                enter-active-class="transition duration-150 ease-out"
-                enter-from-class="-translate-y-1 opacity-0"
-                enter-to-class="translate-y-0 opacity-100"
-                leave-active-class="transition duration-150 ease-in"
-                leave-from-class="translate-y-0 opacity-100"
-                leave-to-class="-translate-y-1 opacity-0"
-              >
-                <div v-if="formError" class="flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-2.5 text-sm text-danger">
-                  <i class="fa fa-exclamation-circle"></i>
-                  <span>{{ formError }}</span>
-                </div>
-              </transition>
-
-              <button
-                type="submit"
-                class="inline-flex min-h-12 items-center justify-center gap-2.5 rounded-lg bg-primary font-extrabold text-white shadow-[0_14px_30px_rgba(22,93,255,0.25)] transition duration-200 hover:-translate-y-px hover:bg-[#0e4fe0] hover:shadow-[0_18px_40px_rgba(22,93,255,0.30)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-                :disabled="submitDisabled"
-              >
-                <span>{{ loading ? '正在登录' : '登录工作台' }}</span>
-                <i :class="loading ? 'fa fa-spinner fa-spin' : 'fa fa-arrow-right'"></i>
-              </button>
-            </form>
-          </div>
-
-          <!-- ============================================================ -->
-          <!-- Tab 2: 验证码登录 -->
-          <!-- ============================================================ -->
-          <div v-show="activeTab === 'code'" class="mt-6">
-            <LoginFormCode
-              @login-success="handleLoginSuccess"
-              @login-error="(msg: string) => formError = msg"
-            />
-          </div>
-
-          <!-- ============================================================ -->
-          <!-- Tab 3: 扫码登录 -->
-          <!-- ============================================================ -->
-          <div v-show="activeTab === 'qr'" class="mt-6">
-            <LoginFormQR
-              @login-success="handleLoginSuccess"
-            />
-          </div>
-
-          <!-- ============================================================ -->
-          <!-- 第三方登录（所有 Tab 底部显示） -->
-          <!-- ============================================================ -->
-          <div class="mt-6">
-            <LoginFormThirdParty
-              @login-success="handleLoginSuccess"
-            />
-          </div>
-
-          <!-- 注册入口 -->
-          <div class="mt-5 text-center text-sm text-slate-500">
-            <span>还没有团队账号？</span>
-            <router-link to="/register" class="font-extrabold text-primary hover:underline">创建账号</router-link>
-          </div>
+        <!-- 验证码登录 -->
+        <div v-show="activeTab === 'code'" class="tab-content">
+          <LoginFormCode
+            @login-success="handleLoginSuccess"
+            @login-error="(msg: string) => formError = msg"
+          />
         </div>
-      </section>
-    </div>
-  </main>
+
+        <!-- 扫码登录 -->
+        <div v-show="activeTab === 'qr'" class="tab-content">
+          <LoginFormQR @login-success="handleLoginSuccess" />
+        </div>
+
+        <!-- 第三方登录 -->
+        <div class="third-party-section">
+          <div class="divider">
+            <span>或</span>
+          </div>
+          <LoginFormThirdParty @login-success="handleLoginSuccess" />
+        </div>
+
+        <!-- 注册入口 -->
+        <p class="switch-link">
+          还没有账号？<router-link to="/register">创建账号</router-link>
+        </p>
+      </div>
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -316,20 +196,15 @@ const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api
 const router = useRouter()
 const authStore = useAuthStore()
 
-// ============================================================
 // 登录方式 Tab
-// ============================================================
 const activeTab = ref<'password' | 'code' | 'qr'>('password')
-
 const loginTabs = [
-  { key: 'password' as const, label: '密码登录', icon: 'fa fa-lock' },
-  { key: 'code' as const, label: '验证码', icon: 'fa fa-shield' },
-  { key: 'qr' as const, label: '扫码', icon: 'fa fa-qrcode' },
+  { key: 'password' as const, label: '密码登录' },
+  { key: 'code' as const, label: '验证码登录' },
+  { key: 'qr' as const, label: '扫码登录' },
 ]
 
-// ============================================================
 // 密码登录状态
-// ============================================================
 const phone = ref(import.meta.env.VITE_DEMO_LOGIN_PHONE || '')
 const password = ref(import.meta.env.VITE_DEMO_LOGIN_PASSWORD || '')
 const loading = ref(false)
@@ -344,26 +219,7 @@ const focusedField = ref('')
 const showPassword = ref(false)
 const rememberDevice = ref(true)
 
-const platformFeatures = [
-  { icon: 'fa fa-search', title: '智能搜索', desc: '按关键词、类型与业务字段快速定位文件。' },
-  { icon: 'fa fa-share-alt', title: '安全分享', desc: '统一管理分享链接、权限和过期策略。' },
-  { icon: 'fa fa-folder-open-o', title: '文件工作台', desc: '上传、预览、收藏、下载保持一致体验。' },
-  { icon: 'fa fa-trash-o', title: '回收站保护', desc: '删除记录可追踪，误删内容可恢复。' },
-]
-
-const workspacePreview = [
-  { icon: 'fa fa-cloud-upload', title: '上传与归档', desc: '大文件、目录和业务资料进入统一空间。' },
-  { icon: 'fa fa-eye', title: '预览与检索', desc: '在线预览常见文件，通过搜索快速回到上下文。' },
-  { icon: 'fa fa-comments-o', title: '协作与分享', desc: '把文件、链接和消息放在同一个协作流程里。' },
-]
-
-const workspaceFlow = ['统一上传', '全文索引', '权限分享']
-
-const trustSignals = [
-  { icon: 'fa fa-lock', value: 'TLS', label: '加密传输' },
-  { icon: 'fa fa-shield', value: 'Turnstile', label: '人机校验' },
-  { icon: 'fa fa-history', value: 'Audit', label: '操作留痕' },
-]
+const trustItems = ['端到端加密', '操作审计', '等保合规']
 
 const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
 
@@ -375,17 +231,11 @@ function clearFormError() {
   formError.value = ''
 }
 
-// ============================================================
-// 登录成功处理
-// ============================================================
 function handleLoginSuccess() {
   if (rememberDevice.value) localStorage.setItem('cloudDriveTrustedDevice', '1')
   router.push('/')
 }
 
-// ============================================================
-// 密码登录
-// ============================================================
 async function handlePasswordLogin() {
   formError.value = ''
   captchaError.value = ''
@@ -411,9 +261,7 @@ async function handlePasswordLogin() {
   formError.value = result.message || (result.scope === 'form' ? '手机号或密码错误' : '网络错误，请稍后重试')
 }
 
-// ============================================================
 // Turnstile 验证
-// ============================================================
 function loadTurnstileScript() {
   if (window.turnstile) return Promise.resolve()
 
@@ -493,11 +341,483 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-out;
+/* ============================================================
+   整体布局
+   ============================================================ */
+.login-page {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+
+/* ============================================================
+   左侧品牌区
+   ============================================================ */
+.login-brand {
+  display: none;
+  position: relative;
+  width: 44%;
+  min-width: 480px;
+  overflow: hidden;
+  background: linear-gradient(160deg, #0f172a 0%, #1e293b 40%, #0f172a 100%);
+}
+
+@media (min-width: 1024px) {
+  .login-brand {
+    display: flex;
+  }
+}
+
+.brand-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.brand-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.3;
+}
+
+.brand-glow-1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(22, 93, 255, 0.25), transparent 70%);
+  top: -120px;
+  right: -100px;
+  animation: glowFloat 12s ease-in-out infinite alternate;
+}
+
+.brand-glow-2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(14, 140, 106, 0.18), transparent 70%);
+  bottom: -80px;
+  left: -60px;
+  animation: glowFloat 10s ease-in-out 4s infinite alternate;
+}
+
+@keyframes glowFloat {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(20px, -15px) scale(1.08); }
+}
+
+.brand-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse at 30% 50%, black 40%, transparent 70%);
+}
+
+.brand-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  width: 100%;
+  height: 100%;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #165DFF, #0E8C6A);
+  color: #fff;
+  font-size: 22px;
+  box-shadow: 0 8px 24px rgba(22, 93, 255, 0.3);
+}
+
+.brand-logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.brand-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: -60px;
+}
+
+.brand-heading {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #fff;
+  letter-spacing: -1px;
+}
+
+.brand-subtitle {
+  margin-top: 20px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 360px;
+}
+
+.brand-footer {
+  margin-top: auto;
+}
+
+.brand-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* ============================================================
+   右侧表单区
+   ============================================================ */
+.login-form-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #fff;
+}
+
+.login-form-inner {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* 移动端品牌 */
+.mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+  justify-content: center;
+}
+
+@media (min-width: 1024px) {
+  .mobile-brand {
+    display: none;
+  }
+}
+
+.mobile-brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #165DFF, #0E8C6A);
+  color: #fff;
+  font-size: 20px;
+}
+
+.mobile-brand-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* 表单标题 */
+.form-header {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.form-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+.form-desc {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+/* 登录方式 Tab */
+.login-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 24px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.login-tab {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-tab.active {
+  background: #fff;
+  color: #165DFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.login-tab:not(.active):hover {
+  color: #334155;
+}
+
+.tab-content {
+  min-height: 280px;
+}
+
+/* 表单 */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.field-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.field-input-wrap.focused {
+  border-color: #165DFF;
+  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.08);
+}
+
+.field-icon {
+  color: #94a3b8;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.field-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #0f172a;
+  background: transparent;
+}
+
+.field-input::placeholder {
+  color: #94a3b8;
+}
+
+.field-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.field-toggle:hover {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.field-error {
+  font-size: 12px;
+  color: #ef4444;
+  margin: 0;
+}
+
+/* 记住设备 */
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.remember-check {
+  width: 16px;
+  height: 16px;
+  accent-color: #165DFF;
+  cursor: pointer;
+}
+
+/* Turnstile */
+.turnstile-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+/* 错误提示 */
+.form-error-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  border: 1px solid #fecaca;
+}
+
+.form-error-fade-enter-active,
+.form-error-fade-leave-active {
+  transition: all 0.2s ease;
+}
+.form-error-fade-enter-from,
+.form-error-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 提交按钮 */
+.submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  background: #165DFF;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.25);
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: #1452e0;
+  box-shadow: 0 4px 16px rgba(22, 93, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  background: #cbd5e1;
+  box-shadow: none;
+  cursor: not-allowed;
+  color: #94a3b8;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 第三方登录区域 */
+.third-party-section {
+  margin-top: 24px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.divider span {
+  font-size: 12px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 切换链接 */
+.switch-link {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.switch-link a {
+  color: #165DFF;
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 4px;
+}
+
+.switch-link a:hover {
+  text-decoration: underline;
 }
 </style>

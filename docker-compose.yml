@@ -118,6 +118,7 @@ services:
       - app-networks
     environment:
       - discovery.type=single-node
+      - plugins.security.disabled=true    # 完全禁用安全
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=MySecureP@ssw0rd
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -131,6 +132,13 @@ services:
       - "9200"
       - "9600"
     restart: always
+    # 添加健康检查
+    healthcheck:
+      test: ["CMD-SHELL", "curl -k -u admin:MySecureP@ssw0rd -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
 
   # ==================== SkyWalking OAP Server（链路追踪后端） ====================
   skywalking-oap:
@@ -146,18 +154,20 @@ services:
     environment:
       SW_STORAGE: elasticsearch
       SW_STORAGE_ES_CLUSTER_NODES: opensearch:9200
-      SW_STORAGE_ES_USER: admin
-      SW_STORAGE_ES_PASSWORD: MySecureP@ssw0rd
-      SW_STORAGE_ES_SSL_ENABLED: "true"
-      SW_STORAGE_ES_TRUST_CA_PATH: ""
+      SW_STORAGE_ES_HTTP_PROTOCOL: http
+      SW_STORAGE_ES_SSL_ENABLED: "false"
       SW_STORAGE_ES_INDEX_SHARDS_NUMBER: 1
       SW_STORAGE_ES_INDEX_REPLICAS_NUMBER: 0
       SW_CORE_RECORD_DATA_TTL: 7
       SW_CORE_METRICS_DATA_TTL: 7
       SW_CORE_TRACE_DATA_TTL: 7
-      JAVA_OPTS: "-Xms512m -Xmx1g"
+      JAVA_OPTS: "-Xms512m -Xmx1g \
+      -Dskywalking.elasticsearch.trustAll=true \
+      -Dskywalking.elasticsearch.insecure=true \
+      -Djavax.net.ssl.trustAll=true"
     depends_on:
-      - opensearch
+        opensearch:
+          condition: service_healthy          # 添加健康检查依赖
     restart: always
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:12800/healthz"]
@@ -179,8 +189,7 @@ services:
       SW_TIMEOUT: 60000
       JAVA_OPTS: "-Xms256m -Xmx512m"
     depends_on:
-      skywalking-oap:
-        condition: service_healthy
+      - skywalking-oap
     restart: always
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080"]
@@ -366,11 +375,8 @@ services:
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
 
-      OPENSEARCH_HOST: https://opensearch:9200
-      OPENSEARCH_USERNAME: admin
-      OPENSEARCH_PASSWORD: MySecureP@ssw0rd
-      OPENSEARCH_USE_SSL: true
-      OPENSEARCH_VERIFY_CERTS: false
+      OPENSEARCH_HOST: http://opensearch:9200
+      OPENSEARCH_USE_SSL: "false"
       OPENSEARCH_TIMEOUT: 30
       OPENSEARCH_MAX_RETRIES: 3
       OPENSEARCH_FILE_INDEX: pcd_file_basic
@@ -388,11 +394,6 @@ services:
       OPERATION_TOKEN_DESTROY_USER_WINDOW_SECONDS: 60
       OPERATION_TOKEN_DESTROY_IP_LIMIT: 180
       OPERATION_TOKEN_DESTROY_IP_WINDOW_SECONDS: 60
-      # Sentinel 控制台连接
-      SENTINEL_DASHBOARD_HOST: ${SENTINEL_DASHBOARD_HOST:-sentinel}
-      SENTINEL_DASHBOARD_PORT: ${SENTINEL_DASHBOARD_PORT:-8080}
-      SENTINEL_API_PORT: ${SENTINEL_API_PORT:-8719}
-      SENTINEL_APP_NAME: PrivateCloudDisk-storage-service
       # SkyWalking Python Agent
       SW_AGENT_NAME: PrivateCloudDisk-storage-service
       SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
@@ -408,7 +409,7 @@ services:
     container_name: backend-file-worker
     networks:
       - app-networks
-    command: /backend_file_service/docker-entrypoint-worker.sh
+    command: sw-python run python worker.py
     depends_on:
       - rabbitmq
       - redis
@@ -425,11 +426,8 @@ services:
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
 
-      OPENSEARCH_HOST: https://opensearch:9200
-      OPENSEARCH_USERNAME: admin
-      OPENSEARCH_PASSWORD: MySecureP@ssw0rd
-      OPENSEARCH_USE_SSL: true
-      OPENSEARCH_VERIFY_CERTS: false
+      OPENSEARCH_HOST: http://opensearch:9200
+      OPENSEARCH_USE_SSL: "false"
       OPENSEARCH_TIMEOUT: 30
       OPENSEARCH_MAX_RETRIES: 3
       OPENSEARCH_FILE_INDEX: pcd_file_basic

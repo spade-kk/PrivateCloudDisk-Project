@@ -33,10 +33,10 @@ FROM eclipse-temurin:18-jdk AS agent-downloader
 
 WORKDIR /agent
 RUN apt-get update && apt-get install -y curl && \
-    curl -L -o skywalking-agent.tar.gz \
-    https://dlcdn.apache.org/skywalking/java-agent/9.4.0/apache-skywalking-java-agent-9.4.0.tgz && \
-    tar -xzf skywalking-agent.tar.gz --strip-components=1 && \
-    rm skywalking-agent.tar.gz
+    curl -L --retry 3 -o skywalking-agent.tgz \
+    https://archive.apache.org/dist/skywalking/java-agent/9.4.0/apache-skywalking-java-agent-9.4.0.tgz && \
+    tar -xzf skywalking-agent.tgz --strip-components=1 && \
+    rm skywalking-agent.tgz
 
 # ---- 阶段 3：运行 ----
 FROM eclipse-temurin:18-jre

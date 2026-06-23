@@ -14,8 +14,13 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 # - tesseract-ocr: 图片 OCR 文字提取
 # =============================================================================
 RUN apk add --no-cache \
+    # 编译工具（pyvips 需要）
+    build-base \
+    pkgconfig \
+    # 运行时依赖
     openssl \
     vips \
+    vips-dev \
     ffmpeg \
     clamav \
     clamav-daemon \
@@ -72,8 +77,8 @@ RUN openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits
 COPY requirements.txt requirements.txt
 
 # 安装依赖（国内镜像源，加速安装）
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 COPY . .
 
 EXPOSE 8000

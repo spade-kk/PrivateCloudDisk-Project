@@ -66,10 +66,10 @@ class Settings(BaseSettings):
 
     # ========== OpenSearch 配置 ==========
     opensearch_host: str = "http://localhost:9200"
-    # opensearch_username: str = "admin"
-    # opensearch_password: str = "MySecureP@ssw0rd"
+    opensearch_username: str = "admin"
+    opensearch_password: str = "MySecureP@ssw0rd"
     opensearch_use_ssl: bool = False
-    # opensearch_verify_certs: bool = False
+    opensearch_verify_certs: bool = False
     opensearch_timeout: int = 30
     opensearch_max_retries: int = 3
 
