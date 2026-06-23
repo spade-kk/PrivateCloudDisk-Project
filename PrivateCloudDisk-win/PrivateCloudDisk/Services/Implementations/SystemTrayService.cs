@@ -21,7 +21,7 @@ namespace PrivateCloudDisk.Services.Implementations;
 /// </summary>
 public class SystemTrayService : IDisposable
 {
-    private readonly Window _mainWindow;
+    private Window? _mainWindow;
     private readonly Action _showWindow;
     private readonly Action _hideWindow;
     private readonly Func<Task> _onExit;
@@ -45,6 +45,14 @@ public class SystemTrayService : IDisposable
         _showWindow = showWindow;
         _hideWindow = hideWindow;
         _onExit = onExit;
+    }
+
+    /// <summary>
+    /// 延迟设置窗口引用（用于 DI 容器初始化时窗口尚未创建的场景）
+    /// </summary>
+    public void SetWindow(Window window)
+    {
+        _mainWindow = window;
     }
 
     // ── 属性 ──────────────────────────────────────────────
@@ -78,6 +86,7 @@ public class SystemTrayService : IDisposable
     /// </summary>
     public void ShowMainWindow()
     {
+        if (_mainWindow == null) return;
         _showWindow();
         var hwnd = WindowNative.GetWindowHandle(_mainWindow);
         TrayNativeMethods.SetForegroundWindow(hwnd);

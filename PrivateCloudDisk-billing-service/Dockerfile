@@ -6,7 +6,7 @@ FROM eclipse-temurin:18-jdk AS builder
 WORKDIR /billing_service
 
 COPY gradle gradle
-COPY gradlew .
+COPY gradlew gradlew.bat ./
 COPY build.gradle settings.gradle ./
 
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon

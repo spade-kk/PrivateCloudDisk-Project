@@ -128,6 +128,57 @@ public class DownloadService : BaseApiService, IDownloadService
         return result ?? throw new ApiException(500, "凭证响应解析失败");
     }
 
+    public async Task<DownloadCredential> GetDownloadCredentialAsync(string fileId)
+    {
+        var tokenResp = await RequestOperationTokenAsync(fileId, "download");
+        return new DownloadCredential
+        {
+            DownloadUrl = $"{AppConfig.FileServiceBaseUrl}/downloads/files/{fileId}/content?token={Uri.EscapeDataString(tokenResp.OperationToken)}",
+            Token = tokenResp.OperationToken,
+            ExpiresAt = DateTime.UtcNow.AddHours(1)
+        };
+    }
+
+    public async Task<bool> DownloadFileAsync(string downloadUrl, string savePath,
+        IProgress<(double percent, string status)>? progress = null)
+    {
+        try
+        {
+            var client = CreateClient("file");
+            using var response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength ?? -1;
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            await using var fileStream = new FileStream(savePath, FileMode.Create, FileAccess.Write,
+                FileShare.None, 8192, useAsync: true);
+
+            var buffer = new byte[8192];
+            long totalRead = 0;
+            int bytesRead;
+
+            while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                totalRead += bytesRead;
+
+                if (totalBytes > 0)
+                {
+                    var percent = (double)totalRead / totalBytes;
+                    progress?.Report((percent, $"下载中 {percent * 100:F0}%"));
+                }
+            }
+
+            progress?.Report((1.0, "下载完成"));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            progress?.Report((0, $"下载失败: {ex.Message}"));
+            return false;
+        }
+    }
+
     public async Task DownloadFileAsync(string fileId, string token, string savePath,
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)

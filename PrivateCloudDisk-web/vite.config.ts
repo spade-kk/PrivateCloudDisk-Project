@@ -182,6 +182,11 @@ export default defineConfig(({ command, mode }) => {
           changeOrigin: true,
         },
       },
+      allowedHosts: [
+        'tests.hellomyservice.xyz',
+        'localhost',
+        '.myservice.xyz'  // 允许所有 myservice.xyz 子域名
+      ]
     },
 
     // ============================================================

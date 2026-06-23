@@ -24,13 +24,12 @@ public partial class App : Application
         var services = new ServiceCollection();
 
         // HttpClient
-        services.AddHttpClient("Downloader", client =>
+        services.AddHttpClient<DownloadService>(client =>
         {
             client.Timeout = TimeSpan.FromMinutes(30);
             client.DefaultRequestHeaders.Add("User-Agent", "PrivateCloudDisk-Downloader/1.0");
         });
 
-        services.AddTransient<DownloadService>();
         services.AddSingleton<InstallService>();
         services.AddSingleton<DownloaderViewModel>();
 

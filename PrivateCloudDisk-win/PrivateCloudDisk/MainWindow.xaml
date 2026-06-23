@@ -77,7 +77,7 @@
                     <Button Command="{x:Bind ViewModel.ToggleSidebarCommand}"
                             Style="{StaticResource IconButton}">
                         <FontIcon FontFamily="Segoe MDL2 Assets"
-                                  Glyph="{x:Bind ViewModel.IsSidebarCollapsed ? '&#xE60C;' : '&#xE60E;'}"
+                                  Glyph="{x:Bind ViewModel.IsSidebarCollapsed ? &amp;quot;&#xE60C;&amp;quot; : &amp;quot;&#xE60E;&amp;quot;}"
                                   VerticalAlignment="Center" HorizontalAlignment="Center"/>
                     </Button>
                 </Border>
@@ -97,7 +97,7 @@
                                        VerticalAlignment="Center"/>
                         </Grid>
                         <ProgressBar Value="{x:Bind ViewModel.QuotaPercent, Mode=OneWay}"
-                                     Foreground="{x:Bind (ViewModel.QuotaPercent) < 90 ? StaticResource.PrimaryBrush : StaticResource.DangerBrush}"
+                                     Foreground="{x:Bind (ViewModel.QuotaPercent) &lt; 90 ? StaticResource.PrimaryBrush : StaticResource.DangerBrush}"
                                      Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>

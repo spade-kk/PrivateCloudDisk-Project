@@ -21,13 +21,21 @@ namespace PrivateCloudDisk.Services.Implementations;
 /// </summary>
 public class TaskbarProgressService : IDisposable
 {
-    private readonly Window _mainWindow;
+    private Window? _mainWindow;
     private ITaskbarList3? _taskbarList;
     private bool _initialized;
 
     public TaskbarProgressService(Window mainWindow)
     {
         _mainWindow = mainWindow;
+    }
+
+    /// <summary>
+    /// 延迟设置窗口引用（用于 DI 容器初始化时窗口尚未创建的场景）
+    /// </summary>
+    public void SetWindow(Window window)
+    {
+        _mainWindow = window;
     }
 
     private void EnsureInitialized()

@@ -60,20 +60,26 @@ public partial class App : Application
         services.AddSingleton<IAuthService, AuthService>();
         services.AddSingleton<IAuthTokenStore, AuthTokenStore>();
 
-
         // ── Windows 平台增强服务 ────────────────────────────
+        // 注意: Window.Current 在构造函数中为 null，使用延迟初始化
         services.AddSingleton<ToastNotificationService>();
         services.AddSingleton<ToastNotificationActivationHandler>();
         services.AddSingleton<TaskbarProgressService>(sp =>
-            new TaskbarProgressService(Window.Current as Microsoft.UI.Xaml.Window!));
+        {
+            // 延迟获取 Window 引用，通过静态属性在运行时注入
+            return new TaskbarProgressService(null!);
+        });
         services.AddSingleton<JumpListService>();
         services.AddSingleton<NetworkMonitorService>();
         services.AddSingleton<SystemTrayService>(sp =>
-            new SystemTrayService(
-                Window.Current as Microsoft.UI.Xaml.Window!,
-                () => Window.Current?.Activate(),
+        {
+            // 延迟初始化，窗口引用在 OnLaunched 中设置
+            return new SystemTrayService(
+                null!,
+                () => _mainWindow?.Activate(),
                 () => { /* 隐藏窗口 */ },
-                async () => await sp.GetRequiredService<IAuthService>().LogoutAsync()));
+                async () => await sp.GetRequiredService<IAuthService>().LogoutAsync());
+        });
         services.AddSingleton<ShareTargetService>();
         services.AddSingleton<ThumbnailService>();
         services.AddSingleton<SearchIndexService>(sp =>
@@ -144,8 +150,18 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        // 创建主窗口，先显示 SplashScreen
+        // 创建主窗口
         _mainWindow = new MainWindow();
+
+        // 延迟注入窗口引用到需要窗口句柄的服务
+        if (_mainWindow != null)
+        {
+            var taskbarService = Services.GetRequiredService<TaskbarProgressService>();
+            taskbarService.SetWindow(_mainWindow);
+
+            var trayService = Services.GetRequiredService<SystemTrayService>();
+            trayService.SetWindow(_mainWindow);
+        }
 
         // 判断是否首次启动
         var settings = Services.GetRequiredService<ISettingsService>();
@@ -153,7 +169,6 @@ public partial class App : Application
 
         if (isFirstRun)
         {
-            // 首次启动：显示 SplashScreen → 登录页
             settings.Set("App.HasLaunched", true);
             settings.Save();
         }
@@ -166,7 +181,6 @@ public partial class App : Application
             var authService = Services.GetRequiredService<IAuthService>();
             var restored = await authService.TryRestoreSessionAsync();
 
-            // 如果已恢复会话，自动建立 IM WebSocket 连接
             if (restored)
             {
                 var wsService = Services.GetRequiredService<IIMWebSocketService>();

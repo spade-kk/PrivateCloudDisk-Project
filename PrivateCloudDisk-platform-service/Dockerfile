@@ -5,7 +5,7 @@ WORKDIR /backend_platform_service
 
 # 1. 先复制 Gradle Wrapper 和配置文件（便于缓存依赖）
 COPY gradle gradle
-COPY gradlew .
+COPY gradlew gradlew.bat ./
 COPY build.gradle settings.gradle ./
 
 # 2. 下载依赖（这一步会缓存，除非 build.gradle/settings.gradle 变化）

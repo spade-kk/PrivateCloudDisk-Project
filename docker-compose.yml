@@ -264,7 +264,7 @@ services:
 
   # -------------------- FastAPI 文件服务 --------------------
   file-service-backend:
-    build: ./PrivateCloudDisk-shortage-service
+    build: ./PrivateCloudDisk-storage-service
     container_name: backend-file-service
     networks:
       - app-networks
@@ -317,7 +317,7 @@ services:
 
   # -------------------- FastAPI Worker 文件处理消费者 --------------------
   file-service-worker:
-    build: ./PrivateCloudDisk-shortage-service
+    build: ./PrivateCloudDisk-storage-service
     container_name: backend-file-worker
     networks:
       - app-networks

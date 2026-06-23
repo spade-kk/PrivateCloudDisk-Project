@@ -31,6 +31,13 @@ public interface IDownloadService
     /// <summary>申请操作凭证 POST /files/operation-tokens</summary>
     Task<OperationTokenResponse> RequestOperationTokenAsync(string fileId, string operationType);
 
+    /// <summary>获取下载凭证（包含下载 URL）</summary>
+    Task<DownloadCredential> GetDownloadCredentialAsync(string fileId);
+
+    /// <summary>通过 URL 直接下载文件</summary>
+    Task<bool> DownloadFileAsync(string downloadUrl, string savePath,
+        IProgress<(double percent, string status)>? progress = null);
+
     /// <summary>下载文件 GET /downloads/files/{fileId}/content?token={token}</summary>
     Task DownloadFileAsync(string fileId, string token, string savePath,
         IProgress<double>? progress = null,
@@ -43,6 +50,16 @@ public interface IDownloadService
     Task DownloadFileWithTokenAsync(string fileId, string savePath,
         IProgress<(double percent, string status)>? progress = null,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// 下载凭证
+/// </summary>
+public class DownloadCredential
+{
+    public string DownloadUrl { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
 }
 
 /// <summary>
