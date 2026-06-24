@@ -16,12 +16,11 @@
 """
 import time
 from fastapi import APIRouter, Request, Header, HTTPException, status
+from fastapi.responses import JSONResponse
 from app.models.schemas import (
     InitDownloadGrantRequest,
     DownloadGrantCancelRequest,
     DownloadGrantReleaseRequest,
-    DownloadGrantResponse,
-    DownloadGrantStatusResponse,
 )
 from app.core.download_grant import (
     issue_download_grant,
@@ -39,7 +38,6 @@ router = APIRouter()
 @router.post(
     "/files/download-grants",
     summary="申请下载授权",
-    response_model=DownloadGrantResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_download_grant(
@@ -85,19 +83,21 @@ async def create_download_grant(
     token_key = _token_key(token_hash)
     grant_data = await redis_client.hgetall(token_key)
 
-    return DownloadGrantResponse(
-        download_grant=token,
-        expires_at=int(grant_data.get("expiresAt", 0)),
-        max_parallel_chunks=int(grant_data.get("maxParallelChunks", 4)),
-        file_name=grant_data.get("fileName", ""),
-        file_size=int(grant_data.get("fileSize", 0)),
-    )
-
+    return JSONResponse({
+            "code": 200,
+            "data": {
+               "download_grant":token,
+               "expires_at":int(grant_data.get("expiresAt", 0)),
+               "max_parallel_chunks":int(grant_data.get("maxParallelChunks", 4)),
+               "file_name":grant_data.get("fileName", ""),
+               "file_size":int(grant_data.get("fileSize", 0))
+            },
+            "message": None
+        })
 
 @router.get(
     "/files/download-grants/status",
     summary="查询下载授权状态",
-    response_model=DownloadGrantStatusResponse,
 )
 async def query_download_grant_status(
     download_grant: str = Header(..., alias="X-Download-Grant"),
@@ -124,19 +124,23 @@ async def query_download_grant_status(
             detail="Download grant not found"
         )
 
-    return DownloadGrantStatusResponse(
-        status=result["status"],
-        file_id=result.get("file_id"),
-        file_name=result.get("file_name"),
-        file_size=result.get("file_size", 0),
-        issued_at=result.get("issued_at", 0),
-        expires_at=result.get("expires_at", 0),
-        max_parallel_chunks=result.get("max_parallel_chunks", 0),
-    )
+    return JSONResponse({
+          "code": 200,
+          "data": {
+            "status": result["status"],
+            "file_id": result.get("file_id"),
+            "file_name": result.get("file_name"),
+            "file_size": result.get("file_size", 0),
+            "issued_at": result.get("issued_at", 0),
+            "expires_at": result.get("expires_at", 0),
+            "max_parallel_chunks": result.get("max_parallel_chunks", 0)
+          },
+          "message": None
+      })
 
 
-@router.delete(
-    "/files/download-grants",
+@router.post(
+    "/files/download-grants/cancel",
     summary="取消下载授权",
     status_code=status.HTTP_200_OK,
 )
@@ -159,7 +163,11 @@ async def cancel_download_grant_endpoint(
       - message: "Download grant cancelled"
     """
     await cancel_download_grant(token=req.download_grant, user_id=user_id)
-    return {"message": "Download grant cancelled"}
+    return JSONResponse({
+          "code": 200,
+          "data": None,
+          "message": "Download grant cancelled"
+      })
 
 
 @router.post(
@@ -183,4 +191,9 @@ async def release_download_grant_endpoint(
       - message: "Download grant released"
     """
     await release_download_grant(token=req.download_grant)
-    return {"message": "Download grant released"}
+
+    return JSONResponse({
+          "code": 200,
+          "data": None,
+          "message": "Download grant released"
+      })

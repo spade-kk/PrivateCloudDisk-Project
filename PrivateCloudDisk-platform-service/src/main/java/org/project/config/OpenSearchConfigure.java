@@ -22,37 +22,13 @@ public class OpenSearchConfigure {
     @Value("${opensearch.host}")
     private String host;
 
-    @Value("${opensearch.username}")
-    private String username;
-
-    @Value("${opensearch.password}")
-    private String password;
 
     @Bean(destroyMethod = "close")
     public RestHighLevelClient restHighLevelClient() {
-        BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-        credentialsProvider.setCredentials(
-                AuthScope.ANY,
-                new UsernamePasswordCredentials(username, password)
-        );
 
         RestClientBuilder builder = RestClient.builder(org.apache.http.HttpHost.create(host))
                 .setHttpClientConfigCallback(httpClientBuilder ->
-                        {
-                            try {
-                                return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
-                                                .setSSLContext(SSLContextBuilder.create()
-                                                    .loadTrustMaterial((chain, authType) -> true) // 信任所有
-                                                    .build())
-                                                    .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE);
-                            } catch (NoSuchAlgorithmException e) {
-                                throw new RuntimeException(e);
-                            } catch (KeyManagementException e) {
-                                throw new RuntimeException(e);
-                            } catch (KeyStoreException e) {
-                                throw new RuntimeException(e);
-                            }
-                        } // 跳过主机名验证
+                        httpClientBuilder
                 );
 
         return new RestHighLevelClient(builder);

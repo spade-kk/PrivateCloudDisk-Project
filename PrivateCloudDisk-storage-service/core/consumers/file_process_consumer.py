@@ -184,11 +184,15 @@ class FileProcessConsumer:
             f"task={event.task_type} "
             f"result=success"
         )
-
-        # 先更新 Redis 任务状态（在 ACK 之前，确保状态持久化）
-        await self._update_task_status(
-            event.task_id, event.task_type, TaskStatus.COMPLETED, result.data,
-        )
+        if event.task_type == TaskTypes.MERGE or event.task_type == TaskTypes.HASH_CALCULATE or event.task_type == TaskTypes.VIRUS_SCAN:
+            await self._update_task_status(
+                event.task_id, event.task_type, TaskStatus.PROCESSING, result.data,
+            )
+        else:
+            # 先更新 Redis 任务状态（在 ACK 之前，确保状态持久化）
+            await self._update_task_status(
+                event.task_id, event.task_type, TaskStatus.COMPLETED, result.data,
+            )
 
         # 累积缩略图和转码信息
         accumulated = event.to_dict()
@@ -494,7 +498,7 @@ class FileProcessConsumer:
                 "fileType": event.file_type,
                 "userId": event.user_id,
                 "uploadsSessionId": getattr(event, 'uploads_id', ''),
-                "eventTime": datetime.now(timezone.utc).isoformat(),
+                "eventTime": datetime.utcnow().isoformat(),#暂时不带时区
             }
             await _rabbitmq.publish_file_event(
                 _settings.file_available_routing_key, event_data

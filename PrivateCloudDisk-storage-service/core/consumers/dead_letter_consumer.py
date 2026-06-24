@@ -379,7 +379,7 @@ class DeadLetterConsumer(BaseDLQConsumer):
                 "userId": data.get("user_id", ""),
                 "uploadsSessionId": data.get("uploads_id", ""),
                 "failReason": fail_reason,
-                "eventTime": datetime.now(timezone.utc).isoformat(),
+                "eventTime":  datetime.utcnow().isoformat(),#暂时不带时区
             }
             await rabbitmq_service.publish_file_event(
                 settings.file_merge_failed_routing_key, event
@@ -406,7 +406,7 @@ class DeadLetterConsumer(BaseDLQConsumer):
                 "userId": data.get("user_id", ""),
                 "uploadsSessionId": data.get("uploads_id", ""),
                 "threatName": threat_name,
-                "eventTime": datetime.now(timezone.utc).isoformat(),
+                "eventTime":  datetime.utcnow().isoformat(),#暂时不带时区
             }
             await rabbitmq_service.publish_file_event(
                 settings.file_scan_failed_routing_key, event

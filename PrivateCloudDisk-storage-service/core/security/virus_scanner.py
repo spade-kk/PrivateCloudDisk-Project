@@ -40,8 +40,8 @@ class VirusScanner:
             import pyclamd
             # 尝试 Unix Socket 连接
             socket_paths = [
+                 "/var/run/clamav/clamd.sock",          # Linux 标准路径
                 "/opt/homebrew/var/run/clamav/clamd.sock",  # macOS
-                "/var/run/clamav/clamd.sock",          # Linux 标准路径
                 "/tmp/clamd.sock",
             ]
             self._cd = None
@@ -66,6 +66,7 @@ class VirusScanner:
                     logger.info("已连接 clamd (TCP: 127.0.0.1:3310)")
                     return True
             except Exception:
+                logger.warning("clamd 守护进程不可用")
                 pass
 
             self._clamd_available = False

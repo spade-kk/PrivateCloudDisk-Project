@@ -22,7 +22,7 @@ import { get, post, del } from '@/utils/request'
  */
 export function createDownloadGrantApi(file_id: string): Promise<any> {
   const data = { file_id }
-  return post('files/dowloads-grant', data)
+  return post('files/download-grants', data)
 }
 
 /**
@@ -34,9 +34,9 @@ export function createDownloadGrantApi(file_id: string): Promise<any> {
  * @param download_grant - 要取消的操作令牌
  * @returns Promise 取消结果
  */
-export function cancelDownloadGrantApi(dowload_grant: string): Promise<any> {
-  const data = { dowload_grant }
-  return del('files/dowloads-grant/', data)
+export function cancelDownloadGrantApi(download_grant: string): Promise<any> {
+  const data = { download_grant }
+  return post('files/download-grants/cancel', data)
 }
 
 /**
@@ -45,9 +45,9 @@ export function cancelDownloadGrantApi(dowload_grant: string): Promise<any> {
  * @param download_grant - 要取消的操作令牌
  * @returns Promise 结束结果
  */
-export function finishDownloadGrantApi(dowload_grant: string): Promise<any> {
-  const data = { dowload_grant }
-  return post('files/dowloads-grant/finish', data)
+export function releaseDownloadGrantApi(download_grant: string): Promise<any> {
+  const data = { download_grant }
+  return post('files/download-grants/release', data)
 }
 
 // ============================================================
@@ -98,7 +98,7 @@ export function getFileContentChunkApi(
   return get(`files/files/${file_id}/content`, {}, {
     responseType: 'blob',
     headers: {
-      headers: { 'X-Download-Grant': download_grant },
+      'X-Download-Grant': download_grant,
       'Range': `bytes=${start}-${end}`,
     },
   })
