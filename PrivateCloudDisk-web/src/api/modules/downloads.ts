@@ -87,6 +87,7 @@ export function getFileContentApi(
  * @param download_grant - 下载操作令牌
  * @param start - 起始字节偏移（包含）
  * @param end - 结束字节偏移（包含）
+ * @param onProgress - 可选的分片下载进度回调 (loaded, total)，用于实时速率计算
  * @returns Promise<Blob> 指定范围的二进制数据
  */
 export function getFileContentChunkApi(
@@ -94,6 +95,7 @@ export function getFileContentChunkApi(
   download_grant: string,
   start: number,
   end: number,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<any> {
   return get(`files/files/${file_id}/content`, {}, {
     responseType: 'blob',
@@ -101,5 +103,10 @@ export function getFileContentChunkApi(
       'X-Download-Grant': download_grant,
       'Range': `bytes=${start}-${end}`,
     },
+    onDownloadProgress: onProgress
+      ? (progressEvent: ProgressEvent) => {
+          onProgress(progressEvent.loaded, progressEvent.total)
+        }
+      : undefined,
   })
 }

@@ -123,8 +123,8 @@ COPY --from=brotli-builder /tmp/nginx-src/objs/ngx_http_brotli_static_module.so 
 # 使用自定义主配置文件（含 Brotli 模块加载、worker 优化、events 优化）
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
-# 复制 Nginx 站点配置
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# 复制 Nginx 子域名站点配置（多域 CDN 边缘层架构）
+COPY nginx/conf.d/ /etc/nginx/conf.d/
 
 # 从构建阶段复制前端静态文件（含 version-manifest.json）
 COPY --from=builder /frontend_web_app/dist/ /usr/share/nginx/html/
@@ -141,7 +141,7 @@ COPY --from=builder /frontend_web_app/dist/ /usr/share/nginx/html/
 RUN mkdir -p /usr/share/nginx/html/downloads/binaries && \
     chown -R nginx:nginx /usr/share/nginx/html/downloads
 
-# 创建日志轮转配置
+# 创建日志轮转配置（含多子域名日志文件）
 RUN echo '/var/log/nginx/*.log {' > /etc/logrotate.d/nginx && \
     echo '    daily' >> /etc/logrotate.d/nginx && \
     echo '    missingok' >> /etc/logrotate.d/nginx && \

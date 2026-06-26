@@ -75,6 +75,7 @@ export function createUploadsSessionApi(
  * @param chunk_index - 分片索引（从 0 开始）
  * @param upload_file_chunk - 分片 File 对象（Blob.slice() 切分得到）
  * @param signal - 可选的 AbortSignal，用于取消上传
+ * @param onProgress - 可选的上传进度回调 (loaded, total)，用于实时速率计算
  * @returns Promise 分片上传结果
  */
 export function uploadFileChunkApi(
@@ -82,6 +83,7 @@ export function uploadFileChunkApi(
   chunk_index: number,
   upload_file_chunk: File,
   signal?: AbortSignal,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<any> {
   const data = new FormData()
   data.append('chunk_index', String(chunk_index))
@@ -89,6 +91,11 @@ export function uploadFileChunkApi(
   return post(`files/uploads/${uploads_id}/chunks`, data, {
     signal,
     timeout: 0, // 不设超时，大分片上传可能耗时较长
+    onUploadProgress: onProgress
+      ? (progressEvent: ProgressEvent) => {
+          onProgress(progressEvent.loaded, progressEvent.total)
+        }
+      : undefined,
   })
 }
 

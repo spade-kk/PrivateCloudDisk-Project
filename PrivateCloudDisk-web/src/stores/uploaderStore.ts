@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { CHUNK_SIZE, MAX_CONCURRENT_UPLOADS, MAX_RETRIES } from '@/utils/constants'
 import { calculateSHA256 } from '@/utils/helpers'
+import { SpeedSampler } from '@/utils/speedSampler'
 import { useToastStore } from './toastStore'
 import { useFileBrowserStore } from './fileBrowserStore'
 import { useTransferStore } from './transferStore'
@@ -50,12 +51,29 @@ export const useUploaderStore = defineStore('uploader', () => {
   let pollCount = 0
 
   const fileChecksum = ref('')
-  let speedTimer: ReturnType<typeof setInterval> | null = null
 
   const concurrentUploads = MAX_CONCURRENT_UPLOADS
 
-  let lastCompletedBytes = 0
-  let lastSpeedTime = 0
+  // ============================================================
+  // 企业级速率采样器
+  // 基于滑动窗口 + EMA 平滑算法，从 onUploadProgress 事件
+  // 获取实时传输字节数，而非等待分块完成后才统计。
+  // ============================================================
+  const speedSampler = new SpeedSampler(5000, 200, 0.3)
+  let speedTimer: ReturnType<typeof setInterval> | null = null
+
+  /** 实时累计已传输字节数（跨并发分块汇总） */
+  let accumulatedUploadedBytes = 0
+
+  /** 每个分块当前已传输字节数（用于增量计算） */
+  const chunkUploadedBytes = new Map<number, number>()
+
+  /**
+   * 获取实时上传速率（EMA 平滑）
+   */
+  function getUploadSpeed(): string {
+    return speedSampler.getFormattedSpeed().formatted
+  }
 
   function getCompletedBytes(): number {
     return chunksStatus.value.reduce((sum, c) => {
@@ -64,33 +82,27 @@ export const useUploaderStore = defineStore('uploader', () => {
     }, 0)
   }
 
-  function calcSpeed(): string {
-    const now = Date.now()
-    const completed = getCompletedBytes()
-    if (!lastSpeedTime) { lastSpeedTime = now; lastCompletedBytes = completed; return '0 KB/s' }
-    const elapsed = (now - lastSpeedTime) / 1000
-    if (elapsed <= 0) return '0 KB/s'
-    const speedBps = (completed - lastCompletedBytes) / elapsed
-    lastSpeedTime = now
-    lastCompletedBytes = completed
-    if (speedBps > 1048576) return `${(speedBps / 1048576).toFixed(1)} MB/s`
-    return `${(speedBps / 1024).toFixed(1)} KB/s`
-  }
-
   function updateTransferProgress(): void {
     if (transferRecordId.value == null) return
     const completed = chunksStatus.value.filter(c => c.status === 'success').length
     const progress = totalChunks.value ? (completed / totalChunks.value) * 100 : 0
-    transferStore.updateProgress(transferRecordId.value, progress, calcSpeed())
+    transferStore.updateProgress(transferRecordId.value, progress, getUploadSpeed())
   }
 
+  /**
+   * 启动速率采样定时器
+   * 每 200ms 将当前累计字节数推入 SpeedSampler，
+   * 同时更新传输列表中的速度显示。
+   */
   function startSpeedMonitor(): void {
-    lastSpeedTime = 0
-    lastCompletedBytes = 0
+    accumulatedUploadedBytes = 0
+    chunkUploadedBytes.clear()
+    speedSampler.reset()
     if (speedTimer) clearInterval(speedTimer)
     speedTimer = setInterval(() => {
+      speedSampler.addSample(accumulatedUploadedBytes)
       if (!isProcessing.value) updateTransferProgress()
-    }, 1000)
+    }, 200)
   }
 
   function stopSpeedMonitor(): void {
@@ -205,12 +217,36 @@ export const useUploaderStore = defineStore('uploader', () => {
     const controller = new AbortController()
     activeControllers.value.push(controller)
 
+    // 初始化该分块的已传输字节数
+    chunkUploadedBytes.set(chunkIdx, 0)
+
     try {
-      const res = await uploadFileChunkApi(uploadSessionId.value!, chunkIdx, blob, controller.signal)
+      const res = await uploadFileChunkApi(
+        uploadSessionId.value!,
+        chunkIdx,
+        blob,
+        controller.signal,
+        // onProgress: 实时追踪该分块已传输字节数
+        (loaded: number) => {
+          const prev = chunkUploadedBytes.get(chunkIdx) || 0
+          const delta = loaded - prev
+          if (delta > 0) {
+            chunkUploadedBytes.set(chunkIdx, loaded)
+            accumulatedUploadedBytes += delta
+          }
+        },
+      )
 
       if (res.code === 200) {
         chunk.status = 'success'
         chunk.retries = 0
+        // 确保该分块字节数精确计入
+        const chunkSize = end - start
+        const prev = chunkUploadedBytes.get(chunkIdx) || 0
+        if (prev < chunkSize) {
+          accumulatedUploadedBytes += (chunkSize - prev)
+          chunkUploadedBytes.set(chunkIdx, chunkSize)
+        }
         updateTransferProgress()
         checkCompletion()
       } else {
@@ -228,6 +264,8 @@ export const useUploaderStore = defineStore('uploader', () => {
           toastStore.showToast(`分片 ${chunkIdx} 上传失败，已重试 ${MAX_RETRIES} 次`, 'error')
         }
       }
+      // 失败时回退该分块的已传输字节
+      chunkUploadedBytes.delete(chunkIdx)
     } finally {
       activeControllers.value = activeControllers.value.filter(c => c !== controller)
       updateTransferProgress()
@@ -399,8 +437,9 @@ export const useUploaderStore = defineStore('uploader', () => {
     processingStatus.value = ''
     taskId.value = null
     fileChecksum.value = ''
-    lastCompletedBytes = 0
-    lastSpeedTime = 0
+    accumulatedUploadedBytes = 0
+    chunkUploadedBytes.clear()
+    speedSampler.reset()
   }
 
   return {
