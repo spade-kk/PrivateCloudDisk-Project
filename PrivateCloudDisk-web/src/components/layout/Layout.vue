@@ -83,8 +83,10 @@ const currentRouteName = computed(() => {
     Shares: '分享管理', Trash: '回收站', Profile: '个人中心', Transfers: '传输记录',
     Versions: '版本管理', Team: '团队协作', Admin: '管理后台', Analytics: '数据分析',
     Security: '安全中心', ApiKeys: 'API 密钥管理', ActivityLog: '操作日志',
-    Settings: '系统设置', Billing: '套餐管理', Help: '帮助中心',
-    VideoPlayer: '视频播放',
+    Settings: '系统设置', Billing: '套餐管理', BillingOrders: '订单管理',
+    BillingPayment: '订单支付', BillingPaymentSuccess: '支付成功',
+    BillingRefund: '申请退款', BillingRefundSuccess: '退款成功',
+    Help: '帮助中心', VideoPlayer: '视频播放',
   }
   return names[route.name] || route.name
 })

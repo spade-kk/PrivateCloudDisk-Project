@@ -37,23 +37,53 @@
         <p v-if="!collapsed && group.label" class="mx-4 mb-1 mt-4 text-[10px] font-semibold uppercase tracking-widest text-neutral-400 first:mt-0">
           {{ group.label }}
         </p>
-        <router-link
-          v-for="item in group.items"
-          :key="item.path"
-          :to="item.path"
-          v-slot="{ isActive }"
-        >
-          <a
-            class="mx-2 flex min-h-11 items-center rounded-lg px-4 py-3 text-neutral-600 transition hover:bg-primary/10 hover:text-primary"
-            :class="[
-              isActive ? 'bg-primary/10 text-primary font-medium' : '',
-              collapsed ? 'lg:justify-center' : ''
-            ]"
+        <template v-for="item in group.items" :key="item.path">
+          <!-- 有子菜单的项 -->
+          <div v-if="item.children && !collapsed" class="px-2">
+            <div
+              class="flex min-h-11 cursor-pointer items-center rounded-lg px-4 py-3 text-neutral-600 transition hover:bg-primary/10 hover:text-primary"
+              :class="isItemActive(item) ? 'bg-primary/10 text-primary font-medium' : ''"
+              @click="toggleSubmenu(item.path)"
+            >
+              <i :class="item.icon" class="h-5 w-5 shrink-0"></i>
+              <span class="ml-3 truncate">{{ item.name }}</span>
+              <i class="fa fa-chevron-down ml-auto text-xs transition-transform" :class="activeSubmenu === item.path ? 'rotate-180' : ''"></i>
+            </div>
+            <div v-if="activeSubmenu === item.path" class="ml-6 space-y-1">
+              <router-link
+                v-for="child in item.children"
+                :key="child.path"
+                :to="child.path"
+                v-slot="{ isActive: childActive }"
+              >
+                <a
+                  class="flex items-center rounded-lg px-4 py-2 text-sm text-neutral-500 transition hover:bg-primary/5 hover:text-primary"
+                  :class="childActive ? 'bg-primary/10 text-primary font-medium' : ''"
+                >
+                  <i :class="child.icon" class="mr-2"></i>
+                  {{ child.name }}
+                </a>
+              </router-link>
+            </div>
+          </div>
+          <!-- 无子菜单的项 -->
+          <router-link
+            v-else
+            :to="item.path"
+            v-slot="{ isActive }"
           >
-            <i :class="item.icon" class="h-5 w-5 shrink-0"></i>
-            <span v-if="!collapsed" class="ml-3 truncate">{{ item.name }}</span>
-          </a>
-        </router-link>
+            <a
+              class="mx-2 flex min-h-11 items-center rounded-lg px-4 py-3 text-neutral-600 transition hover:bg-primary/10 hover:text-primary"
+              :class="[
+                isActive || isItemActive(item) ? 'bg-primary/10 text-primary font-medium' : '',
+                collapsed ? 'lg:justify-center' : ''
+              ]"
+            >
+              <i :class="item.icon" class="h-5 w-5 shrink-0"></i>
+              <span v-if="!collapsed" class="ml-3 truncate">{{ item.name }}</span>
+            </a>
+          </router-link>
+        </template>
       </template>
     </nav>
 
@@ -70,14 +100,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 
 defineProps({
   mobileOpen: { type: Boolean, default: false },
 })
 defineEmits(['close'])
 
+const route = useRoute()
 const collapsed = ref(false)
+const activeSubmenu = ref<string | null>(null)
+
+// 检查当前路由是否匹配某一项（包括子菜单）
+function isItemActive(item: any): boolean {
+  if (!item.children) return false
+  return item.children.some((child: any) => route.path === child.path)
+}
+
+function toggleSubmenu(path: string) {
+  if (activeSubmenu.value === path) {
+    activeSubmenu.value = null
+  } else {
+    activeSubmenu.value = path
+  }
+}
 
 const menuGroups = [
   {
@@ -114,7 +161,10 @@ const menuGroups = [
   {
     label: '其他',
     items: [
-      { path: '/app/billing', name: '套餐管理', icon: 'fa fa-credit-card' },
+      { path: '/app/billing', name: '套餐管理', icon: 'fa fa-credit-card', children: [
+        { path: '/app/billing', name: '我的套餐', icon: 'fa fa-cube' },
+        { path: '/app/billing/orders', name: '订单管理', icon: 'fa fa-file-text-o' },
+      ]},
       { path: '/app/notifications', name: '消息中心', icon: 'fa fa-bell' },
       { path: '/app/settings', name: '系统设置', icon: 'fa fa-sliders' },
       { path: '/app/profile', name: '个人中心', icon: 'fa fa-user-circle' },

@@ -76,14 +76,14 @@ export interface VideoStreamUrlOptions {
 // ---- API 函数 ----
 
 export function getVideoStreamInfoApi(fileId: string): Promise<{ code: number; data: VideoStreamInfo; message?: string }> {
-  return get(`video/stream/${fileId}/info`)
+  return get(`files/video/stream/${fileId}/info`)
 }
 
 export function requestVideoTokenApi(
   fileId: string,
   options: VideoTokenOptions = {}
 ): Promise<{ code: number; data: { token: string; expires_at: string }; message?: string }> {
-  return post(`video/stream/${fileId}/token`, {
+  return post(`files/video/stream/${fileId}/token`, {
     resolution: options.resolution || 'auto',
     expires_in: options.expiresIn || 3600,
   })
@@ -103,11 +103,11 @@ export function getVideoThumbnailApi(
 }
 
 export function getVideoSpriteInfoApi(fileId: string): Promise<{ code: number; data: SpriteInfo; message?: string }> {
-  return get(`video/sprite/${fileId}`)
+  return get(`files/video/sprite/${fileId}`)
 }
 
 export function getVideoSubtitlesApi(fileId: string): Promise<{ code: number; data: { subtitles: SubtitleInfo[] }; message?: string }> {
-  return get(`video/subtitle/${fileId}`)
+  return get(`files/video/subtitle/${fileId}`)
 }
 
 export function getVideoSubtitleContentApi(fileId: string, lang: string): Promise<string> {
@@ -120,7 +120,7 @@ export function saveVideoProgressApi(
   fileId: string,
   progress: VideoProgress
 ): Promise<{ code: number; message?: string }> {
-  return post(`video/progress/${fileId}`, {
+  return post(`files/video/progress/${fileId}`, {
     current_time: progress.currentTime,
     duration: progress.duration,
     resolution: progress.resolution,
@@ -141,14 +141,14 @@ export function getVideoProgressApi(
   }
   message?: string
 }> {
-  return get(`video/progress/${fileId}`)
+  return get(`files/video/progress/${fileId}`)
 }
 
 export function recordVideoHistoryApi(
   fileId: string,
   history: VideoHistory
 ): Promise<{ code: number; message?: string }> {
-  return post(`video/history/${fileId}`, {
+  return post(`files/video/history/${fileId}`, {
     watched_duration: history.watchedDuration,
     total_duration: history.totalDuration,
     completed: history.completed,
@@ -167,7 +167,7 @@ export function buildVideoStreamUrl(
   if (options.resolution && options.resolution !== 'auto') {
     params.set('resolution', options.resolution)
   }
-  return `${baseUrl}/video/stream/${fileId}/playlist.mp4?${params.toString()}`
+  return `${baseUrl}/files/video/stream/${fileId}/playlist.mp4?${params.toString()}`
 }
 
 export function buildHlsStreamUrl(
@@ -180,14 +180,14 @@ export function buildHlsStreamUrl(
   if (options.resolution && options.resolution !== 'auto') {
     params.set('resolution', options.resolution)
   }
-  return `${baseUrl}/video/stream/${fileId}/master.m3u8?${params.toString()}`
+  return `${baseUrl}/files/video/stream/${fileId}/master.m3u8?${params.toString()}`
 }
 
 export function buildDashStreamUrl(fileId: string, token: string): string {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-  return `${baseUrl}/video/stream/${fileId}/manifest.mpd?token=${token}`
+  return `${baseUrl}/files/video/stream/${fileId}/manifest.mpd?token=${token}`
 }
 
 export function getPlayerConfigApi(): Promise<{ code: number; data: Record<string, unknown>; message?: string }> {
-  return get('video/player/config')
+  return get('files/video/player/config')
 }
