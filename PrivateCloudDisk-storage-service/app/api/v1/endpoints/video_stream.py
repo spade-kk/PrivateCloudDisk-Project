@@ -31,7 +31,7 @@ from core.config import settings
 
 logger = logging.getLogger("video_stream")
 
-router = APIRouter(prefix="/video/stream", tags=["视频流媒体"])
+router = APIRouter(prefix="/files/video/stream", tags=["视频流媒体"])
 
 # Token 密钥 (生产环境应使用环境变量或密钥管理服务)
 _HLS_TOKEN_SECRET = os.environ.get(

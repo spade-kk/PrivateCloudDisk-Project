@@ -6,6 +6,7 @@
       class="finder-item group"
       :class="{ 'is-selected': isSelected(node.node_id) }"
       @click="$emit('itemClick', node)"
+      @contextmenu.prevent.stop="$emit('contextmenu', $event, node)"
     >
       <!-- 复选框 -->
       <div class="finder-control finder-checkbox" @click.stop>
@@ -25,7 +26,20 @@
       <!-- 内容 -->
       <div class="finder-content">
         <div class="finder-icon">
-          <i :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary text-3xl' : 'text-2xl sm:text-3xl']"></i>
+          <!-- 图片文件：使用缩略图，失败回退字体图标 -->
+          <template v-if="node.node_type === 'FILE' && isImageFile(node.node_name)">
+            <ThumbnailImage
+              :file-id="node.node_id"
+              :file-name="node.node_name"
+              size="small"
+              icon-size="2rem"
+            />
+          </template>
+          <!-- 文件夹 / 非图片文件：使用字体图标 -->
+          <i
+            v-else
+            :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary text-3xl' : 'text-2xl sm:text-3xl']"
+          ></i>
         </div>
         <h3 class="finder-name text-ellipsis-2">{{ node.node_name }}</h3>
         <p class="finder-meta">{{ node.node_type === 'FOLDER' ? '文件夹' : getFileExtension(node.node_name) }}</p>
@@ -46,6 +60,8 @@
 <script setup lang="ts">
 import { getFileExtension } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'
+import { isImage } from '@/utils/previewHelper'
+import ThumbnailImage from './ThumbnailImage.vue'
 
 const props = defineProps({
   nodes: { type: Array, required: true },
@@ -53,11 +69,12 @@ const props = defineProps({
   starredIds: { type: Set, default: () => new Set() },
 })
 
-const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star'])
+const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star', 'contextmenu'])
 
 const iconClass = (node) => getFileIconClass(node.node_name)
 const isSelected = (id) => props.selectedIds.has(id)
 const isStarred = (id) => props.starredIds.has(id)
+const isImageFile = (fileName: string) => isImage(fileName)
 const toggleSelect = (id, type) => emit('selection-change', id, type)
 </script>
 

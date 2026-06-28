@@ -32,7 +32,7 @@ from app.core.download_grant import (
 )
 from app.utils.helpers import get_client_ip
 
-router = APIRouter()
+router = APIRouter(tags=["下载授权管理"])
 
 
 @router.post(

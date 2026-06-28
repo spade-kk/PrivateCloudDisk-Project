@@ -38,7 +38,6 @@ class VirusScanPipeline:
         file_name: str,
         file_type: str = "",
         file_size: int = 0,
-        task_id: str = "",
     ) -> VirusScanResult:
         """
         执行病毒扫描

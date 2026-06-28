@@ -247,6 +247,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { hashPasswordForTransport } from '@/utils/crypto'
 import {
   getShareInfoApi,
   verifySharePasswordApi,
@@ -347,7 +348,7 @@ const submitPassword = async () => {
   passwordVerifying.value = true
 
   try {
-    const hashedPassword = await preHashPassword(passwordInput.value)
+    const hashedPassword = await hashPasswordForTransport(passwordInput.value)
     const token = await verifySharePasswordApi(shareToken, hashedPassword)
     accessToken.value = token
     showPasswordScreen.value = false
@@ -357,35 +358,6 @@ const submitPassword = async () => {
   } finally {
     passwordVerifying.value = false
   }
-}
-
-/**
- * 客户端 PBKDF2-SHA256 密码预哈希
- * 使用固定盐值，与 CreateShareDialog 保持一致。
- * 服务端额外使用 BCrypt 二次哈希，提供实际安全性。
- */
-async function preHashPassword(rawPassword: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const salt = encoder.encode('pcd-share-salt-v1')
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(rawPassword),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  )
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: 100000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256
-  )
-  const hashArray = Array.from(new Uint8Array(derivedBits))
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /**

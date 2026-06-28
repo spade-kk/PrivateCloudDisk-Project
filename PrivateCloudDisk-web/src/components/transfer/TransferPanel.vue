@@ -56,60 +56,157 @@
 
             <!-- 传输列表 -->
             <div v-else class="transfer-list">
-              <div
-                v-for="record in displayRecords"
-                :key="record.id"
-                class="transfer-item"
-                :class="{ 'is-ongoing': isOngoing(record) }"
-              >
-                <!-- 文件图标 -->
-                <div class="transfer-item-icon" :class="iconClass(record)">
-                  <i v-if="record.type === 'upload'" class="fa fa-upload"></i>
-                  <i v-else class="fa fa-download"></i>
-                </div>
-
-                <!-- 文件信息 -->
-                <div class="transfer-item-info">
-                  <div class="transfer-item-name" :title="record.fileName">{{ record.fileName }}</div>
-                  <div class="transfer-item-meta">
-                    <template v-if="record.status === 'uploading' || record.status === 'downloading'">
-                      <!-- 上传/下载进度条 -->
-                      <div class="transfer-item-progress">
+              <template v-for="group in groupedRecords" :key="group.key">
+                <!-- 文件夹分组头部 -->
+                <div
+                  v-if="group.type === 'folder'"
+                  class="folder-group"
+                >
+                  <div
+                    class="folder-group-header"
+                    :class="{ 'is-expanded': isGroupExpanded(group.key) }"
+                    @click="toggleGroup(group.key)"
+                  >
+                    <div class="folder-group-header-left">
+                      <i
+                        class="fa fa-folder text-amber-500 shrink-0"
+                        :class="isGroupExpanded(group.key) ? 'fa-folder-open' : 'fa-folder'"
+                      ></i>
+                      <div class="folder-group-header-info">
+                        <div class="folder-group-name">{{ group.folderName }}</div>
+                        <div class="folder-group-stats">
+                          {{ group.completedCount }} / {{ group.totalCount }} 个文件已完成
+                          <span v-if="group.errorCount > 0" class="text-danger"> · {{ group.errorCount }} 失败</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="folder-group-header-right">
+                      <!-- 文件夹整体进度条 -->
+                      <div class="folder-group-progress shrink-0">
                         <div
-                          class="transfer-item-progress-bar"
-                          :class="record.type === 'upload' ? 'bg-primary' : 'bg-emerald-500'"
-                          :style="{ width: record.progress + '%' }"
+                          class="folder-group-progress-bar"
+                          :class="group.folderProgress === 100 ? 'bg-emerald-500' : 'bg-primary'"
+                          :style="{ width: group.folderProgress + '%' }"
                         ></div>
                       </div>
-                      <span class="transfer-item-percent">{{ record.progress.toFixed(1) }}%</span>
-                      <span v-if="record.speed" class="transfer-item-speed">{{ record.speed }}</span>
-                    </template>
-                    <template v-else-if="record.status === 'processing'">
-                      <div class="transfer-item-progress">
-                        <div class="transfer-item-progress-bar bg-amber-500 animate-pulse" style="width: 100%"></div>
+                      <span class="folder-group-percent">{{ group.folderProgress }}%</span>
+                      <i
+                        class="fa fa-chevron-down text-neutral-400 transition-transform duration-200 shrink-0"
+                        :class="{ 'rotate-180': !isGroupExpanded(group.key) }"
+                      ></i>
+                    </div>
+                  </div>
+
+                  <!-- 文件夹内的文件列表 -->
+                  <div v-show="isGroupExpanded(group.key)" class="folder-group-body">
+                    <div
+                      v-for="record in group.records"
+                      :key="record.id"
+                      class="transfer-item"
+                      :class="{ 'is-ongoing': isOngoing(record) }"
+                    >
+                <!-- 文件图标 -->
+                      <div class="transfer-item-icon" :class="iconClass(record)">
+                        <i v-if="record.type === 'upload'" class="fa fa-upload"></i>
+                        <i v-else class="fa fa-download"></i>
                       </div>
-                      <span class="transfer-item-status processing">
-                        <i class="fa fa-spinner fa-pulse mr-1"></i>{{ record.processingStatus || '处理中' }}
-                      </span>
-                    </template>
-                    <template v-else-if="record.status === 'completed'">
-                      <span class="transfer-item-status success">
-                        <i class="fa fa-check-circle mr-1"></i>完成 · {{ formatFileSize(record.fileSize) }}
-                      </span>
-                    </template>
-                    <template v-else-if="record.status === 'failed'">
-                      <span class="transfer-item-status error">
-                        <i class="fa fa-times-circle mr-1"></i>{{ record.processingStatus || '失败' }}
-                      </span>
-                    </template>
-                    <template v-else-if="record.status === 'cancelled'">
-                      <span class="transfer-item-status cancelled">
-                        <i class="fa fa-ban mr-1"></i>已取消
-                      </span>
-                    </template>
+
+                <!-- 文件信息 -->
+                      <div class="transfer-item-info">
+                        <div class="transfer-item-name" :title="record.fileName">{{ record.fileName }}</div>
+                        <div class="transfer-item-meta">
+                          <template v-if="record.status === 'uploading' || record.status === 'downloading'">
+                      <!-- 上传/下载进度条 -->
+                            <div class="transfer-item-progress">
+                              <div
+                                class="transfer-item-progress-bar"
+                                :class="record.type === 'upload' ? 'bg-primary' : 'bg-emerald-500'"
+                                :style="{ width: record.progress + '%' }"
+                              ></div>
+                            </div>
+                            <span class="transfer-item-percent">{{ record.progress.toFixed(1) }}%</span>
+                            <span v-if="record.speed" class="transfer-item-speed">{{ record.speed }}</span>
+                          </template>
+                          <template v-else-if="record.status === 'processing'">
+                            <div class="transfer-item-progress">
+                              <div class="transfer-item-progress-bar bg-amber-500 animate-pulse" style="width: 100%"></div>
+                            </div>
+                            <span class="transfer-item-status processing">
+                              <i class="fa fa-spinner fa-pulse mr-1"></i>{{ record.processingStatus || '处理中' }}
+                            </span>
+                          </template>
+                          <template v-else-if="record.status === 'completed'">
+                            <span class="transfer-item-status success">
+                              <i class="fa fa-check-circle mr-1"></i>完成 · {{ formatFileSize(record.fileSize) }}
+                            </span>
+                          </template>
+                          <template v-else-if="record.status === 'failed'">
+                            <span class="transfer-item-status error">
+                              <i class="fa fa-times-circle mr-1"></i>{{ record.processingStatus || '失败' }}
+                            </span>
+                          </template>
+                          <template v-else-if="record.status === 'cancelled'">
+                            <span class="transfer-item-status cancelled">
+                              <i class="fa fa-ban mr-1"></i>已取消
+                            </span>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                <!-- 单文件记录（无文件夹分组） -->
+                <div
+                  v-else
+                  class="transfer-item"
+                  :class="{ 'is-ongoing': isOngoing(group.record) }"
+                >
+                  <div class="transfer-item-icon" :class="iconClass(group.record)">
+                    <i v-if="group.record.type === 'upload'" class="fa fa-upload"></i>
+                    <i v-else class="fa fa-download"></i>
+                  </div>
+                  <div class="transfer-item-info">
+                    <div class="transfer-item-name" :title="group.record.fileName">{{ group.record.fileName }}</div>
+                    <div class="transfer-item-meta">
+                      <template v-if="group.record.status === 'uploading' || group.record.status === 'downloading'">
+                        <div class="transfer-item-progress">
+                          <div
+                            class="transfer-item-progress-bar"
+                            :class="group.record.type === 'upload' ? 'bg-primary' : 'bg-emerald-500'"
+                            :style="{ width: group.record.progress + '%' }"
+                          ></div>
+                        </div>
+                        <span class="transfer-item-percent">{{ group.record.progress.toFixed(1) }}%</span>
+                        <span v-if="group.record.speed" class="transfer-item-speed">{{ group.record.speed }}</span>
+                      </template>
+                      <template v-else-if="group.record.status === 'processing'">
+                        <div class="transfer-item-progress">
+                          <div class="transfer-item-progress-bar bg-amber-500 animate-pulse" style="width: 100%"></div>
+                        </div>
+                        <span class="transfer-item-status processing">
+                          <i class="fa fa-spinner fa-pulse mr-1"></i>{{ group.record.processingStatus || '处理中' }}
+                        </span>
+                      </template>
+                      <template v-else-if="group.record.status === 'completed'">
+                        <span class="transfer-item-status success">
+                          <i class="fa fa-check-circle mr-1"></i>完成 · {{ formatFileSize(group.record.fileSize) }}
+                        </span>
+                      </template>
+                      <template v-else-if="group.record.status === 'failed'">
+                        <span class="transfer-item-status error">
+                          <i class="fa fa-times-circle mr-1"></i>{{ group.record.processingStatus || '失败' }}
+                        </span>
+                      </template>
+                      <template v-else-if="group.record.status === 'cancelled'">
+                        <span class="transfer-item-status cancelled">
+                          <i class="fa fa-ban mr-1"></i>已取消
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -119,8 +216,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useTransferStore } from '@/stores/transferStore'
+import { ref, computed, watch, reactive } from 'vue'
+import { useTransferStore, type TransferRecord } from '@/stores/transferStore'
 import { formatFileSize } from '@/utils/helpers'
 
 const store = useTransferStore()
@@ -128,6 +225,23 @@ const panelOpen = ref(false)
 
 const ongoingCount = computed(() => store.ongoingCount)
 const hasOngoing = computed(() => store.hasOngoing)
+
+// 展开的文件夹分组 key 集合
+const expandedGroups = reactive(new Set<string>())
+
+interface DisplayGroup {
+  type: 'single' | 'folder'
+  key: string
+  // 单文件
+  record?: TransferRecord
+  // 文件夹分组
+  folderName?: string
+  records?: TransferRecord[]
+  totalCount?: number
+  completedCount?: number
+  errorCount?: number
+  folderProgress?: number
+}
 
 // 显示记录：进行中的排在前面，然后最近 10 条已完成的
 const displayRecords = computed(() => {
@@ -137,11 +251,68 @@ const displayRecords = computed(() => {
   return [...ongoing, ...rest]
 })
 
-function isOngoing(record) {
+// 将连续的同 folderName 记录分组
+const groupedRecords = computed<DisplayGroup[]>(() => {
+  const groups: DisplayGroup[] = []
+  const records = displayRecords.value
+  let i = 0
+
+  while (i < records.length) {
+    const current = records[i]
+    if (current.folderName) {
+      // 收集同 folderName 的连续记录
+      const folderRecords: TransferRecord[] = []
+      const folderName = current.folderName
+      while (i < records.length && records[i].folderName === folderName) {
+        folderRecords.push(records[i])
+        i++
+      }
+      const completedCount = folderRecords.filter(r => r.status === 'completed').length
+      const errorCount = folderRecords.filter(r => r.status === 'failed').length
+      const folderProgress = folderRecords.length > 0
+        ? Math.round((completedCount / folderRecords.length) * 100)
+        : 0
+
+      groups.push({
+        type: 'folder',
+        key: `folder-${folderName}-${folderRecords[0].id}`,
+        folderName,
+        records: folderRecords,
+        totalCount: folderRecords.length,
+        completedCount,
+        errorCount,
+        folderProgress,
+      })
+    } else {
+      groups.push({
+        type: 'single',
+        key: `single-${current.id}`,
+        record: current,
+      })
+      i++
+    }
+  }
+
+  return groups
+})
+
+function isGroupExpanded(key: string): boolean {
+  return expandedGroups.has(key)
+}
+
+function toggleGroup(key: string): void {
+  if (expandedGroups.has(key)) {
+    expandedGroups.delete(key)
+  } else {
+    expandedGroups.add(key)
+  }
+}
+
+function isOngoing(record: TransferRecord): boolean {
   return record.status === 'uploading' || record.status === 'downloading' || record.status === 'processing'
 }
 
-function iconClass(record) {
+function iconClass(record: TransferRecord): string {
   if (record.status === 'completed') return 'icon-completed'
   if (record.status === 'failed' || record.status === 'cancelled') return 'icon-error'
   if (record.status === 'processing') return 'icon-processing'
@@ -157,13 +328,19 @@ function closePanel() {
 }
 
 // 核心逻辑：当有新的传输操作开始时，自动弹出面板
-// 通过追踪 ongoingCount 的变化来判断是否有新传输
 let prevOngoingCount = 0
 
 watch(ongoingCount, (newVal, oldVal) => {
-  // 新传输开始：ongoingCount 增加（从 0→1 或 N→N+1）
   if (newVal > oldVal) {
     panelOpen.value = true
+    // 有新的文件夹上传时，自动展开新的文件夹分组
+    const folderGroups = groupedRecords.value.filter(g => g.type === 'folder')
+    for (const group of folderGroups) {
+      const hasOngoing = group.records?.some(r => isOngoing(r))
+      if (hasOngoing) {
+        expandedGroups.add(group.key)
+      }
+    }
   }
   prevOngoingCount = newVal
 })
@@ -225,8 +402,8 @@ watch(ongoingCount, (newVal, oldVal) => {
   top: 80px;
   right: 20px;
   z-index: 9999;
-  width: 380px;
-  max-height: 520px;
+  width: 420px;
+  max-height: 560px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
@@ -254,6 +431,96 @@ watch(ongoingCount, (newVal, oldVal) => {
   padding: 6px 0;
 }
 
+/* ====== 文件夹分组 ====== */
+.folder-group {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.folder-group:last-child {
+  border-bottom: none;
+}
+
+.folder-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  background: #fafbfc;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.folder-group-header:hover {
+  background: #f0f4ff;
+}
+
+.folder-group-header.is-expanded {
+  background: #f0f4ff;
+}
+
+.folder-group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.folder-group-header-info {
+  min-width: 0;
+}
+
+.folder-group-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-group-stats {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+.folder-group-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.folder-group-progress {
+  width: 60px;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.folder-group-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.folder-group-percent {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 2.5em;
+  text-align: right;
+}
+
+.folder-group-body {
+  border-top: 1px solid #f5f5f5;
+}
+
+/* ====== 传输条目 ====== */
 .transfer-item {
   display: flex;
   align-items: flex-start;

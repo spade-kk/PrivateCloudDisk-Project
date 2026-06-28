@@ -306,11 +306,11 @@ class UploadsEventDLQConsumer(BaseDLQConsumer):
         """
         调用业务服务内部接口标记上传会话为 deleted
 
-        POST /business/internal/storage/uploads/{uploads_id}/delete-complete
+        POST api/v1/business/internal/storage/uploads/{uploads_id}/delete-complete
         """
         url = (
             f"{settings.business_service_url}"
-            f"/business/internal/storage/uploads/{uploads_session_id}/delete-complete"
+            f"/api/v1/business/internal/storage/uploads/{uploads_session_id}/delete-complete"
         )
         try:
             async with aiohttp.ClientSession() as session:

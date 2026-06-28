@@ -26,12 +26,12 @@ minio==7.2.10
 
 # ---------- AI / ML 推理 ----------
 # ONNX Runtime (跨平台推理引擎)
-onnxruntime==1.21.0
-onnxruntime-gpu==1.21.0; platform_system == 'Linux'
+onnxruntime==1.24.1
+onnxruntime-gpu==1.24.1; platform_system == 'Linux'
 
 # PyTorch (深度学习框架)
-torch==2.5.1
-torchvision==0.20.1
+torch==2.9.0
+torchvision==0.24.1
 
 # HuggingFace Transformers (NLP)
 transformers==4.47.1

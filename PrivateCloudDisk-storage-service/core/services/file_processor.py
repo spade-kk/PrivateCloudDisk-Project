@@ -51,7 +51,7 @@ class FileProcessor:
         主处理入口
 
         Args:
-            event: FileProcessEvent 实例
+            event: BackendTaskEvent 或 EnhanceTaskEvent 实例
 
         Returns:
             ProcessResult: 统一处理结果
@@ -136,7 +136,6 @@ class FileProcessor:
             file_name=event.file_name,
             file_type=event.file_type,
             file_size=event.file_size,
-            task_id=event.task_id,
         )
         return ProcessResult(
             success=result.success,

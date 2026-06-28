@@ -13,6 +13,7 @@
       <div
         v-for="node in nodes"
         :key="node.node_id"
+        @contextmenu.prevent.stop="$emit('contextmenu', $event, node)"
         class="group block px-3 py-3 hover:bg-neutral-50 sm:grid sm:grid-cols-12 sm:items-center sm:px-4 sm:py-2"
         :class="{ 'bg-primary/5': isSelected(node.node_id) }"
       >
@@ -23,7 +24,15 @@
         <!-- 名称 -->
         <div class="flex min-w-0 cursor-pointer items-start gap-3 sm:col-span-5 sm:items-center" @click="$emit('itemClick', node)">
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-neutral-50 sm:h-8 sm:w-8">
-            <i :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary' : '']"></i>
+            <template v-if="node.node_type === 'FILE' && isImageFile(node.node_name)">
+              <ThumbnailImage
+                :file-id="node.node_id"
+                :file-name="node.node_name"
+                size="small"
+                icon-size="1rem"
+              />
+            </template>
+            <i v-else :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary' : '']"></i>
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-2">
@@ -65,6 +74,8 @@
 import { computed } from 'vue'
 import { getFileExtension, formatFileSize } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'
+import { isImage } from '@/utils/previewHelper'
+import ThumbnailImage from './ThumbnailImage.vue'
 
 const props = defineProps({
   nodes: { type: Array, required: true },
@@ -72,11 +83,12 @@ const props = defineProps({
   starredIds: { type: Set, default: () => new Set() },
 })
 
-const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star'])
+const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star', 'contextmenu'])
 
 const iconClass = (node) => getFileIconClass(node.node_name)
 const isSelected = (id) => props.selectedIds.has(id)
 const isStarred = (id) => props.starredIds.has(id)
+const isImageFile = (fileName: string) => isImage(fileName)
 const toggleSelect = (id, type) => emit('selection-change', id, type)
 
 const allSelected = computed(() => props.nodes.length > 0 && props.nodes.every(n => props.selectedIds.has(n.node_id)))

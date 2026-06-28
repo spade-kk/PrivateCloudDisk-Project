@@ -212,8 +212,9 @@ vim .env  # 编辑关键配置</pre>
 
               <!-- RabbitMQ -->
               <h3 class="mt-6 text-base font-semibold text-neutral-800">RabbitMQ 3</h3>
-              <div class="mt-3 rounded-xl bg-neutral-9</pre>
-              </div>
+              <div class="mt-3 rounded-xl bg-neutral-900 p-4">
+              <pre class="text-sm text-neutral-300 overflow-x-auto"></pre>
+            </div>
             </section>
 
             <!-- Troubleshooting -->

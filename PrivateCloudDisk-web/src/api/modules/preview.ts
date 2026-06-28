@@ -86,6 +86,24 @@ export function generateThumbnailApi(
   return get(`files/files/${file_id}/thumbnail`, options)
 }
 
+/**
+ * 获取缩略图直接 URL
+ *
+ * 返回可直接用于 <img src="..."> 的缩略图 URL。
+ * 支持三种预设尺寸：small(100×100)、medium(400×400)、large(800×800)。
+ *
+ * @param fileId - 文件 ID
+ * @param size - 缩略图尺寸: 'small' | 'medium' | 'large'
+ * @returns 缩略图 URL 字符串
+ */
+export function getThumbnailUrl(
+  fileId: string,
+  size: 'small' | 'medium' | 'large' = 'small',
+): string {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+  return `${baseUrl}/files/files/${encodeURIComponent(fileId)}/thumbnail?size=${size}`
+}
+
 // ============================================================
 // 预览缓存
 // ============================================================

@@ -342,11 +342,199 @@ class RabbitMQService:
             routing_key=settings.file_event_dlq_routing_key,
         )
 
+        # ========== 新版文件后台处理拓扑（Backend — 顺序流水线） ==========
+        # 每个阶段独立 exchange + queue + DLQ
+        await self._declare_backend_topology()
+
+        # ========== 新版文件增强处理拓扑（Enhancement — 并发流水线） ==========
+        # 每个阶段独立 exchange + queue + DLQ
+        await self._declare_enhance_topology()
+
         logger.info(
             f"RabbitMQ 拓扑声明完成: "
             f"exchanges={len(self.exchanges)}, "
             f"DLX={settings.file_process_dlx}, "
             f"DLQ={settings.file_process_dlq}"
+        )
+
+    async def _declare_backend_topology(self):
+        """
+        声明文件后台处理拓扑（顺序流水线）
+
+        拓扑结构:
+        ┌─────────────────────────────────────────────────────────────┐
+        │  pcd.file.backend.exchange (DIRECT)                        │
+        │  ├── pcd.file.backend.merge.queue                          │
+        │  │   └── DLX → pcd.file.backend.dlx → .merge.dlq          │
+        │  ├── pcd.file.backend.hash.queue                           │
+        │  │   └── DLX → pcd.file.backend.dlx → .hash.dlq           │
+        │  ├── pcd.file.backend.virus.queue                          │
+        │  │   └── DLX → pcd.file.backend.dlx → .virus.dlq          │
+        │  └── pcd.file.backend.mark_active.queue                    │
+        │      └── DLX → pcd.file.backend.dlx → .mark_active.dlq    │
+        │                                                              │
+        │  流水线: merge → hash → virus → mark_active                │
+        │  每个阶段成功后由消费者发布下一阶段消息                        │
+        └─────────────────────────────────────────────────────────────┘
+        """
+        backend_stages = [
+            {
+                "queue": settings.file_backend_merge_queue,
+                "rk": settings.file_backend_merge_routing_key,
+                "dlq": settings.file_backend_merge_dlq,
+                "dlq_rk": settings.file_backend_merge_dlq_routing_key,
+            },
+            {
+                "queue": settings.file_backend_hash_queue,
+                "rk": settings.file_backend_hash_routing_key,
+                "dlq": settings.file_backend_hash_dlq,
+                "dlq_rk": settings.file_backend_hash_dlq_routing_key,
+            },
+            {
+                "queue": settings.file_backend_virus_queue,
+                "rk": settings.file_backend_virus_routing_key,
+                "dlq": settings.file_backend_virus_dlq,
+                "dlq_rk": settings.file_backend_virus_dlq_routing_key,
+            },
+            {
+                "queue": settings.file_backend_mark_active_queue,
+                "rk": settings.file_backend_mark_active_routing_key,
+                "dlq": settings.file_backend_mark_active_dlq,
+                "dlq_rk": settings.file_backend_mark_active_dlq_routing_key,
+            },
+        ]
+
+        # 主交换机
+        be_exchange = await self.channel.declare_exchange(
+            settings.file_backend_exchange,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.file_backend_exchange] = be_exchange
+
+        # 死信交换机
+        be_dlx = await self.channel.declare_exchange(
+            settings.file_backend_dlx,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.file_backend_dlx] = be_dlx
+
+        for stage in backend_stages:
+            # 主队列（绑定 DLX）
+            q = await self._declare_queue_safe(
+                stage["queue"],
+                arguments={
+                    "x-message-ttl": 604800000,  # 7 天
+                    "x-dead-letter-exchange": settings.file_backend_dlx,
+                    "x-dead-letter-routing-key": stage["dlq_rk"],
+                },
+            )
+            await q.bind(be_exchange, routing_key=stage["rk"])
+
+            # 死信队列
+            dlq = await self._declare_queue_safe(
+                stage["dlq"],
+                arguments={
+                    "x-message-ttl": 2592000000,  # 30 天
+                },
+            )
+            await dlq.bind(be_dlx, routing_key=stage["dlq_rk"])
+
+        logger.info(
+            f"文件后台处理拓扑声明完成: "
+            f"stages={len(backend_stages)}, "
+            f"exchange={settings.file_backend_exchange}"
+        )
+
+    async def _declare_enhance_topology(self):
+        """
+        声明文件增强处理拓扑（并发流水线）
+
+        拓扑结构:
+        ┌─────────────────────────────────────────────────────────────┐
+        │  pcd.file.enhance.exchange (DIRECT)                        │
+        │  ├── pcd.file.enhance.thumbnail.queue                      │
+        │  │   └── DLX → pcd.file.enhance.dlx → .thumbnail.dlq      │
+        │  ├── pcd.file.enhance.transcode.queue                      │
+        │  │   └── DLX → pcd.file.enhance.dlx → .transcode.dlq      │
+        │  ├── pcd.file.enhance.hls.queue                            │
+        │  │   └── DLX → pcd.file.enhance.dlx → .hls.dlq            │
+        │  └── pcd.file.enhance.index.queue                          │
+        │      └── DLX → pcd.file.enhance.dlx → .index.dlq          │
+        │                                                              │
+        │  所有增强阶段可并发消费，互不阻塞                              │
+        │  由 mark_active 消费者扇出发布                               │
+        └─────────────────────────────────────────────────────────────┘
+        """
+        enhance_stages = [
+            {
+                "queue": settings.file_enhance_thumbnail_queue,
+                "rk": settings.file_enhance_thumbnail_routing_key,
+                "dlq": settings.file_enhance_thumbnail_dlq,
+                "dlq_rk": settings.file_enhance_thumbnail_dlq_routing_key,
+            },
+            {
+                "queue": settings.file_enhance_transcode_queue,
+                "rk": settings.file_enhance_transcode_routing_key,
+                "dlq": settings.file_enhance_transcode_dlq,
+                "dlq_rk": settings.file_enhance_transcode_dlq_routing_key,
+            },
+            {
+                "queue": settings.file_enhance_hls_queue,
+                "rk": settings.file_enhance_hls_routing_key,
+                "dlq": settings.file_enhance_hls_dlq,
+                "dlq_rk": settings.file_enhance_hls_dlq_routing_key,
+            },
+            {
+                "queue": settings.file_enhance_index_queue,
+                "rk": settings.file_enhance_index_routing_key,
+                "dlq": settings.file_enhance_index_dlq,
+                "dlq_rk": settings.file_enhance_index_dlq_routing_key,
+            },
+        ]
+
+        # 主交换机
+        en_exchange = await self.channel.declare_exchange(
+            settings.file_enhance_exchange,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.file_enhance_exchange] = en_exchange
+
+        # 死信交换机
+        en_dlx = await self.channel.declare_exchange(
+            settings.file_enhance_dlx,
+            ExchangeType.DIRECT,
+            durable=True,
+        )
+        self.exchanges[settings.file_enhance_dlx] = en_dlx
+
+        for stage in enhance_stages:
+            # 主队列（绑定 DLX）
+            q = await self._declare_queue_safe(
+                stage["queue"],
+                arguments={
+                    "x-message-ttl": 604800000,  # 7 天
+                    "x-dead-letter-exchange": settings.file_enhance_dlx,
+                    "x-dead-letter-routing-key": stage["dlq_rk"],
+                },
+            )
+            await q.bind(en_exchange, routing_key=stage["rk"])
+
+            # 死信队列
+            dlq = await self._declare_queue_safe(
+                stage["dlq"],
+                arguments={
+                    "x-message-ttl": 2592000000,  # 30 天
+                },
+            )
+            await dlq.bind(en_dlx, routing_key=stage["dlq_rk"])
+
+        logger.info(
+            f"文件增强处理拓扑声明完成: "
+            f"stages={len(enhance_stages)}, "
+            f"exchange={settings.file_enhance_exchange}"
         )
 
     async def _declare_queue_safe(

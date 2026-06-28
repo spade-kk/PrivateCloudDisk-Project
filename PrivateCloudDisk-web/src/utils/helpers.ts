@@ -115,16 +115,20 @@ export const delay = (ms: number): Promise<void> => new Promise((resolve) => set
  * 使用 Web Worker 异步计算文件的 SHA-256 哈希值
  *
  * 大文件哈希计算是 CPU 密集型操作，放在主线程会阻塞 UI。
- * 此函数通过内联 Web Worker 将计算移至后台线程，避免页面卡顿。
+ * 此函数通过模块化 Web Worker 将计算移至后台线程，避免页面卡顿。
+ *
+ * 非安全上下文（HTTP）降级方案：
+ *   Worker 内优先使用原生 crypto.subtle.digest（硬件加速），
+ *   不可用时降级为 crypto-js 纯 JS 实现。降级代码由
+ *   import.meta.env.DEV 编译时常量守卫，生产构建时被移除。
  *
  * 原理：
- * 1. 动态创建 Blob Worker（内联代码，无需额外 .js 文件）
+ * 1. 创建模块化 Web Worker（sha256.worker.ts）
  * 2. Worker 中使用 FileReader 读取文件为 ArrayBuffer
- * 3. 调用 crypto.subtle.digest('SHA-256', ...) 计算哈希
- * 4. 将结果转为十六进制字符串通过 postMessage 返回
- * 5. 计算完成后自动 terminate Worker 释放资源
- *
- * 安全注意：使用 Web Crypto API 的 SHA-256 而非第三方库，确保哈希在浏览器本地完成。
+ * 3. 优先调用 crypto.subtle.digest('SHA-256', ...) 计算哈希
+ * 4. 不可用时降级为 crypto-js SHA-256（仅开发环境）
+ * 5. 将结果转为十六进制字符串通过 postMessage 返回
+ * 6. 计算完成后自动 terminate Worker 释放资源
  *
  * @param file - 要计算哈希的 File 对象
  * @returns Promise，resolve 为 SHA-256 十六进制哈希字符串
@@ -135,29 +139,17 @@ export const delay = (ms: number): Promise<void> => new Promise((resolve) => set
  */
 export function calculateSHA256(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    // 内联 Worker 代码：避免额外网络请求加载 Worker 文件
-    const workerCode = `
-      self.onmessage = function(e) {
-        const file = e.data;
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-          crypto.subtle.digest('SHA-256', ev.target.result)
-            .then(buf => {
-              const arr = Array.from(new Uint8Array(buf));
-              const hex = arr.map(b => b.toString(16).padStart(2,'0')).join('');
-              self.postMessage({ hash: hex });
-            })
-            .catch(err => reject(err));
-        };
-        reader.onerror = (e) => reject(e);
-        reader.readAsArrayBuffer(file);
-      };
-    `
-    const blob = new Blob([workerCode], { type: 'application/javascript' })
-    const worker = new Worker(URL.createObjectURL(blob))
+    const worker = new Worker(
+      new URL('./sha256.worker.ts', import.meta.url),
+      { type: 'module' },
+    )
     worker.onmessage = (e: MessageEvent) => {
-      resolve(e.data.hash)
-      worker.terminate() // 计算完成后立即释放 Worker 线程
+      if (e.data.error) {
+        reject(new Error(e.data.error))
+      } else {
+        resolve(e.data.hash)
+      }
+      worker.terminate()
     }
     worker.onerror = (e: ErrorEvent) => {
       reject(e)

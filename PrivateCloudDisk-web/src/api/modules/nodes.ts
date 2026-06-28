@@ -67,6 +67,76 @@ export function createFolderApi(node_id: string, folder_name: string): Promise<a
 }
 
 /**
+ * 创建文件夹（支持相对路径 / 面包屑路径懒创建）
+ *
+ * 混合模型：
+ *   - node_id + relative_path：在 node_id 下逐级创建 relative_path 路径，最终在此路径下创建 folder_name
+ *   - breadcrumb_path：从根节点逐级创建 breadcrumb_path 路径，最终在此路径下创建 folder_name
+ *   - 普通模式：仅 node_id + folder_name（原有行为）
+ *
+ * @param node_id - 父节点 ID
+ * @param folder_name - 新文件夹名称
+ * @param relativePath - 可选，相对路径（如 "subfolder1/subfolder2"）
+ * @param breadcrumbPath - 可选，面包屑路径（如 "/root/folder1"）
+ */
+export function createFolderWithPathApi(
+  node_id: string,
+  folder_name: string,
+  relative_path?: string,
+  breadcrumb_path?: string,
+): Promise<any> {
+  const data: Record<string, any> = { node_id, folder_name }
+  if (relative_path) data.relative_path = relative_path
+  if (breadcrumb_path) data.breadcrumb_path = breadcrumb_path
+  return post('business/nodes/', data)
+}
+
+/**
+ * 懒上传会话创建 — 混合模型
+ *
+ * 上传即创建路径：自动创建不存在的目录，然后创建上传会话。
+ * 支持两种模式：
+ *   - parent_node_id + relative_path：在指定节点下按相对路径懒创建目录
+ *   - breadcrumb_path：从根节点按面包屑路径懒创建目录
+ *
+ * 返回 { uploads_id, node_id }，node_id 是最终文件所在的目录节点 ID。
+ *
+ * @param total_chunks - 总分片数
+ * @param file_size - 文件大小
+ * @param file_checksum - 文件 SHA-256 校验和
+ * @param chunks_max_size - 分片最大大小
+ * @param file_type - 文件 MIME 类型
+ * @param file_name - 文件名
+ * @param parent_node_id - 父节点 ID（可选）
+ * @param relative_path - 相对路径（可选）
+ * @param breadcrumb_path - 面包屑路径（可选）
+ */
+export function createLazyUploadSessionApi(
+  total_chunks: number,
+  file_size: number,
+  file_checksum: string,
+  chunks_max_size: number,
+  file_type: string,
+  file_name: string,
+  parent_node_id?: string,
+  relative_path?: string,
+  breadcrumb_path?: string,
+): Promise<any> {
+  const data: Record<string, any> = {
+    total_chunks,
+    file_size,
+    file_checksum,
+    chunks_max_size,
+    file_type,
+    file_name,
+  }
+  if (parent_node_id) data.parent_node_id = parent_node_id
+  if (relative_path) data.relative_path = relative_path
+  if (breadcrumb_path) data.breadcrumb_path = breadcrumb_path
+  return post('business/nodes/uploads/lazy', data)
+}
+
+/**
  * 删除指定节点（移到回收站或直接删除，取决于后端配置）
  *
  * 删除文件夹会递归删除其下所有内容，操作前应做二次确认。

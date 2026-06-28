@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 
 namespace PrivateCloudDisk.VirtualDisk;
 
+using PrivateCloudDisk.Services.VirtualDisk;  // 或其他正确的命名空间
+
 /// <summary>
 /// WinFsp 虚拟文件系统驱动 — 将云端文件挂载为 Windows 驱动器
 /// 

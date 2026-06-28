@@ -10,7 +10,10 @@ import requests
 from fastapi import APIRouter, Header, Form, File, UploadFile, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from core.config import settings, TaskTypes, TaskStatus
+from core.config import (
+    settings, TaskTypes, TaskStatus,
+    REDIS_BACKEND_MASTER_KEY, MASTER_TASK_TTL,
+)
 from app.core.redis_client import redis_client
 from core.rabbitmq import rabbitmq_service
 
@@ -267,52 +270,60 @@ async def complete_uploads_internal(
     file_checksum = upload_session.get("file_checksum")
     node_id = upload_session.get("node_id")
 
-    # 4. 生成任务ID
-    task_id = str(uuid.uuid4())
-    
-    # 5. 初始化任务状态
-    await redis_client.hset(f"task:{task_id}", mapping={
-        "task_id": task_id,
-        "file_id": file_id,
-        "user_id": user_id,
-        "uploads_id": uploads_id,
-        "status": TaskStatus.PENDING,
-        "created_at": time.time(),
-        "current_step": TaskTypes.MERGE
-    })
-    await redis_client.expire(f"task:{task_id}", 86400 * 3)  # 3天过期
+    # 4. 生成后台任务 ID（整个文件后台处理流水线共享同一个 backend_task_id）
+    from core.event.file_backend_event import FileBackendEvent
+    backend_task_id = FileBackendEvent.generate_backend_task_id()
+    pipeline_id = FileBackendEvent.generate_pipeline_id()
 
-    # 6. 发送合并任务消息（只发送合并任务，后续任务由消费者链式触发）
-    merge_message = {
-        "message_id": str(uuid.uuid4()),
-        "task_id": task_id,
+    # 5. 初始化后台任务总状态（Redis backend:task:{backend_task_id}:master）
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+    master_key = REDIS_BACKEND_MASTER_KEY.format(backend_task_id=backend_task_id)
+    await redis_client.hset(master_key, mapping={
+        "status": TaskStatus.PROCESSING,
+        "current_stage": TaskTypes.MERGE,
         "file_id": file_id,
-        "task_type": TaskTypes.MERGE,
         "user_id": user_id,
         "file_name": file_name,
-        "file_type": file_type,
-        "file_size": file_size,
         "uploads_id": uploads_id,
-        "total_chunks": total_chunks,
-        "file_checksum": file_checksum,
-        "node_id": node_id,
-        "retry_count": 0,
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
+        "created_at": now_iso,
+        "updated_at": now_iso,
+    })
+    await redis_client.expire(master_key, MASTER_TASK_TTL)
 
-    await rabbitmq_service.publish_message(
-        settings.file_process_exchange,
-        settings.file_process_routing_key,
-        merge_message
+    # 6. 发送合并任务消息到后台处理交换机
+    merge_event = FileBackendEvent(
+        backend_task_id=backend_task_id,
+        stage=TaskTypes.MERGE,
+        pipeline_id=pipeline_id,
+        file_id=file_id,
+        user_id=user_id,
+        file_name=file_name,
+        file_type=file_type,
+        file_size=file_size,
+        uploads_id=uploads_id,
+        total_chunks=total_chunks,
+        file_checksum=file_checksum,
+        node_id=node_id,
     )
 
-    logger.info(f"合并任务已提交: task_id={task_id}, file_name={file_name}, file_id={file_id}")
+    await rabbitmq_service.publish_message(
+        settings.file_backend_exchange,
+        settings.file_backend_merge_routing_key,
+        merge_event.to_dict(),
+    )
 
-    # 7. 返回任务ID
+    logger.info(
+        f"合并任务已提交: backend_task_id={backend_task_id}, "
+        f"pipeline_id={pipeline_id}, "
+        f"file_name={file_name}, file_id={file_id}"
+    )
+
+    # 7. 返回后台任务 ID
     return JSONResponse({
         "code": 200,
         "data": {
-            "task_id": task_id,
+            "backend_task_id": backend_task_id,
+            "pipeline_id": pipeline_id,
             "file_id": file_id,
             "status": "processing",
             "message": "文件合并任务已提交，正在处理中"

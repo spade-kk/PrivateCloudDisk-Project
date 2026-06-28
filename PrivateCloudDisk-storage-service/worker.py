@@ -52,6 +52,19 @@ from core.consumers import (
     on_content_index_message,
     on_uploads_session_delete_message,
     on_uploads_event_dlq_message,
+    # 新版 Backend
+    on_backend_merge_message,
+    on_backend_hash_message,
+    on_backend_virus_message,
+    on_backend_mark_active_message,
+    # 新版 Enhancement
+    on_enhance_thumbnail_message,
+    on_enhance_transcode_message,
+    on_enhance_hls_message,
+    on_enhance_index_message,
+    # 新版 DLQ
+    on_backend_dlq_message,
+    on_enhance_dlq_message,
 )
 from app.core.logging_config import setup_logging, get_logger
 
@@ -124,6 +137,106 @@ CONFIG = {
         "callback": on_dead_letter_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
+    },
+    # ========== 新版消费者配置 ==========
+    # Backend — 顺序流水线（每个阶段独立队列）
+    "backend_merge": {
+        "queue": settings.file_backend_merge_queue,
+        "callback": on_backend_merge_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_BE_MERGE", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_BE_MERGE", "4")),
+    },
+    "backend_hash": {
+        "queue": settings.file_backend_hash_queue,
+        "callback": on_backend_hash_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_BE_HASH", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_BE_HASH", "4")),
+    },
+    "backend_virus": {
+        "queue": settings.file_backend_virus_queue,
+        "callback": on_backend_virus_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_BE_VIRUS", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_BE_VIRUS", "4")),
+    },
+    "backend_mark_active": {
+        "queue": settings.file_backend_mark_active_queue,
+        "callback": on_backend_mark_active_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_BE_MA", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_BE_MA", "4")),
+    },
+    # Enhancement — 并发流水线（各阶段独立并行）
+    "enhance_thumbnail": {
+        "queue": settings.file_enhance_thumbnail_queue,
+        "callback": on_enhance_thumbnail_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_EN_THUMB", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_THUMB", "4")),
+    },
+    "enhance_transcode": {
+        "queue": settings.file_enhance_transcode_queue,
+        "callback": on_enhance_transcode_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_EN_TRANS", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_TRANS", "2")),
+    },
+    "enhance_hls": {
+        "queue": settings.file_enhance_hls_queue,
+        "callback": on_enhance_hls_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_EN_HLS", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_HLS", "2")),
+    },
+    "enhance_index": {
+        "queue": settings.file_enhance_index_queue,
+        "callback": on_enhance_index_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_EN_INDEX", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_INDEX", "4")),
+    },
+    # DLQ — Backend + Enhancement
+    "dlq_backend_merge": {
+        "queue": settings.file_backend_merge_dlq,
+        "callback": on_backend_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_BE", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_BE", "2")),
+    },
+    "dlq_backend_hash": {
+        "queue": settings.file_backend_hash_dlq,
+        "callback": on_backend_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_BE", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_BE", "2")),
+    },
+    "dlq_backend_virus": {
+        "queue": settings.file_backend_virus_dlq,
+        "callback": on_backend_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_BE", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_BE", "2")),
+    },
+    "dlq_backend_mark_active": {
+        "queue": settings.file_backend_mark_active_dlq,
+        "callback": on_backend_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_BE", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_BE", "2")),
+    },
+    "dlq_enhance_thumbnail": {
+        "queue": settings.file_enhance_thumbnail_dlq,
+        "callback": on_enhance_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_EN", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_EN", "2")),
+    },
+    "dlq_enhance_transcode": {
+        "queue": settings.file_enhance_transcode_dlq,
+        "callback": on_enhance_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_EN", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_EN", "2")),
+    },
+    "dlq_enhance_hls": {
+        "queue": settings.file_enhance_hls_dlq,
+        "callback": on_enhance_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_EN", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_EN", "2")),
+    },
+    "dlq_enhance_index": {
+        "queue": settings.file_enhance_index_dlq,
+        "callback": on_enhance_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_EN", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_EN", "2")),
     },
 }
 

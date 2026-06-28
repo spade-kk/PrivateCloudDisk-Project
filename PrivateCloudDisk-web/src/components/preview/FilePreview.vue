@@ -1,5 +1,19 @@
 <template>
-  <Teleport to="body">
+  <!-- 图片预览：独立全屏灯箱，不使用 FilePreview 外壳 -->
+  <ImageLightbox
+    v-if="previewStore.isImage"
+    :visible="visible"
+    :file-id="previewStore.currentFile?.node_id || ''"
+    :file-name="previewStore.currentFile?.node_name || ''"
+    :has-prev="false"
+    :has-next="false"
+    @close="handleClose"
+    @prev="handlePrev"
+    @next="handleNext"
+  />
+
+  <!-- 其他文件类型：使用原有 FilePreview 外壳 -->
+  <Teleport v-else to="body">
     <Transition name="preview-fade">
       <div v-if="visible" class="preview-overlay" @click.self="handleClose">
         <div class="preview-modal" :class="{ 'fullscreen': isFullscreen }">
@@ -23,20 +37,9 @@
 
           <!-- 预览内容 -->
           <div class="preview-body">
-            <!-- 图片预览 -->
-            <ImagePreview
-              v-if="previewStore.isImage"
-              :file-url="previewStore.previewUrl"
-              :file-name="previewStore.currentFile?.node_name || ''"
-              :file-size="previewStore.fileSizeFormatted"
-              :file-extension="previewStore.fileExtension"
-              :loading="previewStore.loading"
-              @retry="handleRetry"
-            />
-
             <!-- 视频预览 -->
             <VideoPreview
-              v-else-if="previewStore.isVideo"
+              v-if="previewStore.isVideo"
               :file-url="previewStore.previewUrl"
               :file-name="previewStore.currentFile?.node_name || ''"
               :file-size="previewStore.fileSizeFormatted"
@@ -140,7 +143,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { usePreviewStore } from '@/stores/previewStore'
 import { useToastStore } from '@/stores/toastStore'
-import ImagePreview from './ImagePreview.vue'
+import ImageLightbox from './ImageLightbox.vue'
 import VideoPreview from './VideoPreview.vue'
 import AudioPreview from './AudioPreview.vue'
 import PdfPreview from './PdfPreview.vue'
@@ -189,6 +192,15 @@ const openPreview = async () => {
 const handleClose = () => {
   previewStore.closePreview()
   emit('close')
+}
+
+// 上一张 / 下一张（预留）
+const handlePrev = () => {
+  // TODO: 实现上一张图片预览
+}
+
+const handleNext = () => {
+  // TODO: 实现下一张图片预览
 }
 
 // 下载文件

@@ -21,9 +21,12 @@ export interface TransferRecord {
   speed: string
   status: TransferStatusType
   processingStatus: string
-  taskId: string | null
+  backendTaskId: string | null
+  processingProgress: number
   startTime: number
   endTime: number | null
+  /** 文件夹上传时对应的文件夹名，用于分组展示 */
+  folderName?: string
 }
 
 const MAX_RECORDS = 200
@@ -98,7 +101,7 @@ export const useTransferStore = defineStore('transfer', () => {
     saveNextId(nextId)
   }
 
-  function addRecord(type: 'upload' | 'download', fileName: string, fileSize: number): number {
+  function addRecord(type: 'upload' | 'download', fileName: string, fileSize: number, folderName?: string): number {
     const id = nextId++
     const record: TransferRecord = {
       id,
@@ -109,9 +112,11 @@ export const useTransferStore = defineStore('transfer', () => {
       speed: '',
       status: type === 'upload' ? TransferStatus.UPLOADING : TransferStatus.DOWNLOADING,
       processingStatus: '',
-      taskId: null,
+      backendTaskId: null,
+      processingProgress: 0,
       startTime: Date.now(),
       endTime: null,
+      folderName,
     }
     records.value.unshift(record)
     if (records.value.length > MAX_RECORDS) {
@@ -129,13 +134,14 @@ export const useTransferStore = defineStore('transfer', () => {
     schedulePersist()
   }
 
-  function enterProcessing(id: number, taskId: string, processingStatus: string): void {
+  function enterProcessing(id: number, backendTaskId: string, processingStatus: string): void {
     const r = records.value.find(r => r.id === id)
     if (!r) return
     r.status = TransferStatus.PROCESSING
     r.progress = 100
-    r.taskId = taskId
+    r.backendTaskId = backendTaskId
     r.processingStatus = processingStatus || '服务器处理中'
+    r.processingProgress = 0
     persist()
   }
 
@@ -143,6 +149,12 @@ export const useTransferStore = defineStore('transfer', () => {
     const r = records.value.find(r => r.id === id)
     if (!r) return
     r.processingStatus = processingStatus
+  }
+
+  function updateProcessingProgress(id: number, progress: number): void {
+    const r = records.value.find(r => r.id === id)
+    if (!r) return
+    r.processingProgress = Math.min(100, Math.max(0, progress))
   }
 
   function finishRecord(id: number): void {
@@ -204,6 +216,7 @@ export const useTransferStore = defineStore('transfer', () => {
     updateProgress,
     enterProcessing,
     updateProcessingStatus,
+    updateProcessingProgress,
     finishRecord,
     failRecord,
     cancelRecord,

@@ -2,14 +2,26 @@
   <div class="space-y-4 sm:space-y-6">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-bold sm:text-2xl">传输记录</h1>
-      <button
-        v-if="store.records.length > 0"
-        class="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-        @click="handleClearCompleted"
-      >
-        <i class="fa fa-trash-o mr-1"></i>清除已完成/失败
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="throughputStore.points.length > 0"
+          class="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-300 hover:bg-neutral-100"
+          @click="throughputStore.clearHistory()"
+        >
+          <i class="fa fa-line-chart mr-1"></i>清除图表
+        </button>
+        <button
+          v-if="store.records.length > 0"
+          class="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+          @click="handleClearCompleted"
+        >
+          <i class="fa fa-trash-o mr-1"></i>清除已完成/失败
+        </button>
+      </div>
     </div>
+
+    <!-- 实时吞吐量图表
+    <ThroughputChart /> -->
 
     <!-- 进行中的传输 -->
     <div v-if="ongoingRecords.length > 0" class="overflow-hidden rounded-lg bg-white shadow-card">
@@ -48,9 +60,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTransferStore } from '@/stores/transferStore'
+import { useThroughputStore } from '@/stores/throughputStore'
 import TransferTable from '@/components/transfer/TransferTable.vue'
+import ThroughputChart from '@/components/transfer/ThroughputChart.vue'
 
 const store = useTransferStore()
+const throughputStore = useThroughputStore()
 
 const ongoingRecords = computed(() =>
   store.records.filter(r =>

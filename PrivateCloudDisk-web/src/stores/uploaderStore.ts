@@ -1,3 +1,22 @@
+// ============================================================
+// uploaderStore.ts — 文件上传业务逻辑
+// ============================================================
+// 完整上传流程：
+//   createUploadsSession → uploadChunks(concurrent) → completeUpload → pollBackendTaskStatus
+//
+// 后台处理流水线（仅后台处理，增强事件独立并发）：
+//   merge → hash_calculate → virus_scan → mark_active
+//
+// 轮询策略：
+//   每 2s 轮询一次，最多 150 次（5 分钟），status === "completed" 后刷新文件列表。
+//   基于 stages 数组计算实时进度（completed 阶段数 / 总阶段数 × 100%）。
+//
+// 架构优化：
+//   后续可将轮询替换为 WebSocket 推送通知，
+//   服务端在任务状态变更时通过 WebSocket 推送 backend_task_id + status，
+//   前端收到通知后更新对应任务状态，completed 时刷新文件列表。
+// ============================================================
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { CHUNK_SIZE, MAX_CONCURRENT_UPLOADS, MAX_RETRIES } from '@/utils/constants'
@@ -6,19 +25,35 @@ import { SpeedSampler } from '@/utils/speedSampler'
 import { useToastStore } from './toastStore'
 import { useFileBrowserStore } from './fileBrowserStore'
 import { useTransferStore } from './transferStore'
-import { createUploadsSessionApi, uploadFileChunkApi, completeUploadSessionApi, getTaskStatusApi } from '@/api/index'
+import { useThroughputStore } from './throughputStore'
+import {
+  createUploadsSessionApi,
+  uploadFileChunkApi,
+  completeUploadSessionApi,
+  getBackendTaskStatusApi,
+} from '@/api/index'
 
-const STEP_LABELS: Record<string, string> = {
+// ============================================================
+// 后台处理阶段标签
+// 仅包含后台处理阶段（merge → hash_calculate → virus_scan → mark_active）
+// 增强事件（缩略图、转码、HLS、索引）独立并发执行，不在此轮询
+// ============================================================
+const STAGE_LABELS: Record<string, string> = {
   merge: '文件合并中',
   hash_calculate: '哈希校验中',
   virus_scan: '病毒扫描中',
-  thumbnail: '生成缩略图中',
-  video_transcode: '视频转码中',
   mark_active: '即将完成',
 }
 
+/** 后台处理阶段顺序（用于进度计算） */
+const BACKEND_STAGES = ['merge', 'hash_calculate', 'virus_scan', 'mark_active'] as const
+
 const POLL_INTERVAL = 2000
 const MAX_POLL_COUNT = 150
+
+// ============================================================
+// 类型定义
+// ============================================================
 
 export interface ChunkStatus {
   index: number
@@ -28,10 +63,34 @@ export interface ChunkStatus {
   end: number
 }
 
+/** 后台任务阶段状态 */
+export interface TaskStage {
+  stage: string
+  status: 'processing' | 'completed' | 'failed' | 'pending'
+  summary: string
+}
+
+/** 后台任务状态响应 */
+export interface BackendTaskStatus {
+  backend_task_id: string
+  file_id: string
+  file_name: string
+  status: 'processing' | 'completed' | 'failed'
+  current_stage: string
+  created_at: string
+  updated_at: string
+  stages: TaskStage[]
+}
+
+// ============================================================
+// Store
+// ============================================================
+
 export const useUploaderStore = defineStore('uploader', () => {
   const toastStore = useToastStore()
   const fileBrowserStore = useFileBrowserStore()
   const transferStore = useTransferStore()
+  const throughputStore = useThroughputStore()
 
   const uploadFile = ref<File | null>(null)
   const uploadSessionId = ref<string | null>(null)
@@ -45,7 +104,10 @@ export const useUploaderStore = defineStore('uploader', () => {
 
   const isProcessing = ref(false)
   const processingStatus = ref('')
-  const taskId = ref<string | null>(null)
+  const backendTaskId = ref<string | null>(null)
+
+  /** 后台处理进度（0-100） */
+  const processingProgress = ref(0)
 
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let pollCount = 0
@@ -101,6 +163,7 @@ export const useUploaderStore = defineStore('uploader', () => {
     if (speedTimer) clearInterval(speedTimer)
     speedTimer = setInterval(() => {
       speedSampler.addSample(accumulatedUploadedBytes)
+      throughputStore.setUploadSpeed(speedSampler.getSpeed())
       if (!isProcessing.value) updateTransferProgress()
     }, 200)
   }
@@ -110,6 +173,31 @@ export const useUploaderStore = defineStore('uploader', () => {
       clearInterval(speedTimer)
       speedTimer = null
     }
+    throughputStore.setUploadSpeed(0)
+  }
+
+  // ============================================================
+  // 后台任务轮询
+  // ============================================================
+
+  /**
+   * 计算后台处理进度
+   * 基于 stages 数组中 completed 阶段数 / 总阶段数
+   * 当前进行中的阶段按 50% 估算
+   */
+  function calcProcessingProgress(stages: TaskStage[]): number {
+    if (!stages || stages.length === 0) return 0
+    const total = stages.length
+    let completed = 0
+
+    for (const s of stages) {
+      if (s.status === 'completed') {
+        completed += 1
+      } else if (s.status === 'processing') {
+        completed += 0.5
+      }
+    }
+    return Math.round((completed / total) * 100)
   }
 
   function stopPolling(): void {
@@ -120,14 +208,15 @@ export const useUploaderStore = defineStore('uploader', () => {
     pollCount = 0
   }
 
-  async function pollTaskStatus(): Promise<void> {
-    if (!taskId.value || !isProcessing.value) return
+  async function pollBackendTaskStatus(): Promise<void> {
+    if (!backendTaskId.value || !isProcessing.value) return
 
     pollCount++
     if (pollCount > MAX_POLL_COUNT) {
       stopPolling()
       isProcessing.value = false
       processingStatus.value = ''
+      processingProgress.value = 0
       if (transferRecordId.value != null) {
         transferStore.failRecord(transferRecordId.value, '处理超时')
       }
@@ -136,25 +225,32 @@ export const useUploaderStore = defineStore('uploader', () => {
     }
 
     try {
-      const res = await getTaskStatusApi(taskId.value)
+      const res = await getBackendTaskStatusApi(backendTaskId.value)
       if (res.code !== 200 || !res.data) return
 
-      const { status, current_step } = res.data
+      const data: BackendTaskStatus = res.data
+      const { status, current_stage, stages } = data
 
-      const label = STEP_LABELS[current_step] || '服务器处理中'
+      // 更新当前阶段标签
+      const label = STAGE_LABELS[current_stage] || '服务器处理中'
       processingStatus.value = label
+
+      // 更新处理进度
+      processingProgress.value = calcProcessingProgress(stages)
+
+      // 更新传输记录
       if (transferRecordId.value != null) {
         transferStore.updateProcessingStatus(transferRecordId.value, label)
+        transferStore.updateProcessingProgress(transferRecordId.value, processingProgress.value)
       }
 
       if (status === 'completed') {
         handleTaskCompleted()
       } else if (status === 'failed') {
-        handleTaskFailed(res.data)
-      } else if (status === 'cancelled') {
-        handleTaskCancelled()
+        handleTaskFailed(data)
       }
     } catch {
+      // 网络错误不增加 pollCount，允许重试
       pollCount = Math.max(0, pollCount - 1)
     }
   }
@@ -163,6 +259,7 @@ export const useUploaderStore = defineStore('uploader', () => {
     stopPolling()
     isProcessing.value = false
     processingStatus.value = ''
+    processingProgress.value = 100
     if (transferRecordId.value != null) {
       transferStore.finishRecord(transferRecordId.value)
     }
@@ -171,35 +268,35 @@ export const useUploaderStore = defineStore('uploader', () => {
     resetUpload()
   }
 
-  function handleTaskFailed(taskData: any): void {
+  function handleTaskFailed(taskData: BackendTaskStatus): void {
     stopPolling()
     isProcessing.value = false
     processingStatus.value = ''
-    const failedStep = (taskData && taskData.current_step) ? STEP_LABELS[taskData.current_step] || taskData.current_step : '处理'
-    if (transferRecordId.value != null) {
-      transferStore.failRecord(transferRecordId.value, `${failedStep}失败`)
-    }
-    toastStore.showToast(`文件${failedStep}失败，请重试`, 'error')
-    resetUpload()
-  }
+    processingProgress.value = 0
 
-  function handleTaskCancelled(): void {
-    stopPolling()
-    isProcessing.value = false
-    processingStatus.value = ''
+    // 找到失败阶段
+    const failedStage = taskData.stages?.find(s => s.status === 'failed')
+    const failedLabel = failedStage
+      ? STAGE_LABELS[failedStage.stage] || failedStage.stage
+      : '处理'
+
     if (transferRecordId.value != null) {
-      transferStore.cancelRecord(transferRecordId.value)
+      transferStore.failRecord(transferRecordId.value, `${failedLabel}失败`)
     }
-    toastStore.showToast('文件处理已取消', 'warning')
+    toastStore.showToast(`文件${failedLabel}失败，请重试`, 'error')
     resetUpload()
   }
 
   function startPolling(): void {
     stopPolling()
     pollCount = 0
-    pollTaskStatus()
-    pollTimer = setInterval(pollTaskStatus, POLL_INTERVAL)
+    pollBackendTaskStatus()
+    pollTimer = setInterval(pollBackendTaskStatus, POLL_INTERVAL)
   }
+
+  // ============================================================
+  // 分片上传
+  // ============================================================
 
   async function uploadSingleChunk(chunkIdx: number): Promise<void> {
     const chunk = chunksStatus.value.find(c => c.index === chunkIdx)
@@ -284,6 +381,10 @@ export const useUploaderStore = defineStore('uploader', () => {
     pending.slice(0, slots).forEach(chunk => uploadSingleChunk(chunk.index))
   }
 
+  // ============================================================
+  // 上传生命周期
+  // ============================================================
+
   async function startUpload(file: File): Promise<void> {
     if (!file) return
     resetUpload()
@@ -363,6 +464,7 @@ export const useUploaderStore = defineStore('uploader', () => {
     uploadCancelled.value = true
     isProcessing.value = false
     processingStatus.value = ''
+    processingProgress.value = 0
     activeControllers.value.forEach(ctrl => ctrl.abort())
     activeControllers.value = []
     stopSpeedMonitor()
@@ -379,6 +481,7 @@ export const useUploaderStore = defineStore('uploader', () => {
     if (!uploadSessionId.value || uploadCancelled.value) return
     isProcessing.value = true
     processingStatus.value = '提交合并请求'
+    processingProgress.value = 0
     stopSpeedMonitor()
 
     if (transferRecordId.value != null) {
@@ -387,16 +490,22 @@ export const useUploaderStore = defineStore('uploader', () => {
 
     try {
       const res = await completeUploadSessionApi(uploadSessionId.value)
-      if (res.code === 200 && res.data?.task_id) {
-        taskId.value = res.data.task_id
+      if (res.code === 200 && res.data?.backend_task_id) {
+        backendTaskId.value = res.data.backend_task_id
         processingStatus.value = '文件合并中'
+        processingProgress.value = 0
         if (transferRecordId.value != null) {
-          transferStore.enterProcessing(transferRecordId.value, res.data.task_id, '文件合并中')
+          transferStore.enterProcessing(
+            transferRecordId.value,
+            res.data.backend_task_id,
+            '文件合并中',
+          )
         }
         startPolling()
       } else {
         isProcessing.value = false
         processingStatus.value = ''
+        processingProgress.value = 0
         if (transferRecordId.value != null) {
           transferStore.failRecord(transferRecordId.value, res.message || '文件合并请求失败')
         }
@@ -406,6 +515,7 @@ export const useUploaderStore = defineStore('uploader', () => {
     } catch {
       isProcessing.value = false
       processingStatus.value = ''
+      processingProgress.value = 0
       stopPolling()
       if (transferRecordId.value != null) {
         transferStore.failRecord(transferRecordId.value, '文件合并请求失败')
@@ -435,7 +545,8 @@ export const useUploaderStore = defineStore('uploader', () => {
     transferRecordId.value = null
     isProcessing.value = false
     processingStatus.value = ''
-    taskId.value = null
+    processingProgress.value = 0
+    backendTaskId.value = null
     fileChecksum.value = ''
     accumulatedUploadedBytes = 0
     chunkUploadedBytes.clear()
@@ -443,15 +554,19 @@ export const useUploaderStore = defineStore('uploader', () => {
   }
 
   return {
+    // 上传状态
     uploadFile,
     uploadSessionId,
     totalChunks,
     chunksStatus,
     uploadPaused,
     uploadCancelled,
+    // 后台处理状态
     isProcessing,
     processingStatus,
-    taskId,
+    processingProgress,
+    backendTaskId,
+    // 方法
     startUpload,
     pauseUpload,
     resumeUpload,

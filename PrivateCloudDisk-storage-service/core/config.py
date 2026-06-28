@@ -27,15 +27,83 @@ class Settings(BaseSettings):
     rabbitmq_password: str = "guest"
     rabbitmq_vhost: str = "/"
 
-    # --- 文件处理主交换机 & 队列 ---
+    # ====== 旧版文件处理（保留兼容，逐步迁移） ======
     file_process_exchange: str = "pcd.file.process.exchange"
     file_process_queue: str = "pcd.file.process.queue"
     file_process_routing_key: str = "file.process"
-
-    # --- 文件处理死信交换机 & 队列 (DLX/DLQ) ---
     file_process_dlx: str = "pcd.file.process.dlx"
     file_process_dlq: str = "pcd.file.process.dlq"
     file_process_dlq_routing_key: str = "file.process.dlq"
+
+    # ========== 文件后台处理拓扑（Backend Processing — 顺序流水线） ==========
+    # 每个阶段独立 exchange + queue + DLQ，便于独立追踪耗时和运维
+
+    # --- 后台处理主交换机 (DIRECT) ---
+    file_backend_exchange: str = "pcd.file.backend.exchange"
+    file_backend_dlx: str = "pcd.file.backend.dlx"
+
+    # --- merge 合并 ---
+    file_backend_merge_queue: str = "pcd.file.backend.merge.queue"
+    file_backend_merge_routing_key: str = "file.backend.merge"
+    file_backend_merge_dlq: str = "pcd.file.backend.merge.dlq"
+    file_backend_merge_dlq_routing_key: str = "file.backend.merge.dlq"
+    file_backend_merge_max_retries: int = 3
+
+    # --- hash 哈希计算 ---
+    file_backend_hash_queue: str = "pcd.file.backend.hash.queue"
+    file_backend_hash_routing_key: str = "file.backend.hash"
+    file_backend_hash_dlq: str = "pcd.file.backend.hash.dlq"
+    file_backend_hash_dlq_routing_key: str = "file.backend.hash.dlq"
+    file_backend_hash_max_retries: int = 3
+
+    # --- virus 病毒扫描 ---
+    file_backend_virus_queue: str = "pcd.file.backend.virus.queue"
+    file_backend_virus_routing_key: str = "file.backend.virus"
+    file_backend_virus_dlq: str = "pcd.file.backend.virus.dlq"
+    file_backend_virus_dlq_routing_key: str = "file.backend.virus.dlq"
+    file_backend_virus_max_retries: int = 3
+
+    # --- mark_active 标记活跃 ---
+    file_backend_mark_active_queue: str = "pcd.file.backend.mark_active.queue"
+    file_backend_mark_active_routing_key: str = "file.backend.mark_active"
+    file_backend_mark_active_dlq: str = "pcd.file.backend.mark_active.dlq"
+    file_backend_mark_active_dlq_routing_key: str = "file.backend.mark_active.dlq"
+    file_backend_mark_active_max_retries: int = 3
+
+    # ========== 文件增强处理拓扑（Enhancement Processing — 并发流水线） ==========
+    # 每个增强阶段独立 exchange + queue + DLQ，可并发消费，互不阻塞
+
+    # --- 增强处理主交换机 (DIRECT) ---
+    file_enhance_exchange: str = "pcd.file.enhance.exchange"
+    file_enhance_dlx: str = "pcd.file.enhance.dlx"
+
+    # --- thumbnail 缩略图 ---
+    file_enhance_thumbnail_queue: str = "pcd.file.enhance.thumbnail.queue"
+    file_enhance_thumbnail_routing_key: str = "file.enhance.thumbnail"
+    file_enhance_thumbnail_dlq: str = "pcd.file.enhance.thumbnail.dlq"
+    file_enhance_thumbnail_dlq_routing_key: str = "file.enhance.thumbnail.dlq"
+    file_enhance_thumbnail_max_retries: int = 3
+
+    # --- transcode 视频转码 ---
+    file_enhance_transcode_queue: str = "pcd.file.enhance.transcode.queue"
+    file_enhance_transcode_routing_key: str = "file.enhance.transcode"
+    file_enhance_transcode_dlq: str = "pcd.file.enhance.transcode.dlq"
+    file_enhance_transcode_dlq_routing_key: str = "file.enhance.transcode.dlq"
+    file_enhance_transcode_max_retries: int = 3
+
+    # --- hls_transcode HLS 流媒体转码 ---
+    file_enhance_hls_queue: str = "pcd.file.enhance.hls.queue"
+    file_enhance_hls_routing_key: str = "file.enhance.hls"
+    file_enhance_hls_dlq: str = "pcd.file.enhance.hls.dlq"
+    file_enhance_hls_dlq_routing_key: str = "file.enhance.hls.dlq"
+    file_enhance_hls_max_retries: int = 3
+
+    # --- content_index 全文索引 ---
+    file_enhance_index_queue: str = "pcd.file.enhance.index.queue"
+    file_enhance_index_routing_key: str = "file.enhance.index"
+    file_enhance_index_dlq: str = "pcd.file.enhance.index.dlq"
+    file_enhance_index_dlq_routing_key: str = "file.enhance.index.dlq"
+    file_enhance_index_max_retries: int = 3
 
     # --- 文件删除主交换机 & 队列 ---
     file_delete_exchange: str = "pcd.file.delete.exchange"
@@ -188,7 +256,8 @@ class FailureReason:
 IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml"})
 VIDEO_TYPES = frozenset({"video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-msvideo", "video/x-matroska"})
 
-# ========== 任务流水线顺序 ==========
+# ========== 任务流水线拆分 ==========
+# 旧版流水线（保留兼容）
 TASK_PIPELINE = [
     TaskTypes.MERGE,
     TaskTypes.HASH_CALCULATE,
@@ -199,3 +268,59 @@ TASK_PIPELINE = [
     TaskTypes.HLS_TRANSCODE,
     TaskTypes.CONTENT_INDEX,
 ]
+
+# 新版——后台处理流水线（顺序执行，影响文件可用性）
+BACKEND_PIPELINE = [
+    TaskTypes.MERGE,
+    TaskTypes.HASH_CALCULATE,
+    TaskTypes.VIRUS_SCAN,
+    TaskTypes.MARK_ACTIVE,
+]
+
+# 新版——增强处理流水线（并发执行，不影响文件可用性）
+ENHANCE_PIPELINE = [
+    TaskTypes.THUMBNAIL,
+    TaskTypes.VIDEO_TRANSCODE,
+    TaskTypes.HLS_TRANSCODE,
+    TaskTypes.CONTENT_INDEX,
+]
+
+# 后台处理阶段 → 下一阶段的映射
+BACKEND_NEXT_STAGE = {
+    TaskTypes.MERGE: TaskTypes.HASH_CALCULATE,
+    TaskTypes.HASH_CALCULATE: TaskTypes.VIRUS_SCAN,
+    TaskTypes.VIRUS_SCAN: TaskTypes.MARK_ACTIVE,
+    TaskTypes.MARK_ACTIVE: None,  # 流水线终点，触发增强事件
+}
+
+# 后台处理阶段 → routing_key 映射
+BACKEND_STAGE_ROUTING_KEY = {
+    TaskTypes.MERGE: "file.backend.merge",
+    TaskTypes.HASH_CALCULATE: "file.backend.hash",
+    TaskTypes.VIRUS_SCAN: "file.backend.virus",
+    TaskTypes.MARK_ACTIVE: "file.backend.mark_active",
+}
+
+# 增强处理阶段 → routing_key 映射
+ENHANCE_STAGE_ROUTING_KEY = {
+    TaskTypes.THUMBNAIL: "file.enhance.thumbnail",
+    TaskTypes.VIDEO_TRANSCODE: "file.enhance.transcode",
+    TaskTypes.HLS_TRANSCODE: "file.enhance.hls",
+    TaskTypes.CONTENT_INDEX: "file.enhance.index",
+}
+
+# 根据文件类型判断需要触发的增强阶段
+def get_enhance_stages(file_type: str) -> list[str]:
+    stages = []
+    if file_type in IMAGE_TYPES:
+        stages.append(TaskTypes.THUMBNAIL)
+    if file_type in VIDEO_TYPES:
+        stages.append(TaskTypes.THUMBNAIL)
+        stages.append(TaskTypes.VIDEO_TRANSCODE)
+        stages.append(TaskTypes.HLS_TRANSCODE)
+    # 文本类文件可索引
+    if file_type.startswith(("text/", "application/pdf", "application/msword",
+                              "application/vnd.openxmlformats", "application/vnd.ms-",
+                              "application/json", "application/xml")):
+        stages.append(TaskTypes.CONTENT_INDEX)
+    return stages

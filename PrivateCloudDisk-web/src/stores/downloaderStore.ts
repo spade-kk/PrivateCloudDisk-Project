@@ -5,10 +5,12 @@ import { CHUNK_SIZE, MAX_CONCURRENT_DOWNLOADS, UPLOAD_THRESHOLD } from '@/utils/
 import { SpeedSampler } from '@/utils/speedSampler'
 import { useToastStore } from './toastStore'
 import { useTransferStore } from './transferStore'
+import { useThroughputStore } from './throughputStore'
 
 export const useDownloaderStore = defineStore('downloader', () => {
   const toastStore = useToastStore()
   const transferStore = useTransferStore()
+  const throughputStore = useThroughputStore()
 
   const downloading = ref(false)
   const downloadProgress = ref(0)
@@ -28,8 +30,10 @@ export const useDownloaderStore = defineStore('downloader', () => {
     if (speedTimer) clearInterval(speedTimer)
     speedTimer = setInterval(() => {
       speedSampler.addSample(accumulatedDownloadedBytes)
+      const { bps, formatted } = speedSampler.getFormattedSpeed()
+      throughputStore.setDownloadSpeed(bps)
       if (transferId) {
-        transferStore.updateProgress(transferId, downloadProgress.value, speedSampler.getFormattedSpeed().formatted)
+        transferStore.updateProgress(transferId, downloadProgress.value, formatted)
       }
     }, 200)
   }
@@ -39,6 +43,7 @@ export const useDownloaderStore = defineStore('downloader', () => {
       clearInterval(speedTimer)
       speedTimer = null
     }
+    throughputStore.setDownloadSpeed(0)
   }
 
   let transferId: number | null = null

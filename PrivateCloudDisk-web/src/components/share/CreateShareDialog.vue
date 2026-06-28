@@ -128,6 +128,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useShareStore } from '@/stores/shareStore'
+import { hashPasswordForTransport } from '@/utils/crypto'
 import { formatFileSize } from '@/api/modules/shares'
 import type { ShareCreateParams } from '@/api/modules/shares'
 
@@ -209,36 +210,6 @@ onMounted(loadResources)
 
 const formatSize = (bytes: number) => formatFileSize(bytes)
 
-/**
- * 客户端 PBKDF2-SHA256 密码预哈希
- * 使用固定盐值，与 ShareAccessView 保持一致。
- * 服务端额外使用 BCrypt 二次哈希，提供实际安全性。
- */
-async function preHashPassword(rawPassword: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const salt = encoder.encode('pcd-share-salt-v1')
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(rawPassword),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  )
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: 100000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256
-  )
-  const hashArray = Array.from(new Uint8Array(derivedBits))
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
-  return hashHex
-}
-
 const submit = async () => {
   if (!selectedResourceId.value) return
   submitting.value = true
@@ -258,7 +229,7 @@ const submit = async () => {
 
     if (form.need_password && form.password) {
       // 客户端预哈希密码
-      params.password = await preHashPassword(form.password)
+      params.password = await hashPasswordForTransport(form.password)
     }
 
     await shareStore.createShare(params)

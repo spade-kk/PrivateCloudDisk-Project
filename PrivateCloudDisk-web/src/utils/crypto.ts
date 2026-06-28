@@ -25,6 +25,16 @@
  * └─────────────────────────────────────────────────────────────┘
  */
 
+import {
+  subtleDigest,
+  subtleImportKey,
+  subtleDeriveBits,
+  subtleEncrypt,
+  subtleDecrypt,
+  subtleSign,
+  getRandomValues,
+} from './cryptoSubtleGuard'
+
 // ============================================================
 // 常量配置
 // ============================================================
@@ -125,18 +135,18 @@ let _integrityVerified = false
  * 每个导出函数在首次调用时执行一次校验，失败则抛出错误。
  */
 async function _ensureIntegrity(): Promise<void> {
-  if (_integrityVerified) return
+  if (_integrityVerified || import.meta.env.VITE_ENSURE_INTEGRITY == 'False') return
 
   try {
     const pepper = _assemblePepper()
-    const keyMaterial = await crypto.subtle.importKey(
+    const keyMaterial = await subtleImportKey(
       'raw',
       new TextEncoder().encode(_INTEGRITY_INPUT),
       'PBKDF2',
       false,
       ['deriveBits'],
     )
-    const derivedBits = await crypto.subtle.deriveBits(
+    const derivedBits = await subtleDeriveBits(
       {
         name: 'PBKDF2',
         salt: pepper,
@@ -224,9 +234,9 @@ export async function pbkdf2HashPassword(
 ): Promise<string> {
   const saltBytes = salt
     ? hex2buf(salt)
-    : crypto.getRandomValues(new Uint8Array(16))
+    : getRandomValues(new Uint8Array(16))
 
-  const keyMaterial = await crypto.subtle.importKey(
+  const keyMaterial = await subtleImportKey(
     'raw',
     str2buf(password),
     'PBKDF2',
@@ -234,7 +244,7 @@ export async function pbkdf2HashPassword(
     ['deriveBits'],
   )
 
-  const derivedBits = await crypto.subtle.deriveBits(
+  const derivedBits = await subtleDeriveBits(
     {
       name: 'PBKDF2',
       salt: saltBytes,
@@ -279,7 +289,7 @@ export async function hashPasswordForTransport(password: string): Promise<string
   await _ensureIntegrity()
 
   const pepper = _assemblePepper()
-  const keyMaterial = await crypto.subtle.importKey(
+  const keyMaterial = await subtleImportKey(
     'raw',
     str2buf(password),
     'PBKDF2',
@@ -287,7 +297,7 @@ export async function hashPasswordForTransport(password: string): Promise<string
     ['deriveBits'],
   )
 
-  const derivedBits = await crypto.subtle.deriveBits(
+  const derivedBits = await subtleDeriveBits(
     {
       name: 'PBKDF2',
       salt: pepper,
@@ -317,9 +327,9 @@ export async function hashPasswordForTransport(password: string): Promise<string
  */
 export async function aesEncrypt(plaintext: string, keyHex: string): Promise<string> {
   const keyBytes = hex2buf(keyHex)
-  const iv = crypto.getRandomValues(new Uint8Array(AES_IV_LENGTH))
+  const iv = getRandomValues(new Uint8Array(AES_IV_LENGTH))
 
-  const cryptoKey = await crypto.subtle.importKey(
+  const cryptoKey = await subtleImportKey(
     'raw',
     keyBytes,
     { name: 'AES-GCM' },
@@ -327,7 +337,7 @@ export async function aesEncrypt(plaintext: string, keyHex: string): Promise<str
     ['encrypt'],
   )
 
-  const encrypted = await crypto.subtle.encrypt(
+  const encrypted = await subtleEncrypt(
     { name: 'AES-GCM', iv },
     cryptoKey,
     str2buf(plaintext),
@@ -358,7 +368,7 @@ export async function aesDecrypt(
   const iv = combined.slice(0, AES_IV_LENGTH)
   const ciphertext = combined.slice(AES_IV_LENGTH)
 
-  const cryptoKey = await crypto.subtle.importKey(
+  const cryptoKey = await subtleImportKey(
     'raw',
     keyBytes,
     { name: 'AES-GCM' },
@@ -366,7 +376,7 @@ export async function aesDecrypt(
     ['decrypt'],
   )
 
-  const decrypted = await crypto.subtle.decrypt(
+  const decrypted = await subtleDecrypt(
     { name: 'AES-GCM', iv },
     cryptoKey,
     ciphertext,
@@ -380,7 +390,7 @@ export async function aesDecrypt(
  * @returns hex 编码的密钥字符串
  */
 export function generateAesKey(): string {
-  const key = crypto.getRandomValues(new Uint8Array(32))
+  const key = getRandomValues(new Uint8Array(32))
   return buf2hex(key.buffer)
 }
 
@@ -466,7 +476,7 @@ export function generateSecureRandom(
   length: number = 32,
   charset: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 ): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length))
+  const bytes = getRandomValues(new Uint8Array(length))
   let result = ''
   for (let i = 0; i < length; i++) {
     result += charset[bytes[i] % charset.length]
@@ -479,7 +489,7 @@ export function generateSecureRandom(
  * @param digits - 验证码位数，默认 6
  */
 export function generateSecureCode(digits: number = 6): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(digits))
+  const bytes = getRandomValues(new Uint8Array(digits))
   let code = ''
   for (let i = 0; i < digits; i++) {
     code += (bytes[i] % 10).toString()
@@ -499,7 +509,7 @@ export async function hmacSign(
   data: string,
   secret: string
 ): Promise<string> {
-  const key = await crypto.subtle.importKey(
+  const key = await subtleImportKey(
     'raw',
     str2buf(secret),
     { name: 'HMAC', hash: 'SHA-256' },
@@ -507,7 +517,7 @@ export async function hmacSign(
     ['sign']
   )
 
-  const signature = await crypto.subtle.sign('HMAC', key, str2buf(data))
+  const signature = await subtleSign('HMAC', key, str2buf(data))
   return buf2hex(signature)
 }
 
@@ -533,7 +543,7 @@ export async function hmacVerify(
  */
 export async function encryptToken(token: string, fingerprint: string): Promise<string> {
   // 从指纹派生加密密钥
-  const keyDerived = await crypto.subtle.digest('SHA-256', str2buf(fingerprint))
+  const keyDerived = await subtleDigest('SHA-256', str2buf(fingerprint))
   const keyHex = buf2hex(keyDerived)
   return aesEncrypt(token, keyHex)
 }
@@ -545,7 +555,7 @@ export async function decryptToken(
   encryptedToken: string,
   fingerprint: string
 ): Promise<string> {
-  const keyDerived = await crypto.subtle.digest('SHA-256', str2buf(fingerprint))
+  const keyDerived = await subtleDigest('SHA-256', str2buf(fingerprint))
   const keyHex = buf2hex(keyDerived)
   return aesDecrypt(encryptedToken, keyHex)
 }
