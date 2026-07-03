@@ -48,6 +48,7 @@ import (
 	"github.com/privateclouddisk/notification-service/internal/config"
 	"github.com/privateclouddisk/notification-service/internal/domain"
 	"github.com/privateclouddisk/notification-service/internal/redisutil"
+	"github.com/privateclouddisk/notification-service/internal/repository"
 	"github.com/privateclouddisk/notification-service/internal/security"
 )
 
@@ -55,22 +56,36 @@ import (
 type VerificationCodeService struct {
 	cfg              *config.Config
 	repo             *redisutil.VerificationRepo
+	templateRepo     *repository.TemplateRepo
 	channelManager   *channel.ChannelManager
 	turnstileVerifier *security.TurnstileVerifier
+	mqPublisher      VerificationMQPublisher
+}
+
+// VerificationMQPublisher 验证码 MQ 发布器接口（异步发送）
+type VerificationMQPublisher interface {
+	PublishVerification(evt *domain.VerificationMessageEvent) error
 }
 
 // NewVerificationCodeService 创建验证码服务
 func NewVerificationCodeService(
 	cfg *config.Config,
 	repo *redisutil.VerificationRepo,
+	templateRepo *repository.TemplateRepo,
 	channelManager *channel.ChannelManager,
 ) *VerificationCodeService {
 	return &VerificationCodeService{
 		cfg:              cfg,
 		repo:             repo,
+		templateRepo:     templateRepo,
 		channelManager:   channelManager,
 		turnstileVerifier: security.NewTurnstileVerifier(&cfg.Turnstile),
 	}
+}
+
+// SetMQPublisher 设置 MQ 发布器（用于异步发送验证码）
+func (s *VerificationCodeService) SetMQPublisher(p VerificationMQPublisher) {
+	s.mqPublisher = p
 }
 
 // =============================================================================
@@ -128,11 +143,31 @@ func (s *VerificationCodeService) SendCode(
 		return nil, fmt.Errorf("记录发送时间失败: %w", err)
 	}
 
-	// 6. 发送邮件/短信
-	if err := s.sendCodeToTarget(ctx, targetType, target, code, purpose); err != nil {
-		log.Printf("[验证码] 发送失败: targetType=%s, targetHash=%s, error=%v",
-			targetType, targetHash[:min(16, len(targetHash))], err)
-		// 发送失败不阻塞，继续返回 token（邮件可能延迟到达）
+	// 6. 异步发送：通过 MQ 消费者发送邮件/短信（不阻塞接口响应）
+	if s.mqPublisher != nil {
+		evt := &domain.VerificationMessageEvent{
+			EventID:    uuid.New().String(),
+			TargetType: targetType,
+			Target:     target,
+			Code:       code,
+			Purpose:    purpose,
+			ExpireSec:  domain.CodeExpireSeconds,
+			CreatedAt:  time.Now().Unix(),
+		}
+		if err := s.mqPublisher.PublishVerification(evt); err != nil {
+			log.Printf("[验证码] MQ 发布失败，降级同步发送: targetType=%s, error=%v", targetType, err)
+			// 降级：同步发送
+			if err := s.SendCodeToTarget(ctx, targetType, target, code, purpose); err != nil {
+				log.Printf("[验证码] 发送失败: targetType=%s, targetHash=%s, error=%v",
+					targetType, targetHash[:min(16, len(targetHash))], err)
+			}
+		}
+	} else {
+		// 无 MQ 发布器，同步发送（兼容模式）
+		if err := s.SendCodeToTarget(ctx, targetType, target, code, purpose); err != nil {
+			log.Printf("[验证码] 发送失败: targetType=%s, targetHash=%s, error=%v",
+				targetType, targetHash[:min(16, len(targetHash))], err)
+		}
 	}
 
 	// 7. 创建不透明 resend token 存入 Redis
@@ -252,10 +287,29 @@ func (s *VerificationCodeService) ResendCode(
 		return nil, fmt.Errorf("记录发送时间失败: %w", err)
 	}
 
-	// 11. 发送邮件/短信
-	if err := s.sendCodeToTarget(ctx, targetType, target, code, purpose); err != nil {
-		log.Printf("[验证码] 重新发送失败: targetType=%s, targetHash=%s, error=%v",
-			targetType, targetHash[:min(16, len(targetHash))], err)
+	// 11. 异步发送：通过 MQ 消费者发送邮件/短信
+	if s.mqPublisher != nil {
+		evt := &domain.VerificationMessageEvent{
+			EventID:    uuid.New().String(),
+			TargetType: targetType,
+			Target:     target,
+			Code:       code,
+			Purpose:    purpose,
+			ExpireSec:  domain.CodeExpireSeconds,
+			CreatedAt:  time.Now().Unix(),
+		}
+		if err := s.mqPublisher.PublishVerification(evt); err != nil {
+			log.Printf("[验证码] MQ 发布失败，降级同步发送: targetType=%s, error=%v", targetType, err)
+			if err := s.SendCodeToTarget(ctx, targetType, target, code, purpose); err != nil {
+				log.Printf("[验证码] 重新发送失败: targetType=%s, targetHash=%s, error=%v",
+					targetType, targetHash[:min(16, len(targetHash))], err)
+			}
+		}
+	} else {
+		if err := s.SendCodeToTarget(ctx, targetType, target, code, purpose); err != nil {
+			log.Printf("[验证码] 重新发送失败: targetType=%s, targetHash=%s, error=%v",
+				targetType, targetHash[:min(16, len(targetHash))], err)
+		}
 	}
 
 	// 12. 递减剩余次数，更新 Redis（不重新颁发 token！）
@@ -495,13 +549,47 @@ func (s *VerificationCodeService) checkResendInterval(ctx context.Context, targe
 // 私有方法：邮件/短信发送
 // =============================================================================
 
-// sendCodeToTarget 根据目标类型发送验证码
-func (s *VerificationCodeService) sendCodeToTarget(ctx context.Context, targetType, target, code, purpose string) error {
+// SendCodeToTarget 根据目标类型发送验证码（供 MQ 消费者调用）
+// 使用模板系统渲染内容，优先数据库模板 → 文件模板 → 硬编码兜底
+func (s *VerificationCodeService) SendCodeToTarget(ctx context.Context, targetType, target, code, purpose string) error {
+	// 构建模板变量
+	purposeText := s.getPurposeText(purpose)
+	expireMinutes := domain.CodeExpireSeconds / 60
+	variables := map[string]interface{}{
+		"Username":         target,
+		"PurposeText":      purposeText,
+		"VerificationCode": code,
+		"ExpireMinutes":    expireMinutes,
+		"Email":            target,
+		"CurrentYear":      fmt.Sprintf("%d", time.Now().Year()),
+		"SupportEmail":     s.cfg.Email.FromAddr,
+		"HelpUrl":          s.cfg.Email.FrontendURL + "/help",
+	}
+
+	// 尝试从模板系统获取模板
+	templateCode := "verification_email"
+	template, err := s.templateRepo.GetByCodeFallback(templateCode, targetType, "zh-CN")
+	if err != nil {
+		// 尝试文件模板
+		template, err = s.templateRepo.GetByCodeFromFile(templateCode, targetType, "zh-CN")
+	}
+
+	var title, body, htmlBody string
+	if err == nil && template != nil {
+		// 渲染模板
+		title, body, htmlBody = s.renderTemplateContent(template, variables)
+	} else {
+		// 硬编码兜底（保持向后兼容）
+		title = s.buildVerificationTitle(purpose)
+		body = s.buildVerificationBody(code, purpose)
+		htmlBody = s.buildVerificationHTML(code, purpose)
+	}
+
 	msg := &channel.Message{
-		Title:    s.buildVerificationTitle(purpose),
-		Body:     s.buildVerificationBody(code, purpose),
-		HTMLBody: s.buildVerificationHTML(code, purpose),
-		Priority: 10, // 验证码为高优先级
+		Title:    title,
+		Body:     body,
+		HTMLBody: htmlBody,
+		Priority: 10,
 	}
 
 	if targetType == "email" {
@@ -524,6 +612,39 @@ func (s *VerificationCodeService) sendCodeToTarget(ctx context.Context, targetTy
 		log.Printf("[验证码] 短信发送成功: target=%s, purpose=%s", target, purpose)
 	}
 	return nil
+}
+
+// renderTemplateContent 渲染模板内容（简单变量替换）
+func (s *VerificationCodeService) renderTemplateContent(template *domain.Template, variables map[string]interface{}) (string, string, string) {
+	title := template.Title
+	body := template.Body
+	htmlBody := template.HTMLBody
+
+	for k, v := range variables {
+		placeholder := fmt.Sprintf("{{.%s}}", k)
+		value := fmt.Sprintf("%v", v)
+		title = strings.ReplaceAll(title, placeholder, value)
+		body = strings.ReplaceAll(body, placeholder, value)
+		if htmlBody != "" {
+			htmlBody = strings.ReplaceAll(htmlBody, placeholder, value)
+		}
+	}
+
+	return title, body, htmlBody
+}
+
+// getPurposeText 获取用途文本
+func (s *VerificationCodeService) getPurposeText(purpose string) string {
+	switch purpose {
+	case "REGISTER":
+		return "注册账号"
+	case "BIND":
+		return "绑定账号"
+	case "RESET":
+		return "重置密码"
+	default:
+		return "安全验证"
+	}
 }
 
 // buildVerificationTitle 构建验证码标题

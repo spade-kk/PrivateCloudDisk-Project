@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SpaceMemberMapper">
+    <resultMap id="SpaceMemberEntityMap" type="org.project.model.entity.SpaceMemberEntity">
+        <id column="member_id" property="memberId"/>
+        <result column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="user_id" property="userId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="role" property="role"/>
+        <result column="joined_at" property="joinedAt"/>
+        <result column="invited_by" property="invitedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+    </resultMap>
+
+    <select id="findBySpaceAndUser" resultMap="SpaceMemberEntityMap">
+        SELECT * FROM pcd_space_member_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <select id="findBySpaceId" resultMap="SpaceMemberEntityMap">
+        SELECT * FROM pcd_space_member_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY role DESC, joined_at ASC
+    </select>
+
+    <select id="findByUserId" resultMap="SpaceMemberEntityMap">
+        SELECT * FROM pcd_space_member_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO pcd_space_member_table (space_id, user_id, role, invited_by)
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{role},
+            #{invitedBy,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+    </insert>
+
+    <update id="updateRole">
+        UPDATE pcd_space_member_table SET role = #{role}
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM pcd_space_member_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </delete>
+
+    <select id="countBySpaceId" resultType="int">
+        SELECT COUNT(*) FROM pcd_space_member_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+</mapper>

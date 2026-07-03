@@ -53,16 +53,16 @@
         <!-- 大小 -->
         <div class="col-span-2 hidden md:block text-neutral-500">{{ node.node_type === 'FILE' ? formatFileSize(node.node_size) : '--' }}</div>
         <!-- 操作按钮 -->
-        <div class="mt-3 flex items-center justify-between gap-3 sm:col-span-2 sm:mt-0 sm:justify-end sm:space-x-1 sm:text-right">
-          <label class="inline-flex items-center gap-2 text-sm text-neutral-500 sm:hidden" @click.stop>
-            <input type="checkbox" :checked="isSelected(node.node_id)" @change="toggleSelect(node.node_id, node.node_type)" class="w-4 h-4" />
+        <div class="mt-2 flex items-center justify-between gap-3 sm:col-span-2 sm:mt-0 sm:justify-end sm:space-x-1 sm:text-right">
+          <label class="inline-flex touch-button items-center gap-2 text-sm text-neutral-500 sm:hidden" @click.stop>
+            <input type="checkbox" :checked="isSelected(node.node_id)" @change="toggleSelect(node.node_id, node.node_type)" class="h-4 w-4" />
             选择
           </label>
-          <div class="flex shrink-0 items-center gap-1">
-          <button v-if="node.node_type === 'FILE'" @click.stop="$emit('action', node, 'download')" class="text-primary text-sm p-1" title="下载"><i class="fa fa-download"></i></button>
-          <button @click.stop="$emit('action', node, 'rename')" class="text-neutral-500 text-sm p-1" title="重命名"><i class="fa fa-pencil"></i></button>
-          <button @click.stop="$emit('action', node, 'delete')" class="text-danger text-sm p-1" title="删除"><i class="fa fa-trash"></i></button>
-          <button @click.stop="$emit('action', node, 'detail')" class="text-neutral-500 text-sm p-1" title="详情"><i class="fa fa-info-circle"></i></button>
+          <div class="flex shrink-0 touch-button items-center gap-1 sm:gap-0">
+            <button v-if="node.node_type === 'FILE'" @click.stop="$emit('action', node, 'download')" class="rounded p-1.5 text-sm text-primary active:bg-primary/10 sm:p-1" title="下载"><i class="fa fa-download"></i></button>
+            <button @click.stop="$emit('action', node, 'rename')" class="rounded p-1.5 text-sm text-neutral-500 active:bg-neutral-100 sm:p-1" title="重命名"><i class="fa fa-pencil"></i></button>
+            <button @click.stop="$emit('action', node, 'delete')" class="rounded p-1.5 text-sm text-danger active:bg-danger/10 sm:p-1" title="删除"><i class="fa fa-trash"></i></button>
+            <button @click.stop="$emit('action', node, 'detail')" class="rounded p-1.5 text-sm text-neutral-500 active:bg-neutral-100 sm:p-1" title="详情"><i class="fa fa-info-circle"></i></button>
           </div>
         </div>
       </div>

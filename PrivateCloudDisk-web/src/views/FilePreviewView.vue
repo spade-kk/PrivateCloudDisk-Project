@@ -170,4 +170,22 @@ const handleDownload = (file) => {
   flex: 1;
   overflow: hidden;
 }
+
+@media (max-width: 639px) {
+  .preview-header {
+    padding: 0.75rem 1rem;
+  }
+  .page-title {
+    font-size: 0.95rem;
+  }
+  .back-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  .action-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 0.85rem;
+  }
+}
 </style>

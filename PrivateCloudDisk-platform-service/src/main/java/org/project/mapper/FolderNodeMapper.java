@@ -31,6 +31,13 @@ public interface FolderNodeMapper {
      */
     FolderNodeEntity findRootFolderNodeByUserId(@Param("user_id") UUID user_id);
 
+    /**
+     * 根据空间ID查询空间根目录节点数据
+     * @param space_id 空间ID
+     * @return 空间根目录节点数据
+     */
+    // FolderNodeEntity findRootFolderNodeBySpaceId(@Param("space_id") UUID space_id);
+
      /**
      * 根据节点ID查询文件夹节点下的子文件夹节点数据
      * @param node_id 节点ID
@@ -88,4 +95,28 @@ public interface FolderNodeMapper {
      * @return 删除影响的行数
      */
     int deleteFolderNodeByIdAndUserId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
+
+    /**
+     * 统计用户文件夹总数（active/pending状态）
+     * @param user_id 用户ID
+     * @return 文件夹总数
+     */
+    int countUserFolders(@Param("user_id") UUID user_id);
+
+    /**
+     * 统计指定父节点下子节点数（文件和文件夹）
+     * @param parent_id 父节点ID
+     * @param user_id 用户ID
+     * @return 子节点数
+     */
+    int countChildrenByNodeId(@Param("parent_id") UUID parent_id, @Param("user_id") UUID user_id);
+
+    /**
+     * 根据父节点ID和名称查找文件夹节点（用于幂等检查）
+     * @param parent_id 父节点ID
+     * @param name 文件夹名称
+     * @param user_id 用户ID
+     * @return 文件夹节点，不存在返回null
+     */
+    FolderNodeEntity findFolderNodeByParentIdAndName(@Param("parent_id") UUID parent_id, @Param("name") String name, @Param("user_id") UUID user_id);
 }

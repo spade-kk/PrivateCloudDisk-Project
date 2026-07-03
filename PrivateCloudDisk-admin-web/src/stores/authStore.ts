@@ -14,6 +14,8 @@ import {
   clearAuthStorage,
 } from '@/utils/storage'
 
+const isMockEnabled = import.meta.env.VITE_ENABLE_MOCK === 'true'
+
 interface AuthState {
   /** JWT 令牌 */
   token: string | null
@@ -39,10 +41,22 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  token: getAccessToken(),
-  refreshToken: getRefreshToken(),
-  admin: getAdminUser<AdminUser>(),
-  isLoggedIn: !!getAccessToken(),
+  token: isMockEnabled ? 'mock-jwt-token-admin-2024' : getAccessToken(),
+  refreshToken: isMockEnabled ? 'mock-refresh-token-admin-2024' : getRefreshToken(),
+  admin: isMockEnabled ? {
+    id: 'admin-001',
+    userId: 'ADMIN-001',
+    account: 'superadmin',
+    name: '超级管理员',
+    email: 'admin@privateclouddisk.com',
+    phoneNumber: '13800000000',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    imagePath: '',
+    lastLoginAt: new Date().toISOString(),
+    createdAt: '2024-01-01T00:00:00.000Z',
+  } : getAdminUser<AdminUser>(),
+  isLoggedIn: isMockEnabled ? true : !!getAccessToken(),
   loading: false,
 
   login: async (account, password, captchaToken) => {
@@ -137,6 +151,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
+    // Mock 模式：直接已登录，无需初始化
+    if (isMockEnabled) {
+      set({ isLoggedIn: true, loading: false })
+      return
+    }
+
     const token = getAccessToken()
     if (!token) {
       set({ isLoggedIn: false, token: null, admin: null })

@@ -108,18 +108,18 @@ class RabbitMQService:
         self.exchanges[settings.file_delete_dlx] = fd_dlx
 
         # ========== 文件处理主队列 (绑定 DLX) ==========
-        fp_queue = await self._declare_queue_safe(
-            settings.file_process_queue,
-            arguments={
-                "x-message-ttl": 604800000,  # 7 天 TTL
-                "x-dead-letter-exchange": settings.file_process_dlx,
-                "x-dead-letter-routing-key": settings.file_process_dlq_routing_key,
-            },
-        )
-        await fp_queue.bind(
-            fp_exchange,
-            routing_key=settings.file_process_routing_key,
-        )
+        # fp_queue = await self._declare_queue_safe(
+        #     settings.file_process_queue,
+        #     arguments={
+        #         "x-message-ttl": 604800000,  # 7 天 TTL
+        #         "x-dead-letter-exchange": settings.file_process_dlx,
+        #         "x-dead-letter-routing-key": settings.file_process_dlq_routing_key,
+        #     },
+        # )
+        # await fp_queue.bind(
+        #     fp_exchange,
+        #     routing_key=settings.file_process_routing_key,
+        # )
 
         # ========== 文件处理死信队列 (DLQ) ==========
         fp_dlq = await self._declare_queue_safe(
@@ -328,6 +328,20 @@ class RabbitMQService:
         await fsf_queue.bind(
             fe_exchange,
             routing_key=settings.file_scan_failed_routing_key,
+        )
+
+        # ========== 文件下载完成队列（由主业务服务消费，此处声明以确保拓扑完整） ==========
+        fd_queue = await self._declare_queue_safe(
+            settings.file_downloaded_queue,
+            arguments={
+                "x-message-ttl": 259200000,  # 3 天
+                "x-dead-letter-exchange": settings.file_event_dlx,
+                "x-dead-letter-routing-key": settings.file_event_dlq_routing_key,
+            },
+        )
+        await fd_queue.bind(
+            fe_exchange,
+            routing_key=settings.file_downloaded_routing_key,
         )
 
         # ========== 文件事件死信队列 ==========
@@ -693,9 +707,10 @@ class RabbitMQService:
 
         用于替代 HTTP 通知，通过 MQ 解耦文件存储服务与主业务服务。
         事件类型对应 routing_key：
-        - file.available  → 文件处理完成，配额提交
+        - file.available     → 文件处理完成，配额提交
         - file.merge.failed  → 合并失败，配额回滚
         - file.scan.failed   → 扫毒失败，配额回滚
+        - file.downloaded    → 下载完成，记录最近下载
         """
         await self.publish_message(
             settings.file_event_exchange,

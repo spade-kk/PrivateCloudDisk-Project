@@ -162,10 +162,49 @@ function registerIpcHandlers() {
     if (win) win.close()
   })
 
+  /** 查询窗口是否最大化 */
+  ipcMain.handle('window:isMaximized', (event) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    return win ? win.isMaximized() : false
+  })
+
   /** 设置窗口标题 */
   ipcMain.on('window:setTitle', (event, title) => {
     const win = event.sender.getOwnerBrowserWindow()
     if (win) win.setTitle(title)
+  })
+
+  /** 设置窗口是否可调整大小 */
+  ipcMain.on('window:setResizable', (event, resizable) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (win) win.setResizable(resizable)
+  })
+
+  /** 设置窗口是否可最大化 */
+  ipcMain.on('window:setMaximizable', (event, maximizable) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (win) win.setMaximizable(maximizable)
+  })
+
+  /** 设置窗口大小 */
+  ipcMain.on('window:setSize', (event, width, height) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (win) {
+      win.setSize(width, height)
+      win.center()
+    }
+  })
+
+  /** 获取窗口大小 */
+  ipcMain.handle('window:getSize', (event) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    return win ? win.getSize() : [0, 0]
+  })
+
+  /** 居中窗口 */
+  ipcMain.on('window:center', (event) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (win) win.center()
   })
 
   // ==================== 通知 ====================

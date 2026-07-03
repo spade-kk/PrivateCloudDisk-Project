@@ -13,6 +13,7 @@
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useSpaceStore } from '@/stores/spaceStore'
 
 // ============================================================
 // 路由表定义
@@ -102,6 +103,8 @@ const routes: RouteRecordRaw[] = [
       { path: '', name: 'Dashboard', component: () => import('@/views/DashboardView.vue') },
       { path: 'search', name: 'Search', component: () => import('@/views/SearchView.vue') },
       { path: 'starred', name: 'Starred', component: () => import('@/views/StarredView.vue') },
+      { path: 'tagged', name: 'Tagged', component: () => import('@/views/TaggedView.vue') },
+      { path: 'recent', name: 'Recent', component: () => import('@/views/RecentView.vue') },
       { path: 'versions', name: 'Versions', component: () => import('@/views/versions/VersionsView.vue') },
       { path: 'shares', name: 'Shares', component: () => import('@/views/SharesView.vue') },
       { path: 'notifications', name: 'Notifications', component: () => import('@/views/NotificationsView.vue') },
@@ -124,6 +127,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'billing/refund/success', name: 'BillingRefundSuccess', component: () => import('@/views/billing/RefundSuccessView.vue') },
       { path: 'help', name: 'Help', component: () => import('@/views/help/HelpView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
+      // 空间管理
+      { path: 'spaces', name: 'Spaces', component: () => import('@/pages/SpaceManagement.vue') },
       // 视频播放器：通过 fileId 参数指定播放文件
       { path: 'video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { requiresAuth: true } },
       // 视频/语音通话页面
@@ -167,6 +172,15 @@ router.beforeEach((to, _from, next) => {
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     next('/login')
     return
+  }
+
+  // 同步 URL 参数 ?space=xxx 到 spaceStore
+  if (to.meta.requiresAuth && authStore.isLoggedIn) {
+    const spaceStore = useSpaceStore()
+    const spaceParam = to.query.space as string | undefined
+    if (spaceParam && spaceParam !== spaceStore.currentSpaceId) {
+      spaceStore.setCurrentSpaceFromUrl(spaceParam)
+    }
   }
 
   next()

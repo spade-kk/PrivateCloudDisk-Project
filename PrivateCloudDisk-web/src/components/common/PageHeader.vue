@@ -29,24 +29,26 @@
       />
     </div>
     <!-- 标签页 -->
-    <div v-if="tabs.length" class="mt-4 flex gap-1 border-b border-neutral-200">
-      <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        @click="$emit('tab-change', tab.key)"
-        :class="[
-          'border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
-          activeTab === tab.key
-            ? 'border-primary text-primary'
-            : 'border-transparent text-neutral-400 hover:text-neutral-600',
-        ]"
-      >
-        <i v-if="tab.icon" :class="tab.icon" class="mr-1.5"></i>
-        {{ tab.label }}
-        <span v-if="tab.count !== undefined" class="ml-1.5 rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500">
-          {{ tab.count }}
-        </span>
-      </button>
+    <div v-if="tabs.length" class="mt-4 -mx-1 overflow-x-auto border-b border-neutral-200 sm:mx-0">
+      <div class="flex gap-1 whitespace-nowrap px-1 sm:px-0">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          @click="$emit('tab-change', tab.key)"
+          :class="[
+            'border-b-2 px-3 py-2.5 text-sm font-medium transition-colors sm:px-4',
+            activeTab === tab.key
+              ? 'border-primary text-primary'
+              : 'border-transparent text-neutral-400 hover:text-neutral-600',
+          ]"
+        >
+          <i v-if="tab.icon" :class="tab.icon" class="mr-1.5"></i>
+          {{ tab.label }}
+          <span v-if="tab.count !== undefined" class="ml-1.5 rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500">
+            {{ tab.count }}
+          </span>
+        </button>
+      </div>
     </div>
   </div>
 </template>

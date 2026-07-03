@@ -146,6 +146,10 @@ func (m *ChannelManager) Dispatch(
 		// 小程序模板消息直接使用 userID
 		return m.Send(ctx, channelName, "", msg)
 
+	case string(domain.ChannelWS):
+		// WebSocket 系统推送：使用 userID 作为 recipient
+		return m.Send(ctx, channelName, "", msg)
+
 	default:
 		return nil, fmt.Errorf("不支持的渠道: %s", channelName)
 	}

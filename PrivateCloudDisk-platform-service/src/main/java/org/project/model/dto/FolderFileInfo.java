@@ -20,4 +20,8 @@ public class FolderFileInfo {
     private Long fileSize;
     /** 文件在存储服务中的路径 */
     private String storagePath;
+    /** 文件所在节点ID */
+    private String nodeId;
+    /** 文件在文件夹内的相对路径（如 "subdir/file.txt"） */
+    private String relativePath;
 }

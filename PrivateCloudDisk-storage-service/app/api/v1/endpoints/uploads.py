@@ -6,7 +6,6 @@ import uuid
 import time
 import logging
 import aiofiles
-import requests
 from fastapi import APIRouter, Header, Form, File, UploadFile, HTTPException, status
 from fastapi.responses import JSONResponse
 
@@ -15,6 +14,7 @@ from core.config import (
     REDIS_BACKEND_MASTER_KEY, MASTER_TASK_TTL,
 )
 from app.core.redis_client import redis_client
+from app.core.business_service_client import business_service_client, BusinessServiceError
 from core.rabbitmq import rabbitmq_service
 
 
@@ -22,7 +22,6 @@ from core.rabbitmq import rabbitmq_service
 router = APIRouter(tags=["文件上传"])
 
 # 配置
-BUSINESS_SERVICE_URL = settings.business_service_url
 UPLOAD_DIR = settings.file_upload_dir
 
 # 日志记录器
@@ -91,17 +90,10 @@ async def upload_chunk(
     # 构建分片临时文件路径
     chunk_path = f"{UPLOAD_DIR}/{uploads_id}-{chunk_index}.part"
 
-    # 1. 验证上传会话
-    response = requests.get(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}"
-    )
-    result = response.json()
-    
+    # 1. 验证上传会话（通过 SDK 异步调用业务服务）
+    result = await business_service_client.get_upload_session(uploads_id)
     # 2. 验证分片状态
-    response = requests.get(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}"
-    )
-    chunk_result = response.json()
+    chunk_result = await business_service_client.get_chunk_status(uploads_id, chunk_index)
 
     # 会话不存在
     if result["code"] == 15000:
@@ -143,11 +135,8 @@ async def upload_chunk(
         while chunk := await file.read(64 * 1024):
             await f.write(chunk)
     
-    # 4. 通知业务服务分片上传完成
-    response = requests.post(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete",
-        params={"storage_path": chunk_path}
-    )
+    # 4. 通知业务服务分片上传完成（通过 SDK 异步调用）
+    await business_service_client.notify_chunk_complete(uploads_id, chunk_index, chunk_path)
 
     return JSONResponse({
         "code": 200,
@@ -223,11 +212,8 @@ async def complete_uploads_internal(
             "message": null
         }
     """
-    # 1. 验证上传会话
-    response = requests.get(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}"
-    )
-    result = response.json()
+    # 1. 验证上传会话（通过 SDK 异步调用业务服务）
+    result = await business_service_client.get_upload_session(uploads_id)
 
     if result["code"] == 15000:
         raise HTTPException(
@@ -247,11 +233,8 @@ async def complete_uploads_internal(
             detail="会话状态错误"
         )
     
-    # 2. 提交合并状态申请（逻辑锁）
-    response = requests.post(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/uploads/{uploads_id}/merging"
-    )
-    merging_result = response.json()
+    # 2. 提交合并状态申请（逻辑锁，通过 SDK 异步调用）
+    merging_result = await business_service_client.mark_upload_merging(uploads_id)
 
     if merging_result["code"] != 200:
         raise HTTPException(

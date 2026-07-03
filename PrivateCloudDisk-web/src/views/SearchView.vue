@@ -11,10 +11,31 @@
     </section>
 
     <section class="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside class="filters-panel">
+      <!-- 移动端过滤器切换按钮 -->
+      <div class="flex items-center gap-2 lg:hidden">
+        <button
+          @click="showFilters = !showFilters"
+          class="touch-button flex items-center gap-2 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700"
+        >
+          <i class="fa fa-sliders"></i> 过滤
+          <span v-if="activeFilterCount" class="ml-1 rounded-full bg-primary px-1.5 text-xs text-white">{{ activeFilterCount }}</span>
+        </button>
+        <button v-if="activeFilterCount" @click="clearFilters" class="text-sm text-primary">重置</button>
+      </div>
+
+      <!-- 过滤器侧栏 -->
+      <aside
+        class="filters-panel lg:static"
+        :class="showFilters ? 'block' : 'hidden lg:block'"
+      >
         <div class="flex items-center justify-between">
           <h2 class="text-base font-semibold">过滤</h2>
-          <button class="text-sm text-primary" @click="clearFilters">重置</button>
+          <div class="flex items-center gap-3">
+            <button class="text-sm text-primary" @click="clearFilters">重置</button>
+            <button class="text-sm text-neutral-400 lg:hidden" @click="showFilters = false">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
         </div>
 
         <div class="filter-block">
@@ -49,23 +70,26 @@
         </div>
       </aside>
 
+      <!-- 移动端过滤器遮罩 -->
+      <div v-if="showFilters" class="fixed inset-0 z-40 bg-black/30 lg:hidden" @click="showFilters = false"></div>
+
       <div class="min-w-0 space-y-4">
         <div class="result-toolbar">
-          <div>
+          <div class="min-w-0">
             <p class="text-sm text-neutral-500">共 {{ searchStore.total }} 条结果</p>
-            <p v-if="searchStore.keyword" class="mt-1 truncate text-base font-semibold">“{{ searchStore.keyword }}”</p>
+            <p v-if="searchStore.keyword" class="mt-1 truncate text-base font-semibold">"{{ searchStore.keyword }}"</p>
           </div>
-          <div class="toolbar-controls">
-            <select v-model="searchStore.sortField" @change="runSearch({ page: 1 })">
+          <div class="toolbar-controls flex-wrap gap-2">
+            <select v-model="searchStore.sortField" @change="runSearch({ page: 1 })" class="h-9 rounded-lg border border-neutral-200 px-2 text-sm">
               <option value="_score">相关度</option>
               <option value="updated_at">更新时间</option>
               <option value="size_bytes">文件大小</option>
               <option value="filename.keyword">文件名</option>
             </select>
-            <button class="icon-button" title="切换排序方向" @click="toggleOrder">
+            <button class="touch-button rounded-lg border border-neutral-200 px-2.5 py-1.5 text-sm" title="切换排序方向" @click="toggleOrder">
               <i :class="searchStore.asc ? 'fa fa-sort-amount-asc' : 'fa fa-sort-amount-desc'"></i>
             </button>
-            <select v-model.number="searchStore.size" @change="runSearch({ page: 1 })">
+            <select v-model.number="searchStore.size" @change="runSearch({ page: 1 })" class="h-9 rounded-lg border border-neutral-200 px-2 text-sm">
               <option :value="10">10/页</option>
               <option :value="12">12/页</option>
               <option :value="20">20/页</option>
@@ -106,10 +130,10 @@
                   <div class="meta-row">
                     <span>{{ categoryName(field(hit, ['file_category', 'category'], 'file')) }}</span>
                     <span>{{ formatFileSize(Number(field(hit, ['size_bytes', 'file_size', 'size'], 0))) }}</span>
-                    <span>{{ formatDateTime(field(hit, ['updated_at', 'uploaded_time', 'create_time'])) }}</span>
+                    <span class="hidden sm:inline">{{ formatDateTime(field(hit, ['updated_at', 'uploaded_time', 'create_time'])) }}</span>
                   </div>
                 </div>
-                <button class="open-button" @click="openResult(hit)">
+                <button class="open-button touch-button" @click="openResult(hit)">
                   <i class="fa fa-folder-open-o"></i>
                   <span>定位</span>
                 </button>
@@ -144,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SmartSearchBox from '@/components/search/SmartSearchBox.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -157,8 +181,16 @@ const route = useRoute()
 const router = useRouter()
 const searchStore = useSearchStore()
 
+const showFilters = ref(false)
+
 const categoryBuckets = computed(() => toBuckets(searchStore.aggregations.file_category))
 const tagBuckets = computed(() => toBuckets(searchStore.aggregations.tags).slice(0, 12))
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (searchStore.filters.file_category) count++
+  if (searchStore.filters.tags) count++
+  return count
+})
 const pageItems = computed(() => {
   const total = searchStore.totalPages
   const current = searchStore.page
@@ -324,6 +356,22 @@ function bestSnippet(hit) {
   padding: 16px;
 }
 
+/* 移动端：过滤器浮层 */
+@media (max-width: 1023px) {
+  .filters-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    height: 100dvh;
+    width: 280px;
+    max-width: 85vw;
+    overflow-y: auto;
+    border-radius: 0 12px 12px 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  }
+}
+
 .filter-block {
   margin-top: 18px;
 }
@@ -359,12 +407,21 @@ function bestSnippet(hit) {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 639px) {
+  .result-toolbar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
 }
 
 .toolbar-controls {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .toolbar-controls select {

@@ -87,6 +87,32 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   padding: 6px 2px 18px;
 }
 
+/* 平板：减小间距 */
+@media (max-width: 1023px) {
+  .finder-grid {
+    gap: 20px 16px;
+    padding: 4px 2px 14px;
+  }
+}
+
+/* 手机：紧凑布局，允许更小列宽 */
+@media (max-width: 639px) {
+  .finder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 14px 10px;
+    padding: 2px 2px 10px;
+  }
+}
+
+/* 小屏手机：每行 3 列 */
+@media (max-width: 380px) {
+  .finder-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 8px;
+    padding: 2px 0 8px;
+  }
+}
+
 .finder-item {
   position: relative;
   min-height: 132px;
@@ -100,6 +126,23 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
     box-shadow 160ms ease,
     outline-color 160ms ease,
     transform 160ms ease;
+}
+
+/* 移动端缩小 item */
+@media (max-width: 639px) {
+  .finder-item {
+    min-height: 110px;
+    border-radius: 10px;
+    padding: 8px 6px 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .finder-item {
+    min-height: 96px;
+    border-radius: 8px;
+    padding: 6px 4px 4px;
+  }
 }
 
 .finder-item:hover,
@@ -136,6 +179,20 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   filter: drop-shadow(0 8px 10px rgba(31, 41, 55, 0.08));
 }
 
+@media (max-width: 639px) {
+  .finder-icon {
+    height: 48px;
+    width: 48px;
+  }
+}
+
+@media (max-width: 380px) {
+  .finder-icon {
+    height: 40px;
+    width: 40px;
+  }
+}
+
 .finder-name {
   margin-top: 8px;
   width: 100%;
@@ -147,6 +204,24 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   word-break: break-word;
 }
 
+@media (max-width: 639px) {
+  .finder-name {
+    font-size: 11px;
+    line-height: 15px;
+    min-height: 30px;
+    margin-top: 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .finder-name {
+    font-size: 10px;
+    line-height: 14px;
+    min-height: 28px;
+    margin-top: 4px;
+  }
+}
+
 .finder-meta {
   margin-top: 2px;
   max-width: 100%;
@@ -156,6 +231,13 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   color: #909399;
   font-size: 12px;
   line-height: 16px;
+}
+
+@media (max-width: 639px) {
+  .finder-meta {
+    font-size: 10px;
+    line-height: 14px;
+  }
 }
 
 .finder-control {
@@ -170,9 +252,27 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   top: 8px;
 }
 
+@media (max-width: 639px) {
+  .finder-checkbox {
+    left: 4px;
+    top: 4px;
+  }
+  .finder-checkbox input {
+    height: 0.875rem;
+    width: 0.875rem;
+  }
+}
+
 .finder-star {
   right: 7px;
   top: 5px;
+}
+
+@media (max-width: 639px) {
+  .finder-star {
+    right: 3px;
+    top: 2px;
+  }
 }
 
 .finder-actions {
@@ -183,6 +283,13 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   opacity: 1;
   transform: translateX(-50%);
   transition: opacity 160ms ease, transform 160ms ease;
+}
+
+/* 移动端：隐藏悬浮操作栏，改为长按/右键触发 */
+@media (max-width: 767px) {
+  .finder-actions {
+    display: none;
+  }
 }
 
 .finder-action-btn {

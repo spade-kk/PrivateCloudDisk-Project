@@ -13,14 +13,14 @@
       />
     </div>
 
-    <!-- 原有操作栏 -->
-    <div class="responsive-panel flex flex-col gap-4 p-3 sm:p-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
+    <!-- 操作栏 -->
+    <div class="responsive-panel flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4 sm:p-4">
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 md:flex-nowrap">
-        <button @click="showCreateModal = true" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-white sm:px-4">
-          <i class="fa fa-folder-plus"></i><span>新建文件夹</span>
+        <button @click="showCreateModal = true" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm text-white sm:px-4 sm:py-2">
+          <i class="fa fa-folder-plus"></i><span class="hidden sm:inline">新建文件夹</span><span class="sm:hidden">新建</span>
         </button>
-        <button @click="triggerFileSelect" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-success px-3 py-2 text-sm text-white sm:px-4">
-          <i class="fa fa-upload"></i><span>上传文件</span>
+        <button @click="triggerFileSelect" class="touch-button flex items-center justify-center gap-2 rounded-lg bg-success px-3 py-2.5 text-sm text-white sm:px-4 sm:py-2">
+          <i class="fa fa-upload"></i><span class="hidden sm:inline">上传文件</span><span class="sm:hidden">上传</span>
         </button>
         <input ref="fileInputRef" type="file" class="hidden" @change="onFileSelected" />
         <FolderUploadPanel />
@@ -29,7 +29,7 @@
         </button>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center md:ml-auto md:justify-end">
-        <div class="w-full sm:w-80 md:w-80 lg:w-96">
+        <div class="w-full sm:w-64 md:w-72 lg:w-96">
           <SmartSearchBox mode="compact" />
         </div>
         <div class="grid grid-cols-2 rounded-lg border p-1 sm:flex">

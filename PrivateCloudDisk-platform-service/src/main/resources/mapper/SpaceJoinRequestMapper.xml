@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SpaceJoinRequestMapper">
+    <resultMap id="SpaceJoinRequestEntityMap" type="org.project.model.entity.SpaceJoinRequestEntity">
+        <id column="request_id" property="requestId"/>
+        <result column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="user_id" property="userId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="request_message" property="requestMessage"/>
+        <result column="status" property="status"/>
+        <result column="reviewed_by" property="reviewedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="reviewed_at" property="reviewedAt"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="findBySpaceId" resultMap="SpaceJoinRequestEntityMap">
+        SELECT * FROM pcd_space_join_request_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findBySpaceIdAndStatus" resultMap="SpaceJoinRequestEntityMap">
+        SELECT * FROM pcd_space_join_request_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND status = #{status}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findBySpaceAndUser" resultMap="SpaceJoinRequestEntityMap">
+        SELECT * FROM pcd_space_join_request_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY created_at DESC LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="requestId">
+        INSERT INTO pcd_space_join_request_table (space_id, user_id, request_message, status)
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{requestMessage}, #{status})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE pcd_space_join_request_table
+        SET status = #{status},
+            reviewed_by = #{reviewedBy,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            reviewed_at = CURRENT_TIMESTAMP
+        WHERE request_id = #{requestId}
+    </update>
+</mapper>

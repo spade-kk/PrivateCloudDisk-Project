@@ -160,6 +160,126 @@
   }
 }
 
+/* ============================================================
+   响应式表格 — 移动端自适应表头 + 横向滚动
+   用法：在 table 外层包裹 <div class="responsive-table">
+   移动端将表头文本作为 data-label 属性，通过 CSS 显示行内标签
+   ============================================================ */
+@media (max-width: 639px) {
+  .responsive-table thead {
+    display: none;
+  }
+  .responsive-table tbody tr {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .responsive-table tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0;
+    border: none;
+    text-align: right;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .responsive-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 0.75rem;
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .responsive-table tbody td:last-child {
+    justify-content: flex-end;
+  }
+  .responsive-table tbody td:last-child::before {
+    display: none;
+  }
+}
+
+/* ============================================================
+   适配 iPhone 安全区域 (safe-area-inset)
+   ============================================================ */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* ============================================================
+   触摸优化：增大移动端可点击区域
+   ============================================================ */
+@media (max-width: 767px) {
+  .touch-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .touch-link {
+    padding: 0.5rem 0.75rem;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* 移动端表格操作按钮间距 */
+  .mobile-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
+/* ============================================================
+   移动端搜索框全宽
+   ============================================================ */
+@media (max-width: 639px) {
+  .mobile-search-full {
+    width: 100% !important;
+  }
+}
+
+/* ============================================================
+   移动端隐藏次要信息
+   ============================================================ */
+@media (max-width: 480px) {
+  .hide-on-xs {
+    display: none !important;
+  }
+  .show-on-xs {
+    display: block !important;
+  }
+}
+
+@media (min-width: 481px) {
+  .show-on-xs {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   移动端双按钮布局（防止挤压）
+   ============================================================ */
+@media (max-width: 380px) {
+  .btn-group-fluid {
+    flex-direction: column;
+    width: 100%;
+  }
+  .btn-group-fluid > * {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .font-inter {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }

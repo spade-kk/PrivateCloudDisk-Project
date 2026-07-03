@@ -1,0 +1,221 @@
+/**
+ * components/TitleBar.css - 自定义标题栏样式
+ *
+ * 设计参考: VS Code / 百度网盘 / 网易云音乐
+ *
+ * 结构:
+ *  ┌──────────────────────────────────────────────────────────────────────┐
+ *  │ [Logo] [菜单栏: 文件 编辑 视图 导航 帮助]    [窗口标题]   [─ □ ✕] │
+ *  └──────────────────────────────────────────────────────────────────────┘
+ *
+ * 平台差异:
+ *   Windows: 完整标题栏，左侧 Logo + 菜单，右侧窗口控制按钮
+ *   macOS:   简化标题栏，左侧留出红绿灯空间，居中标题
+ */
+
+/* ==================== 标题栏容器 ==================== */
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  width: 100%;
+  background: var(--titlebar-bg);
+  -webkit-app-region: drag;
+  user-select: none;
+  position: relative;
+  z-index: 1000;
+  flex-shrink: 0;
+}
+
+/* macOS 标题栏更高以容纳红绿灯按钮 */
+.titlebar--mac {
+  height: 28px;
+}
+
+/* ==================== Logo 区域 ==================== */
+.titlebar-logo {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 10px;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.titlebar-logo span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--titlebar-text);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* macOS 左侧留出红绿灯空间 */
+.titlebar--mac .titlebar-logo {
+  padding-left: 80px;
+}
+
+/* ==================== 自定义菜单栏（Windows 专属） ==================== */
+.titlebar-menu {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin-left: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-menu__item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--titlebar-text);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.titlebar-menu__item:hover {
+  background: var(--titlebar-hover);
+}
+
+.titlebar-menu__item--active {
+  background: var(--titlebar-active);
+}
+
+/* 下拉子菜单 */
+.titlebar-menu__submenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  z-index: 2000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+}
+
+.titlebar-menu__item--active .titlebar-menu__submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.titlebar-menu__submenu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.titlebar-menu__submenu-item:hover {
+  background: var(--primary-light);
+  color: var(--primary-color);
+}
+
+.titlebar-menu__submenu-item--separator {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 8px;
+  padding: 0;
+  cursor: default;
+}
+
+.titlebar-menu__submenu-item--separator:hover {
+  background: var(--border-light);
+}
+
+.titlebar-menu__submenu-accelerator {
+  font-size: 11px;
+  color: var(--text-placeholder);
+  margin-left: 24px;
+}
+
+/* ==================== 窗口标题 ==================== */
+.titlebar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: var(--titlebar-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 8px;
+  line-height: 32px;
+}
+
+/* ==================== 窗口控制按钮 ==================== */
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.titlebar-controls__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--titlebar-text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  outline: none;
+}
+
+.titlebar-controls__btn:hover {
+  background: var(--titlebar-hover);
+}
+
+.titlebar-controls__btn--close:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+
+.titlebar-controls__btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* macOS 不显示自定义窗口控制按钮（使用原生红绿灯） */
+.titlebar--mac .titlebar-controls {
+  display: none;
+}
+
+/* ==================== 标题栏颜色主题变量 ==================== */
+:root {
+  --titlebar-bg: #ffffff;
+  --titlebar-text: #333333;
+  --titlebar-hover: rgba(0, 0, 0, 0.06);
+  --titlebar-active: rgba(0, 0, 0, 0.08);
+  --titlebar-border: #e0e0e0;
+}
+
+/* Windows 10/11 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --titlebar-bg: #1e1e1e;
+    --titlebar-text: #cccccc;
+    --titlebar-hover: rgba(255, 255, 255, 0.08);
+    --titlebar-active: rgba(255, 255, 255, 0.12);
+    --titlebar-border: #333333;
+  }
+}

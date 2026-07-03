@@ -16,6 +16,7 @@ import axios from 'axios'
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
+import { useSpaceStore } from '@/stores/spaceStore'
 import { cookie } from '@/utils/cookie'
 import { getVisitorId } from '@/utils/fingerprint'
 import { generateSecurityHeaders } from '@/utils/securityToken'
@@ -164,6 +165,16 @@ service.interceptors.request.use(
     const token = getTokenFromCookie()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+
+    // 1.5 空间上下文：附加当前空间 ID
+    try {
+      const spaceStore = useSpaceStore()
+      if (spaceStore.currentSpaceId) {
+        config.headers['X-Space-Id'] = spaceStore.currentSpaceId
+      }
+    } catch {
+      // spaceStore 未初始化时静默失败
     }
 
     // 2. 设备指纹：所有请求都附加，便于后端在未登录态下进行风控和限流

@@ -47,7 +47,17 @@ public class GatewayRateLimitProperties {
             Rule.of("operation-token-destroy-user", "/api/v1/files/operation-tokens", "DELETE",
                     KeyType.USER, 60, Duration.ofMinutes(1)),
             Rule.of("operation-token-destroy-ip", "/api/v1/files/operation-tokens", "DELETE",
-                    KeyType.IP, 180, Duration.ofMinutes(1))
+                    KeyType.IP, 180, Duration.ofMinutes(1)),
+
+            // --- 文件夹创建 / 懒上传：user + user+IP 双维度洪流限制 ---
+            Rule.of("folder-create-user", "/api/v1/business/nodes/", "POST",
+                    KeyType.USER, 300, Duration.ofMinutes(1)),
+            Rule.of("folder-create-user-ip", "/api/v1/business/nodes/", "POST",
+                    KeyType.USER_OR_IP, 200, Duration.ofMinutes(1)),
+            Rule.of("lazy-upload-session-user", "/api/v1/business/nodes/uploads/lazy", "POST",
+                    KeyType.USER, 300, Duration.ofMinutes(1)),
+            Rule.of("lazy-upload-session-user-ip", "/api/v1/business/nodes/uploads/lazy", "POST",
+                    KeyType.USER_OR_IP, 200, Duration.ofMinutes(1))
     ));
 
     @Data

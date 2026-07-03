@@ -3,6 +3,7 @@ package domain
 
 import (
 	"encoding/json"
+	"regexp"
 	"time"
 )
 
@@ -55,9 +56,15 @@ func (r *VerificationSendRequest) ValidTarget() (TargetType, string, Verificatio
 	}
 
 	if r.Email != "" {
+		if !IsValidEmail(r.Email) {
+			return "", "", "", &VerificationError{Code: 400, Message: "邮箱格式不正确"}
+		}
 		return TargetEmail, r.Email, purpose, nil
 	}
 	if r.Phone != "" {
+		if !IsValidPhone(r.Phone) {
+			return "", "", "", &VerificationError{Code: 400, Message: "手机号格式不正确"}
+		}
 		return TargetPhone, r.Phone, purpose, nil
 	}
 	return "", "", "", ErrNoTarget
@@ -248,9 +255,26 @@ func IsVerificationError(err error) (*VerificationError, bool) {
 
 // LegacyVerificationStoreRequest 旧版验证码存储请求
 type LegacyVerificationStoreRequest struct {
-	TargetType  string `json:"target_type"`  // "email" / "phone"
-	Target      string `json:"target"`       // 邮箱或手机号
-	Code        string `json:"code"`         // 验证码
-	ExpireSec   int    `json:"expire_sec"`   // 有效期（秒）
-	CreatedAt   time.Time `json:"created_at"` // 创建时间
+	TargetType  string    `json:"target_type"`  // "email" / "phone"
+	Target      string    `json:"target"`       // 邮箱或手机号
+	Code        string    `json:"code"`         // 验证码
+	ExpireSec   int       `json:"expire_sec"`   // 有效期（秒）
+	CreatedAt   time.Time `json:"created_at"`   // 创建时间
+}
+
+// =============================================================================
+// 参数校验工具函数
+// =============================================================================
+
+var emailRegex = regexp.MustCompile(EmailPattern)
+var phoneRegex = regexp.MustCompile(PhonePattern)
+
+// IsValidEmail 校验邮箱格式
+func IsValidEmail(email string) bool {
+	return emailRegex.MatchString(email)
+}
+
+// IsValidPhone 校验手机号格式（E.164）
+func IsValidPhone(phone string) bool {
+	return phoneRegex.MatchString(phone)
 }

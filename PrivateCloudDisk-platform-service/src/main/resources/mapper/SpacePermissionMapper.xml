@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SpacePermissionMapper">
+    <resultMap id="SpacePermissionEntityMap" type="org.project.model.entity.SpacePermissionEntity">
+        <id column="permission_id" property="permissionId"/>
+        <result column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="user_id" property="userId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="target_node_id" property="targetNodeId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="can_read" property="canRead"/>
+        <result column="can_write" property="canWrite"/>
+        <result column="can_delete" property="canDelete"/>
+        <result column="can_share" property="canShare"/>
+        <result column="can_invite" property="canInvite"/>
+        <result column="can_manage" property="canManage"/>
+        <result column="granted_by" property="grantedBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="granted_at" property="grantedAt"/>
+    </resultMap>
+
+    <select id="findBySpaceUserNode" resultMap="SpacePermissionEntityMap">
+        SELECT * FROM pcd_space_permission_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        <if test="targetNodeId != null">
+            AND target_node_id = #{targetNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        </if>
+        <if test="targetNodeId == null">
+            AND target_node_id IS NULL
+        </if>
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO pcd_space_permission_table (space_id, user_id, target_node_id,
+            can_read, can_write, can_delete, can_share, can_invite, can_manage, granted_by)
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{targetNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{canRead}, #{canWrite}, #{canDelete}, #{canShare}, #{canInvite}, #{canManage},
+            #{grantedBy,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+        ON DUPLICATE KEY UPDATE
+            can_read = VALUES(can_read),
+            can_write = VALUES(can_write),
+            can_delete = VALUES(can_delete),
+            can_share = VALUES(can_share),
+            can_invite = VALUES(can_invite),
+            can_manage = VALUES(can_manage),
+            granted_by = VALUES(granted_by),
+            granted_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM pcd_space_permission_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </delete>
+</mapper>

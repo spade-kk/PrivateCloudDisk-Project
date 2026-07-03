@@ -123,4 +123,25 @@
         ON subtree.descendant_id = c.descendant_id
     </delete>
 
+    <!--
+        查询多个文件节点的祖先链路径（含节点名称），用于计算文件夹下载时的相对路径
+    -->
+    <select id="selectAncestorPaths" resultType="org.project.mapper.PathNodeInfo">
+        SELECT
+            c.descendant_id AS descendantId,
+            c.ancestor_id AS ancestorId,
+            n.node_name AS nodeName,
+            c.depth AS depth
+        FROM pcd_directory_closure_table c
+        INNER JOIN pcd_directory_tree_table n
+            ON c.ancestor_id = n.node_id
+        WHERE c.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND c.descendant_id IN
+          <foreach collection="descendantIds" item="id" open="(" separator="," close=")">
+            #{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          </foreach>
+          AND c.ancestor_id != #{rootNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY c.descendant_id, c.depth DESC
+    </select>
+
 </mapper>

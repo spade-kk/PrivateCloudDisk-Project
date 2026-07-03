@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.TagMapper">
+
+    <resultMap id="TagEntityMap" type="org.project.model.entity.TagEntity">
+        <id column="tag_id" property="tag_id"/>
+        <result column="tag_user_id" property="tag_user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="tag_name" property="tag_name"/>
+        <result column="tag_color" property="tag_color"/>
+        <result column="tag_created_at" property="tag_created_at"/>
+        <result column="file_count" property="file_count"/>
+        <result column="folder_count" property="folder_count"/>
+    </resultMap>
+
+    <resultMap id="FileTagEntityMap" type="org.project.model.entity.FileTagEntity">
+        <id column="ft_id" property="ft_id"/>
+        <result column="ft_user_id" property="ft_user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ft_tag_id" property="ft_tag_id"/>
+        <result column="ft_target_type" property="ft_target_type"/>
+        <result column="ft_file_id" property="ft_file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ft_node_id" property="ft_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ft_tagged_at" property="ft_tagged_at"/>
+        <result column="tag_name" property="tag_name"/>
+        <result column="tag_color" property="tag_color"/>
+    </resultMap>
+
+    <!-- ==================== 标签 CRUD ==================== -->
+
+    <insert id="insertTag" parameterType="org.project.model.entity.TagEntity" useGeneratedKeys="true" keyProperty="tag_id">
+        INSERT INTO pcd_tag_table (tag_user_id, tag_name, tag_color)
+        VALUES (#{tag_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{tag_name},
+                #{tag_color})
+    </insert>
+
+    <delete id="deleteTag">
+        DELETE FROM pcd_tag_table
+        WHERE tag_id = #{tag_id}
+          AND tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </delete>
+
+    <update id="updateTag" parameterType="org.project.model.entity.TagEntity">
+        UPDATE pcd_tag_table
+        SET tag_name = #{tag_name},
+            tag_color = #{tag_color}
+        WHERE tag_id = #{tag_id}
+          AND tag_user_id = #{tag_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <select id="findTagsByUserId" resultMap="TagEntityMap">
+        SELECT
+            t.tag_id,
+            t.tag_user_id,
+            t.tag_name,
+            t.tag_color,
+            t.tag_created_at,
+            COALESCE(fc.cnt, 0) AS file_count,
+            COALESCE(foc.cnt, 0) AS folder_count
+        FROM pcd_tag_table t
+        LEFT JOIN (
+            SELECT ft_tag_id, COUNT(*) AS cnt
+            FROM pcd_file_tag_table WHERE ft_target_type = 'file' GROUP BY ft_tag_id
+        ) fc ON t.tag_id = fc.ft_tag_id
+        LEFT JOIN (
+            SELECT ft_tag_id, COUNT(*) AS cnt
+            FROM pcd_file_tag_table WHERE ft_target_type = 'folder' GROUP BY ft_tag_id
+        ) foc ON t.tag_id = foc.ft_tag_id
+        WHERE t.tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY t.tag_created_at DESC
+    </select>
+
+    <select id="findTagByName" resultMap="TagEntityMap">
+        SELECT * FROM pcd_tag_table
+        WHERE tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND tag_name = #{tag_name}
+    </select>
+
+    <select id="findTagById" resultMap="TagEntityMap">
+        SELECT * FROM pcd_tag_table WHERE tag_id = #{tag_id}
+    </select>
+
+    <insert id="insertDefaultTags">
+        INSERT INTO pcd_tag_table (tag_user_id, tag_name, tag_color) VALUES
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '合同', '#EF4444'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '设计稿', '#8B5CF6'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '项目A', '#3B82F6'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '财务报告', '#10B981'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '机密文件', '#F59E0B'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '个人文档', '#6B7280'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '临时文件', '#9CA3AF'),
+        (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, '重要资料', '#EC4899')
+    </insert>
+
+    <!-- ==================== 文件标签关联 ==================== -->
+
+    <insert id="insertFileTag" parameterType="org.project.model.entity.FileTagEntity">
+        INSERT INTO pcd_file_tag_table (ft_user_id, ft_tag_id, ft_target_type, ft_file_id, ft_node_id)
+        VALUES (#{ft_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{ft_tag_id},
+                #{ft_target_type},
+                #{ft_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{ft_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+    </insert>
+
+    <delete id="deleteFileTag">
+        DELETE FROM pcd_file_tag_table WHERE ft_id = #{ft_id}
+    </delete>
+
+    <delete id="deleteFileTagByTagAndFile">
+        DELETE FROM pcd_file_tag_table
+        WHERE ft_tag_id = #{tag_id}
+          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'file'
+    </delete>
+
+    <delete id="deleteFileTagByTagAndNode">
+        DELETE FROM pcd_file_tag_table
+        WHERE ft_tag_id = #{tag_id}
+          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'folder'
+    </delete>
+
+    <select id="findTagsByFileId" resultMap="TagEntityMap">
+        SELECT t.* FROM pcd_tag_table t
+        INNER JOIN pcd_file_tag_table ft ON t.tag_id = ft.ft_tag_id
+        WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'file'
+        ORDER BY t.tag_name
+    </select>
+
+    <select id="findTagsByNodeId" resultMap="TagEntityMap">
+        SELECT t.* FROM pcd_tag_table t
+        INNER JOIN pcd_file_tag_table ft ON t.tag_id = ft.ft_tag_id
+        WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'folder'
+        ORDER BY t.tag_name
+    </select>
+
+    <select id="findTagsByFileIds" resultMap="FileTagEntityMap">
+        SELECT
+            ft.*,
+            t.tag_name,
+            t.tag_color
+        FROM pcd_file_tag_table ft
+        INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
+        WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'file'
+          AND ft.ft_file_id IN
+          <foreach collection="file_ids" item="id" open="(" separator="," close=")">
+              #{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          </foreach>
+    </select>
+
+    <select id="findTagsByNodeIds" resultMap="FileTagEntityMap">
+        SELECT
+            ft.*,
+            t.tag_name,
+            t.tag_color
+        FROM pcd_file_tag_table ft
+        INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
+        WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'folder'
+          AND ft.ft_node_id IN
+          <foreach collection="node_ids" item="id" open="(" separator="," close=")">
+              #{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          </foreach>
+    </select>
+
+    <select id="findFilesByTagId" resultMap="FileTagEntityMap">
+        SELECT
+            ft.*,
+            t.tag_name,
+            t.tag_color,
+            f.file_name,
+            f.file_size,
+            f.file_type
+        FROM pcd_file_tag_table ft
+        INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
+        LEFT JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
+        WHERE ft.ft_tag_id = #{tag_id}
+          AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'file'
+        ORDER BY ft.ft_tagged_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findFoldersByTagId" resultMap="FileTagEntityMap">
+        SELECT
+            ft.*,
+            t.tag_name,
+            t.tag_color,
+            d.node_name AS file_name,
+            NULL AS file_size,
+            NULL AS file_type
+        FROM pcd_file_tag_table ft
+        INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
+        LEFT JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
+        WHERE ft.ft_tag_id = #{tag_id}
+          AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'folder'
+        ORDER BY ft.ft_tagged_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countFilesByTagId" resultType="int">
+        SELECT COUNT(*) FROM pcd_file_tag_table
+        WHERE ft_tag_id = #{tag_id}
+          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'file'
+    </select>
+
+    <select id="countFoldersByTagId" resultType="int">
+        SELECT COUNT(*) FROM pcd_file_tag_table
+        WHERE ft_tag_id = #{tag_id}
+          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'folder'
+    </select>
+
+    <select id="findFileTagByTagAndFile" resultMap="FileTagEntityMap">
+        SELECT * FROM pcd_file_tag_table
+        WHERE ft_tag_id = #{tag_id}
+          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'file'
+    </select>
+
+    <select id="findFileTagByTagAndNode" resultMap="FileTagEntityMap">
+        SELECT * FROM pcd_file_tag_table
+        WHERE ft_tag_id = #{tag_id}
+          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'folder'
+    </select>
+
+</mapper>

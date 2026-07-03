@@ -1,5 +1,6 @@
 package org.project.service;
 
+import org.project.model.dto.LazyUploadSessionResponse;
 import org.project.model.entity.UploadsChunkEntity;
 import org.project.model.entity.UploadsSessionEntity;
 
@@ -101,4 +102,42 @@ public interface UploadsService {
      * @param uploads_id 上传会话ID
      */
     void markUploadSessionDeleted(UUID uploads_id);
+
+    /**
+     * 懒创建上传会话（混合模型）。
+     * <p>
+     * 支持两种懒创建模式：
+     * <ul>
+     *   <li><b>node_id + 相对路径：</b>parentNodeId + relativePath，自动创建路径中不存在的目录</li>
+     *   <li><b>纯面包屑路径：</b>breadcrumbPath，从根节点开始逐级创建</li>
+     * </ul>
+     * <p>
+     * 创建成功后返回 uploads_id + 最终文件所在的 node_id。
+     *
+     * @param total_chunks   总块数
+     * @param file_size      文件大小
+     * @param file_checksum  文件校验和
+     * @param chunks_max_size 分块最大大小
+     * @param file_name      文件名称
+     * @param file_type      文件类型
+     * @param user_id        用户ID
+     * @param parentNodeId   父节点ID（node_id + 相对路径 模式）
+     * @param relativePath   相对路径（可为 null）
+     * @param breadcrumbPath 面包屑路径（可为 null）
+     * @param clientIp       客户端IP
+     * @return LazyUploadSessionResponse 包含 uploads_id 和 node_id
+     */
+    LazyUploadSessionResponse createLazyUploadSession(
+            int total_chunks,
+            long file_size,
+            String file_checksum,
+            int chunks_max_size,
+            String file_name,
+            String file_type,
+            UUID user_id,
+            UUID parentNodeId,
+            String relativePath,
+            String breadcrumbPath,
+            String clientIp
+    );
 }

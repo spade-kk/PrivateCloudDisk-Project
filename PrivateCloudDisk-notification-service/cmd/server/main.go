@@ -27,6 +27,7 @@ import (
 	"github.com/privateclouddisk/notification-service/internal/redisutil"
 	"github.com/privateclouddisk/notification-service/internal/repository"
 	"github.com/privateclouddisk/notification-service/internal/service"
+	"github.com/privateclouddisk/notification-service/internal/ws"
 )
 
 func main() {
@@ -123,6 +124,17 @@ func main() {
 
 	log.Printf("[Notification] 已注册渠道: %v", channelManager.GetEnabledChannels())
 
+	// 7.5. 初始化 WebSocket Hub（系统推送）
+	var wsHub *ws.Hub
+	if cfg.WS.Enabled {
+		wsHub = ws.NewHub(&ws.HubConfig{
+			RedisClient: redisClient,
+			RedisPrefix: cfg.WS.RedisOfflinePrefix,
+		})
+		go wsHub.Run(context.Background())
+		log.Printf("[WS] WebSocket Hub 已启动")
+	}
+
 	notifService := service.NewNotificationService(
 		cfg,
 		templateRepo,
@@ -132,6 +144,7 @@ func main() {
 		deviceRepo,
 		aggregationRepo,
 		channelManager, // 注入 ChannelManager 作为 ChannelSender
+		wsHub,          // 注入 WS Hub 作为 WSHubPublisher
 	)
 
 	// 8. 初始化嵌入邮件模板（从 Spring Boot 迁移的完整 HTML 模板）
@@ -142,29 +155,43 @@ func main() {
 		log.Println("[Notification] 嵌入邮件模板初始化完成")
 	}
 
-	// 8.5. 初始化验证码服务（从 Spring Boot 平台服务完整迁移）
+	// 8.5. 初始化验证码服务（从 Spring Boot 平台服务完整迁移，支持模板系统）
 	verificationRepo := redisutil.NewVerificationRepo(redisClient)
-	verificationService := service.NewVerificationCodeService(cfg, verificationRepo, channelManager)
+	verificationService := service.NewVerificationCodeService(cfg, verificationRepo, templateRepo, channelManager)
 	verificationHandler := httpHandler.NewVerificationHandler(verificationService)
 	log.Println("[Verification] 验证码服务初始化完成")
 
 	// 9. 初始化消费者
 	consumer := rabbitmq.NewConsumer(rmqConn, cfg, notifService)
+	// 设置验证码消费者处理器
+	consumer.SetVerificationHandler(verificationService)
 	if err := consumer.Start(); err != nil {
 		log.Fatalf("[Notification] 消费者启动失败: %v", err)
 	}
 	defer consumer.Shutdown()
 
+	// 设置 MQ 发布器到验证码服务（异步发送验证码）
+	verificationService.SetMQPublisher(consumer)
+
 	// 10. 启动 HTTP 服务
 	handler := httpHandler.NewHandler(
 		cfg, db, consumer,
 		notifService, templateService, preferenceService, aggregationService,
+		templateRepo,
 	)
 
 	gin.SetMode(cfg.Server.Mode)
 	router := gin.Default()
 	handler.RegisterRoutes(router)
 	verificationHandler.RegisterRoutes(router) // 注册验证码路由
+
+	// 注册 WebSocket 路由
+	if wsHub != nil {
+		router.GET(cfg.WS.Path, func(c *gin.Context) {
+			ws.ServeWs(wsHub, c.Writer, c.Request)
+		})
+		log.Printf("[WS] WebSocket 路由注册: %s", cfg.WS.Path)
+	}
 
 	// 启动聚合窗口定时检查
 	go startAggregationWorker(context.Background(), notifService, cfg)

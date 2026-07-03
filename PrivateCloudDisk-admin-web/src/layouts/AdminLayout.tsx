@@ -24,6 +24,10 @@ import {
   ApiOutlined,
   ExclamationCircleOutlined,
   GlobalOutlined,
+  ShoppingCartOutlined,
+  PictureOutlined,
+  IdcardOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -64,9 +68,16 @@ const menuItems: MenuItem[] = [
     path: '/files',
     children: [
       { key: '/files', icon: <FileOutlined />, label: '所有文件', path: '/files' },
+      { key: '/files/metadata', icon: <DatabaseOutlined />, label: '文件元数据', path: '/files/metadata' },
       { key: '/files/quarantined', icon: <ExclamationCircleOutlined />, label: '隔离文件', path: '/files/quarantined' },
       { key: '/files/storage', icon: <DatabaseOutlined />, label: '存储统计', path: '/files/storage' },
     ],
+  },
+  {
+    key: '/orders',
+    icon: <ShoppingCartOutlined />,
+    label: '订单管理',
+    path: '/orders',
   },
   {
     key: 'security-group',
@@ -75,6 +86,7 @@ const menuItems: MenuItem[] = [
     path: '/security',
     children: [
       { key: '/security/events', icon: <ThunderboltOutlined />, label: '安全事件', path: '/security/events' },
+      { key: '/security/avatar-audit', icon: <PictureOutlined />, label: '头像审核', path: '/security/avatar-audit' },
       { key: '/security/ip-blacklist', icon: <GlobalOutlined />, label: 'IP 黑名单', path: '/security/ip-blacklist' },
     ],
   },
@@ -103,10 +115,13 @@ const breadcrumbMap: Record<string, string> = {
   '/users': '用户列表',
   '/users/online': '在线用户',
   '/files': '所有文件',
+  '/files/metadata': '文件元数据',
   '/files/quarantined': '隔离文件',
   '/files/storage': '存储统计',
+  '/orders': '订单管理',
   '/security': '安全中心',
   '/security/events': '安全事件',
+  '/security/avatar-audit': '头像审核',
   '/security/ip-blacklist': 'IP 黑名单',
   '/audit': '审计日志',
   '/system': '系统设置',

@@ -39,7 +39,7 @@
         <div
           v-for="device in onlineDevices"
           :key="device.id || device.deviceId"
-          class="responsive-panel flex items-center gap-4 p-4"
+          class="responsive-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
         >
           <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                :class="device.current ? 'bg-primary/10' : 'bg-neutral-100'">
@@ -67,7 +67,7 @@
           <button
             v-if="!device.current"
             @click="handleRevoke(device.id || device.deviceId)"
-            class="shrink-0 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 hover:border-red-200 hover:text-red-500 transition"
+            class="touch-button shrink-0 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 hover:border-red-200 hover:text-red-500 transition sm:self-center"
           >
             撤销
           </button>
@@ -96,7 +96,7 @@
         <div
           v-for="device in trustedDevices"
           :key="device.id"
-          class="responsive-panel flex items-center gap-4 p-4"
+          class="responsive-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
         >
           <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50">
             <i class="fa fa-check-circle text-xl text-blue-500"></i>
@@ -113,7 +113,7 @@
           </div>
           <button
             @click="handleRemoveTrusted(device.id)"
-            class="shrink-0 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 hover:border-red-200 hover:text-red-500 transition"
+            class="touch-button shrink-0 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 hover:border-red-200 hover:text-red-500 transition sm:self-center"
           >
             移除信任
           </button>
@@ -134,7 +134,8 @@
       />
 
       <div v-else class="responsive-panel overflow-hidden">
-        <div class="overflow-x-auto">
+        <!-- 桌面端表格 -->
+        <div class="hidden overflow-x-auto sm:block">
           <table class="w-full text-left text-sm">
             <thead class="border-b border-neutral-100 bg-neutral-50/50">
               <tr>
@@ -167,20 +168,47 @@
             </tbody>
           </table>
         </div>
+        <!-- 移动端卡片列表 -->
+        <div class="divide-y sm:hidden">
+          <div
+            v-for="(log, i) in loginHistory"
+            :key="i"
+            class="px-4 py-3"
+          >
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100">
+                <i :class="getDeviceIcon(log.deviceType)" class="text-neutral-500"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-neutral-700 truncate">{{ log.device || '未知设备' }}</span>
+                  <StatusBadge :status="log.status === 'success' ? 'active' : 'inactive'" size="sm" />
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-400">
+                  <span v-if="log.ip"><i class="fa fa-globe mr-1"></i>{{ log.ip }}</span>
+                  <span v-if="log.location"><i class="fa fa-map-marker mr-1"></i>{{ log.location }}</span>
+                </div>
+                <p class="mt-0.5 text-xs text-neutral-400">
+                  <i class="fa fa-clock-o mr-1"></i>{{ formatTime(log.createdAt || log.loginTime) }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- 分页 -->
-        <div v-if="securityStore.loginHistoryTotal > 20" class="flex items-center justify-between border-t border-neutral-100 px-4 py-3">
+        <div v-if="securityStore.loginHistoryTotal > 20" class="flex flex-col gap-2 border-t border-neutral-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <span class="text-xs text-neutral-400">共 {{ securityStore.loginHistoryTotal }} 条</span>
           <div class="flex items-center gap-2">
             <button
               :disabled="securityStore.loginHistoryPage <= 1"
               @click="securityStore.loginHistoryPage--; securityStore.fetchLoginHistory()"
-              class="rounded border px-2 py-1 text-xs disabled:opacity-30"
+              class="touch-button rounded border px-2 py-1 text-xs disabled:opacity-30"
             >上一页</button>
             <span class="text-xs text-neutral-600">{{ securityStore.loginHistoryPage }}</span>
             <button
               :disabled="securityStore.loginHistoryPage * 20 >= securityStore.loginHistoryTotal"
               @click="securityStore.loginHistoryPage++; securityStore.fetchLoginHistory()"
-              class="rounded border px-2 py-1 text-xs disabled:opacity-30"
+              class="touch-button rounded border px-2 py-1 text-xs disabled:opacity-30"
             >下一页</button>
           </div>
         </div>

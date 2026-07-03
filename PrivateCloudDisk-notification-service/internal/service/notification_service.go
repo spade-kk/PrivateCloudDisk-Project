@@ -31,6 +31,12 @@ type NotificationService struct {
 	deviceRepo       *repository.DeviceRepo
 	aggregationRepo  *repository.AggregationRepo
 	channelSender    ChannelSender
+	wsHub            WSHubPublisher // WS Hub 推送接口
+}
+
+// WSHubPublisher WS Hub 推送接口（避免循环依赖）
+type WSHubPublisher interface {
+	PushMessage(userID string, msg *domain.WSSystemMessage, cacheStrategy domain.WSCacheStrategy)
 }
 
 // NewNotificationService 创建通知服务
@@ -43,6 +49,7 @@ func NewNotificationService(
 	deviceRepo *repository.DeviceRepo,
 	aggregationRepo *repository.AggregationRepo,
 	channelSender ChannelSender,
+	wsHub WSHubPublisher,
 ) *NotificationService {
 	return &NotificationService{
 		cfg:              cfg,
@@ -53,6 +60,7 @@ func NewNotificationService(
 		deviceRepo:       deviceRepo,
 		aggregationRepo:  aggregationRepo,
 		channelSender:    channelSender,
+		wsHub:            wsHub,
 	}
 }
 
@@ -190,18 +198,18 @@ func (s *NotificationService) isInDNDPeriod(pref *domain.NotificationPreference,
 }
 
 // sendViaChannel 通过指定渠道发送通知
-func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, channel string) error {
+func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, channelName string) error {
 	// 1. 幂等检查
-	exists, err := s.notificationRepo.ExistsByEventID(event.EventID, channel)
+	exists, err := s.notificationRepo.ExistsByEventID(event.EventID, channelName)
 	if err != nil {
 		return fmt.Errorf("幂等检查失败: %w", err)
 	}
 	if exists {
-		log.Printf("[Notification] 事件已处理，跳过: eventID=%s, channel=%s", event.EventID, channel)
+		log.Printf("[Notification] 事件已处理，跳过: eventID=%s, channel=%s", event.EventID, channelName)
 		return nil
 	}
 
-	// 2. 获取模板
+	// 2. 获取模板（根据 TemplateSource 分发）
 	lang := event.TemplateLang
 	if lang == "" {
 		lang = "zh-CN"
@@ -210,10 +218,34 @@ func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, ch
 	if templateCode == "" {
 		templateCode = s.getDefaultTemplateCode(event.EventType)
 	}
-	template, err := s.templateRepo.GetByCodeFallback(templateCode, channel, lang)
+
+	var template *domain.Template
+	switch event.TemplateSource {
+	case string(domain.TemplateSourceRaw):
+		// 从事件原始模板构造
+		if event.RawTemplate != nil {
+			template = &domain.Template{
+				Title:    event.RawTemplate.Title,
+				Body:     event.RawTemplate.Body,
+				HTMLBody: event.RawTemplate.HTMLBody,
+			}
+		}
+	case string(domain.TemplateSourceFile):
+		// 从嵌入模板文件加载
+		template, err = s.templateRepo.GetByCodeFromFile(templateCode, channelName, lang)
+		if err != nil {
+			log.Printf("[Notification] 从文件加载模板失败，回退到数据库: eventID=%s, channel=%s, error=%v",
+				event.EventID, channelName, err)
+			template, err = s.templateRepo.GetByCodeFallback(templateCode, channelName, lang)
+		}
+	default:
+		// 默认从数据库模板表加载
+		template, err = s.templateRepo.GetByCodeFallback(templateCode, channelName, lang)
+	}
+
 	if err != nil {
 		log.Printf("[Notification] 获取模板失败，使用原始内容: eventID=%s, channel=%s, error=%v",
-			event.EventID, channel, err)
+			event.EventID, channelName, err)
 		template = nil
 	}
 
@@ -221,13 +253,13 @@ func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, ch
 	title, body, htmlBody := s.renderContent(event, template)
 
 	// 4. 确定接收者
-	recipient := s.determineRecipient(event, channel)
+	recipient := s.determineRecipient(event, channelName)
 
 	// 5. 创建通知记录
 	record := &domain.NotificationRecord{
 		EventID:      event.EventID,
 		UserID:       event.UserID,
-		Channel:      channel,
+		Channel:      channelName,
 		Type:         event.EventType,
 		Title:        title,
 		Body:         body,
@@ -244,7 +276,7 @@ func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, ch
 
 	// 6. 发送（通过 ChannelManager 实际发送）
 	startTime := time.Now()
-	sendErr := s.dispatchToChannel(event, channel, title, body, htmlBody, recipient, recordID)
+	sendErr := s.dispatchToChannel(event, channelName, title, body, htmlBody, recipient, recordID)
 
 	// 7. 记录送达日志
 	durationMs := time.Since(startTime).Milliseconds()
@@ -261,7 +293,7 @@ func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, ch
 	deliveryLog := &domain.DeliveryLog{
 		NotificationID: recordID,
 		EventID:        event.EventID,
-		Channel:        channel,
+		Channel:        channelName,
 		Status:         deliveryStatus,
 		ErrorMsg:       errMsg,
 		DurationMs:     durationMs,
@@ -275,6 +307,11 @@ func (s *NotificationService) sendViaChannel(event *domain.NotificationEvent, ch
 func (s *NotificationService) dispatchToChannel(
 	event *domain.NotificationEvent, channelName, title, body, htmlBody, recipient string, recordID int64,
 ) error {
+	// WS 渠道：通过 Hub 推送（不经过传统 channel sender）
+	if channelName == "ws" {
+		return s.dispatchToWS(event, title, body, recordID)
+	}
+
 	if s.channelSender == nil {
 		log.Printf("[Notification] ChannelSender 未初始化，跳过实际发送: recordID=%d", recordID)
 		return nil
@@ -305,6 +342,38 @@ func (s *NotificationService) dispatchToChannel(
 	}
 
 	log.Printf("[Notification] 渠道 %s 发送成功: recordID=%d, msgID=%s", channelName, recordID, result.MessageID)
+	return nil
+}
+
+// dispatchToWS 通过 WebSocket 系统推送
+func (s *NotificationService) dispatchToWS(
+	event *domain.NotificationEvent, title, body string, recordID int64,
+) error {
+	if s.wsHub == nil {
+		log.Printf("[Notification] WS Hub 未初始化，跳过 WS 推送: recordID=%d", recordID)
+		return nil
+	}
+
+	wsMsg := &domain.WSSystemMessage{
+		ID:        event.EventID,
+		Type:      event.EventType,
+		Title:     title,
+		Body:      body,
+		Priority:  event.Priority,
+		Data:      event.PushData,
+		Timestamp: time.Now().Unix(),
+	}
+
+	cacheStrategy := domain.WSCachePersist
+	switch event.WSCacheStrategy {
+	case "none":
+		cacheStrategy = domain.WSCacheNone
+	case "persist":
+		cacheStrategy = domain.WSCachePersist
+	}
+
+	s.wsHub.PushMessage(event.UserID, wsMsg, cacheStrategy)
+	log.Printf("[Notification] WS 推送完成: recordID=%d, userID=%s, cache=%s", recordID, event.UserID, event.WSCacheStrategy)
 	return nil
 }
 
@@ -407,6 +476,8 @@ func (s *NotificationService) determineRecipient(event *domain.NotificationEvent
 		return event.Email
 	case string(domain.ChannelSMS):
 		return event.Phone
+	case string(domain.ChannelWS):
+		return event.UserID
 	case string(domain.ChannelPush), string(domain.ChannelAPNs), string(domain.ChannelFCM):
 		if len(event.DeviceTokens) > 0 {
 			data, _ := json.Marshal(event.DeviceTokens)

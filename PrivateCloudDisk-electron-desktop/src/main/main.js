@@ -74,8 +74,16 @@ app.whenReady().then(async () => {
     splashManager.close(mainWindow)
   })
 
+  // 监听窗口最大化/还原事件，通知渲染进程更新标题栏按钮图标
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window:maximizeChange', true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window:maximizeChange', false)
+  })
+
   // 5. 构建菜单栏
-  buildMenu(mainWindow)
+  const { template: menuTemplate, isMac } = buildMenu(mainWindow)
 
   // 6. 创建系统托盘
   createTray(mainWindow)

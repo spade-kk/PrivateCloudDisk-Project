@@ -44,7 +44,7 @@ public class FileScanFailedConsumer {
                                       @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
         log.info("收到文件扫毒失败事件: eventId={}, fileId={}, fileName={}, fileSize={}, threat={}",
                 event.getEventId(), event.getFileId(), event.getFileName(),
-                event.getFileSize(), event.getThreatName());
+                event.getFileSize());
 
         try {
             // 幂等检查
@@ -61,7 +61,7 @@ public class FileScanFailedConsumer {
             userQuotaService.rollbackQuota(userId, event.getFileSize());
 
             log.info("文件扫毒失败事件处理完成（配额已回滚）: eventId={}, fileId={}, threat={}",
-                    event.getEventId(), event.getFileId(), event.getThreatName());
+                    event.getEventId(), event.getFileId());
             channel.basicAck(deliveryTag, false);
 
         } catch (Exception e) {

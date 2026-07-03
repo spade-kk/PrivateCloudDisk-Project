@@ -64,4 +64,16 @@ public interface DirectoryClosureMapper {
      * @param userId 用户ID
      */
     void insertRelationsFromParent(@Param("nodeId") UUID nodeId, @Param("userId") UUID userId, @Param("parentId") UUID parentId);
+
+    /**
+     * 查询多个节点的祖先链信息（含节点名称），用于计算相对路径
+     * @param descendantIds 后代节点ID列表
+     * @param userId 用户ID
+     * @param rootNodeId 根节点ID（排除此节点之前的路径）
+     * @return 祖先链信息列表（sorted by descendant, depth DESC）
+     */
+    List<PathNodeInfo> selectAncestorPaths(
+            @Param("descendantIds") List<UUID> descendantIds,
+            @Param("userId") UUID userId,
+            @Param("rootNodeId") UUID rootNodeId);
 }

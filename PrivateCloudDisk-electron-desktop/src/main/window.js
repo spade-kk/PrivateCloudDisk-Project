@@ -1,5 +1,9 @@
 /**
  * src/main/window.js - 窗口管理模块
+ *
+ * 自定义标题栏设计：
+ *   - Windows: frame: false + 自定义标题栏（Logo + 菜单栏 + 窗口控制按钮）
+ *   - macOS: frame: false + titleBarStyle: hidden + 自定义标题栏（保留原生红绿灯）
  */
 const { BrowserWindow, screen } = require('electron')
 const path = require('path')
@@ -11,9 +15,9 @@ const WINDOW_CONFIG = {
   minWidth: 900,
   minHeight: 600,
   show: false,
-  frame: true,
-  titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-  backgroundColor: '#f5f5f5',
+  frame: false,                              // 无边框窗口，实现自定义标题栏
+  titleBarStyle: 'hidden',                   // macOS: 隐藏原生标题栏但保留红绿灯按钮
+  backgroundColor: '#f5f7fa',
   webPreferences: {
     preload: path.join(__dirname, '..', 'preload', 'preload.js'),
     contextIsolation: true,
@@ -78,7 +82,8 @@ function createSubWindow(url, options = {}) {
     parent,
     modal: !!parent,
     show: false,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    frame: false,
+    titleBarStyle: 'hidden',
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),

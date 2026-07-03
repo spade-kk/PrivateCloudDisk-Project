@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SpaceMapper">
+    <resultMap id="SpaceEntityMap" type="org.project.model.entity.SpaceEntity">
+        <id column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="space_name" property="spaceName"/>
+        <result column="space_type" property="spaceType"/>
+        <result column="space_owner_id" property="spaceOwnerId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="space_quota" property="spaceQuota"/>
+        <result column="space_used" property="spaceUsed"/>
+        <result column="space_file_count" property="spaceFileCount"/>
+        <result column="space_visibility" property="spaceVisibility"/>
+        <result column="space_description" property="spaceDescription"/>
+        <result column="space_avatar_path" property="spaceAvatarPath"/>
+        <result column="space_im_group_id" property="spaceImGroupId"/>
+        <result column="space_created_at" property="spaceCreatedAt"/>
+        <result column="space_updated_at" property="spaceUpdatedAt"/>
+        <result column="space_status" property="spaceStatus"/>
+    </resultMap>
+
+    <select id="findById" resultMap="SpaceEntityMap">
+        SELECT * FROM pcd_space_table WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <select id="findByOwnerId" resultMap="SpaceEntityMap">
+        SELECT * FROM pcd_space_table WHERE space_owner_id = #{ownerId,typeHandler=org.project.util.UUIDBinaryTypeHandler} AND space_status != 'deleted'
+    </select>
+
+    <select id="findByMemberUserId" resultMap="SpaceEntityMap">
+        SELECT s.* FROM pcd_space_table s
+        INNER JOIN pcd_space_member_table m ON s.space_id = m.space_id
+        WHERE m.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND s.space_status != 'deleted'
+        ORDER BY s.space_created_at DESC
+    </select>
+
+    <select id="findPublicSpaces" resultMap="SpaceEntityMap">
+        SELECT * FROM pcd_space_table
+        WHERE space_type = 'public' AND space_visibility = 'public' AND space_status = 'active'
+        <if test="keyword != null and keyword != ''">
+            AND (space_name LIKE CONCAT('%', #{keyword}, '%') OR space_description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY space_created_at DESC
+    </select>
+
+    <select id="findPublicByName" resultMap="SpaceEntityMap">
+        SELECT * FROM pcd_space_table
+        WHERE space_name = #{spaceName} AND space_type = 'public' AND space_status = 'active'
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="spaceId" parameterType="org.project.model.entity.SpaceEntity">
+        INSERT INTO pcd_space_table (space_id, space_name, space_type, space_owner_id, space_quota, space_used,
+            space_file_count, space_visibility, space_description, space_avatar_path, space_im_group_id, space_status)
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceName}, #{spaceType},
+            #{spaceOwnerId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceQuota}, #{spaceUsed},
+            #{spaceFileCount}, #{spaceVisibility}, #{spaceDescription}, #{spaceAvatarPath}, #{spaceImGroupId}, #{spaceStatus})
+    </insert>
+
+    <update id="update" parameterType="org.project.model.entity.SpaceEntity">
+        UPDATE pcd_space_table SET
+            space_name = #{spaceName},
+            space_visibility = #{spaceVisibility},
+            space_description = #{spaceDescription},
+            space_avatar_path = #{spaceAvatarPath},
+            space_quota = #{spaceQuota}
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="softDelete">
+        UPDATE pcd_space_table SET space_status = 'deleted'
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="updateQuota">
+        UPDATE pcd_space_table SET space_quota = #{quota}
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="incrementUsed">
+        UPDATE pcd_space_table SET space_used = space_used + #{size}
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="decrementUsed">
+        UPDATE pcd_space_table SET space_used = GREATEST(0, space_used - #{size})
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="incrementFileCount">
+        UPDATE pcd_space_table SET space_file_count = space_file_count + #{count}
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <update id="decrementFileCount">
+        UPDATE pcd_space_table SET space_file_count = GREATEST(0, space_file_count - #{count})
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+</mapper>

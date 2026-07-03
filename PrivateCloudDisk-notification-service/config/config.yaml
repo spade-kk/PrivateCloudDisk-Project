@@ -84,6 +84,19 @@ webpush:
   vapid_public_key: "${VAPID_PUBLIC_KEY:-}"
   vapid_private_key: "${VAPID_PRIVATE_KEY:-}"
 
+# WebSocket 系统推送
+ws:
+  enabled: true
+  port: "8085"
+  path: "/ws/system"
+  redis_offline_prefix: "ws:offline:"
+  max_offline_messages: 50
+  offline_message_ttl_days: 7
+
+# 模板配置
+template:
+  default_source: "database"  # database | file，默认优先数据库模板
+
 # 工作配置
 worker:
   retry_max_attempts: 5

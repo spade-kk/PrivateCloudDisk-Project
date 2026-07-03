@@ -42,9 +42,6 @@ public class FileScanFailedEvent implements Serializable {
     /** 上传会话ID */
     private String uploadsSessionId;
 
-    /** 扫描结果/威胁名称 */
-    private String threatName;
-
     /** 事件发生时间 */
     private LocalDateTime eventTime;
 }

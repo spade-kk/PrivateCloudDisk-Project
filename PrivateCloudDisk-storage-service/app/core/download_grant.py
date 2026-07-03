@@ -29,13 +29,14 @@ import json
 import secrets
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 
-import requests
 from fastapi import HTTPException, status
 
 from core.config import settings
 from app.core.redis_client import redis_client
+from app.core.business_service_client import business_service_client
 from app.utils.helpers import stable_hash
 
 # ============================
@@ -67,9 +68,6 @@ DOWNLOAD_GRANT_TTL_SECONDS = 1800       # 半小时
 
 # 每个 Grant 最大并行分块数
 MAX_PARALLEL_CHUNKS = 4
-
-# 业务服务地址
-BUSINESS_SERVICE_URL = settings.business_service_url
 
 # HMAC 密钥（从 settings 读取或生成 fallback）
 _DOWNLOAD_GRANT_HMAC_KEY: Optional[bytes] = None
@@ -206,6 +204,7 @@ async def issue_download_grant(
         "fileId": file_id,
         "fileName": metadata.get("name", ""),
         "fileSize": metadata.get("size", 0),
+        "fileType": metadata.get("file_type", ""),
         "status": GRANT_STATUS_ACTIVE,
         "issuedAt": now_ms,
         "expiresAt": expires_at,
@@ -324,6 +323,7 @@ async def release_download_grant(token: str):
       3. 设置短 TTL 用于清理
       4. 清理分块并发计数器
       5. 清理元数据缓存
+      6. 发布文件下载完成事件（MQ）
 
     Args:
         token: 下载授权 Token
@@ -340,6 +340,10 @@ async def release_download_grant(token: str):
 
     user_id = grant_data.get("userId", "")
     client_ip = grant_data.get("ip", "")
+    file_id = grant_data.get("fileId", "")
+    file_name = grant_data.get("fileName", "")
+    file_size = int(grant_data.get("fileSize", 0))
+    file_type = grant_data.get("fileType", "")
 
     # 标记为 COMPLETED，短 TTL
     await redis_client.hset(token_key, "status", GRANT_STATUS_COMPLETED)
@@ -356,6 +360,34 @@ async def release_download_grant(token: str):
         f"{PREFIX_CHUNK_INFLIGHT}{token_hash}",
         f"{PREFIX_GRANT_META}{token_hash}",
     )
+
+    # 发布文件下载完成事件（MQ）
+    try:
+        from core.rabbitmq import rabbitmq_service
+        from core.config import settings
+        import logging
+        logger = logging.getLogger("app.core.download_grant")
+
+        if rabbitmq_service.connection and not rabbitmq_service.connection.is_closed:
+            event_id = str(uuid.uuid4())
+            await rabbitmq_service.publish_file_event(
+                settings.file_downloaded_routing_key,
+                {
+                    "eventId": event_id,
+                    "fileId": file_id,
+                    "fileName": file_name,
+                    "fileSize": file_size,
+                    "fileType": file_type,
+                    "userId": user_id,
+                    "downloadGrant": token_hash,
+                    "eventTime": datetime.utcnow().isoformat(),
+                },
+            )
+            logger.info(f"文件下载完成事件已发布: eventId={event_id}, fileId={file_id}")
+        else:
+            logger.warning("RabbitMQ 不可用，跳过发布下载完成事件")
+    except Exception as e:
+        logger.error(f"发布下载完成事件失败: {e}", exc_info=True)
 
 
 # ============================
@@ -550,24 +582,19 @@ async def fetch_file_metadata_from_business_service(file_id: str, user_id: str) 
 # ============================
 
 async def _fetch_file_metadata(file_id: str, user_id: str) -> dict:
-    """调用业务服务获取文件元数据"""
+    """通过 SDK 异步调用业务服务获取文件元数据"""
+    from app.core.business_service_client import BusinessServiceError
     try:
-        response = requests.get(
-            f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{file_id}?uid={user_id}",
-            timeout=5
-        )
-        response.raise_for_status()
-        result = response.json()
-    except requests.RequestException:
+        result = await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as e:
+        if e.status_code == 404:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="文件不存在用户网盘, 或者路径目录不存在"
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Business service unavailable"
-        )
-
-    if result.get("code") != 200:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="文件不存在用户网盘, 或者路径目录不存在"
         )
 
     return result.get("data", {})

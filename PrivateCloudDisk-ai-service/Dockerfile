@@ -42,8 +42,10 @@ FROM base AS deps
 COPY requirements.txt .
 
 # 安装 Python 依赖（ONNX Runtime CPU 版本）
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip uninstall -y onnxruntime-gpu 2>/dev/null || true
+RUN pip install --no-cache-dir \
+    -i https://pypi.org/simple \
+    -r requirements.txt \
+    && pip uninstall -y onnxruntime-gpu 2>/dev/null
 
 # 下载预训练模型（可选，加速首次启动）
 # 实际运行时会自动下载到 MODEL_CACHE_DIR

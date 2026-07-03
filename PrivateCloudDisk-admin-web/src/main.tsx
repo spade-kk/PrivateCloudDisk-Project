@@ -2,6 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 
+// Mock 数据系统 - 开发模式下启用
+import '@/mock'
+
 // Ant Design 样式
 import 'antd/dist/reset.css'
 // 自定义全局样式

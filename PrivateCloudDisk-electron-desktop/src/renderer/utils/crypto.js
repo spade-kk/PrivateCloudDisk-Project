@@ -76,7 +76,7 @@ export async function pbkdf2Hash(password, salt) {
   // 使用固定 salt（生产环境应使用用户唯一 salt）
   const saltBuffer = salt
     ? encoder.encode(salt)
-    : encoder.encode('PrivateCloudDisk-PBKDF2-Salt-2024')
+    : encoder.encode('clouddrive-pbkdf2-v1-pepper')
 
   // 执行 PBKDF2
   const derivedBits = await crypto.subtle.deriveBits(

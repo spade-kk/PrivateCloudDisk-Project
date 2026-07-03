@@ -357,4 +357,28 @@ onMounted(loadRecords)
   font-size: 13px;
   color: var(--color-text-secondary);
 }
+
+@media (max-width: 639px) {
+  .call-history-page {
+    padding: 16px;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .page-header h2 {
+    font-size: 18px;
+  }
+  .call-item {
+    padding: 12px;
+  }
+  .pagination {
+    gap: 8px;
+  }
+  .pagination button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
 </style>

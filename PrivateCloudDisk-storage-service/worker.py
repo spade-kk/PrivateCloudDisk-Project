@@ -3,38 +3,48 @@
 
 用途：
 - 启动所有 RabbitMQ 消费者，以独立进程运行
-- 处理视频转码等重型任务时，不会影响 FastAPI HTTP 请求处理
+- 处理文件后台处理、增强、删除等重型任务时，不影响 FastAPI HTTP 请求处理
 - 支持多实例水平扩展（启动多个 Worker 进程）
 
 使用方式：
   python worker.py
 
 环境变量：
-  WORKER_PREFETCH_FP    - 文件处理队列 prefetch 数 (默认 4)
-  WORKER_PREFETCH_FD    - 文件删除队列 prefetch 数 (默认 2)
-  WORKER_PREFETCH_CI    - 内容索引队列 prefetch 数 (默认 2)
-  WORKER_PREFETCH_DLQ   - 死信队列 prefetch 数 (默认 1)
-  WORKER_CONCURRENCY    - 全局最大协程并发数 (默认 16)
-  WORKER_LOG_LEVEL      - 日志级别 (默认 INFO)
+  WORKER_PREFETCH_FD           - 文件删除队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_DLQ          - 死信队列 prefetch 数 (默认 1)
+  WORKER_PREFETCH_USD          - 上传会话删除队列 prefetch 数 (默认 4)
+  WORKER_PREFETCH_SQ           - 安全隔离队列 prefetch 数 (默认 1)
+  WORKER_PREFETCH_BE_MERGE     - 后台合并队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_HASH      - 后台哈希队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_VIRUS     - 后台病毒扫描队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_MA        - 后台标记活跃队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_EN_THUMB     - 增强缩略图队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_EN_TRANS     - 增强转码队列 prefetch 数 (默认 1)
+  WORKER_PREFETCH_EN_HLS       - 增强 HLS 队列 prefetch 数 (默认 1)
+  WORKER_PREFETCH_EN_INDEX     - 增强索引队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_DLQ_BE       - 后台 DLQ prefetch 数 (默认 1)
+  WORKER_PREFETCH_DLQ_EN       - 增强 DLQ prefetch 数 (默认 1)
+  WORKER_LOG_LEVEL             - 日志级别 (默认 INFO)
 
 架构：
-┌────────────────────────────────────────────┐
-│  FastAPI 进程 (uvicorn)                     │
-│  - HTTP API 端点                            │
-│  - 不运行消费者                              │
-│  - 发布消息到 RabbitMQ                       │
-└────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  FastAPI 进程 (uvicorn)                                              │
+│  - HTTP API 端点                                                    │
+│  - 不运行消费者                                                      │
+│  - 发布消息到 RabbitMQ                                              │
+└──────────────────────────────────────────────────────────────────────┘
          │
          ▼ RabbitMQ
-┌────────────────────────────────────────────┐
-│  Worker 进程 (独立)                          │
-│  - 文件处理消费者 (prefetch=4, concur=8)     │
-│  - 文件删除消费者 (prefetch=2, concur=4)     │
-│  - 内容索引消费者 (prefetch=2, concur=4)     │
-│  - 死信消费者 (prefetch=1, concur=2)         │
-│  - 安全隔离消费者 (prefetch=1, concur=2)     │
-│  - 异步事件循环 + 线程池执行重型任务          │
-└────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  Worker 进程 (独立)                                                  │
+│  - 文件删除消费者 (prefetch=2, concur=4)                             │
+│  - 后台处理消费者 (merge/hash/virus/mark_active, 各独立队列)           │
+│  - 增强消费者 (thumbnail/transcode/hls/index, 各独立队列)              │
+│  - 后台 DLQ 消费者 (prefetch=1, concur=2)                            │
+│  - 增强 DLQ 消费者 (prefetch=1, concur=2)                            │
+│  - 上传会话删除消费者 (prefetch=4, concur=4)                          │
+│  - 异步事件循环 + 线程池执行重型任务                                  │
+└──────────────────────────────────────────────────────────────────────┘
 """
 import os
 import sys
@@ -46,23 +56,20 @@ from typing import Optional
 from core.config import settings
 from core.rabbitmq import rabbitmq_service
 from core.consumers import (
-    on_file_process_message,
     on_file_delete_message,
-    on_dead_letter_message,
-    on_content_index_message,
     on_uploads_session_delete_message,
     on_uploads_event_dlq_message,
-    # 新版 Backend
+    # Backend — 顺序流水线
     on_backend_merge_message,
     on_backend_hash_message,
     on_backend_virus_message,
     on_backend_mark_active_message,
-    # 新版 Enhancement
+    # Enhancement — 并发流水线
     on_enhance_thumbnail_message,
     on_enhance_transcode_message,
     on_enhance_hls_message,
     on_enhance_index_message,
-    # 新版 DLQ
+    # DLQ — Backend + Enhancement
     on_backend_dlq_message,
     on_enhance_dlq_message,
 )
@@ -73,50 +80,32 @@ from app.core.logging_config import setup_logging, get_logger
 # 并发配置（可通过环境变量覆盖）
 # =============================================================================
 # 每个队列独立的 prefetch_count
-# - 文件处理队列：预取 4 条，允许并发处理（视频转码不阻塞缩略图/合并）
+# - 后台处理队列：合并/哈希/病毒/标记活跃各 2 条，保证顺序流水线
+# - 增强队列：缩略图/索引各 2 条，转码/HLS 各 1 条（重型任务）
 # - 文件删除队列：预取 2 条
-# - 内容索引队列：预取 2 条
-# - 死信/安全队列：预取 1 条（低频，不需要高并发）
+# - 死信队列：预取 1 条（低频，不需要高并发）
 CONFIG = {
-    "file_process": {
-        "queue": settings.file_process_queue,
-        "callback": on_file_process_message,
-        "prefetch": int(os.getenv("WORKER_PREFETCH_FP", "4")),
-        "concurrency": int(os.getenv("WORKER_CONCURRENCY_FP", "8")),
-    },
     "file_delete": {
         "queue": settings.file_delete_queue,
         "callback": on_file_delete_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_FD", "2")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_FD", "4")),
     },
-    "content_index": {
-        "queue": settings.content_index_queue,
-        "callback": on_content_index_message,
-        "prefetch": int(os.getenv("WORKER_PREFETCH_CI", "2")),
-        "concurrency": int(os.getenv("WORKER_CONCURRENCY_CI", "4")),
-    },
-    "dlq_process": {
-        "queue": settings.file_process_dlq,
-        "callback": on_dead_letter_message,
-        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
-        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
-    },
     "dlq_delete": {
         "queue": settings.file_delete_dlq,
-        "callback": on_dead_letter_message,
+        "callback": on_backend_dlq_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
     "security_quarantine": {
         "queue": settings.security_quarantine_queue,
-        "callback": on_dead_letter_message,
+        "callback": on_backend_dlq_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_SQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_SQ", "2")),
     },
     "dlq_content": {
         "queue": settings.content_index_dlq,
-        "callback": on_dead_letter_message,
+        "callback": on_enhance_dlq_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
@@ -134,12 +123,11 @@ CONFIG = {
     },
     "dlq_file_event": {
         "queue": settings.file_event_dlq,
-        "callback": on_dead_letter_message,
+        "callback": on_backend_dlq_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
-    # ========== 新版消费者配置 ==========
-    # Backend — 顺序流水线（每个阶段独立队列）
+    # ========== Backend — 顺序流水线（每个阶段独立队列） ==========
     "backend_merge": {
         "queue": settings.file_backend_merge_queue,
         "callback": on_backend_merge_message,
@@ -164,7 +152,7 @@ CONFIG = {
         "prefetch": int(os.getenv("WORKER_PREFETCH_BE_MA", "2")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_BE_MA", "4")),
     },
-    # Enhancement — 并发流水线（各阶段独立并行）
+    # ========== Enhancement — 并发流水线（各阶段独立并行） ==========
     "enhance_thumbnail": {
         "queue": settings.file_enhance_thumbnail_queue,
         "callback": on_enhance_thumbnail_message,
@@ -189,7 +177,7 @@ CONFIG = {
         "prefetch": int(os.getenv("WORKER_PREFETCH_EN_INDEX", "2")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_INDEX", "4")),
     },
-    # DLQ — Backend + Enhancement
+    # ========== DLQ — Backend + Enhancement ==========
     "dlq_backend_merge": {
         "queue": settings.file_backend_merge_dlq,
         "callback": on_backend_dlq_message,

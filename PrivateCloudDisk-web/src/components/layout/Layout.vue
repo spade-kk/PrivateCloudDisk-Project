@@ -72,6 +72,7 @@ import UserDropdown from './UserDropdown.vue'
 import NotificationCenter from './NotificationCenter.vue'
 import TransferPanel from '../transfer/TransferPanel.vue'
 import StorageInfo from '../file/StorageInfo.vue'
+import { useSpaceStore } from '@/stores/spaceStore'
 
 const route = useRoute()
 const isDarkMode = ref(localStorage.getItem('darkMode') === 'true')
@@ -86,7 +87,7 @@ const currentRouteName = computed(() => {
     Settings: '系统设置', Billing: '套餐管理', BillingOrders: '订单管理',
     BillingPayment: '订单支付', BillingPaymentSuccess: '支付成功',
     BillingRefund: '申请退款', BillingRefundSuccess: '退款成功',
-    Help: '帮助中心', VideoPlayer: '视频播放',
+    Help: '帮助中心', VideoPlayer: '视频播放', Spaces: '空间管理',
   }
   return names[route.name] || route.name
 })
@@ -104,6 +105,9 @@ const toggleDarkMode = () => {
 
 onMounted(() => {
   if (isDarkMode.value) document.documentElement.classList.add('dark')
+  // 初始化空间系统
+  const spaceStore = useSpaceStore()
+  spaceStore.initSpaces()
 })
 
 watch(() => route.fullPath, () => {

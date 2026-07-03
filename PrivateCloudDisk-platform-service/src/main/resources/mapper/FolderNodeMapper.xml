@@ -88,4 +88,34 @@
     <delete id="deleteFolderNodeByIdAndUserId">
         delete from pcd_directory_tree_table where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </delete>
+
+    <select id="countUserFolders" resultType="int">
+        SELECT COUNT(1)
+        FROM pcd_directory_tree_table
+        WHERE node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_status IN ('active', 'pending');
+    </select>
+
+    <select id="countChildrenByNodeId" resultType="int">
+        SELECT (
+            (SELECT COUNT(1) FROM pcd_directory_tree_table
+             WHERE node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND node_status IN ('active', 'pending'))
+            +
+            (SELECT COUNT(1) FROM pcd_file_info_table
+             WHERE file_node_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND file_status = 'active')
+        ) AS total;
+    </select>
+
+    <select id="findFolderNodeByParentIdAndName" resultMap="FolderNodeEntityMap">
+        SELECT * FROM pcd_directory_tree_table
+        WHERE node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_name = #{name}
+          AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_status IN ('active', 'pending')
+        LIMIT 1;
+    </select>
 </mapper>

@@ -1,0 +1,391 @@
+/**
+ * pages/Register/Register.css - 注册页面样式（企业级精修版）
+ *
+ * 设计语言：白 + 蓝 主色调，与登录页风格统一
+ * 参考：VS Code / Trae / 网易云音乐 / 百度网盘 桌面端设计美学
+ *
+ * 配色方案：
+ *   主色: #1a73e8 (Google Blue)
+ *   品牌区渐变: #0d47a1 → #1a73e8（反转渐变，与登录页形成视觉差异）
+ *   背景: #f0f2f5
+ *   卡片: #ffffff
+ *   文字: #1f2937 / #6b7280
+ *   边框: #e5e7eb
+ */
+
+/* ==================== 注册页面容器 ==================== */
+.register-page {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0f2f5;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}
+
+/* ==================== 标题栏 ==================== */
+.register-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  width: 100%;
+  background: #ffffff;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  border-bottom: 1px solid #e5e7eb;
+  position: relative;
+  z-index: 10;
+}
+
+.register-titlebar__logo {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 7px;
+  -webkit-app-region: no-drag;
+  height: 100%;
+}
+
+.register-titlebar__logo span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.3px;
+}
+
+/* 窗口控制按钮 */
+.register-titlebar__controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.register-titlebar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+  -webkit-app-region: no-drag;
+}
+
+.register-titlebar__btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.register-titlebar__btn:active {
+  background: #e5e7eb;
+}
+
+.register-titlebar__btn--close:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+
+.register-titlebar__btn--close:active {
+  background: #bf0f1d;
+  color: #ffffff;
+}
+
+/* ==================== 注册主体容器 ==================== */
+.register-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  border-radius: 0 0 8px 8px;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  background: #ffffff;
+}
+
+/* ==================== 左侧：品牌展示区 ==================== */
+.register-brand {
+  flex: 1;
+  position: relative;
+  background: linear-gradient(135deg, #0d47a1 0%, #1557b0 40%, #1a73e8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-width: 380px;
+}
+
+.register-brand__content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 40px;
+  animation: registerFadeInUp 0.6s ease-out;
+}
+
+@keyframes registerFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.register-brand__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 24px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.register-brand__logo:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.register-brand__title {
+  font-size: 34px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 6px;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.register-brand__subtitle {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.78);
+  margin: 0 0 36px;
+  letter-spacing: 4px;
+  font-weight: 400;
+}
+
+/* 特性列表 */
+.register-brand__features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.register-brand__feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  width: 100%;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.25s ease;
+  cursor: default;
+}
+
+.register-brand__feature:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateX(4px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* 背景装饰 */
+.register-brand__decoration {
+  position: absolute;
+  pointer-events: none;
+}
+
+.register-brand__decoration::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  left: -100px;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    transparent 70%
+  );
+}
+
+.register-brand__decoration::after {
+  content: '';
+  position: absolute;
+  bottom: -160px;
+  right: -80px;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.04) 0%,
+    transparent 70%
+  );
+}
+
+/* ==================== 右侧：注册表单区 ==================== */
+.register-form-wrapper {
+  width: 460px;
+  min-width: 460px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 56px;
+  background: #ffffff;
+  animation: registerFadeIn 0.5s ease-out 0.1s both;
+}
+
+@keyframes registerFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.register-form__header {
+  margin-bottom: 28px;
+}
+
+.register-form__header h2 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 6px;
+  letter-spacing: -0.3px;
+}
+
+.register-form__header p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* 表单样式 */
+.register-form .ant-form-item {
+  margin-bottom: 14px;
+}
+
+.register-form .ant-input-affix-wrapper {
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  padding: 9px 14px;
+  transition: all 0.25s ease;
+  background: #f9fafb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.register-form .ant-input-affix-wrapper:hover {
+  border-color: #93c5fd;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.register-form .ant-input-affix-wrapper:focus-within,
+.register-form .ant-input-affix-wrapper-focused {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1), 0 1px 3px rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+}
+
+.register-form .ant-input-affix-wrapper input {
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.register-form .ant-input-affix-wrapper input::placeholder {
+  color: #9ca3af;
+}
+
+.register-form .ant-input-affix-wrapper .ant-input-prefix {
+  margin-right: 10px;
+}
+
+/* 注册按钮 */
+.register-form__submit {
+  height: 46px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3), 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.25s ease !important;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.register-form__submit:hover {
+  background: linear-gradient(135deg, #1d7aef 0%, #1660c0 100%) !important;
+  box-shadow: 0 4px 14px rgba(26, 115, 232, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-1px);
+}
+
+.register-form__submit:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(26, 115, 232, 0.3) !important;
+}
+
+/* 登录链接 */
+.register-form__footer {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.register-form__footer a {
+  color: #1a73e8;
+  margin-left: 4px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.register-form__footer a:hover {
+  color: #1557b0;
+}
+
+/* Ant Design 消息提示覆盖 */
+.register-form .ant-form-item-explain-error {
+  font-size: 12px;
+  padding-top: 2px;
+}
+
+/* ==================== 响应式：小屏幕 ==================== */
+@media (max-width: 768px) {
+  .register-brand {
+    display: none;
+  }
+
+  .register-form-wrapper {
+    width: 100%;
+    min-width: unset;
+    padding: 40px 32px;
+  }
+}

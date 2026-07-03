@@ -1,0 +1,8 @@
+{
+  "code": "verification_email",
+  "channel": "email",
+  "lang": "zh-CN",
+  "title": "【私有云盘】{{.VerificationCode}} 是您的验证码",
+  "body": "您的验证码是：{{.VerificationCode}}，{{.ExpireMinutes}} 分钟内有效，请勿泄露给他人。",
+  "html_body": "<html><body><h2>验证码</h2><p>您的验证码是：<strong>{{.VerificationCode}}</strong></p><p>{{.ExpireMinutes}} 分钟内有效，请勿泄露给他人。</p></body></html>"
+}

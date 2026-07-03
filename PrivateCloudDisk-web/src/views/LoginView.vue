@@ -505,6 +505,14 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
+@media (max-width: 639px) {
+  .login-form-area {
+    padding: 20px 16px;
+    align-items: flex-start;
+    padding-top: 40px;
+  }
+}
+
 .login-form-inner {
   width: 100%;
   max-width: 400px;
@@ -522,6 +530,12 @@ onBeforeUnmount(() => {
 @media (min-width: 1024px) {
   .mobile-brand {
     display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .mobile-brand {
+    margin-bottom: 24px;
   }
 }
 
@@ -549,6 +563,12 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
+@media (max-width: 639px) {
+  .form-header {
+    margin-bottom: 20px;
+  }
+}
+
 .form-title {
   font-size: 26px;
   font-weight: 700;
@@ -556,10 +576,22 @@ onBeforeUnmount(() => {
   letter-spacing: -0.5px;
 }
 
+@media (max-width: 639px) {
+  .form-title {
+    font-size: 22px;
+  }
+}
+
 .form-desc {
   margin-top: 8px;
   font-size: 14px;
   color: #64748b;
+}
+
+@media (max-width: 639px) {
+  .form-desc {
+    font-size: 13px;
+  }
 }
 
 /* 登录方式 Tab */
@@ -604,6 +636,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+@media (max-width: 639px) {
+  .login-form {
+    gap: 14px;
+  }
 }
 
 .field-group {
@@ -762,6 +800,14 @@ onBeforeUnmount(() => {
   color: #94a3b8;
 }
 
+@media (max-width: 639px) {
+  .submit-btn {
+    height: 48px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+}
+
 .spinner {
   width: 18px;
   height: 18px;
@@ -808,6 +854,13 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 14px;
   color: #64748b;
+}
+
+@media (max-width: 639px) {
+  .switch-link {
+    margin-top: 20px;
+    font-size: 13px;
+  }
 }
 
 .switch-link a {

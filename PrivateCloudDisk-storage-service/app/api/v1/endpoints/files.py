@@ -5,7 +5,6 @@
 import json
 import hashlib
 import logging
-import aiohttp
 import aiofiles
 import os
 import asyncio
@@ -17,15 +16,14 @@ from core.config import settings
 from app.core.redis_client import redis_client
 from app.core.download_grant_limiter import download_grant_limiter
 from app.core.download_grant import get_cached_file_metadata
+from app.core.business_service_client import business_service_client, BusinessServiceError
 from app.services.thumbnail_service import get_thumbnail_bytes
-import requests
 
 
 # 创建路由器
 router = APIRouter(tags=["文件操作"])
 
 # 配置
-BUSINESS_SERVICE_URL = settings.business_service_url
 MAX_RANGE_BYTES = settings.max_range_bytes
 
 # 日志记录器
@@ -108,11 +106,8 @@ async def download_file(
     metadata = await get_cached_file_metadata(raw_token)
 
     if not metadata:
-        # 缓存未命中，调用业务服务
-        response = requests.get(
-            f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{file_id}?uid={user_id}"
-        )
-        result = response.json()
+        # 缓存未命中，通过 SDK 异步调用业务服务获取文件元数据
+        result = await business_service_client.get_file_metadata(file_id, user_id)
         if result["code"] != 200:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -253,11 +248,8 @@ async def get_thumbnail(
             - 404: 文件不存在或用户无权限
             - 500: 缩略图生成失败
     """
-    # 1. 调用业务服务验证文件权限
-    response = requests.get(
-        f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{node_id}/{file_name}?uid={user_id}"
-    )
-    result = response.json()
+    # 1. 通过 SDK 异步调用业务服务，验证文件权限并获取文件存储路径
+    result = await business_service_client.get_file_by_node(node_id, file_name, user_id)
 
     if result["code"] != 200:
         raise HTTPException(
@@ -339,19 +331,15 @@ async def get_pregenerated_thumbnail(
 
     label = THUMBNAIL_SIZE_MAP[size]
 
-    # 2. 调用业务服务获取文件元数据
+    # 2. 通过 SDK 异步调用业务服务获取文件元数据
     try:
-        resp = requests.get(
-            f"{BUSINESS_SERVICE_URL}/api/v1/business/internal/storage/files/{file_id}?uid={user_id}",
-            timeout=10
-        )
-        result = resp.json()
+        result = await business_service_client.get_file_metadata(file_id, user_id)
         if result.get("code") != 200:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="文件不存在或无权访问"
             )
-    except requests.RequestException as e:
+    except BusinessServiceError as e:
         logger.error(f"调用业务服务失败: {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

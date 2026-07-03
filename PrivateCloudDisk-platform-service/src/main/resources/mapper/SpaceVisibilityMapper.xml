@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SpaceVisibilityMapper">
+    <resultMap id="SpaceVisibilityEntityMap" type="org.project.model.entity.SpaceVisibilityEntity">
+        <id column="visibility_id" property="visibilityId"/>
+        <result column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="user_id" property="userId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="list_type" property="listType"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="findBySpaceIdAndType" resultMap="SpaceVisibilityEntityMap">
+        SELECT * FROM pcd_space_visibility_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND list_type = #{listType}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO pcd_space_visibility_table (space_id, user_id, list_type)
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{listType})
+    </insert>
+
+    <delete id="deleteBySpaceIdAndType">
+        DELETE FROM pcd_space_visibility_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND list_type = #{listType}
+    </delete>
+
+    <delete id="deleteBySpaceIdAndTypeAndUserIds">
+        DELETE FROM pcd_space_visibility_table
+        WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND list_type = #{listType}
+        AND user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        </foreach>
+    </delete>
+</mapper>

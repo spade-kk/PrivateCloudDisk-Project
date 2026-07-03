@@ -90,6 +90,14 @@ export interface User {
   emailVerified: boolean
   phoneVerified: boolean
   twoFactorEnabled: boolean
+  /** 以下为扩展字段，用于用户详情页 */
+  location?: string
+  lastLoginIp?: string
+  registerIp?: string
+  totalDownloadBytes?: number
+  totalUploadBytes?: number
+  deviceCount?: number
+  sharedFileCount?: number
 }
 
 export interface UserStatusUpdate {
@@ -270,4 +278,105 @@ export interface DashboardData {
   recentActivities: AuditLog[]
   topUsers: { userId: string; name: string; storageUsed: number; fileCount: number }[]
   alerts: { type: string; message: string; severity: string; createdAt: string }[]
+}
+
+// ============================================================
+// 订单管理
+// ============================================================
+
+export interface Order {
+  orderId: string
+  orderNo: string
+  userId: string
+  userName: string
+  planName: string
+  planCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'LIFETIME'
+  originalPrice: number
+  discountAmount: number
+  finalPrice: number
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED' | 'EXPIRED'
+  paymentChannel: 'ALIPAY' | 'WECHAT' | 'BANK' | 'STRIPE'
+  paymentTime: string | null
+  createdAt: string
+  expiredAt: string | null
+  storageQuota: number
+  remark: string
+}
+
+export interface OrderStats {
+  totalOrders: number
+  totalRevenue: number
+  pendingCount: number
+  paidCount: number
+  refundedCount: number
+  todayRevenue: number
+  monthlyRevenue: { month: string; revenue: number; count: number }[]
+}
+
+// ============================================================
+// 头像审核
+// ============================================================
+
+export interface AvatarAuditItem {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  currentAvatar: string
+  proposedAvatar: string
+  auditStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
+  submitTime: string
+  auditTime: string | null
+  auditor: string | null
+  auditRemark: string | null
+  reason: string | null
+  imageSize: number
+  imageFormat: string
+  nsfwScore: number
+  violenceScore: number
+  politicalScore: number
+  overallRisk: 'LOW' | 'MEDIUM' | 'HIGH'
+  mqEventId: string
+  mqStatus: 'SENT' | 'RECEIVED' | 'PROCESSED' | 'FAILED'
+}
+
+export interface AvatarAuditStats {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+  highRisk: number
+  mqProcessed: number
+  mqFailed: number
+}
+
+// ============================================================
+// 文件元数据统计
+// ============================================================
+
+export interface FileMetadataStats {
+  totalFiles: number
+  totalFolders: number
+  totalSize: number
+  averageFileSize: number
+  largestFile: number
+  byExtension: { ext: string; count: number; size: number }[]
+  byOwner: { userId: string; userName: string; fileCount: number; totalSize: number }[]
+  byMimeType: { mimeType: string; count: number; size: number }[]
+  encryptionStats: { encrypted: number; unencrypted: number }
+  publicStats: { public: number; private: number }
+}
+
+// ============================================================
+// 注册统计
+// ============================================================
+
+export interface RegistrationStats {
+  total: number
+  today: number
+  thisWeek: number
+  thisMonth: number
+  pendingVerification: number
+  bySource: { source: string; count: number }[]
+  byDay: { date: string; count: number }[]
 }

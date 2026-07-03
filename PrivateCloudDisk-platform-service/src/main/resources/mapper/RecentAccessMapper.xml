@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.RecentAccessMapper">
+
+    <resultMap id="RecentAccessEntityMap" type="org.project.model.entity.RecentAccessEntity">
+        <id column="ra_id" property="ra_id"/>
+        <result column="ra_user_id" property="ra_user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ra_target_type" property="ra_target_type"/>
+        <result column="ra_file_id" property="ra_file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ra_node_id" property="ra_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ra_access_type" property="ra_access_type"/>
+        <result column="ra_file_name" property="ra_file_name"/>
+        <result column="ra_file_size" property="ra_file_size"/>
+        <result column="ra_file_type" property="ra_file_type"/>
+        <result column="ra_accessed_at" property="ra_accessed_at"/>
+    </resultMap>
+
+    <!-- ==================== 插入/更新 ==================== -->
+
+    <insert id="insert" parameterType="org.project.model.entity.RecentAccessEntity">
+        INSERT INTO pcd_recent_access_table
+            (ra_user_id, ra_target_type, ra_file_id, ra_node_id, ra_access_type,
+             ra_file_name, ra_file_size, ra_file_type, ra_accessed_at)
+        VALUES
+            (#{ra_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+             #{ra_target_type},
+             #{ra_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+             #{ra_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+             #{ra_access_type},
+             #{ra_file_name},
+             #{ra_file_size},
+             #{ra_file_type},
+             #{ra_accessed_at})
+    </insert>
+
+    <!--
+        去重更新：同一用户 + 同一文件/文件夹 + 同一访问类型，只更新访问时间
+        如果目标 ID 匹配（file_id 或 node_id 任一匹配），则更新时间
+    -->
+    <update id="updateAccessTime" parameterType="org.project.model.entity.RecentAccessEntity">
+        UPDATE pcd_recent_access_table
+        SET ra_accessed_at = #{ra_accessed_at}
+        WHERE ra_user_id = #{ra_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ra_access_type = #{ra_access_type}
+          AND (
+              (ra_file_id = #{ra_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND #{ra_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NOT NULL)
+              OR
+              (ra_node_id = #{ra_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND #{ra_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NOT NULL)
+          )
+        ORDER BY ra_accessed_at DESC
+        LIMIT 1
+    </update>
+
+    <!-- ==================== 查询 ==================== -->
+
+    <select id="findByUserIdAndType" resultMap="RecentAccessEntityMap">
+        SELECT * FROM pcd_recent_access_table
+        WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ra_access_type = #{access_type}
+        ORDER BY ra_accessed_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findByUserId" resultMap="RecentAccessEntityMap">
+        SELECT * FROM pcd_recent_access_table
+        WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY ra_accessed_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- ==================== 清理 ==================== -->
+
+    <delete id="deleteOldRecords">
+        DELETE FROM pcd_recent_access_table
+        WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ra_access_type = #{access_type}
+          AND ra_id NOT IN (
+              SELECT ra_id FROM (
+                  SELECT ra_id FROM pcd_recent_access_table
+                  WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                    AND ra_access_type = #{access_type}
+                  ORDER BY ra_accessed_at DESC
+                  LIMIT #{keep_count}
+              ) AS keep
+          )
+    </delete>
+
+    <select id="countByUserIdAndType" resultType="int">
+        SELECT COUNT(*) FROM pcd_recent_access_table
+        WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ra_access_type = #{access_type}
+    </select>
+
+</mapper>

@@ -31,6 +31,14 @@
       </div>
     </div>
 
+    <!-- 空间选择器 -->
+    <div class="border-b">
+      <SpaceSelector
+        :collapsed="collapsed"
+        @create="showCreateSpaceDialog = true"
+      />
+    </div>
+
     <!-- 导航菜单 -->
     <nav class="mt-4 flex-1 overflow-y-auto py-2 lg:mt-6">
       <template v-for="group in menuGroups" :key="group.label">
@@ -96,12 +104,17 @@
       <i :class="collapsed ? 'fa fa-angle-right' : 'fa fa-angle-left'" class="text-sm"></i>
     </button>
     </aside>
+
+    <!-- 创建空间对话框 -->
+    <CreateSpaceDialog v-model:visible="showCreateSpaceDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import SpaceSelector from '@/components/space/SpaceSelector.vue'
+import CreateSpaceDialog from '@/components/space/CreateSpaceDialog.vue'
 
 defineProps({
   mobileOpen: { type: Boolean, default: false },
@@ -111,6 +124,7 @@ defineEmits(['close'])
 const route = useRoute()
 const collapsed = ref(false)
 const activeSubmenu = ref<string | null>(null)
+const showCreateSpaceDialog = ref(false)
 
 // 检查当前路由是否匹配某一项（包括子菜单）
 function isItemActive(item: any): boolean {
@@ -131,8 +145,11 @@ const menuGroups = [
     label: '主菜单',
     items: [
       { path: '/app', name: '我的网盘', icon: 'fa fa-cloud' },
+      { path: '/app/spaces', name: '空间管理', icon: 'fa fa-cubes' },
       { path: '/app/search', name: '文件搜索', icon: 'fa fa-search' },
       { path: '/app/starred', name: '收藏夹', icon: 'fa fa-star' },
+      { path: '/app/tagged', name: '标签管理', icon: 'fa fa-tags' },
+      { path: '/app/recent', name: '最近访问', icon: 'fa fa-clock-o' },
       { path: '/app/shares', name: '分享管理', icon: 'fa fa-share-alt' },
       { path: '/app/transfers', name: '传输记录', icon: 'fa fa-exchange' },
       { path: '/app/trash', name: '回收站', icon: 'fa fa-trash' },

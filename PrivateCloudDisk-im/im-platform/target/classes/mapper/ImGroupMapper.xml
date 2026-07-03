@@ -26,27 +26,27 @@
     </sql>
 
     <insert id="insert" parameterType="org.project.im.platform.entity.ImGroup">
-        INSERT INTO im_group (<include refid="BaseColumns"/>)
+        INSERT INTO pcd_im_group (<include refid="BaseColumns"/>)
         VALUES (#{groupId}, #{groupName}, #{avatar}, #{ownerId}, #{announcement}, #{description},
                 #{memberCount}, #{maxMembers}, #{joinMode}, #{isAllMuted}, #{status}, #{createTime}, #{updateTime})
     </insert>
 
     <select id="selectByGroupId" resultMap="BaseResultMap">
         SELECT id, <include refid="BaseColumns"/>
-        FROM im_group
+        FROM pcd_im_group
         WHERE group_id = #{groupId} AND status = 0
     </select>
 
     <select id="selectByUserId" resultMap="BaseResultMap">
         SELECT g.id, g.<include refid="BaseColumns"/>
-        FROM im_group g
+        FROM pcd_im_group g
         INNER JOIN im_group_member gm ON g.group_id = gm.group_id
         WHERE gm.user_id = #{userId} AND g.status = 0
         ORDER BY g.create_time DESC
     </select>
 
     <update id="updateGroupInfo" parameterType="org.project.im.platform.entity.ImGroup">
-        UPDATE im_group
+        UPDATE pcd_im_group
         SET group_name = #{groupName},
             avatar = #{avatar},
             description = #{description},
@@ -56,31 +56,31 @@
     </update>
 
     <update id="updateAnnouncement">
-        UPDATE im_group
+        UPDATE pcd_im_group
         SET announcement = #{announcement}, update_time = NOW()
         WHERE group_id = #{groupId}
     </update>
 
     <update id="incrementMemberCount">
-        UPDATE im_group
+        UPDATE pcd_im_group
         SET member_count = member_count + 1, update_time = NOW()
         WHERE group_id = #{groupId}
     </update>
 
     <update id="decrementMemberCount">
-        UPDATE im_group
+        UPDATE pcd_im_group
         SET member_count = GREATEST(member_count - 1, 0), update_time = NOW()
         WHERE group_id = #{groupId}
     </update>
 
     <update id="updateAllMuted">
-        UPDATE im_group
+        UPDATE pcd_im_group
         SET is_all_muted = #{isAllMuted}, update_time = NOW()
         WHERE group_id = #{groupId}
     </update>
 
     <update id="dissolve">
-        UPDATE im_group
+        UPDATE pcd_im_group
         SET status = 1, update_time = NOW()
         WHERE group_id = #{groupId}
     </update>

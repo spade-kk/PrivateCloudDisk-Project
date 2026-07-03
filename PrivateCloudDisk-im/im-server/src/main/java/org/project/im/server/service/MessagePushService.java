@@ -198,4 +198,53 @@ public class MessagePushService {
             log.error("ACK 发送失败", e);
         }
     }
+
+    // ==================== V2 协议方法 ====================
+
+    /**
+     * 处理 V2 协议发送消息
+     */
+    public void handleV2Message(ChannelHandlerContext ctx,
+                                 org.project.im.common.protocol.v2.IMProtocolV2.IMEnvelope envelope,
+                                 org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched,
+                                 org.project.im.common.security.IMSessionKeys sessionKeys) {
+        log.info("V2 handleMessage: messageId={}, type={}, sender={}",
+                envelope.getMessageId(), envelope.getMessageType(), envelope.getSenderId());
+        // TODO: 实现 V2 消息持久化与推送
+    }
+
+    public void handleV2Ack(ChannelHandlerContext ctx,
+                             org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.debug("V2 handleAck: messageId={}", dispatched.envelope().getMessageId());
+    }
+
+    public void handleV2Recall(ChannelHandlerContext ctx,
+                                org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.info("V2 handleRecall: messageId={}", dispatched.envelope().getMessageId());
+    }
+
+    public void handleV2Read(ChannelHandlerContext ctx,
+                              org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.debug("V2 handleRead: messageId={}", dispatched.envelope().getMessageId());
+    }
+
+    public void handleV2Typing(ChannelHandlerContext ctx,
+                                org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.debug("V2 handleTyping: sender={}", dispatched.envelope().getSenderId());
+    }
+
+    public void handleV2GetConversations(ChannelHandlerContext ctx,
+                                          org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.info("V2 handleGetConversations: userId={}", dispatched.envelope().getSenderId());
+    }
+
+    public void handleV2GetHistory(ChannelHandlerContext ctx,
+                                    org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.info("V2 handleGetHistory: userId={}", dispatched.envelope().getSenderId());
+    }
+
+    public void handleV2SystemNotify(ChannelHandlerContext ctx,
+                                      org.project.im.common.protocol.v2.MessageTypeDispatcher.DispatchedMessage dispatched) {
+        log.info("V2 handleSystemNotify: messageId={}", dispatched.envelope().getMessageId());
+    }
 }

@@ -1,18 +1,18 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 class="text-xl font-bold sm:text-2xl">传输记录</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           v-if="throughputStore.points.length > 0"
-          class="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-300 hover:bg-neutral-100"
+          class="touch-button rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-neutral-300 hover:bg-neutral-100"
           @click="throughputStore.clearHistory()"
         >
           <i class="fa fa-line-chart mr-1"></i>清除图表
         </button>
         <button
           v-if="store.records.length > 0"
-          class="rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+          class="touch-button rounded-lg border border-neutral-200 px-3 py-2 text-xs font-medium text-neutral-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
           @click="handleClearCompleted"
         >
           <i class="fa fa-trash-o mr-1"></i>清除已完成/失败

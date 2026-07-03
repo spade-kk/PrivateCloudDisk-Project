@@ -312,3 +312,246 @@ CREATE TABLE `pcd_notification_send_log_table` (
 --      FAILED  → PENDING（人工触发重试，通过 update 语句重置）
 --   3. 建议每日清理超过30天的 SUCCESS 状态记录，避免表无限膨胀
 -- =====================================================================
+
+-- ============================================================
+-- 1. 用户标签表
+-- ============================================================
+DROP TABLE IF EXISTS pcd_tag_table;
+CREATE TABLE pcd_tag_table (
+    tag_id              BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '标签ID',
+    tag_user_id         BINARY(16)      NOT NULL                COMMENT '所属用户ID',
+    tag_name            VARCHAR(50)     NOT NULL                COMMENT '标签名称',
+    tag_color           VARCHAR(7)      NOT NULL DEFAULT '#3B82F6' COMMENT '标签颜色（HEX）',
+    tag_created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    FOREIGN KEY (tag_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    UNIQUE KEY uk_user_tag (tag_user_id, tag_name),
+    INDEX idx_tag_user (tag_user_id)
+) COMMENT='用户标签表';
+
+-- ============================================================
+-- 2. 文件标签关联表（多对多）
+-- ============================================================
+DROP TABLE IF EXISTS pcd_file_tag_table;
+CREATE TABLE pcd_file_tag_table (
+    ft_id               BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '关联ID',
+    ft_user_id          BINARY(16)      NOT NULL                COMMENT '用户ID（冗余，加速查询）',
+    ft_tag_id           BIGINT          NOT NULL                COMMENT '标签ID',
+    ft_target_type      ENUM('file', 'folder') NOT NULL         COMMENT '目标类型',
+    ft_file_id          BINARY(16)                              COMMENT '文件ID（target_type=file时）',
+    ft_node_id          BINARY(16)                              COMMENT '文件夹节点ID（target_type=folder时）',
+    ft_tagged_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '打标签时间',
+    FOREIGN KEY (ft_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (ft_tag_id) REFERENCES pcd_tag_table(tag_id) ON DELETE CASCADE,
+    UNIQUE KEY uk_file_tag (ft_user_id, ft_tag_id, ft_target_type, ft_file_id, ft_node_id),
+    INDEX idx_tag_file (ft_tag_id),
+    INDEX idx_file_tag (ft_file_id),
+    INDEX idx_node_tag (ft_node_id),
+    INDEX idx_user_tag (ft_user_id, ft_tag_id)
+) COMMENT='文件标签关联表';
+
+-- ============================================================
+-- 3. 最近访问记录表
+-- ============================================================
+DROP TABLE IF EXISTS pcd_recent_access_table;
+CREATE TABLE pcd_recent_access_table (
+    ra_id               BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
+    ra_user_id          BINARY(16)      NOT NULL                COMMENT '用户ID',
+    ra_target_type      ENUM('file', 'folder') NOT NULL         COMMENT '目标类型',
+    ra_file_id          BINARY(16)                              COMMENT '文件ID',
+    ra_node_id          BINARY(16)                              COMMENT '文件夹节点ID',
+    ra_access_type      ENUM('upload', 'download', 'open') NOT NULL COMMENT '访问类型',
+    ra_file_name        VARCHAR(255)    NOT NULL                COMMENT '文件/文件夹名称（冗余，避免JOIN）',
+    ra_file_size        BIGINT          NOT NULL DEFAULT 0      COMMENT '文件大小（冗余）',
+    ra_file_type        VARCHAR(60)     DEFAULT ''              COMMENT '文件类型（冗余）',
+    ra_accessed_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '访问时间',
+    FOREIGN KEY (ra_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    INDEX idx_ra_user_type_time (ra_user_id, ra_access_type, ra_accessed_at DESC),
+    INDEX idx_ra_user_time (ra_user_id, ra_accessed_at DESC)
+) COMMENT='最近访问记录表';
+
+-- ============================================================
+-- 4. 预设常用标签（新用户注册时自动创建）
+-- ============================================================
+-- 预设标签：合同、设计稿、项目A、财务报告、机密文件、个人文档、临时文件、重要资料
+
+-- =====================================================================
+-- PrivateCloudDisk 空间系统 — 数据库初始化
+-- =====================================================================
+-- 设计理念：
+--   每个空间是一个独立的网盘，拥有独立的配额、文件隔离和权限控制。
+--   用户可拥有多个空间（个人空间、企业空间、公共空间、团队空间）。
+--
+-- 空间类型：
+--   personal   — 个人主网盘，每个用户注册时自动创建，默认私有
+--   enterprise — 企业空间，支持细粒度权限管理和容量扩展
+--   public     — 公共空间，暴露给平台用户，支持白名单/黑名单可见性
+--   team       — 团队空间，类似群聊，成员加入需审批，自动创建IM群组
+--
+-- 权限模型：
+--   role（角色）+ permission（细粒度权限）双层控制
+--   角色：owner > admin > editor > viewer
+--   细粒度权限：can_read / can_write / can_delete / can_share / can_invite / can_manage
+-- =====================================================================
+
+-- =====================================================================
+-- 1. 空间主表
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS pcd_space_table (
+    space_id            BINARY(16)      NOT NULL PRIMARY KEY                  COMMENT '空间唯一ID',
+    space_name          VARCHAR(200)     NOT NULL                              COMMENT '空间名称',
+    space_type          ENUM('personal', 'enterprise', 'public', 'team')
+                                        NOT NULL                              COMMENT '空间类型',
+    space_owner_id      BINARY(16)      NOT NULL                              COMMENT '空间创建者/所有者',
+    space_quota         BIGINT          NOT NULL DEFAULT 10737418240          COMMENT '空间配额（字节），默认10GB',
+    space_used          BIGINT          NOT NULL DEFAULT 0                    COMMENT '已用容量（字节）',
+    space_file_count    INT             NOT NULL DEFAULT 0                    COMMENT '文件数量',
+    space_visibility    ENUM('private', 'public', 'whitelist', 'blacklist')
+                                        NOT NULL DEFAULT 'private'            COMMENT '可见性控制',
+    space_description   TEXT                                                    COMMENT '空间描述',
+    space_avatar_path   VARCHAR(512)                                            COMMENT '空间头像路径',
+    space_im_group_id   VARCHAR(100)                                            COMMENT '关联IM群组ID（企业/团队空间自动创建）',
+    space_created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '创建时间',
+    space_updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                        ON UPDATE CURRENT_TIMESTAMP           COMMENT '更新时间',
+    space_status        ENUM('active', 'disabled', 'deleted')
+                                        NOT NULL DEFAULT 'active'             COMMENT '空间状态',
+    FOREIGN KEY (space_owner_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    -- 同一用户下的空间名唯一，但不同用户可以创建同名空间（公共空间名全局唯一见下方）
+    UNIQUE KEY uk_space_name_owner (space_name, space_owner_id),
+    -- 公共空间的名字全局唯一，用于外部用户通过空间名访问
+    INDEX idx_space_type (space_type, space_status),
+    INDEX idx_space_owner (space_owner_id, space_status),
+    INDEX idx_space_visibility (space_visibility, space_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='空间主表';
+
+-- =====================================================================
+-- 2. 空间成员表
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS pcd_space_member_table (
+    member_id           BIGINT          PRIMARY KEY AUTO_INCREMENT            COMMENT '成员记录ID',
+    space_id            BINARY(16)      NOT NULL                              COMMENT '空间ID',
+    user_id             BINARY(16)      NOT NULL                              COMMENT '用户ID',
+    role                ENUM('owner', 'admin', 'editor', 'viewer')
+                                        NOT NULL DEFAULT 'viewer'             COMMENT '成员角色',
+    joined_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '加入时间',
+    invited_by          BINARY(16)                                              COMMENT '邀请人ID',
+    FOREIGN KEY (space_id) REFERENCES pcd_space_table(space_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (invited_by) REFERENCES pcd_user_info_table(user_id) ON DELETE SET NULL,
+    UNIQUE KEY uk_space_user (space_id, user_id),
+    INDEX idx_user_spaces (user_id, space_id),
+    INDEX idx_space_role (space_id, role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='空间成员表';
+
+-- =====================================================================
+-- 3. 空间细粒度权限表
+--    覆盖角色默认权限，支持自定义每个用户对特定文件/目录的权限
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS pcd_space_permission_table (
+    permission_id       BIGINT          PRIMARY KEY AUTO_INCREMENT            COMMENT '权限记录ID',
+    space_id            BINARY(16)      NOT NULL                              COMMENT '空间ID',
+    user_id             BINARY(16)      NOT NULL                              COMMENT '用户ID',
+    target_node_id      BINARY(16)      DEFAULT NULL                          COMMENT '目标节点ID（NULL=空间级权限，非NULL=目录级权限）',
+    can_read            TINYINT(1)      NOT NULL DEFAULT 1                    COMMENT '读权限',
+    can_write           TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '写权限（创建/修改文件）',
+    can_delete          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '删除权限',
+    can_share           TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '分享权限',
+    can_invite          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '邀请成员权限',
+    can_manage          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '管理权限（修改空间设置）',
+    granted_by          BINARY(16)                                              COMMENT '授权人ID',
+    granted_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '授权时间',
+    FOREIGN KEY (space_id) REFERENCES pcd_space_table(space_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (target_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES pcd_user_info_table(user_id) ON DELETE SET NULL,
+    UNIQUE KEY uk_space_user_node (space_id, user_id, target_node_id),
+    INDEX idx_space_user (space_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='空间细粒度权限表';
+
+-- =====================================================================
+-- 4. 空间加入申请表（团队/企业空间）
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS pcd_space_join_request_table (
+    request_id          BIGINT          PRIMARY KEY AUTO_INCREMENT            COMMENT '申请记录ID',
+    space_id            BINARY(16)      NOT NULL                              COMMENT '空间ID',
+    user_id             BINARY(16)      NOT NULL                              COMMENT '申请人ID',
+    request_message     TEXT                                                    COMMENT '申请留言',
+    status              ENUM('pending', 'approved', 'rejected')
+                                        NOT NULL DEFAULT 'pending'            COMMENT '申请状态',
+    reviewed_by         BINARY(16)                                              COMMENT '审批人ID',
+    reviewed_at         DATETIME                                                COMMENT '审批时间',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '申请时间',
+    FOREIGN KEY (space_id) REFERENCES pcd_space_table(space_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES pcd_user_info_table(user_id) ON DELETE SET NULL,
+    UNIQUE KEY uk_space_user_pending (space_id, user_id),
+    INDEX idx_space_pending (space_id, status),
+    INDEX idx_user_requests (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='空间加入申请表';
+
+-- =====================================================================
+-- 5. 空间可见性白名单/黑名单表（公共空间）
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS pcd_space_visibility_table (
+    visibility_id       BIGINT          PRIMARY KEY AUTO_INCREMENT            COMMENT '可见性记录ID',
+    space_id            BINARY(16)      NOT NULL                              COMMENT '空间ID',
+    user_id             BINARY(16)      NOT NULL                              COMMENT '用户ID',
+    list_type           ENUM('whitelist', 'blacklist')
+                                        NOT NULL                              COMMENT '名单类型',
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '添加时间',
+    FOREIGN KEY (space_id) REFERENCES pcd_space_table(space_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
+    UNIQUE KEY uk_space_user_list (space_id, user_id, list_type),
+    INDEX idx_space_whitelist (space_id, list_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='空间可见性白名单/黑名单表';
+
+-- =====================================================================
+-- 6. 为现有文件表和目录树表添加空间隔离字段
+-- =====================================================================
+ALTER TABLE pcd_file_info_table
+    ADD COLUMN file_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
+    ADD INDEX idx_file_space (file_space_id, file_status);
+
+ALTER TABLE pcd_directory_tree_table
+    ADD COLUMN node_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
+    ADD INDEX idx_node_space (node_space_id, node_status);
+
+-- =====================================================================
+-- 7. 为现有上传会话表添加空间隔离字段
+-- =====================================================================
+ALTER TABLE pcd_uploads_session_table
+    ADD COLUMN uploads_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
+    ADD INDEX idx_uploads_space (uploads_space_id, uploads_status);
+
+-- =====================================================================
+-- 8. 触发器：自动创建个人空间（用户注册时）
+-- =====================================================================
+DELIMITER //
+
+DROP TRIGGER IF EXISTS trg_create_personal_space//
+
+CREATE TRIGGER trg_create_personal_space
+AFTER INSERT ON pcd_user_info_table
+FOR EACH ROW
+BEGIN
+    DECLARE space_id_bin BINARY(16);
+    SET space_id_bin = UUID_TO_BIN(UUID());
+
+    -- 创建个人空间
+    INSERT INTO pcd_space_table (space_id, space_name, space_type, space_owner_id, space_visibility)
+    VALUES (space_id_bin, CONCAT(NEW.user_account, '的个人空间'), 'personal', NEW.user_id, 'private');
+
+    -- 自动将用户添加为空间所有者
+    INSERT INTO pcd_space_member_table (space_id, user_id, role)
+    VALUES (space_id_bin, NEW.user_id, 'owner');
+END//
+
+DELIMITER ;
+
+-- =====================================================================
+-- 角色默认权限映射（参考）
+-- =====================================================================
+-- owner:   can_read=1, can_write=1, can_delete=1, can_share=1, can_invite=1, can_manage=1
+-- admin:   can_read=1, can_write=1, can_delete=1, can_share=1, can_invite=1, can_manage=1
+-- editor:  can_read=1, can_write=1, can_delete=1, can_share=1, can_invite=0, can_manage=0
+-- viewer:  can_read=1, can_write=0, can_delete=0, can_share=0, can_invite=0, can_manage=0

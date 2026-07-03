@@ -9,17 +9,22 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/privateclouddisk/notification-service/internal/domain"
+	"github.com/privateclouddisk/notification-service/internal/templatefile"
 )
 
 // =============================================================================
 // TemplateRepo 模板仓库
 // =============================================================================
 type TemplateRepo struct {
-	db *sqlx.DB
+	db           *sqlx.DB
+	fileLoader   *templatefile.Loader
 }
 
 func NewTemplateRepo(db *sqlx.DB) *TemplateRepo {
-	return &TemplateRepo{db: db}
+	return &TemplateRepo{
+		db:         db,
+		fileLoader: templatefile.NewLoader(),
+	}
 }
 
 // GetByCode 根据模板 CODE + 渠道 + 语言获取模板
@@ -105,6 +110,17 @@ func (r *TemplateRepo) Create(t *domain.Template) (int64, error) {
 		return 0, fmt.Errorf("创建模板失败: %w", err)
 	}
 	return result.LastInsertId()
+}
+
+// GetByCodeFromFile 从嵌入模板文件系统加载模板
+func (r *TemplateRepo) GetByCodeFromFile(code, channel, lang string) (*domain.Template, error) {
+	return r.fileLoader.Get(code, channel, lang)
+}
+
+// ReloadFileTemplates 热加载嵌入模板文件
+func (r *TemplateRepo) ReloadFileTemplates() {
+	r.fileLoader.Reload()
+	log.Println("[Repository] 模板文件已热加载")
 }
 
 // =============================================================================

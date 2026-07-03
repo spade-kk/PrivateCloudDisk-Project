@@ -54,7 +54,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  getPlatform: () => ipcRenderer.invoke('window:getPlatform'),
   setTitle: (title) => ipcRenderer.send('window:setTitle', title),
+  setResizable: (resizable) => ipcRenderer.send('window:setResizable', resizable),
+  setMaximizable: (maximizable) => ipcRenderer.send('window:setMaximizable', maximizable),
+  setSize: (width, height) => ipcRenderer.send('window:setSize', width, height),
+  getSize: () => ipcRenderer.invoke('window:getSize'),
+  center: () => ipcRenderer.send('window:center'),
+
+  // ==================== 菜单 ====================
+
+  /** 获取菜单模板（Windows 自定义标题栏菜单用） */
+  getMenuTemplate: () => ipcRenderer.invoke('menu:getTemplate'),
+  /** 执行菜单项操作 */
+  executeMenuAction: (menuId) => ipcRenderer.invoke('menu:execute', menuId),
 
   // ==================== 通知 ====================
 
@@ -97,6 +111,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'menu:go-back',
       'menu:check-update',
       'update:download-progress',
+      'window:maximizeChange',
       'vd:event'
     ]
     if (validChannels.includes(channel)) {

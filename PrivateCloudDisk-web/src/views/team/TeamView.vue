@@ -26,7 +26,8 @@
     <!-- 成员列表 -->
     <div v-if="activeTab === 'members'" class="space-y-4">
       <div class="responsive-panel overflow-hidden">
-        <div class="overflow-x-auto">
+        <!-- 桌面端表格 -->
+        <div class="hidden overflow-x-auto sm:block">
           <table class="w-full text-left text-sm">
             <thead>
               <tr class="border-b border-neutral-100 bg-neutral-50/50">
@@ -58,11 +59,33 @@
                 </td>
                 <td class="px-4 py-3 text-xs text-neutral-400">{{ member.joinedAt }}</td>
                 <td class="px-4 py-3 text-right">
-                  <button class="text-sm text-neutral-400 hover:text-primary"><i class="fa fa-ellipsis-h"></i></button>
+                  <button class="touch-button text-sm text-neutral-400 hover:text-primary"><i class="fa fa-ellipsis-h"></i></button>
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+        <!-- 移动端卡片列表 -->
+        <div class="divide-y sm:hidden">
+          <div v-for="member in teamMembers" :key="member.id" class="flex items-center gap-3 px-4 py-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+              {{ member.avatar || member.name?.charAt(0) }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-medium text-neutral-700">{{ member.name }}</p>
+                <StatusBadge :status="member.status" :dot="true" />
+              </div>
+              <p class="text-xs text-neutral-400">{{ member.email }}</p>
+              <div class="mt-1 flex items-center gap-2 text-xs">
+                <StatusBadge :status="member.role" :statusMap="{ owner: 'bg-purple-100 text-purple-700', admin: 'bg-primary/10 text-primary', editor: 'bg-info/10 text-info', viewer: 'bg-neutral-100 text-neutral-500' }" size="sm" />
+                <span class="text-neutral-400">{{ member.joinedAt }}</span>
+              </div>
+            </div>
+            <button class="touch-button shrink-0 rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-primary">
+              <i class="fa fa-ellipsis-h"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>

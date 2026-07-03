@@ -4,6 +4,7 @@ import org.opensearch.search.builder.SearchSourceBuilderException;
 import org.project.config.RabbitMQConifgure;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
+import org.project.model.dto.LazyUploadSessionResponse;
 import org.project.model.dto.message.UploadSessionDeleteEvent;
 import org.project.model.dto.message.UploadSessionDeletedEvent;
 import org.project.model.entity.FileEntity;
@@ -327,5 +328,40 @@ public class UploadsServiceImpl implements UploadsService {
         //Active Node Unlock
         folderNodeMapper.updateFolderNodeStatusByIdAndUserId(FolderNodeEntity.NodeStatus.active, fileData.getNode_id(), user_id);
         fileMapper.updateUserFileStatusById(file_id, FileEntity.FileStatus.active, user_id);
+    }
+
+    @Override
+    @Transactional
+    public LazyUploadSessionResponse createLazyUploadSession(
+            int total_chunks, long file_size, String file_checksum, int chunks_max_size,
+            String file_name, String file_type, UUID user_id,
+            UUID parentNodeId, String relativePath, String breadcrumbPath, String clientIp) {
+
+        UUID targetNodeId;
+
+        // 确定目标节点：优先 relative_path > breadcrumb_path > parentNodeId 直接使用
+        if (relativePath != null && !relativePath.isBlank()) {
+            // 模式1：node_id + 相对路径
+            if (parentNodeId == null) {
+                throw new IllegalArgumentException("node_id + 相对路径模式需要 parent_node_id");
+            }
+            targetNodeId = directoryTreeService.ensureFolderPath(user_id, parentNodeId, relativePath);
+        } else if (breadcrumbPath != null && !breadcrumbPath.isBlank()) {
+            // 模式2：纯面包屑路径
+            targetNodeId = directoryTreeService.ensureFolderPath(user_id, breadcrumbPath);
+        } else {
+            // 模式3：普通单文件上传（使用已有 node_id）
+            if (parentNodeId == null) {
+                throw new IllegalArgumentException("必须提供 parent_node_id、relative_path 或 breadcrumb_path");
+            }
+            targetNodeId = parentNodeId;
+        }
+
+        // 创建上传会话（复用现有逻辑）
+        UUID uploadsId = createUploadsSession(
+                total_chunks, file_size, file_checksum, chunks_max_size,
+                file_name, file_type, user_id, targetNodeId, clientIp);
+
+        return LazyUploadSessionResponse.of(uploadsId.toString(), targetNodeId.toString());
     }
 }

@@ -151,7 +151,8 @@
 
       <!-- 大文件表格 -->
       <div v-else class="responsive-panel overflow-hidden">
-        <div class="overflow-x-auto">
+        <!-- 桌面端表格 -->
+        <div class="hidden overflow-x-auto sm:block">
           <table class="w-full text-left text-sm">
             <thead>
               <tr class="border-b border-neutral-100 bg-neutral-50/50">
@@ -182,13 +183,35 @@
                 </td>
                 <td class="px-4 py-3 text-neutral-400 hidden sm:table-cell">{{ formatTime(file.modifiedAt) }}</td>
                 <td class="px-4 py-3 text-right">
-                  <button class="rounded-lg px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10">
+                  <button class="touch-button rounded-lg px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10">
                     查看
                   </button>
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+        <!-- 移动端卡片列表 -->
+        <div class="divide-y sm:hidden">
+          <div
+            v-for="(file, i) in largeFiles"
+            :key="i"
+            class="flex items-center gap-3 px-4 py-3"
+          >
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100">
+              <i :class="getFileIcon(file.ext)" class="text-neutral-500 text-lg"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-neutral-700 truncate">{{ file.name }}</p>
+              <div class="mt-0.5 flex items-center gap-2 text-xs text-neutral-400">
+                <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-xs">{{ file.typeLabel }}</span>
+                <span class="font-medium text-neutral-600">{{ formatSize(file.size) }}</span>
+              </div>
+            </div>
+            <button class="touch-button shrink-0 rounded-lg border border-primary px-3 py-1.5 text-xs text-primary">
+              查看
+            </button>
+          </div>
         </div>
       </div>
     </template>

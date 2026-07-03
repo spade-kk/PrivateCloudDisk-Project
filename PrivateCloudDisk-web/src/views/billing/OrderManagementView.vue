@@ -68,8 +68,8 @@
         </button>
       </div>
 
-      <!-- 订单列表 -->
-      <div class="overflow-x-auto">
+      <!-- 订单列表（桌面端表格） -->
+      <div class="hidden overflow-x-auto sm:block">
         <table class="w-full text-left text-sm">
           <thead>
             <tr class="border-b border-neutral-100 bg-neutral-50/50">
@@ -127,28 +127,54 @@
               </td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-2">
-                  <button @click="handleViewDetail(order)" class="text-sm text-primary hover:underline">
-                    <i class="fa fa-eye mr-1"></i>查看
-                  </button>
-                  <button
-                    v-if="order.status === 'pending_payment'"
-                    @click="handlePay(order)"
-                    class="text-sm text-success hover:underline"
-                  >
-                    <i class="fa fa-credit-card mr-1"></i>支付
-                  </button>
-                  <button
-                    v-if="order.status === 'paid'"
-                    @click="handleRefund(order)"
-                    class="text-sm text-danger hover:underline"
-                  >
-                    <i class="fa fa-undo mr-1"></i>退款
-                  </button>
+                  <button v-if="order.status === 'pending'" @click="goPay(order)" class="touch-button rounded border border-primary px-3 py-1 text-xs text-primary hover:bg-primary/5">去支付</button>
+                  <button @click="viewDetail(order)" class="touch-button rounded border border-neutral-200 px-3 py-1 text-xs text-neutral-500 hover:bg-neutral-50">详情</button>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <!-- 移动端卡片列表 -->
+      <div class="divide-y sm:hidden">
+        <div v-if="ordersLoading" class="px-4 py-12 text-center">
+          <i class="fa fa-spinner fa-spin text-xl text-primary"></i>
+          <p class="mt-2 text-sm text-neutral-400">加载中...</p>
+        </div>
+        <div v-else-if="orders.length === 0" class="px-4 py-12 text-center">
+          <i class="fa fa-inbox text-4xl text-neutral-300"></i>
+          <p class="mt-2 text-sm text-neutral-400">暂无订单记录</p>
+        </div>
+        <div
+          v-else
+          v-for="order in orders"
+          :key="order.order_id"
+          class="px-4 py-3"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-neutral-700">{{ order.plan_name }}</span>
+                <StatusBadge :status="order.status" :text="orderStatusText[order.status]" size="sm" />
+              </div>
+              <p class="mt-0.5 font-mono text-xs text-neutral-400">{{ order.order_no }}</p>
+              <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-500">
+                <span class="font-medium text-neutral-800">¥{{ formatPrice(order.final_price) }}</span>
+                <span v-if="order.discount_amount > 0" class="text-danger">-¥{{ formatPrice(order.discount_amount) }}</span>
+                <span>{{ billingCycleText[order.plan_cycle] }}</span>
+                <span>{{ order.payment_channel ? paymentChannelText[order.payment_channel] : '-' }}</span>
+                <span class="text-neutral-400">{{ formatDate(order.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="order.status === 'pending'" class="mt-2 flex gap-2">
+            <button @click="goPay(order)" class="touch-button flex-1 rounded-lg border border-primary px-3 py-1.5 text-xs text-primary">去支付</button>
+            <button @click="viewDetail(order)" class="touch-button rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500">详情</button>
+          </div>
+          <div v-else class="mt-2">
+            <button @click="viewDetail(order)" class="touch-button w-full rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-500">查看详情</button>
+          </div>
+        </div>
       </div>
 
       <!-- 分页 -->

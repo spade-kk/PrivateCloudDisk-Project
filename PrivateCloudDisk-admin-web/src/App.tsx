@@ -22,6 +22,10 @@ import SystemConfigPage from '@/pages/SystemConfigPage'
 import SystemResourcesPage from '@/pages/SystemResourcesPage'
 import ApiDocsPage from '@/pages/ApiDocsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import UserDetailPage from '@/pages/UserDetailPage'
+import AvatarAuditPage from '@/pages/AvatarAuditPage'
+import OrdersPage from '@/pages/OrdersPage'
+import FileMetadataPage from '@/pages/FileMetadataPage'
 
 /** 路由守卫组件 - 未登录跳转登录页 */
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -79,16 +83,22 @@ function AppRoutes() {
 
         {/* 用户管理 */}
         <Route path="users" element={<UsersPage />} />
+        <Route path="users/:userId" element={<UserDetailPage />} />
         <Route path="users/online" element={<OnlineUsersPage />} />
 
         {/* 文件管理 */}
         <Route path="files" element={<FilesPage />} />
+        <Route path="files/metadata" element={<FileMetadataPage />} />
         <Route path="files/quarantined" element={<QuarantinedFilesPage />} />
         <Route path="files/storage" element={<StorageStatsPage />} />
 
         {/* 安全中心 */}
         <Route path="security/events" element={<SecurityEventsPage />} />
         <Route path="security/ip-blacklist" element={<IPBlacklistPage />} />
+        <Route path="security/avatar-audit" element={<AvatarAuditPage />} />
+
+        {/* 订单管理 */}
+        <Route path="orders" element={<OrdersPage />} />
 
         {/* 审计日志 */}
         <Route path="audit" element={<AuditLogsPage />} />

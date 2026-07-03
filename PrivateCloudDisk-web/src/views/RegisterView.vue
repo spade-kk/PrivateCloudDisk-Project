@@ -1,5 +1,5 @@
 <template>
-  <main class="h-screen h-[100dvh] overflow-y-auto overscroll-contain bg-gradient-to-br from-slate-50 via-emerald-50 to-blue-50 px-3 py-4 sm:px-5 sm:py-6 xl:px-8">
+  <main class="min-h-screen min-h-[100dvh] overflow-y-auto overscroll-contain bg-gradient-to-br from-slate-50 via-emerald-50 to-blue-50 px-3 py-4 sm:px-5 sm:py-6 xl:px-8">
     <div class="mx-auto grid min-h-full max-w-[1240px] gap-4 md:gap-5 xl:grid-cols-[minmax(0,1.02fr)_minmax(430px,0.98fr)]">
       <section
         class="relative hidden min-h-[680px] flex-col justify-between overflow-hidden rounded-lg border border-slate-300/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl xl:flex"
@@ -51,9 +51,9 @@
         </div>
       </section>
 
-      <section class="flex min-h-full items-start justify-center py-1 sm:py-3 xl:items-center xl:py-0">
-        <div class="w-full max-w-[480px] animate-fadeIn rounded-lg border border-slate-300/70 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-7 xl:max-w-none xl:p-8">
-          <div class="mb-5 flex items-center justify-between gap-3 rounded-lg border border-teal-700/10 bg-teal-50/70 p-3 xl:hidden">
+      <section class="flex min-h-full items-start justify-center py-2 sm:py-4 xl:items-center xl:py-0">
+        <div class="w-full max-w-[480px] animate-fadeIn rounded-lg border border-slate-300/70 bg-white/90 p-4 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-7 xl:max-w-none xl:p-8">
+          <div class="mb-4 flex items-center justify-between gap-2 rounded-lg border border-teal-700/10 bg-teal-50/70 p-2.5 sm:p-3 xl:hidden">
             <div class="flex min-w-0 items-center gap-3">
               <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-white shadow-[0_10px_24px_rgba(22,93,255,0.22)]">
                 <i class="fa fa-cloud"></i>
@@ -73,7 +73,7 @@
               <i class="fa fa-user-plus"></i>
               新账号注册
             </span>
-            <h2 class="mt-4 text-[28px] font-extrabold text-slate-800 sm:text-3xl">创建账号</h2>
+            <h2 class="mt-4 text-2xl font-extrabold text-slate-800 sm:text-3xl">创建账号</h2>
             <p class="mt-2 text-sm leading-6 text-slate-500 sm:text-base">请使用真实邮箱接收验证码，后续可用于协作通知和账号安全提醒。</p>
           </div>
 

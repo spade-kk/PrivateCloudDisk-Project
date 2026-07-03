@@ -34,10 +34,25 @@ export default function App() {
     })
     if (uploadCleanup) cleanupFns.push(uploadCleanup)
 
+    const newFolderCleanup = window.electronAPI?.on?.('menu:new-folder', () => {
+      window.dispatchEvent(new CustomEvent('menu:new-folder'))
+    })
+    if (newFolderCleanup) cleanupFns.push(newFolderCleanup)
+
     const navCleanup = window.electronAPI?.on?.('menu:navigate', (path) => {
       router.navigate(`/${path}`)
     })
     if (navCleanup) cleanupFns.push(navCleanup)
+
+    const goBackCleanup = window.electronAPI?.on?.('menu:go-back', () => {
+      window.dispatchEvent(new CustomEvent('menu:go-back'))
+    })
+    if (goBackCleanup) cleanupFns.push(goBackCleanup)
+
+    const checkUpdateCleanup = window.electronAPI?.on?.('menu:check-update', () => {
+      window.dispatchEvent(new CustomEvent('menu:check-update'))
+    })
+    if (checkUpdateCleanup) cleanupFns.push(checkUpdateCleanup)
 
     return () => cleanupFns.forEach(fn => fn())
   }, [])

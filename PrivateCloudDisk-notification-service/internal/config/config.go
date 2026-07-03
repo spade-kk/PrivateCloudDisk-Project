@@ -24,9 +24,11 @@ type Config struct {
 	WeChatMP     WeChatMPConfig     `yaml:"wechat_mp"`
 	AlipayMP     AlipayMPConfig     `yaml:"alipay_mp"`
 	WebPush      WebPushConfig      `yaml:"webpush"`
+	WS           WSConfig           `yaml:"ws"`
 	Worker       WorkerConfig       `yaml:"worker"`
 	Turnstile    TurnstileConfig    `yaml:"turnstile"`
 	Verification VerificationConfig `yaml:"verification"`
+	Template     TemplateConfig     `yaml:"template"`
 }
 
 // ServerConfig HTTP 服务配置
@@ -145,6 +147,21 @@ type WebPushConfig struct {
 	Subject      string `yaml:"subject"`
 }
 
+// WSConfig WebSocket 系统推送配置
+type WSConfig struct {
+	Enabled             bool   `yaml:"enabled"`
+	Port                string `yaml:"port"`                  // WS 独立端口，默认 8085
+	Path                string `yaml:"path"`                  // WS 路径，默认 /ws/system
+	RedisOfflinePrefix  string `yaml:"redis_offline_prefix"`  // 离线消息 Redis key 前缀
+	MaxOfflineMessages  int    `yaml:"max_offline_messages"`  // 最大离线消息数，默认 50
+	OfflineMessageTTLDays int  `yaml:"offline_message_ttl_days"` // 离线消息过期天数，默认 7
+}
+
+// TemplateConfig 模板配置
+type TemplateConfig struct {
+	DefaultSource string `yaml:"default_source"` // 默认模板源：database / file，默认 database
+}
+
 // WorkerConfig Worker 进程配置
 type WorkerConfig struct {
 	Concurrency               int `yaml:"concurrency"`
@@ -253,6 +270,14 @@ func DefaultConfig() *Config {
 			VAPIDPrivate: envStr("WEBPUSH_VAPID_PRIVATE", ""),
 			Subject:      envStr("WEBPUSH_SUBJECT", ""),
 		},
+		WS: WSConfig{
+			Enabled:              envBool("WS_ENABLED", true),
+			Port:                 envStr("WS_PORT", "8085"),
+			Path:                 envStr("WS_PATH", "/ws/system"),
+			RedisOfflinePrefix:   envStr("WS_REDIS_OFFLINE_PREFIX", "ws:offline:"),
+			MaxOfflineMessages:   envInt("WS_MAX_OFFLINE_MESSAGES", 50),
+			OfflineMessageTTLDays: envInt("WS_OFFLINE_MSG_TTL_DAYS", 7),
+		},
 		Worker: WorkerConfig{
 			Concurrency:                envInt("WORKER_CONCURRENCY", 10),
 			PrefetchCount:              envInt("WORKER_PREFETCH_COUNT", 5),
@@ -274,6 +299,9 @@ func DefaultConfig() *Config {
 		},
 		Verification: VerificationConfig{
 			BlockedDomains: envStr("VERIFICATION_BLOCKED_DOMAINS", "qq.com,163.com,126.com"),
+		},
+		Template: TemplateConfig{
+			DefaultSource: envStr("TEMPLATE_DEFAULT_SOURCE", "database"),
 		},
 	}
 }

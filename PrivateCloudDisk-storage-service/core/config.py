@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # ====== 旧版文件处理（保留兼容，逐步迁移） ======
     file_process_exchange: str = "pcd.file.process.exchange"
-    file_process_queue: str = "pcd.file.process.queue"
+    # file_process_queue: str = "pcd.file.process.queue"
     file_process_routing_key: str = "file.process"
     file_process_dlx: str = "pcd.file.process.dlx"
     file_process_dlq: str = "pcd.file.process.dlq"
@@ -188,6 +188,8 @@ class Settings(BaseSettings):
     file_merge_failed_routing_key: str = "file.merge.failed"
     file_scan_failed_queue: str = "pcd.file.scan.failed.queue"
     file_scan_failed_routing_key: str = "file.scan.failed"
+    file_downloaded_queue: str = "pcd.file.downloaded.queue"
+    file_downloaded_routing_key: str = "file.scan.file.downloaded"
 
     # ========== OpenAPI 文档开关 ==========
     # 生产环境设为 false 关闭 /docs /redoc /openapi.json
@@ -255,6 +257,15 @@ class FailureReason:
 # ========== 文件类型常量 ==========
 IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml"})
 VIDEO_TYPES = frozenset({"video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-msvideo", "video/x-matroska"})
+
+REDIS_BACKEND_MASTER_KEY = "backend:task:{backend_task_id}:master"
+REDIS_BACKEND_EVENT_KEY = "backend:task:{backend_task_id}:{stage}"
+
+MASTER_TASK_TTL = 30000
+EVENT_STATUS_TTL = 30000
+
+REDIS_ENHANCE_EVENT_KEY = "enhance:task:{enhance_task_id}:{stage}"
+REDIS_ENHANCE_MASTER_KEY = "enhance:task:{enhance_task_id}:master"
 
 # ========== 任务流水线拆分 ==========
 # 旧版流水线（保留兼容）

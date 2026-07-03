@@ -390,6 +390,74 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
     savedProgress.value = null
   }
 
+  /** 显示控制栏 */
+  function showControls(): void {
+    controlsVisible.value = true
+    if (controlsTimer.value) {
+      clearTimeout(controlsTimer.value)
+      controlsTimer.value = null
+    }
+    if (playing.value) {
+      controlsTimer.value = setTimeout(() => {
+        controlsVisible.value = false
+      }, 3000)
+    }
+  }
+
+  /** 隐藏控制栏 */
+  function hideControls(): void {
+    controlsVisible.value = false
+    if (controlsTimer.value) {
+      clearTimeout(controlsTimer.value)
+      controlsTimer.value = null
+    }
+  }
+
+  /** 保存播放进度 */
+  async function saveProgress(): Promise<void> {
+    if (!currentFile.value || duration.value <= 0) return
+    try {
+      await saveVideoProgressApi(currentFile.value.node_id, {
+        currentTime: currentTime.value,
+        duration: duration.value,
+        resolution: currentResolution.value,
+        playbackRate: playbackRate.value,
+      })
+    } catch {
+      // 静默失败
+    }
+  }
+
+  /** 重置整个播放器状态 */
+  function reset(): void {
+    resetPlaybackState()
+    if (hlsInstance.value) {
+      hlsInstance.value.destroy()
+      hlsInstance.value = null
+    }
+    if (controlsTimer.value) {
+      clearTimeout(controlsTimer.value)
+      controlsTimer.value = null
+    }
+    loading.value = false
+    error.value = null
+    streamInfo.value = null
+    spriteInfo.value = null
+    subtitles.value = []
+    activeSubtitle.value = null
+    streamToken.value = ''
+    tokenExpiresAt.value = 0
+    currentFile.value = null
+    currentResolution.value = 'auto'
+    playbackRate.value = 1
+    volume.value = 1
+    muted.value = false
+    isFullscreen.value = false
+    isPiP.value = false
+    controlsVisible.value = true
+    watchHistory.value = []
+  }
+
   return {
     currentFile,
     streamInfo,
@@ -445,6 +513,10 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
     setSubtitle,
     toggleFullscreen,
     togglePiP,
+    showControls,
+    hideControls,
+    saveProgress,
+    reset,
     onLoadedMetadata,
     onTimeUpdate,
     onWaiting,

@@ -74,7 +74,8 @@
       <div class="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
         <h3 class="text-base font-semibold text-neutral-700">账单历史</h3>
       </div>
-      <div class="overflow-x-auto">
+      <!-- 桌面端表格 -->
+      <div class="hidden overflow-x-auto sm:block">
         <table class="w-full text-left text-sm">
           <thead>
             <tr class="border-b border-neutral-100 bg-neutral-50/50">
@@ -94,11 +95,32 @@
               <td class="px-4 py-3"><StatusBadge :status="bill.status" /></td>
               <td class="px-4 py-3 text-xs text-neutral-400">{{ bill.date }}</td>
               <td class="px-4 py-3 text-right">
-                <button class="text-sm text-primary hover:underline"><i class="fa fa-download mr-1"></i>下载</button>
+                <button class="touch-button text-sm text-primary hover:underline"><i class="fa fa-download mr-1"></i>下载</button>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <!-- 移动端卡片列表 -->
+      <div class="divide-y sm:hidden">
+        <div v-for="bill in bills" :key="bill.id" class="px-4 py-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-neutral-700">{{ bill.plan }}</span>
+                <StatusBadge :status="bill.status" size="sm" />
+              </div>
+              <p class="mt-0.5 font-mono text-xs text-neutral-400">{{ bill.id }}</p>
+              <div class="mt-1 flex items-center gap-3 text-xs text-neutral-500">
+                <span class="font-medium text-neutral-700">¥{{ bill.amount }}</span>
+                <span>{{ bill.date }}</span>
+              </div>
+            </div>
+            <button class="touch-button shrink-0 rounded-lg border border-primary px-3 py-1.5 text-xs text-primary">
+              <i class="fa fa-download mr-1"></i>下载
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

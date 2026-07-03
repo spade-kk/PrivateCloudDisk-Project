@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
 import org.project.model.dto.message.FileAvailableEvent;
 import org.project.service.UserQuotaService;
+import org.project.service.RecentAccessService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -19,12 +20,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * 文件可获得事件消费者
  * <p>
- * 监听文件完成合并+扫毒后发布的可获得事件，提交配额：
- * <pre>
- *   released -= fileSize
- *   used     += fileSize
- *   file_count += 1
- * </pre>
+ * 监听文件完成合并+扫毒后发布的可获得事件：
+ * <ol>
+ *   <li>提交配额：released -= fileSize, used += fileSize, file_count += 1</li>
+ *   <li>记录最近上传</li>
+ * </ol>
  * <p>
  * 幂等保证：通过 Redis 记录事件ID，防止重复消费。
  */
@@ -37,6 +37,7 @@ public class FileAvailableConsumer {
     private static final long IDEMPOTENT_TTL_HOURS = 72;
 
     private final UserQuotaService userQuotaService;
+    private final RecentAccessService recentAccessService;
     private final RedisTemplate<String, String> redisTemplate;
 
     @RabbitListener(queues = RabbitMQConifgure.QUEUE_FILE_AVAILABLE,
@@ -61,7 +62,18 @@ public class FileAvailableConsumer {
             UUID userId = UUID.fromString(event.getUserId());
             userQuotaService.commitQuota(userId, event.getFileSize());
 
-            log.info("文件可获得事件处理完成（配额已提交）: eventId={}, fileId={}", event.getEventId(), event.getFileId());
+            // 记录最近上传
+            recentAccessService.recordAccess(
+                    userId,
+                    event.getFileId(),
+                    "file",
+                    "upload",
+                    event.getFileName(),
+                    event.getFileSize(),
+                    event.getFileType()
+            );
+
+            log.info("文件可获得事件处理完成（配额已提交 + 最近上传已记录）: eventId={}, fileId={}", event.getEventId(), event.getFileId());
             channel.basicAck(deliveryTag, false);
 
         } catch (Exception e) {

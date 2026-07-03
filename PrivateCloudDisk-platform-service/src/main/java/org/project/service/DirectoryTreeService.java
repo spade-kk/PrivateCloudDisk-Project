@@ -111,4 +111,33 @@ public interface DirectoryTreeService {
      * @return 文件元数据列表
      */
     List<FileEntity> findActiveFilesRecursive(UUID nodeId, UUID userId);
+
+    /**
+     * 懒创建文件夹路径（node_id + 相对路径模式）。
+     * 从 parentNodeId 开始，逐级 ensure 相对路径中的每一级文件夹存在。
+     * 幂等：已存在的文件夹直接返回，不存在则创建。
+     * <p>
+     * 校验：路径长度 ≤ 1024、深度 ≤ MAX_DIRECTORY_DEPTH、每级子节点 ≤ 1000、
+     * 用户总文件夹 ≤ 100,000、创建速率 ≤ 100/min/user。
+     *
+     * @param userId       用户 ID
+     * @param parentNodeId 父节点 ID
+     * @param relativePath 相对路径（如 "subfolder1/subfolder2"）
+     * @return 最终文件夹节点 ID
+     */
+    UUID ensureFolderPath(UUID userId, UUID parentNodeId, String relativePath);
+
+    /**
+     * 懒创建文件夹路径（纯面包屑路径模式）。
+     * 从根节点开始，逐级 ensure 面包屑路径中的每一级文件夹存在。
+     * 幂等：已存在的文件夹直接返回，不存在则创建。
+     * <p>
+     * 校验：路径长度 ≤ 1024、深度 ≤ MAX_DIRECTORY_DEPTH、每级子节点 ≤ 1000、
+     * 用户总文件夹 ≤ 100,000、创建速率 ≤ 100/min/user。
+     *
+     * @param userId         用户 ID
+     * @param breadcrumbPath 面包屑路径（如 "/root/folder1/subfolder2"）
+     * @return 最终文件夹节点 ID
+     */
+    UUID ensureFolderPath(UUID userId, String breadcrumbPath);
 }

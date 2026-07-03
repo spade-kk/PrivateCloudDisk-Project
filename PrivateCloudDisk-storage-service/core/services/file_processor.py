@@ -15,7 +15,6 @@ from core.pipeline.transcode_pipeline import TranscodePipeline, TranscodeResult
 from core.pipeline.hls_transcode_pipeline import HlsTranscodePipeline, HlsTranscodeResult
 from core.pipeline.mark_active_pipeline import MarkActivePipeline, MarkActiveResult
 from core.pipeline.content_index_pipeline import ContentIndexPipeline, ContentIndexResult
-from core.services.notification_service import NotificationService
 
 logger = logging.getLogger("file_processor")
 

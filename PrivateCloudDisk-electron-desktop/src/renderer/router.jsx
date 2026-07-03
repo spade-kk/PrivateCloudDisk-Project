@@ -16,6 +16,7 @@
 import { createHashRouter } from 'react-router-dom'
 import Layout from '@/components/Layout'
 import LoginPage from '@/pages/Login'
+import RegisterPage from '@/pages/Register'
 import HomePage from '@/pages/Home'
 import FavoritesPage from '@/pages/Favorites'
 import TrashPage from '@/pages/Trash'
@@ -29,6 +30,10 @@ const router = createHashRouter([
   {
     path: '/login',
     element: <LoginPage />
+  },
+  {
+    path: '/register',
+    element: <RegisterPage />
   },
   {
     path: '/',

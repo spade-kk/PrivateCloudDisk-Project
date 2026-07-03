@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * RabbitMQ消息队列配置（企业级标准实现）
+ * RabbitMQ消息队列配置
  *
  * <p>设计原则：
  * <ol>
@@ -90,14 +90,14 @@ public class RabbitMQConifgure {
     public static final String REGISTER_ROUTING_KEY = BUSINESS_ROUTING_KEY;
 
     // 文件处理队列（由文件服务消费）
-    public static final String FILE_PROCESS_QUEUE = "pcd.file.process.queue";
-    public static final String FILE_PROCESS_EXCHANGE = "pcd.file.process.exchange";
-    public static final String FILE_PROCESS_ROUTING_KEY = "file.process";
+    // public static final String FILE_PROCESS_QUEUE = "pcd.file.process.queue";
+    // public static final String FILE_PROCESS_EXCHANGE = "pcd.file.process.exchange";
+    // public static final String FILE_PROCESS_ROUTING_KEY = "file.process";
 
     // 文件处理死信交换机（与 Python Worker 保持一致）
-    public static final String FILE_PROCESS_DLX = "pcd.file.process.dlx";
-    public static final String FILE_PROCESS_DLQ = "pcd.file.process.dlq";
-    public static final String FILE_PROCESS_DLQ_ROUTING_KEY = "file.process.dlq";
+    // public static final String FILE_PROCESS_DLX = "pcd.file.process.dlx";
+    // public static final String FILE_PROCESS_DLQ = "pcd.file.process.dlq";
+    // public static final String FILE_PROCESS_DLQ_ROUTING_KEY = "file.process.dlq";
 
     // 文件删除队列（由文件服务消费）
     public static final String FILE_DELETE_QUEUE = "pcd.file.delete.queue";
@@ -135,6 +135,10 @@ public class RabbitMQConifgure {
     // 文件扫毒失败事件（消费者：主业务服务 → 回滚配额）
     public static final String QUEUE_FILE_SCAN_FAILED = "pcd.file.scan.failed.queue";
     public static final String ROUTING_FILE_SCAN_FAILED = "file.scan.failed";
+
+    // 文件下载完成事件（消费者：主业务服务 → 记录最近下载）
+    public static final String QUEUE_FILE_DOWNLOADED = "pcd.file.downloaded.queue";
+    public static final String ROUTING_FILE_DOWNLOADED = "file.downloaded";
 
     // ==================== 上传会话事件交换机 ====================
 
@@ -288,52 +292,52 @@ public class RabbitMQConifgure {
     /**
      * 文件处理死信交换机（与 Python Worker 保持一致）
      */
-    @Bean
-    public DirectExchange fileProcessDlxExchange() {
-        return new DirectExchange(FILE_PROCESS_DLX);
-    }
+    // @Bean
+    // public DirectExchange fileProcessDlxExchange() {
+    //     return new DirectExchange(FILE_PROCESS_DLX);
+    // }
 
-    /**
-     * 文件处理死信队列（与 Python Worker 保持一致的 30 天 TTL）
-     */
-    @Bean
-    public Queue fileProcessDlq() {
-        return QueueBuilder
-                .durable(FILE_PROCESS_DLQ)
-                .withArgument("x-message-ttl", 2592000000L) // 30 天，与 Python Worker 一致
-                .build();
-    }
+    // /**
+    //  * 文件处理死信队列（与 Python Worker 保持一致的 30 天 TTL）
+    //  */
+    // @Bean
+    // public Queue fileProcessDlq() {
+    //     return QueueBuilder
+    //             .durable(FILE_PROCESS_DLQ)
+    //             .withArgument("x-message-ttl", 2592000000L) // 30 天，与 Python Worker 一致
+    //             .build();
+    // }
 
-    @Bean
-    public Binding fileProcessDlqBinding() {
-        return BindingBuilder
-                .bind(fileProcessDlq())
-                .to(fileProcessDlxExchange())
-                .with(FILE_PROCESS_DLQ_ROUTING_KEY);
-    }
+    // @Bean
+    // public Binding fileProcessDlqBinding() {
+    //     return BindingBuilder
+    //             .bind(fileProcessDlq())
+    //             .to(fileProcessDlxExchange())
+    //             .with(FILE_PROCESS_DLQ_ROUTING_KEY);
+    // }
 
-    @Bean
-    public Queue fileProcessQueue() {
-        return QueueBuilder
-                .durable(FILE_PROCESS_QUEUE)
-                .deadLetterExchange(FILE_PROCESS_DLX)
-                .deadLetterRoutingKey(FILE_PROCESS_DLQ_ROUTING_KEY)
-                .ttl(7 * 24 * 60 * 60 * 1000)
-                .build();
-    }
+    // @Bean
+    // public Queue fileProcessQueue() {
+    //     return QueueBuilder
+    //             .durable(FILE_PROCESS_QUEUE)
+    //             .deadLetterExchange(FILE_PROCESS_DLX)
+    //             .deadLetterRoutingKey(FILE_PROCESS_DLQ_ROUTING_KEY)
+    //             .ttl(7 * 24 * 60 * 60 * 1000)
+    //             .build();
+    // }
 
-    @Bean
-    public DirectExchange fileProcessExchange() {
-        return new DirectExchange(FILE_PROCESS_EXCHANGE);
-    }
+    // @Bean
+    // public DirectExchange fileProcessExchange() {
+    //     return new DirectExchange(FILE_PROCESS_EXCHANGE);
+    // }
 
-    @Bean
-    public Binding fileProcessBinding() {
-        return BindingBuilder
-                .bind(fileProcessQueue())
-                .to(fileProcessExchange())
-                .with(FILE_PROCESS_ROUTING_KEY);
-    }
+    // @Bean
+    // public Binding fileProcessBinding() {
+    //     return BindingBuilder
+    //             .bind(fileProcessQueue())
+    //             .to(fileProcessExchange())
+    //             .with(FILE_PROCESS_ROUTING_KEY);
+    // }
 
     /**
      * 文件删除死信交换机（与 Python Worker 保持一致）
@@ -516,6 +520,27 @@ public class RabbitMQConifgure {
                 .with(ROUTING_FILE_SCAN_FAILED);
     }
 
+    /**
+     * 文件下载完成事件队列（消费者：主业务服务 → 记录最近下载）
+     */
+    @Bean
+    public Queue fileDownloadedQueue() {
+        return QueueBuilder
+                .durable(QUEUE_FILE_DOWNLOADED)
+                .deadLetterExchange(FILE_EVENT_DLX)
+                .deadLetterRoutingKey(FILE_EVENT_DLQ_ROUTING_KEY)
+                .ttl(3 * 24 * 60 * 60 * 1000) // 3 天
+                .build();
+    }
+
+    @Bean
+    public Binding fileDownloadedBinding() {
+        return BindingBuilder
+                .bind(fileDownloadedQueue())
+                .to(fileEventExchange())
+                .with(ROUTING_FILE_DOWNLOADED);
+    }
+
     // ==================== 上传会话事件交换机及队列 ====================
 
     /**
@@ -603,6 +628,132 @@ public class RabbitMQConifgure {
                 .to(uploadsEventExchange())
                 .with(ROUTING_UPLOADS_SESSION_DELETED);
     }
+
+    // ==================== 文件后台处理交换机及队列（Backend — 顺序流水线） ====================
+    // 由 Python 存储服务消费，Java 主业务服务仅声明拓扑以确保一致性
+
+    /** 文件后台处理主交换机 (DIRECT，与 Python Worker 一致) */
+    public static final String FILE_BACKEND_EXCHANGE = "pcd.file.backend.exchange";
+    /** 文件后台处理死信交换机 */
+    public static final String FILE_BACKEND_DLX = "pcd.file.backend.dlx";
+
+    // merge 合并
+    public static final String QUEUE_BACKEND_MERGE = "pcd.file.backend.merge.queue";
+    public static final String ROUTING_BACKEND_MERGE = "file.backend.merge";
+    public static final String QUEUE_BACKEND_MERGE_DLQ = "pcd.file.backend.merge.dlq";
+    public static final String ROUTING_BACKEND_MERGE_DLQ = "file.backend.merge.dlq";
+
+    // hash 哈希
+    public static final String QUEUE_BACKEND_HASH = "pcd.file.backend.hash.queue";
+    public static final String ROUTING_BACKEND_HASH = "file.backend.hash";
+    public static final String QUEUE_BACKEND_HASH_DLQ = "pcd.file.backend.hash.dlq";
+    public static final String ROUTING_BACKEND_HASH_DLQ = "file.backend.hash.dlq";
+
+    // virus 病毒扫描
+    public static final String QUEUE_BACKEND_VIRUS = "pcd.file.backend.virus.queue";
+    public static final String ROUTING_BACKEND_VIRUS = "file.backend.virus";
+    public static final String QUEUE_BACKEND_VIRUS_DLQ = "pcd.file.backend.virus.dlq";
+    public static final String ROUTING_BACKEND_VIRUS_DLQ = "file.backend.virus.dlq";
+
+    // mark_active 标记活跃
+    public static final String QUEUE_BACKEND_MARK_ACTIVE = "pcd.file.backend.mark_active.queue";
+    public static final String ROUTING_BACKEND_MARK_ACTIVE = "file.backend.mark_active";
+    public static final String QUEUE_BACKEND_MARK_ACTIVE_DLQ = "pcd.file.backend.mark_active.dlq";
+    public static final String ROUTING_BACKEND_MARK_ACTIVE_DLQ = "file.backend.mark_active.dlq";
+
+    @Bean
+    public DirectExchange fileBackendExchange() {
+        return new DirectExchange(FILE_BACKEND_EXCHANGE);
+    }
+
+    @Bean
+    public DirectExchange fileBackendDlxExchange() {
+        return new DirectExchange(FILE_BACKEND_DLX);
+    }
+
+    // Backend 队列 + DLQ Bean
+    @Bean public Queue backendMergeQueue() { return QueueBuilder.durable(QUEUE_BACKEND_MERGE).deadLetterExchange(FILE_BACKEND_DLX).deadLetterRoutingKey(ROUTING_BACKEND_MERGE_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue backendMergeDlq() { return QueueBuilder.durable(QUEUE_BACKEND_MERGE_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding backendMergeBinding() { return BindingBuilder.bind(backendMergeQueue()).to(fileBackendExchange()).with(ROUTING_BACKEND_MERGE); }
+    @Bean public Binding backendMergeDlqBinding() { return BindingBuilder.bind(backendMergeDlq()).to(fileBackendDlxExchange()).with(ROUTING_BACKEND_MERGE_DLQ); }
+
+    @Bean public Queue backendHashQueue() { return QueueBuilder.durable(QUEUE_BACKEND_HASH).deadLetterExchange(FILE_BACKEND_DLX).deadLetterRoutingKey(ROUTING_BACKEND_HASH_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue backendHashDlq() { return QueueBuilder.durable(QUEUE_BACKEND_HASH_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding backendHashBinding() { return BindingBuilder.bind(backendHashQueue()).to(fileBackendExchange()).with(ROUTING_BACKEND_HASH); }
+    @Bean public Binding backendHashDlqBinding() { return BindingBuilder.bind(backendHashDlq()).to(fileBackendDlxExchange()).with(ROUTING_BACKEND_HASH_DLQ); }
+
+    @Bean public Queue backendVirusQueue() { return QueueBuilder.durable(QUEUE_BACKEND_VIRUS).deadLetterExchange(FILE_BACKEND_DLX).deadLetterRoutingKey(ROUTING_BACKEND_VIRUS_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue backendVirusDlq() { return QueueBuilder.durable(QUEUE_BACKEND_VIRUS_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding backendVirusBinding() { return BindingBuilder.bind(backendVirusQueue()).to(fileBackendExchange()).with(ROUTING_BACKEND_VIRUS); }
+    @Bean public Binding backendVirusDlqBinding() { return BindingBuilder.bind(backendVirusDlq()).to(fileBackendDlxExchange()).with(ROUTING_BACKEND_VIRUS_DLQ); }
+
+    @Bean public Queue backendMarkActiveQueue() { return QueueBuilder.durable(QUEUE_BACKEND_MARK_ACTIVE).deadLetterExchange(FILE_BACKEND_DLX).deadLetterRoutingKey(ROUTING_BACKEND_MARK_ACTIVE_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue backendMarkActiveDlq() { return QueueBuilder.durable(QUEUE_BACKEND_MARK_ACTIVE_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding backendMarkActiveBinding() { return BindingBuilder.bind(backendMarkActiveQueue()).to(fileBackendExchange()).with(ROUTING_BACKEND_MARK_ACTIVE); }
+    @Bean public Binding backendMarkActiveDlqBinding() { return BindingBuilder.bind(backendMarkActiveDlq()).to(fileBackendDlxExchange()).with(ROUTING_BACKEND_MARK_ACTIVE_DLQ); }
+
+    // ==================== 文件增强处理交换机及队列（Enhancement — 并发流水线） ====================
+    // 由 Python 存储服务消费，Java 主业务服务仅声明拓扑以确保一致性
+
+    /** 文件增强处理主交换机 (DIRECT，与 Python Worker 一致) */
+    public static final String FILE_ENHANCE_EXCHANGE = "pcd.file.enhance.exchange";
+    /** 文件增强处理死信交换机 */
+    public static final String FILE_ENHANCE_DLX = "pcd.file.enhance.dlx";
+
+    // thumbnail 缩略图
+    public static final String QUEUE_ENHANCE_THUMBNAIL = "pcd.file.enhance.thumbnail.queue";
+    public static final String ROUTING_ENHANCE_THUMBNAIL = "file.enhance.thumbnail";
+    public static final String QUEUE_ENHANCE_THUMBNAIL_DLQ = "pcd.file.enhance.thumbnail.dlq";
+    public static final String ROUTING_ENHANCE_THUMBNAIL_DLQ = "file.enhance.thumbnail.dlq";
+
+    // transcode 视频转码
+    public static final String QUEUE_ENHANCE_TRANSCODE = "pcd.file.enhance.transcode.queue";
+    public static final String ROUTING_ENHANCE_TRANSCODE = "file.enhance.transcode";
+    public static final String QUEUE_ENHANCE_TRANSCODE_DLQ = "pcd.file.enhance.transcode.dlq";
+    public static final String ROUTING_ENHANCE_TRANSCODE_DLQ = "file.enhance.transcode.dlq";
+
+    // hls HLS 流媒体
+    public static final String QUEUE_ENHANCE_HLS = "pcd.file.enhance.hls.queue";
+    public static final String ROUTING_ENHANCE_HLS = "file.enhance.hls";
+    public static final String QUEUE_ENHANCE_HLS_DLQ = "pcd.file.enhance.hls.dlq";
+    public static final String ROUTING_ENHANCE_HLS_DLQ = "file.enhance.hls.dlq";
+
+    // index 全文索引
+    public static final String QUEUE_ENHANCE_INDEX = "pcd.file.enhance.index.queue";
+    public static final String ROUTING_ENHANCE_INDEX = "file.enhance.index";
+    public static final String QUEUE_ENHANCE_INDEX_DLQ = "pcd.file.enhance.index.dlq";
+    public static final String ROUTING_ENHANCE_INDEX_DLQ = "file.enhance.index.dlq";
+
+    @Bean
+    public DirectExchange fileEnhanceExchange() {
+        return new DirectExchange(FILE_ENHANCE_EXCHANGE);
+    }
+
+    @Bean
+    public DirectExchange fileEnhanceDlxExchange() {
+        return new DirectExchange(FILE_ENHANCE_DLX);
+    }
+
+    // Enhance 队列 + DLQ Bean
+    @Bean public Queue enhanceThumbnailQueue() { return QueueBuilder.durable(QUEUE_ENHANCE_THUMBNAIL).deadLetterExchange(FILE_ENHANCE_DLX).deadLetterRoutingKey(ROUTING_ENHANCE_THUMBNAIL_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue enhanceThumbnailDlq() { return QueueBuilder.durable(QUEUE_ENHANCE_THUMBNAIL_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding enhanceThumbnailBinding() { return BindingBuilder.bind(enhanceThumbnailQueue()).to(fileEnhanceExchange()).with(ROUTING_ENHANCE_THUMBNAIL); }
+    @Bean public Binding enhanceThumbnailDlqBinding() { return BindingBuilder.bind(enhanceThumbnailDlq()).to(fileEnhanceDlxExchange()).with(ROUTING_ENHANCE_THUMBNAIL_DLQ); }
+
+    @Bean public Queue enhanceTranscodeQueue() { return QueueBuilder.durable(QUEUE_ENHANCE_TRANSCODE).deadLetterExchange(FILE_ENHANCE_DLX).deadLetterRoutingKey(ROUTING_ENHANCE_TRANSCODE_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue enhanceTranscodeDlq() { return QueueBuilder.durable(QUEUE_ENHANCE_TRANSCODE_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding enhanceTranscodeBinding() { return BindingBuilder.bind(enhanceTranscodeQueue()).to(fileEnhanceExchange()).with(ROUTING_ENHANCE_TRANSCODE); }
+    @Bean public Binding enhanceTranscodeDlqBinding() { return BindingBuilder.bind(enhanceTranscodeDlq()).to(fileEnhanceDlxExchange()).with(ROUTING_ENHANCE_TRANSCODE_DLQ); }
+
+    @Bean public Queue enhanceHlsQueue() { return QueueBuilder.durable(QUEUE_ENHANCE_HLS).deadLetterExchange(FILE_ENHANCE_DLX).deadLetterRoutingKey(ROUTING_ENHANCE_HLS_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue enhanceHlsDlq() { return QueueBuilder.durable(QUEUE_ENHANCE_HLS_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding enhanceHlsBinding() { return BindingBuilder.bind(enhanceHlsQueue()).to(fileEnhanceExchange()).with(ROUTING_ENHANCE_HLS); }
+    @Bean public Binding enhanceHlsDlqBinding() { return BindingBuilder.bind(enhanceHlsDlq()).to(fileEnhanceDlxExchange()).with(ROUTING_ENHANCE_HLS_DLQ); }
+
+    @Bean public Queue enhanceIndexQueue() { return QueueBuilder.durable(QUEUE_ENHANCE_INDEX).deadLetterExchange(FILE_ENHANCE_DLX).deadLetterRoutingKey(ROUTING_ENHANCE_INDEX_DLQ).ttl(7 * 24 * 60 * 60 * 1000).build(); }
+    @Bean public Queue enhanceIndexDlq() { return QueueBuilder.durable(QUEUE_ENHANCE_INDEX_DLQ).withArgument("x-message-ttl", 2592000000L).build(); }
+    @Bean public Binding enhanceIndexBinding() { return BindingBuilder.bind(enhanceIndexQueue()).to(fileEnhanceExchange()).with(ROUTING_ENHANCE_INDEX); }
+    @Bean public Binding enhanceIndexDlqBinding() { return BindingBuilder.bind(enhanceIndexDlq()).to(fileEnhanceDlxExchange()).with(ROUTING_ENHANCE_INDEX_DLQ); }
 
     // ==================== 绑定关系（主交换机 -> 业务队列） ====================
 

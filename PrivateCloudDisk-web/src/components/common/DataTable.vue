@@ -16,7 +16,7 @@
               v-model="searchQuery"
               type="text"
               placeholder="搜索..."
-              class="rounded-lg border border-neutral-200 py-1.5 pl-8 pr-3 text-sm focus:border-primary focus:outline-none"
+              class="w-full rounded-lg border border-neutral-200 py-1.5 pl-8 pr-3 text-sm focus:border-primary focus:outline-none sm:w-auto"
               @input="onSearch"
             />
           </div>
@@ -28,8 +28,8 @@
       </div>
     </div>
 
-    <!-- 表格 -->
-    <div class="overflow-x-auto">
+    <!-- 桌面端表格 -->
+    <div class="hidden overflow-x-auto sm:block" :class="{ 'responsive-table': responsive }">
       <table class="w-full text-left text-sm">
         <thead>
           <tr class="border-b border-neutral-100 bg-neutral-50/50">
@@ -37,7 +37,7 @@
               <input
                 type="checkbox"
                 :checked="allSelected"
-                @change="$emit('select-all', $event.target.checked)"
+                @change="$emit('select-all', ($event.target as HTMLInputElement).checked)"
                 class="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary"
               />
             </th>
@@ -85,11 +85,11 @@
               <input
                 type="checkbox"
                 :checked="selectedIds?.has(row.id)"
-                @change="$emit('select', row, $event.target.checked)"
+                @change="$emit('select', row, ($event.target as HTMLInputElement).checked)"
                 class="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary"
               />
             </td>
-            <td v-for="col in columns" :key="col.key" :class="['px-4 py-3', col.cellClass || '']">
+            <td v-for="col in columns" :key="col.key" :class="['px-4 py-3', col.cellClass || '']" :data-label="col.label">
               <slot :name="`cell-${col.key}`" :row="row" :value="getNestedValue(row, col.key)" :index="index">
                 <!-- 默认渲染 -->
                 <span v-if="col.type === 'status'">
@@ -114,14 +114,75 @@
       </table>
     </div>
 
+    <!-- 移动端：卡片列表 -->
+    <div class="divide-y sm:hidden">
+      <!-- 加载中 -->
+      <div v-if="loading" class="py-16 text-center">
+        <LoadingSpinner />
+        <p class="mt-3 text-sm text-neutral-400">加载中...</p>
+      </div>
+      <!-- 空状态 -->
+      <div v-else-if="!data.length" class="py-16 text-center">
+        <i class="fa fa-inbox text-3xl text-neutral-300"></i>
+        <p class="mt-3 text-sm text-neutral-400">{{ emptyText }}</p>
+      </div>
+      <!-- 卡片 -->
+      <div
+        v-for="(row, index) in data"
+        :key="row.id || index"
+        class="px-4 py-3 transition-colors hover:bg-neutral-50/50"
+        :class="selectedIds?.has(row.id) ? 'bg-primary/5' : ''"
+        @click="$emit('row-click', row, index)"
+      >
+        <div class="flex items-start gap-3">
+          <div v-if="selectable" class="pt-0.5" @click.stop>
+            <input
+              type="checkbox"
+              :checked="selectedIds?.has(row.id)"
+              @change="$emit('select', row, ($event.target as HTMLInputElement).checked)"
+              class="h-4 w-4 rounded border-neutral-300 text-primary focus:ring-primary"
+            />
+          </div>
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <div
+              v-for="col in columns"
+              :key="col.key"
+              class="flex items-start justify-between gap-2 text-sm"
+            >
+              <span class="shrink-0 text-xs font-medium uppercase tracking-wider text-neutral-400">{{ col.label }}</span>
+              <span class="text-right text-neutral-700 break-all">
+                <slot :name="`cell-${col.key}`" :row="row" :value="getNestedValue(row, col.key)" :index="index">
+                  <span v-if="col.type === 'status'">
+                    <StatusBadge :status="getNestedValue(row, col.key)" :statusMap="col.statusMap" />
+                  </span>
+                  <span v-else-if="col.type === 'date'">
+                    {{ formatDate(getNestedValue(row, col.key)) }}
+                  </span>
+                  <span v-else-if="col.type === 'size'">
+                    {{ formatSize(getNestedValue(row, col.key)) }}
+                  </span>
+                  <span v-else>
+                    {{ getNestedValue(row, col.key) }}
+                  </span>
+                </slot>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div v-if="$slots.actions" class="mt-2 flex justify-end gap-2" @click.stop>
+          <slot name="actions" :row="row" :index="index"></slot>
+        </div>
+      </div>
+    </div>
+
     <!-- 分页 -->
-    <div v-if="showPagination && totalPages > 1" class="flex items-center justify-between border-t border-neutral-100 px-4 py-3">
+    <div v-if="showPagination && totalPages > 1" class="flex flex-col gap-3 border-t border-neutral-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <span class="text-xs text-neutral-400">共 {{ total }} 条记录</span>
-      <div class="flex items-center gap-1">
+      <div class="flex items-center justify-center gap-1">
         <button
           :disabled="currentPage <= 1"
           @click="changePage(currentPage - 1)"
-          class="rounded-lg px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 disabled:opacity-30"
+          class="touch-button rounded-lg px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 disabled:opacity-30"
         >
           <i class="fa fa-angle-left"></i>
         </button>
@@ -129,14 +190,14 @@
           v-for="p in visiblePages"
           :key="p"
           @click="changePage(p)"
-          :class="['rounded-lg px-3 py-1 text-sm', p === currentPage ? 'bg-primary text-white' : 'text-neutral-600 hover:bg-neutral-100']"
+          :class="['touch-button rounded-lg px-3 py-1 text-sm', p === currentPage ? 'bg-primary text-white' : 'text-neutral-600 hover:bg-neutral-100']"
         >
           {{ p }}
         </button>
         <button
           :disabled="currentPage >= totalPages"
           @click="changePage(currentPage + 1)"
-          class="rounded-lg px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 disabled:opacity-30"
+          class="touch-button rounded-lg px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 disabled:opacity-30"
         >
           <i class="fa fa-angle-right"></i>
         </button>

@@ -2,6 +2,7 @@
 package rabbitmq
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,14 +17,19 @@ import (
 
 // Consumer 消息消费者
 type Consumer struct {
-	conn            *Connection
-	cfg             *config.Config
-	notifService    *service.NotificationService
-	shutdownCh      chan struct{}
+	conn                *Connection
+	cfg                 *config.Config
+	notifService        *service.NotificationService
+	verificationService *service.VerificationCodeService
+	shutdownCh          chan struct{}
 }
 
 // NewConsumer 创建消费者
-func NewConsumer(conn *Connection, cfg *config.Config, notifService *service.NotificationService) *Consumer {
+func NewConsumer(
+	conn *Connection,
+	cfg *config.Config,
+	notifService *service.NotificationService,
+) *Consumer {
 	return &Consumer{
 		conn:         conn,
 		cfg:          cfg,
@@ -32,16 +38,22 @@ func NewConsumer(conn *Connection, cfg *config.Config, notifService *service.Not
 	}
 }
 
+// SetVerificationHandler 设置验证码消息处理器（可选，用于异步验证码发送）
+func (c *Consumer) SetVerificationHandler(svc *service.VerificationCodeService) {
+	c.verificationService = svc
+}
+
 // Start 启动所有消费者
 func (c *Consumer) Start() error {
 	log.Println("[Consumer] 启动消费者...")
 
 	// 启动各队列消费者
 	queues := map[string]string{
-		QueueEmail: "email-consumer",
-		QueueSMS:   "sms-consumer",
-		QueuePush:  "push-consumer",
-		QueueBatch: "batch-consumer",
+		QueueEmail:        "email-consumer",
+		QueueSMS:          "sms-consumer",
+		QueuePush:         "push-consumer",
+		QueueBatch:        "batch-consumer",
+		QueueVerification: "verification-consumer",
 	}
 
 	for queue, tag := range queues {
@@ -95,7 +107,16 @@ func (c *Consumer) handleDelivery(delivery amqp.Delivery) {
 		}
 	}()
 
-	// 1. 解析消息
+	// 1. 尝试解析为验证码事件
+	if delivery.RoutingKey == RoutingVerification {
+		var verifEvt domain.VerificationMessageEvent
+		if err := json.Unmarshal(delivery.Body, &verifEvt); err == nil && verifEvt.EventID != "" {
+			c.handleVerificationDelivery(delivery, &verifEvt)
+			return
+		}
+	}
+
+	// 2. 解析为通知事件
 	event, err := domain.FromJSON(delivery.Body)
 	if err != nil {
 		log.Printf("[Consumer] 消息解析失败: %v, body=%s", err, string(delivery.Body))
@@ -115,7 +136,7 @@ func (c *Consumer) handleDelivery(delivery amqp.Delivery) {
 		return
 	}
 
-	// 3. 处理事件
+	// 3. 处理事件（内部服务事件直接调用 ProcessEvent，已是异步处理）
 	err = c.notifService.ProcessEvent(event)
 	if err != nil {
 		log.Printf("[Consumer] 处理失败: eventID=%s, error=%v", eventID, err)
@@ -138,10 +159,74 @@ func (c *Consumer) handleDelivery(delivery amqp.Delivery) {
 	log.Printf("[Consumer] 消息处理成功: eventID=%s", eventID)
 }
 
+// handleVerificationDelivery 处理验证码消息（异步发送邮件/短信）
+func (c *Consumer) handleVerificationDelivery(delivery amqp.Delivery, evt *domain.VerificationMessageEvent) {
+	if c.verificationService == nil {
+		log.Printf("[Consumer] VerificationService 未初始化，跳过验证码发送: eventID=%s", evt.EventID)
+		delivery.Ack(false)
+		return
+	}
+
+	log.Printf("[Consumer] 收到验证码消息: eventID=%s, targetType=%s, purpose=%s",
+		evt.EventID, evt.TargetType, evt.Purpose)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := c.verificationService.SendCodeToTarget(ctx, evt.TargetType, evt.Target, evt.Code, evt.Purpose); err != nil {
+		log.Printf("[Consumer] 验证码发送失败: eventID=%s, targetType=%s, error=%v",
+			evt.EventID, evt.TargetType, err)
+		// 不重试，直接 ACK 避免死循环（验证码已过期重发也无意义）
+		delivery.Ack(false)
+		return
+	}
+
+	delivery.Ack(false)
+	log.Printf("[Consumer] 验证码发送成功: eventID=%s, targetType=%s", evt.EventID, evt.TargetType)
+}
+
 // Shutdown 关闭消费者
 func (c *Consumer) Shutdown() {
 	close(c.shutdownCh)
 	log.Println("[Consumer] 消费者已关闭")
+}
+
+// PublishEvent 发布通知事件到交换机（供 HTTP API 使用）
+func (c *Consumer) PublishEvent(event *domain.NotificationEvent) error {
+	body, err := event.ToJSON()
+	if err != nil {
+		return fmt.Errorf("序列化事件失败: %w", err)
+	}
+
+	// 根据渠道选择路由键
+	routingKey := RoutingPush
+	if len(event.Channels) > 0 {
+		switch event.Channels[0] {
+		case "email":
+			routingKey = RoutingEmail
+		case "sms":
+			routingKey = RoutingSMS
+		case "push", "apns", "fcm", "webpush":
+			routingKey = RoutingPush
+		case "ws":
+			routingKey = RoutingPush
+		default:
+			routingKey = RoutingPush
+		}
+	}
+
+	log.Printf("[Consumer] 发布事件: eventID=%s, routing=%s", event.EventID, routingKey)
+	return c.conn.Publish(routingKey, body)
+}
+
+// PublishVerification 发布验证码消息到验证码队列（实现 VerificationMQPublisher 接口）
+func (c *Consumer) PublishVerification(evt *domain.VerificationMessageEvent) error {
+	body, err := evt.ToJSON()
+	if err != nil {
+		return fmt.Errorf("序列化验证码事件失败: %w", err)
+	}
+	log.Printf("[Consumer] 发布验证码消息: eventID=%s, targetType=%s", evt.EventID, evt.TargetType)
+	return c.conn.Publish(RoutingVerification, body)
 }
 
 // PublishToDLQ 发布消息到死信队列
@@ -154,28 +239,6 @@ func (c *Consumer) PublishToDLQ(event *domain.NotificationEvent, reason string) 
 
 	log.Printf("[Consumer] 消息进入 DLQ: eventID=%s, reason=%s", event.EventID, reason)
 	return c.conn.Publish(RoutingDLQ, body)
-}
-
-// PublishEvent 发布通知事件到交换机（供 HTTP API 使用）
-func (c *Consumer) PublishEvent(event *domain.NotificationEvent) error {
-	body, err := event.ToJSON()
-	if err != nil {
-		return fmt.Errorf("序列化事件失败: %w", err)
-	}
-
-	// 根据事件类型选择路由键
-	routingKey := RoutingPush
-	switch event.EventType {
-	case "email_verification", "user_registered":
-		if event.Email != "" {
-			routingKey = RoutingEmail
-		}
-	case "phone_verification":
-		routingKey = RoutingSMS
-	}
-
-	log.Printf("[Consumer] 发布事件: eventID=%s, routing=%s", event.EventID, routingKey)
-	return c.conn.Publish(routingKey, body)
 }
 
 // =============================================================================

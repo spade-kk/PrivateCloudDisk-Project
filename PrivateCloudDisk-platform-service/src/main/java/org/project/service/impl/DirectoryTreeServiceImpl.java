@@ -8,12 +8,15 @@ import org.project.model.entity.NodeEntity;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
 import org.project.model.vo.PageResultVO;
+import org.project.security.RedisRateLimiterService;
 import org.project.service.DirectoryTreeService;
+import org.project.service.PathCacheService;
 import org.project.service.ex.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,11 +30,23 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     private DirectoryClosureMapper directoryClosureMapper;
     @Autowired
     private FileMapper fileMapper;
+    @Autowired
+    private PathCacheService pathCacheService;
+    @Autowired
+    private RedisRateLimiterService rateLimiterService;
     private final int MAX_DIRECTORY_DEPTH = 15;
+    private final int MAX_CHILDREN_PER_FOLDER = 1000;
+    private final int MAX_FOLDERS_PER_USER = 100000;
+    private final int MAX_PATH_LENGTH = 1024;
+    private static final Duration RATE_LIMIT_WINDOW = Duration.ofMinutes(1);
+    private static final int RATE_LIMIT_MAX_FOLDER_CREATE = 100;
 
     @Override
     @Transactional
     public void createFolderNode(UUID user_id, UUID node_id, String name) {
+        // 速率限制检查
+        checkFolderCreateRateLimit(user_id);
+
         FolderNodeEntity folderNodeEntity = new FolderNodeEntity();
         folderNodeEntity.setUser_id(user_id);
         folderNodeEntity.setStatus(FolderNodeEntity.NodeStatus.active);
@@ -50,6 +65,18 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
             int currentDepth = directoryClosureMapper.getMaxDepthToNode(node_id, user_id);
             if(1 + currentDepth > MAX_DIRECTORY_DEPTH) {
                 throw new InsertException("目录深度超过最大深度");
+            }
+
+            // 检查子节点数量限制
+            int childCount = folderNodeMapper.countChildrenByNodeId(node_id, user_id);
+            if (childCount >= MAX_CHILDREN_PER_FOLDER) {
+                throw new FolderChildrenLimitExceededException("文件夹子节点已达上限: " + MAX_CHILDREN_PER_FOLDER);
+            }
+
+            // 检查用户文件夹总量
+            int totalFolders = folderNodeMapper.countUserFolders(user_id);
+            if (totalFolders >= MAX_FOLDERS_PER_USER) {
+                throw new FolderQuotaExceededException("用户文件夹数量已达上限: " + MAX_FOLDERS_PER_USER);
             }
 
             folderNodeEntity.setParent_id(node_id);
@@ -77,6 +104,9 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
                 folderNodeEntity.getNode_id(),
                 user_id
         );
+
+        // 使路径缓存失效
+        pathCacheService.invalidateUser(user_id);
     }
 
     @Override
@@ -192,6 +222,9 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         // 更新闭包关系
         directoryClosureMapper.deleteExternalRelationsForMove(node_id, target_position, user_id);
         directoryClosureMapper.insertRelationsForMove(node_id, target_position, user_id);
+
+        // 使路径缓存失效
+        pathCacheService.invalidateUser(user_id);
     }
     @Override
     public void updateNodeNameByNodeId(UUID node_id, String new_node_name, UUID user_id) {
@@ -209,6 +242,9 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         if(rows != 1) {
             throw new UpdateException("文件夹重命名失败");
         }
+
+        // 使路径缓存失效
+        pathCacheService.invalidateUser(user_id);
     }
 
     //不要忘了开启事务回滚
@@ -242,6 +278,8 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         if(rows != 1) {
             throw new UpdateException("文件夹删除失败");
         }
+        // 使路径缓存失效
+        pathCacheService.invalidateUser(user_id);
         //发布消息 文件夹子文件物理删除是异步处理业务
     }
 
@@ -330,5 +368,201 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         String validStatus = folderNodeMapper.selectFolderEffectiveStatus(node_id, user_id);
         //Deleted > Trashed > Active
         return FolderNodeEntity.NodeStatus.valueOf(validStatus);
+    }
+
+    // ==================== 懒创建文件夹路径 ====================
+
+    @Override
+    @Transactional
+    public UUID ensureFolderPath(UUID userId, UUID parentNodeId, String relativePath) {
+        // 1. 路径校验
+        validatePath(relativePath);
+
+        // 2. 检查父节点是否存在
+        FolderNodeEntity parentNode = findUserFolderNodeIfExist(parentNodeId, userId);
+        if (parentNode == null) {
+            throw new ParentNodeNotExistException("父节点不存在: " + parentNodeId);
+        }
+
+        // 3. 尝试从缓存获取
+        if (relativePath.isEmpty()) {
+            return parentNodeId;
+        }
+
+        UUID cached = pathCacheService.getRelativePath(userId, parentNodeId, relativePath);
+        if (cached != null) {
+            // 验证缓存是否仍然有效
+            FolderNodeEntity cachedNode = findUserFolderNodeIfExist(cached, userId);
+            if (cachedNode != null) {
+                return cached;
+            }
+            // 缓存失效，继续创建
+        }
+
+        // 4. 拆路径，逐级 ensure
+        String[] parts = relativePath.split("/");
+        validatePathDepth(parts.length, parentNodeId, userId);
+
+        UUID currentParentId = parentNodeId;
+        for (String folderName : parts) {
+            if (folderName.isEmpty()) continue;
+            currentParentId = ensureSingleFolder(userId, currentParentId, folderName);
+        }
+
+        // 5. 缓存结果
+        pathCacheService.cacheRelativePath(userId, parentNodeId, relativePath, currentParentId);
+
+        return currentParentId;
+    }
+
+    @Override
+    @Transactional
+    public UUID ensureFolderPath(UUID userId, String breadcrumbPath) {
+        // 1. 路径校验
+        validatePath(breadcrumbPath);
+
+        // 2. 标准化路径
+        String normalized = breadcrumbPath.trim();
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isEmpty()) {
+            // 返回根节点
+            FolderNodeEntity root = folderNodeMapper.findRootFolderNodeByUserId(userId);
+            if (root == null) {
+                throw new NodeNotExistException("根节点不存在");
+            }
+            return root.getNode_id();
+        }
+
+        // 3. 尝试从缓存获取
+        String cacheKey = "/" + normalized;
+        UUID cached = pathCacheService.getAbsolutePath(userId, cacheKey);
+        if (cached != null) {
+            FolderNodeEntity cachedNode = findUserFolderNodeIfExist(cached, userId);
+            if (cachedNode != null) {
+                return cached;
+            }
+        }
+
+        // 4. 拆路径：跳过根节点名称，从根节点的子节点开始
+        String[] parts = normalized.split("/");
+        validatePathDepth(parts.length, null, userId);
+
+        // 获取根节点
+        FolderNodeEntity rootNode = folderNodeMapper.findRootFolderNodeByUserId(userId);
+        if (rootNode == null) {
+            throw new NodeNotExistException("根节点不存在");
+        }
+
+        // 如果路径第一部分是根节点名则跳过
+        int startIdx = 0;
+        if (parts.length > 0 && parts[0].equals(rootNode.getName())) {
+            startIdx = 1;
+        }
+
+        UUID currentParentId = rootNode.getNode_id();
+        for (int i = startIdx; i < parts.length; i++) {
+            if (parts[i].isEmpty()) continue;
+            currentParentId = ensureSingleFolder(userId, currentParentId, parts[i]);
+        }
+
+        // 5. 缓存结果
+        pathCacheService.cacheAbsolutePath(userId, cacheKey, currentParentId);
+
+        return currentParentId;
+    }
+
+    /**
+     * 确保单个文件夹存在于指定父节点下。幂等：已存在直接返回。
+     */
+    private UUID ensureSingleFolder(UUID userId, UUID parentId, String folderName) {
+        // 1. 幂等检查：是否已存在同名文件夹
+        FolderNodeEntity existing = folderNodeMapper.findFolderNodeByParentIdAndName(parentId, folderName, userId);
+        if (existing != null) {
+            return existing.getNode_id();
+        }
+
+        // 2. 速率限制检查（业务层：成功创建才计数）
+        checkFolderCreateRateLimit(userId);
+
+        // 3. 宽度限制检查
+        int childCount = folderNodeMapper.countChildrenByNodeId(parentId, userId);
+        if (childCount >= MAX_CHILDREN_PER_FOLDER) {
+            throw new FolderChildrenLimitExceededException(
+                    "文件夹 '" + folderName + "' 子节点已达上限: " + MAX_CHILDREN_PER_FOLDER);
+        }
+
+        // 4. 总量限制检查
+        int totalFolders = folderNodeMapper.countUserFolders(userId);
+        if (totalFolders >= MAX_FOLDERS_PER_USER) {
+            throw new FolderQuotaExceededException(
+                    "用户文件夹数量已达上限: " + MAX_FOLDERS_PER_USER);
+        }
+
+        // 5. 深度限制检查
+        int currentDepth = directoryClosureMapper.getMaxDepthToNode(parentId, userId);
+        if (currentDepth + 1 > MAX_DIRECTORY_DEPTH) {
+            throw new PathTooDeepException("目录深度超过最大限制: " + MAX_DIRECTORY_DEPTH);
+        }
+
+        // 6. 创建文件夹
+        FolderNodeEntity folderNode = new FolderNodeEntity();
+        folderNode.setUser_id(userId);
+        folderNode.setStatus(FolderNodeEntity.NodeStatus.active);
+        folderNode.setCreate_time(LocalDateTime.now().toString());
+        folderNode.setName(folderName);
+        folderNode.setNode_id(UUID.randomUUID());
+        folderNode.setParent_id(parentId);
+
+        Integer rows = folderNodeMapper.insertFolderNode(folderNode);
+        if (rows != 1) {
+            throw new InsertException("创建目录失败: " + folderName);
+        }
+
+        // 7. 插入闭包关系
+        directoryClosureMapper.insertRelationsFromParent(folderNode.getNode_id(), userId, parentId);
+        directoryClosureMapper.insertSelf(folderNode.getNode_id(), userId);
+
+        return folderNode.getNode_id();
+    }
+
+    // ==================== 路径校验 ====================
+
+    private void validatePath(String path) {
+        if (path == null) {
+            throw new IllegalArgumentException("路径不能为空");
+        }
+        if (path.length() > MAX_PATH_LENGTH) {
+            throw new PathTooLongException("路径长度超过限制: " + MAX_PATH_LENGTH + " chars");
+        }
+        // 禁止路径中包含非法字符
+        if (path.contains("..") || path.contains("\\")) {
+            throw new IllegalArgumentException("路径包含非法字符");
+        }
+    }
+
+    private void validatePathDepth(int partsLength, UUID parentNodeId, UUID userId) {
+        int baseDepth = 0;
+        if (parentNodeId != null) {
+            baseDepth = directoryClosureMapper.getMaxDepthToNode(parentNodeId, userId);
+        }
+        if (baseDepth + partsLength > MAX_DIRECTORY_DEPTH) {
+            throw new PathTooDeepException("路径深度超过最大限制: " + MAX_DIRECTORY_DEPTH);
+        }
+    }
+
+    // ==================== 速率限制 ====================
+
+    private void checkFolderCreateRateLimit(UUID userId) {
+        String rateLimitKey = "pcd:rate-limit:folder:create:" + userId;
+        long current = rateLimiterService.increment(rateLimitKey, RATE_LIMIT_WINDOW);
+        if (current > RATE_LIMIT_MAX_FOLDER_CREATE) {
+            throw new RateLimitExceededException(
+                    "文件夹创建速率超限: " + RATE_LIMIT_MAX_FOLDER_CREATE + "/min，请稍后再试");
+        }
     }
 }

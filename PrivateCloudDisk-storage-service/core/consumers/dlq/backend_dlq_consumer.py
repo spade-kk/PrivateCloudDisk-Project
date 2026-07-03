@@ -254,7 +254,7 @@ class BackendDLQConsumer(BaseDLQConsumer):
         )
         await self._mark_event_failed(data)
         await self._log_dlq_action(data, "VIRUS_ISOLATED", "文件已隔离", source="file_backend")
-        await self._publish_file_scan_failed_event(data, "发现病毒/木马")
+        #await self._publish_file_scan_failed_event(data, "发现病毒/木马")
         return True
 
     async def _handle_virus_scanner_error(self, data: dict) -> bool:
@@ -353,7 +353,6 @@ class BackendDLQConsumer(BaseDLQConsumer):
             "fileType": data.get("file_type", ""),
             "userId": data.get("user_id", ""),
             "uploadsSessionId": data.get("uploads_id", ""),
-            "threatName": threat_name,
             "eventTime":  datetime.utcnow().isoformat(),#暂时不带时区
         }
         try:
@@ -375,7 +374,6 @@ class BackendDLQConsumer(BaseDLQConsumer):
             "fileType": data.get("file_type", ""),
             "userId": data.get("user_id", ""),
             "uploadsSessionId": data.get("uploads_id", ""),
-            "threatName": threat_name,
             "eventTime":  datetime.utcnow().isoformat(),#暂时不带时区
         }
         try:

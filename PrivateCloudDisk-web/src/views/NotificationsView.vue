@@ -1150,7 +1150,152 @@ function stopCallDurationTimer() {
 }
 
 /* ============================================================
-   新增：消息同步状态横幅
+   响应式：中屏（平板）
+   ============================================================ */
+@media (max-width: 1180px) {
+  .collab-shell {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .people-panel {
+    grid-column: 1 / -1;
+    min-height: 260px;
+  }
+
+  .friend-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================
+   响应式：小屏手机
+   ============================================================ */
+@media (max-width: 760px) {
+  .collab-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .collab-header h1 {
+    font-size: 20px;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .collab-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  /* 移动端：会话面板和聊天面板切换显示 */
+  .conversation-panel {
+    display: flex;
+  }
+
+  .chat-panel {
+    display: flex;
+  }
+
+  .conversation-panel.mobile-hidden,
+  .chat-panel.mobile-hidden {
+    display: none;
+  }
+
+  .people-panel {
+    min-height: auto;
+  }
+
+  .friend-list {
+    grid-template-columns: 1fr;
+  }
+
+  .message-bubble {
+    max-width: 92%;
+  }
+
+  .message-stream {
+    padding: 12px;
+  }
+
+  .composer {
+    padding: 8px 8px 10px;
+  }
+
+  .composer-tools {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .composer-tools button {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    font-size: 11px;
+  }
+}
+
+/* ============================================================
+   响应式：极小屏手机
+   ============================================================ */
+@media (max-width: 400px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .collab-header {
+    padding: 12px;
+  }
+
+  .panel-title {
+    padding: 10px;
+  }
+
+  .conversation-item,
+  .friend-item {
+    padding: 10px;
+  }
+}
+
+/* ============================================================
+   移动端返回按钮
+   ============================================================ */
+.mobile-back-btn {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .mobile-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    width: 36px;
+    border-radius: 8px;
+    border: 1px solid #e4e7ed;
+    background: #fff;
+    color: #606266;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.16s ease;
+  }
+  .mobile-back-btn:hover {
+    background: #f5f7fa;
+  }
+}
+
+.sync-status.error {
+  color: #ff4d4f;
+}
+
+/* ============================================================
+   消息同步状态横幅
    ============================================================ */
 .sync-banner {
   display: flex;
@@ -1194,10 +1339,6 @@ function stopCallDurationTimer() {
 
 .sync-status.syncing {
   color: #165dff;
-}
-
-.sync-status.error {
-  color: #ff4d4f;
 }
 
 /* ============================================================

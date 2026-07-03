@@ -21,10 +21,39 @@ const (
 	ChannelAlipayMP Channel = "alipay_mp"
 	ChannelWebPush  Channel = "webpush"
 	ChannelInApp    Channel = "in_app"
+	ChannelWS       Channel = "ws" // 系统 WebSocket 推送
 )
 
-// Enabled 检查渠道是否启用
 func (c Channel) String() string { return string(c) }
+
+// =============================================================================
+// 模板源类型
+// =============================================================================
+type TemplateSource string
+
+const (
+	TemplateSourceDatabase TemplateSource = "database" // 从数据库模板表加载
+	TemplateSourceFile     TemplateSource = "file"     // 从嵌入模板文件加载
+	TemplateSourceRaw      TemplateSource = "raw"      // 直接传入原始模板字符串
+)
+
+// =============================================================================
+// 系统推送消息缓存策略
+// =============================================================================
+type WSCacheStrategy string
+
+const (
+	WSCacheNone    WSCacheStrategy = "none"    // 一次性：离线丢弃
+	WSCachePersist WSCacheStrategy = "persist" // 缓存：离线存入 Redis，上线后推送
+)
+
+// =============================================================================
+// 参数校验正则
+// =============================================================================
+const (
+	EmailPattern = `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
+	PhonePattern = `^\+?[1-9]\d{1,14}$` // E.164 格式: +86xxxxxxxxxxx
+)
 
 // =============================================================================
 // 通知状态
@@ -74,9 +103,11 @@ type NotificationEvent struct {
 	Channels []string `json:"channels,omitempty"` // email, sms, push, wechat_mp, etc.
 
 	// 模板变量
-	TemplateCode string                 `json:"template_code"`
-	TemplateLang string                 `json:"template_lang,omitempty"` // zh-CN, en-US, etc.
-	Variables    map[string]interface{} `json:"variables,omitempty"`
+	TemplateCode   string                 `json:"template_code"`
+	TemplateLang   string                 `json:"template_lang,omitempty"`   // zh-CN, en-US, etc.
+	TemplateSource string                 `json:"template_source,omitempty"` // database / file / raw（默认 database）
+	RawTemplate    *RawTemplate           `json:"raw_template,omitempty"`    // 仅 template_source=raw 时使用
+	Variables      map[string]interface{} `json:"variables,omitempty"`
 
 	// 设备推送参数
 	DeviceTokens []string `json:"device_tokens,omitempty"` // APNs/FCM device tokens
@@ -86,6 +117,9 @@ type NotificationEvent struct {
 
 	// 优先级
 	Priority int `json:"priority"` // 0=低, 5=正常, 10=高
+
+	// WebSocket 系统推送
+	WSCacheStrategy string `json:"ws_cache_strategy,omitempty"` // none / persist（默认 persist）
 
 	// 幂等 & 重试
 	RetryCount int       `json:"retry_count"`
@@ -104,6 +138,31 @@ func FromJSON(data []byte) (*NotificationEvent, error) {
 		return nil, err
 	}
 	return &event, nil
+}
+
+// RawTemplate 原始模板（当 template_source=raw 时使用）
+type RawTemplate struct {
+	Title    string `json:"title"`
+	Body     string `json:"body"`
+	HTMLBody string `json:"html_body,omitempty"`
+}
+
+// =============================================================================
+// 系统 WebSocket 推送消息
+// =============================================================================
+type WSSystemMessage struct {
+	ID        string                 `json:"id"`
+	Type      string                 `json:"type"` // system, security, notification
+	Title     string                 `json:"title"`
+	Body      string                 `json:"body"`
+	Priority  int                    `json:"priority"`
+	Data      map[string]interface{} `json:"data,omitempty"`
+	Timestamp int64                  `json:"timestamp"`
+}
+
+// ToJSON 序列化
+func (m *WSSystemMessage) ToJSON() ([]byte, error) {
+	return json.Marshal(m)
 }
 
 // =============================================================================
