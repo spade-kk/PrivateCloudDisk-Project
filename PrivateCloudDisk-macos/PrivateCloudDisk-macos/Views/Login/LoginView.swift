@@ -1,685 +1,510 @@
 import SwiftUI
 
-// MARK: - 登录视图（企业级设计 v2）
+// MARK: - 登录视图（企业级紧凑窗口 — 参考 QQ / 微信 / 百度网盘 / 网易云音乐）
 
-/// 登录/注册页面
+/// 紧凑型登录窗口
 ///
-/// 参考百度网盘、夸克网盘 macOS 客户端设计：
-/// - 左侧品牌展示区 + 右侧登录表单
-/// - 毛玻璃材质卡片 + 渐变按钮
-/// - 忘记密码 / 服务器配置 / 社交登录
-/// - 优雅的深浅色模式适配
+/// 设计参考：
+/// - QQ Mac 登录：380×400，白色背景，Logo + 头像 + 输入框 + 登录按钮
+/// - 百度网盘 Mac：400×440，白色背景，Logo + 手机号 + 密码 + 登录按钮
+/// - 网易云音乐 Mac：380×480，红色主题，手机号 + 密码 + 登录按钮
+/// - 微信 Mac：350×420，绿色主题，二维码 / 手机号登录
+///
+/// 本窗口尺寸：400×520（略高以容纳 Turnstile 无感验证状态指示器）
+///
+/// Turnstile 人机验证集成：
+/// - 用户名：手机号（11位1[3-9]）/ 邮箱 / 账号（4-16位字母数字下划线）
+/// - 密码框：用户名合法后才可输入
+/// - Turnstile：首次聚焦密码框时 execute() 触发无感验证
+/// - 登录按钮：需获取 token 后才可点击
+/// - token 过期/错误时自动重置
 struct LoginView: View {
-    @StateObject private var viewModel = LoginViewModel()
-    @FocusState private var focusedField: Field?
-    @State private var cardScale: CGFloat = 0.95
-    @State private var cardOpacity: Double = 0
-    @State private var showForgotPassword = false
-    @State private var showServerConfig = false
-    @State private var serverURL = ""
+    @EnvironmentObject var authService: AuthService
 
-    enum Field {
-        case username, email, password, server
-    }
+    // MARK: - 输入状态
 
-    // MARK: - 品牌色
+    @State private var username = ""
+    @State private var password = ""
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var isPasswordVisible = false
+
+    // MARK: - Turnstile 状态
+
+    @State private var turnstileToken: String?
+    @State private var turnstileLoading = false
+    @State private var turnstileError: String?
+    @State private var turnstileTriggered = false
+    @State private var triggerTurnstileExecute = false
+    @State private var triggerTurnstileReset = false
+    @FocusState private var isPasswordFocused: Bool
 
     private let brandBlue = AppColors.primary
-    private let brandPurple = AppColors.info
-    private let brandGradient = AppGradients.primary
+
+    // MARK: - 用户名验证
+
+    private var isUsernameValid: Bool {
+        let trimmed = username.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+        return isValidPhone(trimmed) || isValidEmail(trimmed) || isValidAccount(trimmed)
+    }
+
+    private func isValidPhone(_ value: String) -> Bool {
+        value.range(of: #"^1[3-9]\d{9}$"#, options: .regularExpression) != nil
+    }
+
+    private func isValidEmail(_ value: String) -> Bool {
+        value.range(of: #"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$"#, options: .regularExpression) != nil
+    }
+
+    private func isValidAccount(_ value: String) -> Bool {
+        value.range(of: #"^[a-zA-Z0-9_]{4,16}$"#, options: .regularExpression) != nil
+    }
+
+    private var isLoginDisabled: Bool {
+        isLoading || !isUsernameValid || password.isEmpty || turnstileToken == nil
+    }
+
+    // MARK: - Body
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 0) {
-                // ── 左侧品牌展示区 ──
-                brandPanel
-                    .frame(width: max(380, geo.size.width * 0.42))
+        VStack(spacing: 0) {
+            // ── 品牌 Logo ──
+            brandLogo
+                .padding(.top, 50)
 
-                // ── 右侧登录表单 ──
-                loginPanel
-                    .frame(maxWidth: .infinity)
+            // ── 标题 ──
+            Text("PrivateCloudDisk")
+                .font(.system(size: 16, weight: .bold, design: .default))
+                .foregroundColor(AppColors.textPrimary)
+                .padding(.top, 16)
+
+            Text("企业级私有云存储")
+                .font(.system(size: 11, design: .default))
+                .foregroundColor(AppColors.textTertiary)
+                .padding(.top, 6)
+
+            // ── 表单区域 ──
+            VStack(spacing: 12) {
+                // 错误提示
+                errorBanner
+
+                // 用户名
+                usernameInput
+
+                // 密码
+                passwordInput
+
+                // 记住密码
+                rememberRow
+
+                // Turnstile 状态
+                turnstileStatus
+
+                // 登录按钮
+                loginButton
+
+                // 注册链接
+                registerLink
             }
-            .background(
-                ZStack {
-                    Color(nsColor: .windowBackgroundColor)
+            .padding(.horizontal, 44)
+            .padding(.top, 28)
 
-                    LinearGradient(
-                        colors: [
-                            AppColors.splashBg1,
-                            Color(nsColor: .windowBackgroundColor),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .opacity(0.3)
-                }
-            )
+            Spacer()
         }
-        .frame(minWidth: 800, minHeight: 560)
-        .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                cardScale = 1
-                cardOpacity = 1
+        .frame(width: 400, height: 520)
+        .background(Color.white)
+        .onSubmit { handleLogin() }
+        .onChange(of: isPasswordFocused) { focused in
+            if focused && !turnstileTriggered && isUsernameValid {
+                triggerTurnstile()
             }
+        }
+        .onDisappear {
+            resetTurnstile()
         }
     }
 
-    // MARK: - 左侧品牌展示
+    // MARK: - 品牌 Logo
 
-    private var brandPanel: some View {
+    private var brandLogo: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    AppColors.splashBg1,
-                    AppColors.splashBg2,
-                    AppColors.splashBg3,
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            // 装饰光晕
-            Circle()
+            RoundedRectangle(cornerRadius: 12)
                 .fill(
-                    RadialGradient(
-                        colors: [brandBlue.opacity(0.15), .clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 250
+                    LinearGradient(
+                        colors: [brandBlue, brandBlue.opacity(0.75)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 350, height: 350)
-                .offset(x: -50, y: -100)
-                .blur(radius: 30)
+                .frame(width: 44, height: 44)
 
-            GridPatternView()
-                .opacity(0.05)
+            Image(systemName: "cloud.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.white)
+        }
+        .shadow(color: brandBlue.opacity(0.25), radius: 8, y: 2)
+    }
 
-            VStack(spacing: 32) {
-                Spacer()
+    // MARK: - 错误提示
 
-                // Logo
-                ZStack {
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(brandGradient)
-                        .frame(width: 80, height: 80)
-                        .shadow(
-                            color: brandBlue.opacity(0.5),
-                            radius: 30,
-                            x: 0,
-                            y: 8
-                        )
-
-                    Image(systemName: "externaldrive.fill.badge.icloud")
-                        .font(.system(size: 36, weight: .medium))
-                        .foregroundColor(.white)
-                }
-
-                // 品牌名称
-                VStack(spacing: 8) {
-                    HStack(spacing: 0) {
-                        Text("Private")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("Cloud")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(brandBlue)
-                        Text("Disk")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                    }
-
-                    Text("企业级私有云存储解决方案")
-                        .font(.system(size: 13, design: .rounded))
-                        .foregroundColor(.white.opacity(0.5))
-                        .tracking(2)
-                }
-
-                Spacer()
-
-                // 特性列表
-                VStack(alignment: .leading, spacing: 16) {
-                    FeatureItem(
-                        icon: "lock.shield.fill",
-                        title: "端到端加密",
-                        description: "AES-256 军事级加密保护"
-                    )
-                    FeatureItem(
-                        icon: "bolt.fill",
-                        title: "极速传输",
-                        description: "P2P 加速 + 断点续传"
-                    )
-                    FeatureItem(
-                        icon: "externaldrive.fill",
-                        title: "虚拟磁盘",
-                        description: "像本地磁盘一样使用云端空间"
-                    )
-                    FeatureItem(
-                        icon: "device.phone.rtl",
-                        title: "多端同步",
-                        description: "Windows / macOS / Android / iOS"
-                    )
-                }
-                .padding(.horizontal, 40)
-
-                Spacer()
-                Spacer()
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let error = errorMessage {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(AppColors.danger)
+                Text(error)
+                    .font(.system(size: 11, design: .default))
+                    .foregroundColor(AppColors.danger)
+                    .lineLimit(2)
             }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(AppColors.dangerBg)
+            )
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
-    // MARK: - 右侧登录面板
+    // MARK: - 用户名输入框
 
-    private var loginPanel: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                Spacer(minLength: 40)
+    private var usernameInput: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // 输入框
+            HStack(spacing: 8) {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.textTertiary)
+                    .frame(width: 14)
 
-                // 登录卡片
-                VStack(spacing: 28) {
-                    // 欢迎标题
-                    VStack(spacing: 6) {
-                        Text(viewModel.isLoginMode ? "欢迎回来" : "创建账户")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundColor(.primary)
-
-                        Text(viewModel.isLoginMode
-                            ? "登录您的私有云存储账户"
-                            : "注册一个新的私有云存储账户"
-                        )
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                ZStack(alignment: .leading) {
+                    if username.isEmpty {
+                        Text("账号 / 手机号 / 邮箱")
+                            .font(.system(size: 13, design: .default))
+                            .foregroundColor(AppColors.textPlaceholder)
+                            .allowsHitTesting(false)
                     }
-
-                    // 表单
-                    VStack(spacing: 18) {
-                        loginFormFields
-                    }
-
-                    // 登录按钮
-                    loginButton
-                        .padding(.top, 4)
-
-                    // 忘记密码
-                    if viewModel.isLoginMode {
-                        forgotPasswordLink
-                    }
-
-                    // 分隔线
-                    socialDivider
-
-                    // 社交登录
-                    socialLoginButtons
-
-                    // 切换模式
-                    modeToggle
+                    TextField("", text: $username)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, design: .default))
+                        .foregroundColor(AppColors.textPrimary)
+                        .disableAutocorrection(true)
                 }
-                .padding(40)
-                .frame(width: 420)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(.regularMaterial)
-                        .shadow(color: .black.opacity(0.06), radius: 20, x: 0, y: 4)
-                )
-                .scaleEffect(cardScale)
-                .opacity(cardOpacity)
 
-                Spacer(minLength: 40)
+                if !username.isEmpty {
+                    Button(action: {
+                        username = ""
+                        clearAllErrors()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(AppColors.neutral300)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // 验证状态图标
+                if !username.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Image(systemName: isUsernameValid ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(isUsernameValid ? AppColors.success : AppColors.neutral300)
+                }
             }
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(
+                        isUsernameValid && !username.isEmpty
+                            ? AppColors.success.opacity(0.35)
+                            : AppColors.neutral200,
+                        lineWidth: 1
+                    )
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white)
+                    )
+            )
+
+            // 验证提示
+            if !username.trimmingCharacters(in: .whitespaces).isEmpty && !isUsernameValid {
+                Text("请输入正确的手机号、邮箱或账号（4-16位字母数字下划线）")
+                    .font(.system(size: 10, design: .default))
+                    .foregroundColor(AppColors.textTertiary)
+                    .lineLimit(1)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: username) { _ in
+            if !username.isEmpty { clearAllErrors() }
+            resetTurnstileState()
         }
     }
 
-    // MARK: - 表单字段
+    // MARK: - 密码输入框
 
-    private var loginFormFields: some View {
-        Group {
-            // 用户名
-            FormField(
-                icon: "person.fill",
-                label: "用户名",
-                placeholder: "请输入用户名",
-                text: $viewModel.username,
-                focused: $focusedField,
-                field: .username,
-                onSubmit: { focusedField = .password }
-            )
+    private var passwordInput: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.textTertiary)
+                .frame(width: 14)
 
-            // 邮箱（仅注册模式）
-            if !viewModel.isLoginMode {
-                FormField(
-                    icon: "envelope.fill",
-                    label: "邮箱",
-                    placeholder: "请输入邮箱地址",
-                    text: $viewModel.email,
-                    focused: $focusedField,
-                    field: .email,
-                    onSubmit: { focusedField = .password }
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.95)),
-                        removal: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.95))
-                    )
-                )
-            }
-
-            // 密码
-            FormField(
-                icon: "lock.fill",
-                label: "密码",
-                placeholder: "请输入密码",
-                text: $viewModel.password,
-                focused: $focusedField,
-                field: .password,
-                isSecure: true,
-                onSubmit: {
-                    Task {
-                        if viewModel.isLoginMode {
-                            await viewModel.login()
-                        } else {
-                            await viewModel.register()
-                        }
+            ZStack(alignment: .leading) {
+                if password.isEmpty {
+                    Text("密码")
+                        .font(.system(size: 13, design: .default))
+                        .foregroundColor(AppColors.textPlaceholder)
+                        .allowsHitTesting(false)
+                }
+                Group {
+                    if isPasswordVisible {
+                        TextField("", text: $password)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, design: .default))
+                            .foregroundColor(AppColors.textPrimary)
+                    } else {
+                        SecureField("", text: $password)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, design: .default))
+                            .foregroundColor(AppColors.textPrimary)
                     }
                 }
-            )
+                .focused($isPasswordFocused)
+                .disabled(!isUsernameValid)
+                .opacity(isUsernameValid ? 1 : 0.35)
+            }
 
-            // 错误提示
-            if viewModel.showError, let error = viewModel.errorMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
-                        .font(.caption)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: { isPasswordVisible.toggle() }) {
+                Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(AppColors.textTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(AppColors.neutral200, lineWidth: 1)
                 .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.red.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isUsernameValid ? Color.white : Color(hex: "#F5F5F5"))
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        )
+        .overlay(alignment: .bottom) {
+            if !isUsernameValid {
+                Text("请先输入合法的用户名")
+                    .font(.system(size: 10, design: .default))
+                    .foregroundColor(AppColors.textTertiary)
+                    .offset(y: 16)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: viewModel.isLoginMode)
+        .padding(.bottom, 4)
+    }
+
+    // MARK: - 记住密码行
+
+    private var rememberRow: some View {
+        HStack {
+            Toggle("记住密码", isOn: .constant(false))
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11, design: .default))
+                .foregroundColor(AppColors.textSecondary)
+
+            Spacer()
+
+            Button("忘记密码?") {}
+                .buttonStyle(.plain)
+                .font(.system(size: 11, design: .default))
+                .foregroundColor(brandBlue)
+        }
+    }
+
+    // MARK: - Turnstile 状态指示器
+
+    @ViewBuilder
+    private var turnstileStatus: some View {
+        // Turnstile 错误
+        if let captchaError = turnstileError {
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(AppColors.warning)
+                Text(captchaError)
+                    .font(.system(size: 10, design: .default))
+                    .foregroundColor(AppColors.warning)
+                    .lineLimit(1)
+            }
+            .transition(.opacity)
+        } else if turnstileLoading {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .tint(AppColors.textTertiary)
+                Text("正在进行安全验证...")
+                    .font(.system(size: 10, design: .default))
+                    .foregroundColor(AppColors.textTertiary)
+            }
+        } else if turnstileToken != nil {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(AppColors.success)
+                Text("安全验证通过")
+                    .font(.system(size: 10, design: .default))
+                    .foregroundColor(AppColors.success)
+            }
+            .transition(.opacity)
+        }
+
+        // 隐藏的 Turnstile WebView
+        TurnstileWebView(
+            triggerExecute: $triggerTurnstileExecute,
+            triggerReset: $triggerTurnstileReset,
+            onTokenReceived: { handleTurnstileToken($0) },
+            onTokenExpired: { handleTurnstileExpired() },
+            onError: { handleTurnstileError($0) }
+        )
+        .frame(width: 300, height: 70)
+        .opacity(1)
+        .allowsHitTesting(true)
     }
 
     // MARK: - 登录按钮
 
     private var loginButton: some View {
-        Button(action: {
-            Task {
-                if viewModel.isLoginMode {
-                    await viewModel.login()
-                } else {
-                    await viewModel.register()
-                }
-            }
-        }) {
-            HStack(spacing: 8) {
-                if viewModel.isLoading {
+        Button(action: handleLogin) {
+            HStack(spacing: 6) {
+                if isLoading {
                     ProgressView()
-                        .scaleEffect(0.7)
+                        .scaleEffect(0.6)
                         .tint(.white)
                 }
-                Text(viewModel.isLoginMode ? "登录" : "创建账户")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        isFormValid
-                            ? AnyShapeStyle(brandGradient)
-                            : AnyShapeStyle(Color.gray.opacity(0.3))
-                    )
-            )
-            .foregroundColor(isFormValid ? .white : .gray)
-            .shadow(
-                color: isFormValid ? AppColors.primary.opacity(0.3) : .clear,
-                radius: 12,
-                x: 0,
-                y: 4
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isLoading || !isFormValid)
-        .scaleEffect(viewModel.isLoading ? 0.98 : 1)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.isLoading)
-    }
-
-    // MARK: - 忘记密码
-
-    private var forgotPasswordLink: some View {
-        HStack(spacing: 4) {
-            Spacer()
-            Button("忘记密码？") {
-                showForgotPassword = true
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 12, design: .rounded))
-            .foregroundColor(brandBlue)
-        }
-        .sheet(isPresented: $showForgotPassword) {
-            forgotPasswordSheet
-        }
-    }
-
-    private var forgotPasswordSheet: some View {
-        VStack(spacing: 24) {
-            Text("重置密码")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("邮箱地址")
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Image(systemName: "envelope.fill")
-                        .foregroundColor(.secondary)
-                    TextField("请输入注册邮箱", text: $viewModel.email)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.quaternary.opacity(0.4))
-                )
-            }
-
-            HStack(spacing: 12) {
-                Button("取消") { showForgotPassword = false }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-
-                Button("发送重置链接") {
-                    // TODO: 实现密码重置 API
-                    showForgotPassword = false
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(brandBlue)
-            }
-        }
-        .padding(30)
-        .frame(width: 380, height: 240)
-    }
-
-    // MARK: - 社交登录分隔线
-
-    private var socialDivider: some View {
-        HStack(spacing: 12) {
-            Rectangle()
-                .fill(.quaternary)
-                .frame(height: 1)
-
-            Text("或")
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.tertiary)
-
-            Rectangle()
-                .fill(.quaternary)
-                .frame(height: 1)
-        }
-    }
-
-    // MARK: - 社交登录按钮
-
-    private var socialLoginButtons: some View {
-        HStack(spacing: 16) {
-            // Apple ID
-            socialLoginButton(
-                icon: "apple.logo",
-                label: "Apple",
-                color: .primary
-            ) {
-                // Apple Sign In
-            }
-
-            // 服务器配置
-            socialLoginButton(
-                icon: "server.rack",
-                label: "服务器",
-                color: brandBlue
-            ) {
-                showServerConfig = true
-            }
-        }
-        .sheet(isPresented: $showServerConfig) {
-            serverConfigSheet
-        }
-    }
-
-    private func socialLoginButton(
-        icon: String,
-        label: String,
-        color: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                Text(label)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                Text(isLoading ? "登录中..." : "登 录")
+                    .font(.system(size: 14, weight: .semibold, design: .default))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.quaternary.opacity(0.5))
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        LinearGradient(
+                            colors: [brandBlue, brandBlue.opacity(0.88)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
             )
-            .foregroundColor(color)
+            .foregroundColor(.white)
         }
         .buttonStyle(.plain)
+        .disabled(isLoginDisabled)
+        .opacity(isLoginDisabled ? 0.45 : 1)
+        .padding(.top, 2)
     }
 
-    // MARK: - 服务器配置 Sheet
+    // MARK: - 注册链接
 
-    private var serverConfigSheet: some View {
-        VStack(spacing: 24) {
-            Text("服务器配置")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+    private var registerLink: some View {
+        HStack(spacing: 4) {
+            Text("没有账号?")
+                .font(.system(size: 11, design: .default))
+                .foregroundColor(AppColors.textTertiary)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("API 服务器地址")
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Image(systemName: "network")
-                        .foregroundColor(.secondary)
-                    TextField("http://localhost:8000", text: $serverURL)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.quaternary.opacity(0.4))
-                )
-                Text("修改后需要重新登录")
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundColor(.secondary)
-                    .padding(.leading, 4)
-            }
-
-            HStack(spacing: 12) {
-                Button("取消") {
-                    showServerConfig = false
-                }
+            Button("立即注册") {}
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-
-                Button("保存") {
-                    // TODO: 保存服务器配置
-                    showServerConfig = false
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(brandBlue)
-            }
+                .font(.system(size: 11, weight: .medium, design: .default))
+                .foregroundColor(brandBlue)
         }
-        .padding(30)
-        .frame(width: 420, height: 240)
+        .padding(.top, 8)
     }
 
-    // MARK: - 模式切换
+    // MARK: - Turnstile 操作
 
-    private var modeToggle: some View {
-        HStack(spacing: 6) {
-            Text(viewModel.isLoginMode ? "还没有账户？" : "已有账户？")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            Button(viewModel.isLoginMode ? "立即注册" : "立即登录") {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    viewModel.toggleMode()
-                }
-            }
-            .font(.caption.weight(.semibold))
-            .buttonStyle(.plain)
-            .foregroundColor(brandBlue)
-        }
+    private func triggerTurnstile() {
+        guard !turnstileTriggered else { return }
+        turnstileTriggered = true
+        turnstileLoading = true
+        turnstileError = nil
+        triggerTurnstileExecute = true
     }
 
-    // MARK: - 表单验证
-
-    private var isFormValid: Bool {
-        guard !viewModel.username.isEmpty, !viewModel.password.isEmpty else {
-            return false
-        }
-        if !viewModel.isLoginMode {
-            guard !viewModel.email.isEmpty, viewModel.email.contains("@") else {
-                return false
-            }
-        }
-        return true
+    private func handleTurnstileToken(_ token: String) {
+        turnstileToken = token
+        turnstileLoading = false
+        turnstileError = nil
     }
-}
 
-// MARK: - 表单字段组件
-
-struct FormField: View {
-    let icon: String
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-    var focused: FocusState<LoginView.Field?>.Binding
-    let field: LoginView.Field
-    var isSecure: Bool = false
-    var onSubmit: (() -> Void)?
-
-    @State private var isHovered = false
-    @State private var showPassword = false
-
-    private let brandBlue = AppColors.primary
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption.weight(.medium))
-                .foregroundColor(.secondary)
-                .padding(.leading, 4)
-
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(
-                        focused.wrappedValue == field
-                            ? brandBlue
-                            : .secondary.opacity(0.6)
-                    )
-                    .frame(width: 18)
-                    .animation(.easeInOut(duration: 0.2), value: focused.wrappedValue)
-
-                Group {
-                    if isSecure && !showPassword {
-                        SecureField(placeholder, text: $text)
-                    } else {
-                        TextField(placeholder, text: $text)
-                    }
-                }
-                .textFieldStyle(.plain)
-                .font(.system(size: 15, design: .rounded))
-                .focused(focused, equals: field)
-                .onSubmit { onSubmit?() }
-
-                if isSecure {
-                    Button(action: { showPassword.toggle() }) {
-                        Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        focused.wrappedValue == field
-                            ? Color(nsColor: .controlBackgroundColor)
-                            : Color(nsColor: .quaternaryLabelColor).opacity(0.3)
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(
-                        focused.wrappedValue == field
-                            ? brandBlue.opacity(0.5)
-                            : Color.clear,
-                        lineWidth: 1.5
-                    )
-            )
-            .shadow(
-                color: focused.wrappedValue == field
-                    ? brandBlue.opacity(0.08)
-                    : .clear,
-                radius: 6,
-                x: 0,
-                y: 2
-            )
-            .animation(.easeInOut(duration: 0.2), value: focused.wrappedValue)
-        }
+    private func handleTurnstileExpired() {
+        turnstileToken = nil
+        turnstileError = "安全验证已过期，请重新聚焦密码框完成验证"
+        turnstileTriggered = false
     }
-}
 
-// MARK: - 特性项组件
+    private func handleTurnstileError(_ errorMsg: String) {
+        turnstileToken = nil
+        turnstileLoading = false
+        turnstileError = errorMsg
+        turnstileTriggered = false
+    }
 
-struct FeatureItem: View {
-    let icon: String
-    let title: String
-    let description: String
+    private func resetTurnstileState() {
+        turnstileTriggered = false
+        turnstileLoading = false
+        turnstileError = nil
+    }
 
-    private let brandBlue = AppColors.primary
+    private func resetTurnstile() {
+        turnstileToken = nil
+        turnstileTriggered = false
+        turnstileLoading = false
+        turnstileError = nil
+        triggerTurnstileReset = true
+    }
 
-    var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(brandBlue.opacity(0.15))
-                    .frame(width: 36, height: 36)
+    private func clearAllErrors() {
+        errorMessage = nil
+        turnstileError = nil
+    }
 
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(brandBlue)
+    // MARK: - 登录操作
+
+    private func handleLogin() {
+        guard !isLoginDisabled, let token = turnstileToken else { return }
+
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            defer {
+                DispatchQueue.main.async { isLoading = false }
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.9))
-                Text(description)
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundColor(.white.opacity(0.45))
+            do {
+                try await authService.login(
+                    username: username.trimmingCharacters(in: .whitespaces),
+                    password: password,
+                    turnstileToken: token
+                )
+            } catch {
+                DispatchQueue.main.async {
+                    errorMessage = error.localizedDescription
+                    resetTurnstile()
+                }
             }
         }
     }
 }
 
-#Preview {
-    LoginView()
+// MARK: - Preview
+
+#if DEBUG
+struct LoginView_Previews: PreviewProvider {
+    static var previews: some View {
+        LoginView()
+            .environmentObject(AuthService.shared)
+    }
 }
+#endif

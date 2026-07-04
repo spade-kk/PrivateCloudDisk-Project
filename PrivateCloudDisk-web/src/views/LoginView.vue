@@ -128,7 +128,7 @@
             </label>
 
             <!-- Turnstile -->
-            <div ref="turnstileContainer" class="turnstile-wrap" :class="{ hidden: !turnstileSiteKey }"></div>
+            <div ref="turnstileContainer" :class="{ hidden: !turnstileSiteKey }"></div>
             <p v-if="!turnstileSiteKey" class="field-error">未配置 Turnstile Site Key</p>
             <p v-else-if="captchaError" class="field-error">{{ captchaError }}</p>
 
@@ -300,7 +300,9 @@ async function renderTurnstile() {
       sitekey: turnstileSiteKey,
       action: 'login',
       theme: 'light',
-      size: 'normal',
+      size: 'flexible',
+      execution: 'execute',
+      appearance: 'interaction-only',
       callback: (token: string) => {
         captchaToken.value = token
         captchaError.value = ''
@@ -320,6 +322,8 @@ async function renderTurnstile() {
   } finally {
     captchaLoading.value = false
   }
+
+  window.turnstile.execute(turnstileWidgetId.value);
 }
 
 function resetTurnstile() {
@@ -733,12 +737,6 @@ onBeforeUnmount(() => {
   height: 16px;
   accent-color: #165DFF;
   cursor: pointer;
-}
-
-/* Turnstile */
-.turnstile-wrap {
-  display: flex;
-  justify-content: center;
 }
 
 /* 错误提示 */

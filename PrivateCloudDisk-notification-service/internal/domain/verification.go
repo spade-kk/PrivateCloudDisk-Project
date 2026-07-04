@@ -161,7 +161,7 @@ const (
 	ResendIntervalSeconds = 60
 
 	// 同一 IP+目标每小时最大发送次数
-	MaxSendsPerHour = 5
+	MaxSendsPerHour = 5000
 
 	// 重新发送最大次数
 	MaxResends = 8
@@ -170,7 +170,7 @@ const (
 	ResendTokenTTLSeconds = 600 // 10 分钟
 
 	// 验证码校验失败最大次数（同一 IP+目标）
-	MaxCodeFailures = 5
+	MaxCodeFailures = 500
 
 	// 验证码校验失败窗口（秒）
 	CodeFailureWindowSeconds = 900 // 15 分钟
@@ -225,19 +225,19 @@ func (e *VerificationError) Error() string {
 }
 
 var (
-	ErrInvalidPurpose     = &VerificationError{Code: 400, Message: "验证码用途不合法，必须是 REGISTER、BIND 或 RESET"}
-	ErrNoTarget           = &VerificationError{Code: 400, Message: "邮箱和手机号至少提供一个"}
-	ErrCaptchaFailed      = &VerificationError{Code: 400, Message: "人机验证失败"}
-	ErrSystemTarget       = &VerificationError{Code: 400, Message: "不能使用系统邮箱/手机号获取验证码"}
-	ErrBlockedDomain      = &VerificationError{Code: 400, Message: "不允许使用该邮箱域名，请使用企业邮箱"}
-	ErrRateLimitExceeded  = &VerificationError{Code: 429, Message: "发送频率超限，请稍后再试"}
-	ErrResendInterval     = &VerificationError{Code: 429, Message: "发送间隔不足60秒，请稍后再试"}
-	ErrResendTokenInvalid = &VerificationError{Code: 400, Message: "重新发送令牌无效或已过期"}
+	ErrInvalidPurpose       = &VerificationError{Code: 400, Message: "验证码用途不合法，必须是 REGISTER、BIND 或 RESET"}
+	ErrNoTarget             = &VerificationError{Code: 400, Message: "邮箱和手机号至少提供一个"}
+	ErrCaptchaFailed        = &VerificationError{Code: 400, Message: "人机验证失败"}
+	ErrSystemTarget         = &VerificationError{Code: 400, Message: "不能使用系统邮箱/手机号获取验证码"}
+	ErrBlockedDomain        = &VerificationError{Code: 400, Message: "不允许使用该邮箱域名，请使用企业邮箱"}
+	ErrRateLimitExceeded    = &VerificationError{Code: 429, Message: "发送频率超限，请稍后再试"}
+	ErrResendInterval       = &VerificationError{Code: 429, Message: "发送间隔不足60秒，请稍后再试"}
+	ErrResendTokenInvalid   = &VerificationError{Code: 400, Message: "重新发送令牌无效或已过期"}
 	ErrResendTokenExhausted = &VerificationError{Code: 400, Message: "重新发送次数已用完"}
-	ErrCodeInvalid        = &VerificationError{Code: 400, Message: "验证码错误"}
-	ErrCodeExpired        = &VerificationError{Code: 400, Message: "验证码已过期"}
+	ErrCodeInvalid          = &VerificationError{Code: 400, Message: "验证码错误"}
+	ErrCodeExpired          = &VerificationError{Code: 400, Message: "验证码已过期"}
 	ErrCodeAttemptsExceeded = &VerificationError{Code: 429, Message: "验证码错误次数过多，请 15 分钟后重试"}
-	ErrCodeIPMismatch     = &VerificationError{Code: 400, Message: "验证码与请求 IP 不匹配"}
+	ErrCodeIPMismatch       = &VerificationError{Code: 400, Message: "验证码与请求 IP 不匹配"}
 )
 
 // IsVerificationError 判断是否为验证码业务错误

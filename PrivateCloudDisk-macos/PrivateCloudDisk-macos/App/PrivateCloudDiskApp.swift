@@ -1,80 +1,99 @@
 import SwiftUI
 import AppKit
 
-// MARK: - 应用入口（企业级 SwiftUI App）
+// MARK: - 应用入口（企业级 macOS 应用 — 双窗口模式）
 
-/// PrivateCloudDisk macOS 原生应用入口
+/// PrivateCloudDisk macOS 原生应用
 ///
-/// 企业级 UI 设计：
-/// - 无边框窗口 + 隐藏标题栏，自定义 Traffic Light 按钮（品牌色设计）
-/// - 全屏品牌启动页，隐藏系统红绿灯
-/// - 窗口圆角 + 自定义拖拽区域
-/// - 参考百度网盘、夸克网盘等企业级 macOS 应用设计
-/// - 毛玻璃侧边栏 + 现代卡片式布局
+/// 窗口模式设计（参考 QQ 微信 百度网盘 网易云音乐）：
+/// - **登录窗口**：紧凑固定尺寸 400×520，不可缩放，仅关闭按钮可见
+/// - **主窗口**：1280×820，可缩放，完整窗口控制按钮
+/// - 登录成功后窗口平滑切换（大小、位置、按钮状态）
+///
+/// 与 Web 前端 PrivateCloudDisk-web 统一：
+/// - 品牌色 #165DFF（Tailwind blue-600）
+/// - 白色背景 + 蓝色主题
+/// - 毛玻璃侧边栏 + 卡片式内容区
 @main
 struct PrivateCloudDiskApp: App {
 
-    // MARK: - AppDelegate 桥接
-
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    // MARK: - 全局状态
 
     @StateObject private var authService = AuthService.shared
     @StateObject private var virtualDiskManager = VirtualDiskManager.shared
+
+    // MARK: - 窗口尺寸常量
+
+    /// 登录窗口尺寸（参考 QQ Mac 380×400 / 百度网盘 400×440 / 网易云音乐 380×480）
+    /// 取 400×520 以容纳 Turnstile 验证状态指示器
+    static let loginWindowSize = NSSize(width: 400, height: 520)
+    /// 主窗口尺寸
+    static let mainWindowSize = NSSize(width: 1280, height: 820)
+    /// 主窗口最小尺寸
+    static let mainWindowMinSize = NSSize(width: 960, height: 640)
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authService)
                 .environmentObject(virtualDiskManager)
-                .frame(minWidth: 960, minHeight: 640)
+                .frame(
+                    minWidth: 400,
+                    idealWidth: 400,
+                    maxWidth: 400,
+                    minHeight: 520,
+                    idealHeight: 520,
+                    maxHeight: 520
+                )
                 .onAppear {
-                    configureWindow()
+                    configureLoginWindow()
                 }
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
-        .defaultSize(width: 1280, height: 820)
-        .windowResizability(.contentMinSize)
+        .defaultSize(width: 400, height: 520)
+        .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) { }
             CommandGroup(replacing: .toolbar) { }
         }
     }
 
-    // MARK: - 窗口配置
+    // MARK: - 登录窗口配置（紧凑、固定、不可缩放）
 
-    private func configureWindow() {
+    private func configureLoginWindow() {
         DispatchQueue.main.async {
-            guard let window = NSApp.windows.first(where: { $0.isKeyWindow || $0.identifier?.rawValue == "main" })
-                ?? NSApp.windows.first
+            guard let window = NSApp.windows.first(where: {
+                $0.isKeyWindow || $0.identifier?.rawValue == "main"
+            }) ?? NSApp.windows.first
             else { return }
 
-            // 窗口标识
             window.identifier = NSUserInterfaceItemIdentifier("main")
 
-            // ── 标题栏配置 ──
+            // ── 无边框配置 ──
             window.titlebarAppearsTransparent = true
             window.title = ""
             window.titlebarSeparatorStyle = .none
 
             // ── 窗口外观 ──
-            window.backgroundColor = .windowBackgroundColor
+            window.backgroundColor = .white
+            window.isOpaque = true
             window.appearance = NSApp.effectiveAppearance
 
-            // ── 窗口行为 ──
-            window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
+            // ── 固定尺寸：不可缩放 ──
+            window.styleMask.remove(.resizable)
+            window.setContentSize(Self.loginWindowSize)
+            window.minSize = Self.loginWindowSize
+            window.maxSize = Self.loginWindowSize
+
+            // ── 窗口行为：仅允许关闭，禁止最小化和全屏 ──
+            window.collectionBehavior = []
             window.level = .normal
-            window.minSize = NSSize(width: 960, height: 640)
 
-            // ── 窗口圆角（macOS 15+ 风格） ──
-            if #available(macOS 15.0, *) {
-                // macOS 15 默认已有圆角，无需额外设置
-            }
-
-            // ── 自定义 Traffic Light 按钮 ──
-            window.configureTrafficLightButtons()
+            // ── 隐藏最小化和缩放按钮，仅保留关闭按钮 ──
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            window.standardWindowButton(.zoomButton)?.isHidden = true
+            window.standardWindowButton(.closeButton)?.isHidden = false
 
             // ── 居中显示 ──
             window.center()
@@ -83,52 +102,104 @@ struct PrivateCloudDiskApp: App {
     }
 }
 
-// MARK: - 窗口扩展：自定义 Traffic Light 按钮
+// MARK: - NSWindow 扩展：窗口模式切换
 
 extension NSWindow {
 
-    /// 隐藏窗口的交通灯按钮（关闭/最小化/全屏）
+    /// 切换到主窗口模式（可缩放、完整控制按钮）
+    func transitionToMainWindow() {
+        // 启用缩放
+        styleMask.insert(.resizable)
+
+        // 显示所有控制按钮
+        standardWindowButton(.closeButton)?.isHidden = false
+        standardWindowButton(.miniaturizeButton)?.isHidden = false
+        standardWindowButton(.zoomButton)?.isHidden = false
+
+        // 更新尺寸约束
+        minSize = PrivateCloudDiskApp.mainWindowMinSize
+        maxSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+
+        // 调整到主窗口尺寸
+        let newFrame = NSRect(
+            x: frame.midX - PrivateCloudDiskApp.mainWindowSize.width / 2,
+            y: frame.midY - PrivateCloudDiskApp.mainWindowSize.height / 2,
+            width: PrivateCloudDiskApp.mainWindowSize.width,
+            height: PrivateCloudDiskApp.mainWindowSize.height
+        )
+        setFrame(newFrame, display: true, animate: true)
+
+        // 主窗口行为
+        collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
+        backgroundColor = NSColor(red: 0.96, green: 0.97, blue: 0.98, alpha: 1.0) // #F5F7FA
+        isOpaque = false
+        titlebarSeparatorStyle = .none
+
+        // 自定义 Traffic Light 按钮位置
+        configureTrafficLightButtons()
+    }
+
+    /// 切换到登录窗口模式（固定尺寸、不可缩放、仅关闭按钮）
+    func transitionToLoginWindow() {
+        // 禁用缩放
+        styleMask.remove(.resizable)
+
+        // 隐藏最小化和缩放按钮，仅保留关闭按钮
+        standardWindowButton(.closeButton)?.isHidden = false
+        standardWindowButton(.miniaturizeButton)?.isHidden = true
+        standardWindowButton(.zoomButton)?.isHidden = true
+
+        // 固定尺寸
+        minSize = PrivateCloudDiskApp.loginWindowSize
+        maxSize = PrivateCloudDiskApp.loginWindowSize
+
+        // 调整到登录窗口尺寸
+        let newFrame = NSRect(
+            x: frame.midX - PrivateCloudDiskApp.loginWindowSize.width / 2,
+            y: frame.midY - PrivateCloudDiskApp.loginWindowSize.height / 2,
+            width: PrivateCloudDiskApp.loginWindowSize.width,
+            height: PrivateCloudDiskApp.loginWindowSize.height
+        )
+        setFrame(newFrame, display: true, animate: true)
+
+        // 登录窗口行为
+        collectionBehavior = []
+        backgroundColor = .white
+        isOpaque = true
+        titlebarSeparatorStyle = .none
+    }
+
+    /// 隐藏红绿灯按钮
     func hideTrafficLightButtons() {
         standardWindowButton(.closeButton)?.isHidden = true
         standardWindowButton(.miniaturizeButton)?.isHidden = true
         standardWindowButton(.zoomButton)?.isHidden = true
     }
 
-    /// 显示窗口的交通灯按钮
+    /// 显示红绿灯按钮
     func showTrafficLightButtons() {
         standardWindowButton(.closeButton)?.isHidden = false
         standardWindowButton(.miniaturizeButton)?.isHidden = false
         standardWindowButton(.zoomButton)?.isHidden = false
     }
 
-    /// 自定义交通灯按钮位置和样式
-    /// 参考百度网盘 macOS 客户端：紧凑排列，垂直居中，与侧边栏标题对齐
+    /// 自定义红绿灯按钮位置（垂直居中于侧边栏头部区域，与品牌 Logo 对齐）
     func configureTrafficLightButtons() {
-        let buttons: [(NSWindow.ButtonType, String)] = [
-            (.closeButton, "close"),
-            (.miniaturizeButton, "miniaturize"),
-            (.zoomButton, "zoom"),
-        ]
-
-        for (index, (type, _)) in buttons.enumerated() {
+        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+        for (index, type) in buttons.enumerated() {
             guard let button = standardWindowButton(type) else { continue }
-
-            // 获取父视图高度以垂直居中
             let superviewHeight = button.superview?.bounds.height ?? 44
-
-            // 垂直居中（与侧边栏头部对齐）
             button.frame.origin.y = (superviewHeight / 2) - (button.frame.height / 2) - 1
-
-            // 水平间距：紧凑排列，左侧留白与侧边栏 padding 对齐
-            button.frame.origin.x = 12 + CGFloat(index) * 20
+            button.frame.origin.x = 14 + CGFloat(index) * 20
         }
     }
 }
 
-// MARK: - 自定义 Traffic Light 按钮视图（SwiftUI 版本）
+// MARK: - 自定义 Traffic Light 按钮（SwiftUI 品牌色设计）
 
-/// 品牌色自定义窗口控制按钮
-/// 用于替换原生红绿灯，提供更统一的设计语言
 struct CustomTrafficLightButtons: View {
     let onClose: () -> Void
     let onMinimize: () -> Void
@@ -136,15 +207,10 @@ struct CustomTrafficLightButtons: View {
 
     @State private var hoveredButton: ButtonType?
 
-    enum ButtonType {
-        case close, minimize, zoom
-    }
-
-    private let brandBlue = AppColors.primary
+    enum ButtonType { case close, minimize, zoom }
 
     var body: some View {
         HStack(spacing: 8) {
-            // 关闭按钮
             trafficLightButton(
                 type: .close,
                 baseColor: Color(red: 1.0, green: 0.38, blue: 0.35),
@@ -152,8 +218,6 @@ struct CustomTrafficLightButtons: View {
                 symbol: "xmark",
                 action: onClose
             )
-
-            // 最小化按钮
             trafficLightButton(
                 type: .minimize,
                 baseColor: Color(red: 1.0, green: 0.75, blue: 0.18),
@@ -161,8 +225,6 @@ struct CustomTrafficLightButtons: View {
                 symbol: "minus",
                 action: onMinimize
             )
-
-            // 全屏按钮
             trafficLightButton(
                 type: .zoom,
                 baseColor: Color(red: 0.15, green: 0.80, blue: 0.35),
@@ -186,7 +248,6 @@ struct CustomTrafficLightButtons: View {
                     .fill(hoveredButton == type ? hoverColor : baseColor)
                     .frame(width: 12, height: 12)
                     .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 0.5)
-
                 if hoveredButton == type {
                     Image(systemName: symbol)
                         .font(.system(size: 5.5, weight: .black))

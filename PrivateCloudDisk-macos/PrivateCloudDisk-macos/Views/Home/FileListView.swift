@@ -1,8 +1,8 @@
 import SwiftUI
 
-// MARK: - 文件列表视图（企业级设计）
+// MARK: - 文件列表视图（企业级 v4 — 与 Web 前端统一）
 
-/// 文件列表视图 —— 列表模式
+/// 文件列表视图 —— 列表模式（独立组件，可复用于收藏夹、回收站等）
 ///
 /// 参考百度网盘 macOS 客户端设计：
 /// - 悬停时显示操作按钮
@@ -19,9 +19,9 @@ struct FileListView: View {
     var body: some View {
         List(selection: $fileListVM.selectedNodeIds) {
             ForEach(sortedFiles, id: \.id) { node in
-                FileRowView(node: node, isHovered: hoveredNodeId == node.id)
+                FileRowView(node: node, isSelected: fileListVM.selectedNodeIds.contains(node.id))
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.12)) {
+                        withAnimation(AppAnimation.fast) {
                             hoveredNodeId = hovering ? node.id : nil
                         }
                     }
@@ -106,102 +106,9 @@ struct FileListView: View {
     }
 }
 
-// MARK: - 文件行视图（企业级设计）
+// MARK: - 文件网格视图（企业级 v4 — 与 Web 前端统一）
 
-struct FileRowView: View {
-    let node: FileNode
-    let isHovered: Bool
-
-    private let brandBlue = AppColors.primary
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // 文件图标
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(node.isFolder ? brandBlue.opacity(0.1) : fileColor.opacity(0.1))
-                    .frame(width: 34, height: 34)
-
-                Image(systemName: node.isFolder ? "folder.fill" : node.category.sfSymbolName)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(node.isFolder ? brandBlue : fileColor)
-            }
-
-            // 文件信息
-            VStack(alignment: .leading, spacing: 3) {
-                Text(node.name)
-                    .font(.system(size: 13, design: .rounded))
-                    .lineLimit(1)
-
-                HStack(spacing: 10) {
-                    if !node.isFolder {
-                        Text(node.formattedSize)
-                            .font(.system(size: 11, design: .rounded))
-                            .foregroundColor(.secondary)
-                    }
-                    Text(node.formattedDate)
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-
-            // 操作按钮（悬停时显示）
-            if isHovered {
-                HStack(spacing: 6) {
-                    // 收藏标记
-                    if node.isStarred == true {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.yellow)
-                    }
-
-                    // 下载按钮
-                    if !node.isFolder {
-                        Button(action: {}) {
-                            Image(systemName: "arrow.down.circle")
-                                .font(.system(size: 14))
-                                .foregroundColor(brandBlue)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    // 更多操作
-                    Button(action: {}) {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isHovered ? Color.primary.opacity(0.04) : .clear)
-        )
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
-    }
-
-    private var fileColor: Color {
-        switch node.category {
-        case .document: return brandBlue
-        case .image: return .purple
-        case .video: return .pink
-        case .audio: return .orange
-        case .archive: return .brown
-        case .code: return .green
-        case .other: return .gray
-        }
-    }
-}
-
-// MARK: - 文件网格视图（企业级设计）
-
+/// 文件网格视图 —— 独立组件，可复用于收藏夹、回收站等
 struct FileGridView: View {
     @EnvironmentObject var fileListVM: FileListViewModel
     @EnvironmentObject var contentVM: ContentViewModel
@@ -217,9 +124,9 @@ struct FileGridView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(sortedFiles, id: \.id) { node in
-                    FileGridCell(node: node, isHovered: hoveredNodeId == node.id)
+                    FileGridCell(node: node, isSelected: fileListVM.selectedNodeIds.contains(node.id))
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.12)) {
+                            withAnimation(AppAnimation.fast) {
                                 hoveredNodeId = hovering ? node.id : nil
                             }
                         }
@@ -261,64 +168,6 @@ struct FileGridView: View {
         Button("重命名") { }
         Button("移到回收站") {
             Task { await fileListVM.deleteNodes([node.id]) }
-        }
-    }
-}
-
-// MARK: - 文件网格单元格
-
-struct FileGridCell: View {
-    let node: FileNode
-    let isHovered: Bool
-
-    private let brandBlue = AppColors.primary
-
-    var body: some View {
-        VStack(spacing: 8) {
-            // 图标
-            ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(node.isFolder ? brandBlue.opacity(0.1) : fileColor.opacity(0.1))
-                    .frame(width: 64, height: 64)
-
-                Image(systemName: node.isFolder ? "folder.fill" : node.category.sfSymbolName)
-                    .font(.system(size: 26))
-                    .foregroundColor(node.isFolder ? brandBlue : fileColor)
-            }
-
-            // 文件名
-            Text(node.name)
-                .font(.system(size: 11, design: .rounded))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.primary)
-                .frame(width: 100)
-
-            if !node.isFolder {
-                Text(node.formattedSize)
-                    .font(.system(size: 10, design: .rounded))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 6)
-        .frame(width: 120)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isHovered ? Color.primary.opacity(0.04) : .clear)
-        )
-        .animation(.easeInOut(duration: 0.15), value: isHovered)
-    }
-
-    private var fileColor: Color {
-        switch node.category {
-        case .document: return brandBlue
-        case .image: return .purple
-        case .video: return .pink
-        case .audio: return .orange
-        case .archive: return .brown
-        case .code: return .green
-        case .other: return .gray
         }
     }
 }

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Turnstile 原生集成</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #turnstile-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        iframe {
+            border: none !important;
+        }
+        #status {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div id="turnstile-container"></div>
+    <div id="status">加载中...</div>
+
+    <script>
+        // ── 全局状态 ──
+        let turnstileToken = null;
+        let widgetId = null;
+        let isReady = false;
+
+        // ── 回调函数（暴露给全局） ──
+        window.onTurnstileSuccess = function(token) {
+            console.log('✅ 验证成功，token:', token);
+            turnstileToken = token;
+            document.getElementById('status').textContent = '✅ 已验证';
+            // 通知 Swift
+            window.webkit.messageHandlers.turnstileCallback.postMessage(token);
+        };
+
+        window.onTurnstileExpired = function() {
+            console.warn('⏳ 验证过期');
+            turnstileToken = null;
+            document.getElementById('status').textContent = '⏳ 已过期';
+            window.webkit.messageHandlers.turnstileExpired.postMessage('expired');
+        };
+
+        window.onTurnstileError = function(err) {
+            console.error('❌ 验证错误:', err);
+            turnstileToken = null;
+            document.getElementById('status').textContent = '❌ 错误';
+            window.webkit.messageHandlers.turnstileError.postMessage('验证组件错误');
+        };
+
+        // ── 加载 Turnstile API ──
+        function loadTurnstileScript() {
+            return new Promise((resolve, reject) => {
+                if (window.turnstile) {
+                    resolve();
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+                script.async = true;
+                script.defer = true;
+                script.onload = () => {
+                    console.log('📦 Turnstile 脚本加载完成');
+                    resolve();
+                };
+                script.onerror = () => reject(new Error('Turnstile 脚本加载失败'));
+                document.head.appendChild(script);
+            });
+        }
+
+        // ── 显式渲染 Turnstile ──
+        async function renderTurnstile() {
+            try {
+                await loadTurnstileScript();
+
+                // 如果已经渲染过，先重置
+                if (widgetId !== null && window.turnstile) {
+                    try { window.turnstile.reset(widgetId); } catch (e) {}
+                    widgetId = null;
+                }
+
+                const container = document.getElementById('turnstile-container');
+                if (!container) {
+                    throw new Error('容器不存在');
+                }
+
+                // 显式渲染
+                widgetId = window.turnstile.render(container, {
+                    sitekey: '0x4AAAAAADf7cwlBLsuoXeH-', // 替换为您自己的 key
+                    action: 'login',
+                    theme: 'light',
+                    size: 'flexible',
+                    execution: 'execute',
+                    appearance: "interaction-only",
+                    // 重点：不设置 execution，我们手动控制
+                    callback: window.onTurnstileSuccess,
+                    'expired-callback': window.onTurnstileExpired,
+                    'error-callback': window.onTurnstileError,
+                });
+
+                console.log('🖌️ 渲染完成，widgetId:', widgetId);
+
+                // 等待 iframe 真正加载完成
+                await waitForTurnstileIframe();
+
+                // 如果此时需要自动执行，可以调用 execute
+                // 但这里我们不自动执行，等待外部调用 triggerTurnstileExecute
+
+                document.getElementById('status').textContent = '✅ 就绪';
+                isReady = true;
+            } catch (e) {
+                console.error('渲染失败:', e);
+                document.getElementById('status').textContent = '❌ 渲染失败';
+                window.webkit.messageHandlers.turnstileError.postMessage(e.message);
+            }
+        }
+
+        // ── 等待 Turnstile iframe 加载完成 ──
+        function waitForTurnstileIframe() {
+            return new Promise((resolve) => {
+                // 最多尝试 10 次，每次间隔 300ms
+                let attempts = 0;
+                const maxAttempts = 10;
+                const interval = setInterval(() => {
+                    attempts++;
+                    const iframe = document.querySelector('iframe[src*="challenges.cloudflare.com"]');
+                    // 检查 iframe 是否已加载且 contentWindow 可访问
+                    if (iframe && iframe.contentWindow) {
+                        // 进一步检查是否真的加载完成（尝试读取 location）
+                        try {
+                            // 如果跨域，读取 location 会抛错，但能捕获说明 iframe 存在
+                            const loc = iframe.contentWindow.location.href;
+                            // 如果到这里，说明 iframe 已存在且可通信
+                            clearInterval(interval);
+                            console.log('✅ iframe 已就绪');
+                            resolve();
+                            return;
+                        } catch (e) {
+                            // 跨域时读取 location 会抛错，但 iframe 仍然存在，可认为就绪
+                            clearInterval(interval);
+                            console.log('✅ iframe 已就绪（跨域）');
+                            resolve();
+                            return;
+                        }
+                    }
+                    if (attempts >= maxAttempts) {
+                        clearInterval(interval);
+                        console.warn('⚠️ iframe 加载超时，但继续尝试执行');
+                        resolve(); // 即使超时也 resolve，让执行尝试
+                    }
+                }, 300);
+            });
+        }
+
+        // ── 触发验证（供 Swift 调用） ──
+        function triggerTurnstileExecute() {
+            if (turnstileToken) {
+                // 已有有效 token，直接回调
+                window.webkit.messageHandlers.turnstileCallback.postMessage(turnstileToken);
+                return;
+            }
+
+            if (!window.turnstile || widgetId === null) {
+                window.webkit.messageHandlers.turnstileError.postMessage('组件未就绪');
+                return;
+            }
+
+            // 确保 iframe 已就绪，否则等待
+            const iframe = document.querySelector('iframe[src*="challenges.cloudflare.com"]');
+            if (!iframe || !iframe.contentWindow) {
+                // 未就绪，等待并重试
+                console.log('⏳ iframe 未就绪，等待...');
+                waitForTurnstileIframe().then(() => {
+                    // 再次检查 token（可能在此期间已通过其他方式获得）
+                    if (turnstileToken) {
+                        window.webkit.messageHandlers.turnstileCallback.postMessage(turnstileToken);
+                        return;
+                    }
+                    try {
+                        window.turnstile.execute(widgetId);
+                        console.log('🔁 执行验证');
+                        document.getElementById('status').textContent = '⏳ 验证中...';
+                    } catch (e) {
+                        window.webkit.messageHandlers.turnstileError.postMessage('执行失败: ' + e.message);
+                    }
+                });
+                return;
+            }
+
+            // 已就绪，直接执行
+            try {
+                window.turnstile.execute(widgetId);
+                console.log('🔁 执行验证');
+                document.getElementById('status').textContent = '⏳ 验证中...';
+            } catch (e) {
+                window.webkit.messageHandlers.turnstileError.postMessage('执行失败: ' + e.message);
+            }
+        }
+
+        // ── 重置 ──
+        function resetTurnstile() {
+            turnstileToken = null;
+            if (window.turnstile && widgetId !== null) {
+                try {
+                    window.turnstile.reset(widgetId);
+                    document.getElementById('status').textContent = '🔄 已重置';
+                } catch (e) {}
+            }
+        }
+
+        // ── 页面初始化 ──
+        document.addEventListener('DOMContentLoaded', function() {
+            renderTurnstile();
+        });
+    </script>
+</body>
+</html>

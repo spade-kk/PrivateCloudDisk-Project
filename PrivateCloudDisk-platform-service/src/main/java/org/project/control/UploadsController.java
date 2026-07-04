@@ -45,10 +45,16 @@ public class UploadsController extends BaseController {
         return new JsonResult<String>(OK, uploads_id.toString());
     }
 
+    /**
+     *
+     * @param user_id
+     * @param uploads_id
+     * @return
+     */
     @DeleteMapping("/{uploads_id}")
     public JsonResult<String> cancelUploadsSession(
             @RequestHeader("X-User-Id") String user_id,
-            @PathVariable("uplodas_id") String uploads_id )
+            @PathVariable("uploads_id") String uploads_id )
     {
         uploadsService.cancelUploadSession(UUID.fromString(uploads_id), UUID.fromString(user_id));
         return new JsonResult<String>(OK, null);

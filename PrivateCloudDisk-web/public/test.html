@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Turnstile</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                html, body {
+                    width: 100%; height: 100%;
+                    background: transparent;
+                    overflow: hidden;
+                }
+                body {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                #turnstile-container {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                iframe { border: none !important; }
+            </style>
+        </head>
+        <body>
+            <div id="turnstile-container"></div>
+
+            <script>
+            // ── Turnstile 状态 ──
+            var turnstileWidgetId = null;
+            var turnstileToken = null;
+
+            // ── 配置 ──
+            var TURNSTILE_CONFIG = {
+                sitekey: '0x4AAAAAADf7cwlBLsuoXeH-',
+                action: 'login',
+                theme: 'light',
+                size: 'flexible',
+                execution: 'execute',
+                appearance: 'always'
+            };
+
+            // ── 加载 Turnstile API 脚本 ──
+            function loadTurnstileScript() {
+                return new Promise(function(resolve, reject) {
+                    if (window.turnstile) {
+                        resolve();
+                        return;
+                    }
+                    var script = document.createElement('script');
+                    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+                    script.async = true;
+                    script.defer = true;
+                    script.onload = function() { resolve(); };
+                    script.onerror = function() {
+                        reject(new Error('Turnstile script load failed'));
+                    };
+                    document.head.appendChild(script);
+                });
+            }
+
+            // ── 渲染 Turnstile Widget ──
+            async function renderTurnstile() {
+                try {
+                    await loadTurnstileScript();
+
+                    if (!window.turnstile) {
+                        sendError('Turnstile API 不可用');
+                        return;
+                    }
+
+                    var container = document.getElementById('turnstile-container');
+                    if (!container) {
+                        sendError('Turnstile 容器未找到');
+                        return;
+                    }
+
+                    turnstileWidgetId = window.turnstile.render('#turnstile-container', {
+                        sitekey: TURNSTILE_CONFIG.sitekey,
+                        action: TURNSTILE_CONFIG.action,
+                        theme: TURNSTILE_CONFIG.theme,
+                        size: TURNSTILE_CONFIG.size,
+                        execution: TURNSTILE_CONFIG.execution,
+                        appearance: TURNSTILE_CONFIG.appearance,
+                        callback: function(token) {
+                            turnstileToken = token;
+                            window.webkit.messageHandlers.turnstileCallback.postMessage(token);
+                        },
+                        'expired-callback': function() {
+                            turnstileToken = null;
+                            window.webkit.messageHandlers.turnstileExpired.postMessage('expired');
+                        },
+                        'error-callback': function() {
+                            turnstileToken = null;
+                            window.webkit.messageHandlers.turnstileError.postMessage('验证组件加载失败');
+                        }
+                    });
+                } catch (e) {
+                    sendError(e.message || 'Turnstile 初始化失败');
+                }
+                return null;   // 函数末尾统一返回 null
+            }
+
+            // ── 触发 Turnstile 验证（主动调用 execute） ──
+            function triggerTurnstileExecute() {
+                if (turnstileToken) {
+                    // 已有有效 token，直接通知 Swift
+                    window.webkit.messageHandlers.turnstileCallback.postMessage(turnstileToken);
+                    return null;
+                }
+                if (window.turnstile && turnstileWidgetId !== null) {
+                    try {
+                        window.turnstile.execute(turnstileWidgetId);
+                    } catch (e) {
+                        sendError('验证触发失败: ' + e.message);
+                    }
+                } else {
+                    // Widget 尚未渲染完成，稍后重试
+                    setTimeout(function() {
+                        if (window.turnstile && turnstileWidgetId !== null) {
+                            try {
+                                window.turnstile.execute(turnstileWidgetId);
+                            } catch (e) {
+                                sendError('验证触发失败: ' + e.message);
+                            }
+                        } else {
+                            sendError('验证组件尚未就绪，请稍后重试');
+                        }
+                    }, 500);
+                }
+                return null;   // 函数末尾统一返回 null
+            }
+
+            // ── 重置 Turnstile ──
+            function resetTurnstile() {
+                turnstileToken = null;
+                if (window.turnstile && turnstileWidgetId !== null) {
+                    try {
+                        window.turnstile.reset(turnstileWidgetId);
+                    } catch (e) {
+                        // 忽略重置错误
+                    }
+                }
+                return null;   // 函数末尾统一返回 null
+            }
+
+            // ── 发送错误到 Swift ──
+            function sendError(message) {
+                window.webkit.messageHandlers.turnstileError.postMessage(message);
+            }
+
+            // ── 页面加载完成后渲染 Turnstile ──
+            document.addEventListener('DOMContentLoaded', function() {
+                renderTurnstile();
+            });
+            </script>
+        </body>
+        </html>
