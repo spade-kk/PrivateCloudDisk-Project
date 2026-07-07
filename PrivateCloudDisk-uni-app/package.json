@@ -1,19 +1,19 @@
 {
-  "name": "privateclouddisk-client",
+  "name": "privateclouddisk-miniapp",
   "version": "1.0.0",
-  "description": "PrivateCloudDisk 跨平台客户端 - 支持 iOS / Android / 微信小程序 / H5",
+  "description": "PrivateCloudDisk 多平台小程序客户端 - 支持微信/支付宝/百度/字节小程序",
   "main": "main.js",
   "scripts": {
-    "dev:app": "uni -p app",
     "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:mp-alipay": "uni -p mp-alipay",
     "dev:h5": "uni -p h5",
-    "build:app": "uni build -p app",
     "build:mp-weixin": "uni build -p mp-weixin",
-    "build:h5": "uni build -p h5"
+    "build:mp-alipay": "uni build -p mp-alipay",
+    "build:h5": "uni build -p h5",
+    "gen:icons": "python3 scripts/gen_tabbar_icons.py"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5010320260611001",
-    "@dcloudio/uni-app-plus": "3.0.0-alpha-5010320260611001",
     "@dcloudio/uni-components": "3.0.0-alpha-5010320260611001",
     "@dcloudio/uni-h5": "3.0.0-alpha-5010320260611001",
     "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5010320260611001",

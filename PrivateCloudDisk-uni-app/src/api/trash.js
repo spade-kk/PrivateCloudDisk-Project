@@ -46,3 +46,18 @@ export function permanentDelete(trashId) {
 export function emptyTrash() {
   return del(`${BASE}/`)
 }
+
+/** 获取回收站列表 (分页) - 别名 */
+export function getTrashListPaged(page = 1, pageSize = 20) {
+  return get(`${BASE}/`, { page, pageSize })
+}
+
+/** 恢复文件 */
+export function restoreFile(fileId) {
+  return post(`${BASE}/files/${fileId}/restore`)
+}
+
+/** 恢复文件夹 */
+export function restoreFolder(nodeId) {
+  return post(`${BASE}/folders/${nodeId}/restore`)
+}

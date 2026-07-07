@@ -1,251 +1,113 @@
 <template>
   <view class="trash-page">
-    <!-- 操作栏 -->
-    <view class="action-bar flex-between">
-      <text class="count-text">{{ totalCount }} 个文件</text>
+    <view class="trash-header">
+      <text class="trash-tip">回收站中的文件将在 30 天后自动清除</text>
       <u-button
+        v-if="list.length > 0"
         type="error"
         size="small"
         text="清空回收站"
         @click="handleEmptyTrash"
-        :disabled="totalCount === 0"
       />
     </view>
-
-    <!-- 回收站列表 -->
-    <view class="trash-list">
-      <view
-        class="trash-item"
-        v-for="item in trashList"
-        :key="item.id"
+    <view class="file-list">
+      <FileItem
+        v-for="node in list"
+        :key="node.node_id"
+        :node="node"
+        @click="handleItemClick"
       >
-        <view class="item-main flex-between" @click="handleItemClick(item)">
-          <view class="item-left">
-            <u-icon
-              :name="item.target_type === 'folder' ? 'folder' : getFileIcon(item.target_name)"
-              size="44"
-              :color="item.target_type === 'folder' ? '#1a73e8' : getFileIconColor(item.target_name)"
-            />
-            <view class="item-info">
-              <text class="item-name ellipsis">{{ item.target_name }}</text>
-              <text class="item-meta">{{ formatTime(item.deleted_at) }} · {{ item.deleted_by }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 操作按钮组 -->
-        <view class="item-actions">
-          <u-button
-            type="primary"
-            size="small"
-            text="恢复"
-            plain
-            @click="handleRestore(item)"
-          />
-          <u-button
-            type="error"
-            size="small"
-            text="彻底删除"
-            plain
-            @click="handlePermanentDelete(item)"
-          />
-        </view>
-      </view>
-
-      <u-empty
-        v-if="!loading && trashList.length === 0"
-        text="回收站为空"
-        icon="trash"
-      />
-    </view>
-
-    <view class="load-more" v-if="hasMore">
-      <u-loading-icon v-if="loadingMore" size="20" text="加载中..." />
-      <text v-else class="load-more-text" @click="loadMore">点击加载更多</text>
+        <template #action>
+          <u-button type="primary" size="mini" text="恢复" @click.stop="handleRestore(node)" />
+        </template>
+      </FileItem>
+      <EmptyState v-if="!loading && list.length === 0" icon="trash" text="回收站为空" />
+      <LoadingOverlay :visible="loading" text="加载中..." />
     </view>
   </view>
 </template>
 
 <script>
-import { getTrashList, getTrashCount, restoreFromTrash, permanentDelete, emptyTrash } from '@/api/trash'
-import { formatTime, getFileIcon, getFileIconColor } from '@/utils/helper'
-import { PAGE_SIZE } from '@/utils/const'
+import { useUserAuth } from '@/composables/useUserAuth'
+import { getTrashListPaged, restoreFile, restoreFolder, emptyTrash } from '@/api/trash'
+import FileItem from '@/components/file/FileItem.vue'
+import EmptyState from '@/components/file/EmptyState.vue'
+import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
 
 export default {
+  components: { FileItem, EmptyState, LoadingOverlay },
+  setup() {
+    const { requireAuth } = useUserAuth()
+    return { requireAuth }
+  },
   data() {
-    return {
-      loading: false,
-      loadingMore: false,
-      trashList: [],
-      totalCount: 0,
-      page: 1,
-      hasMore: false
-    }
+    return { list: [], loading: true }
   },
   onShow() {
-    this.loadData()
+    if (!this.requireAuth()) return
+    this.loadTrash()
   },
   methods: {
-    getFileIcon,
-    getFileIconColor,
-    formatTime,
-
-    async loadData() {
+    async loadTrash() {
       this.loading = true
       try {
-        const [listRes, countRes] = await Promise.all([
-          getTrashList({ page: 1, pageSize: PAGE_SIZE }),
-          getTrashCount()
-        ])
-        this.trashList = listRes.data || []
-        this.totalCount = countRes.data || 0
-        this.hasMore = (listRes.data?.length || 0) >= PAGE_SIZE
-        this.page = 1
-      } catch (e) {
-      } finally {
+        const res = await getTrashListPaged(1, 50)
+        this.list = res.data?.items || []
+      } catch (e) { /* 已处理 */ } finally {
         this.loading = false
       }
     },
-
-    async loadMore() {
-      if (this.loadingMore || !this.hasMore) return
-      this.loadingMore = true
-      try {
-        const res = await getTrashList({ page: this.page + 1, pageSize: PAGE_SIZE })
-        this.trashList.push(...(res.data || []))
-        this.hasMore = (res.data?.length || 0) >= PAGE_SIZE
-        this.page++
-      } catch (e) {
-      } finally {
-        this.loadingMore = false
+    handleItemClick(node) {
+      if (node.node_type === 'FOLDER') {
+        uni.showModal({
+          title: '提示',
+          content: '回收站中的文件夹无法直接查看，请先恢复',
+          showCancel: false
+        })
+      } else {
+        uni.navigateTo({
+          url: `/pages/file-detail/index?fileId=${node.node_id}&fileName=${encodeURIComponent(node.node_name)}`
+        })
       }
     },
-
-    async handleRestore(item) {
+    async handleRestore(node) {
       try {
-        await restoreFromTrash(item.id)
-        this.trashList = this.trashList.filter(t => t.id !== item.id)
-        this.totalCount--
+        if (node.node_type === 'FOLDER') {
+          await restoreFolder(node.node_id)
+        } else {
+          await restoreFile(node.node_id)
+        }
         uni.showToast({ title: '已恢复', icon: 'success' })
-      } catch (e) {}
+        this.loadTrash()
+      } catch (e) { /* 已处理 */ }
     },
-
-    async handlePermanentDelete(item) {
-      uni.showModal({
-        title: '彻底删除',
-        content: `确定要永久删除「${item.target_name}」吗？此操作不可撤销！`,
-        confirmColor: '#ea4335',
-        success: async (res) => {
-          if (res.confirm) {
-            try {
-              await permanentDelete(item.id)
-              this.trashList = this.trashList.filter(t => t.id !== item.id)
-              this.totalCount--
-              uni.showToast({ title: '已删除', icon: 'success' })
-            } catch (e) {}
-          }
-        }
-      })
-    },
-
     async handleEmptyTrash() {
-      uni.showModal({
-        title: '清空回收站',
-        content: '确定要清空回收站吗？所有文件将永久删除，不可恢复！',
-        confirmColor: '#ea4335',
-        success: async (res) => {
-          if (res.confirm) {
-            try {
-              await emptyTrash()
-              this.trashList = []
-              this.totalCount = 0
-              uni.showToast({ title: '回收站已清空', icon: 'success' })
-            } catch (e) {}
-          }
-        }
+      const res = await uni.showModal({
+        title: '确认清空',
+        content: '清空后所有文件将永久删除，无法恢复。确定清空吗？'
       })
-    },
-
-    handleItemClick(item) {
-      // 回收站中的项目仅展示信息, 不可点击进入
-      uni.showToast({ title: '回收站中的文件无法预览', icon: 'none' })
+      if (res.confirm) {
+        try {
+          await emptyTrash()
+          uni.showToast({ title: '已清空回收站', icon: 'success' })
+          this.loadTrash()
+        } catch (e) { /* 已处理 */ }
+      }
     }
   }
 }
 </script>
 
 <style lang="scss" scoped>
-.trash-page {
-  min-height: 100vh;
-  padding-bottom: 40rpx;
+.trash-page { min-height: 100vh; background: #f5f5f5; }
+.trash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 32rpx;
+  background: #fff;
+  border-bottom: 1rpx solid #f0f0f0;
 }
-
-.action-bar {
-  padding: 24rpx;
-  background: $bg-white;
-  margin: 20rpx 24rpx;
-  border-radius: $radius-md;
-
-  .count-text {
-    font-size: 28rpx;
-    font-weight: 600;
-  }
-}
-
-.trash-list {
-  background: $bg-white;
-  margin: 0 24rpx;
-  border-radius: $radius-md;
-  overflow: hidden;
-}
-
-.trash-item {
-  padding: 24rpx;
-  border-bottom: 1rpx solid $border-color;
-
-  &:last-child {
-    border-bottom: none;
-  }
-
-  .item-main {
-    .item-left {
-      display: flex;
-      align-items: center;
-      flex: 1;
-
-      .item-info {
-        margin-left: 20rpx;
-        flex: 1;
-
-        .item-name {
-          font-size: 28rpx;
-          color: $text-primary;
-        }
-
-        .item-meta {
-          font-size: 22rpx;
-          color: $text-secondary;
-          margin-top: 4rpx;
-        }
-      }
-    }
-  }
-
-  .item-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 16rpx;
-    margin-top: 16rpx;
-  }
-}
-
-.load-more {
-  padding: 24rpx;
-  text-align: center;
-
-  .load-more-text {
-    color: $primary-color;
-    font-size: 26rpx;
-  }
-}
+.trash-tip { font-size: 24rpx; color: #9aa0a6; }
+.file-list { margin: 16rpx 24rpx; background: #fff; border-radius: 16rpx; overflow: hidden; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06); }
 </style>

@@ -16,11 +16,53 @@ export function createUploadSession(data) {
 }
 
 /**
+ * 上传文件（简化封装，带进度回调）
+ *
+ * @param {string} filePath 文件临时路径
+ * @param {Object} options  { onProgress(percent) }
+ */
+export function uploadFile(filePath, options = {}) {
+  const token = getToken()
+  const userId = getUserId()
+
+  return new Promise((resolve, reject) => {
+    const uploadTask = uni.uploadFile({
+      url: `${FILE_BASE_URL}/files/uploads/simple`,
+      filePath,
+      name: 'file',
+      header: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(userId ? { 'X-User-Id': userId } : {})
+      },
+      success(res) {
+        try {
+          const body = JSON.parse(res.data)
+          if (body.code === 200) resolve(body)
+          else reject(new Error(body.message || '上传失败'))
+        } catch (e) {
+          reject(new Error('响应解析失败'))
+        }
+      },
+      fail(err) {
+        reject(err)
+      }
+    })
+
+    // 上传进度回调
+    if (options.onProgress) {
+      uploadTask.onProgressUpdate((res) => {
+        options.onProgress(res.progress)
+      })
+    }
+  })
+}
+
+/**
  * 上传单个分片 (FastAPI 文件服务)
  *
  * @param {string} uploadsId   上传会话 ID
  * @param {number} chunkIndex  分片索引 (1-based)
- * @param {string} filePath    分片临时文件路径 (uni.chooseFile 返回的)
+ * @param {string} filePath    分片临时文件路径
  */
 export function uploadChunk(uploadsId, chunkIndex, filePath) {
   const token = getToken()
@@ -52,7 +94,7 @@ export function uploadChunk(uploadsId, chunkIndex, filePath) {
   })
 }
 
-/** 合并文件分片 (FastAPI 文件服务) */
+/** 合并分片 (FastAPI 文件服务) */
 export function mergeChunks(uploadsId) {
-  return post(`/files/uploads/${uploadsId}/merge`, {}, { service: 'file' })
+  return post(`${BASE}/${uploadsId}/merge`)
 }

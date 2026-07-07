@@ -1,173 +1,135 @@
 <template>
   <view class="file-list-page">
-    <u-loading-page v-if="loading" />
-    <view v-else class="content">
-      <view v-if="nodes.length === 0" class="empty">
-        <u-empty text="此目录为空" mode="list" />
-      </view>
-      <view v-else class="node-list">
-        <view
-          v-for="node in nodes"
-          :key="node.node_id"
-          class="node-item"
-          @click="handleNodeClick(node)"
-        >
-          <view class="node-left">
-            <u-icon
-              :name="node.is_folder ? 'folder' : 'file-text'"
-              size="40"
-              :color="node.is_folder ? '#1a73e8' : '#666'"
-            />
-            <text class="node-name">{{ node.name }}</text>
-          </view>
-          <view class="node-right">
-            <text v-if="!node.is_folder" class="node-size">{{ formatFileSize(node.size || 0) }}</text>
-            <u-icon name="arrow-right" size="28" color="#ccc" />
-          </view>
-        </view>
-      </view>
+    <BreadcrumbNav
+      :pathStack="nodeStack"
+      @back="goBack"
+      @home="goHome"
+      @navigate="onBreadcrumbNavigate"
+    />
+
+    <view class="file-list">
+      <FileItem
+        v-for="node in children"
+        :key="node.node_id"
+        :node="node"
+        @click="handleItemClick"
+        @longpress="handleLongPress"
+      />
+      <EmptyState v-if="!loading && children.length === 0" icon="folder" text="当前目录为空" />
+      <LoadingOverlay :visible="loading" text="加载中..." />
     </view>
-    <view class="bottom-bar">
-      <u-button type="primary" @click="handleUpload">上传文件</u-button>
-      <u-button @click="handleNewFolder">新建文件夹</u-button>
-    </view>
+
+    <u-action-sheet
+      :show="menuShow"
+      :actions="menuActions"
+      @select="handleMenuSelect"
+      @close="menuShow = false"
+    />
   </view>
 </template>
 
 <script>
 import { getChildrenPaged } from '@/api/node'
-import { formatFileSize } from '@/utils/helper'
+import FileItem from '@/components/file/FileItem.vue'
+import BreadcrumbNav from '@/components/file/BreadcrumbNav.vue'
+import EmptyState from '@/components/file/EmptyState.vue'
+import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
 
 export default {
+  components: { FileItem, BreadcrumbNav, EmptyState, LoadingOverlay },
   data() {
     return {
+      nodeStack: [],
+      children: [],
       loading: true,
-      folderId: null,
-      folderName: '',
-      nodes: [],
-      cursor: null,
-      hasMore: true
+      menuShow: false,
+      selectedItem: null
+    }
+  },
+  computed: {
+    menuActions() {
+      if (!this.selectedItem) return []
+      return [
+        { name: '查看详情', value: 'detail' }
+      ]
     }
   },
   onLoad(options) {
-    this.folderId = options.folder_id || null
-    this.folderName = options.folder_name || '文件目录'
-    uni.setNavigationBarTitle({ title: this.folderName })
-    this.loadNodes()
+    if (options.folderId) {
+      this.nodeStack.push({
+        node_id: options.folderId,
+        node_name: decodeURIComponent(options.folderName || '目录')
+      })
+    }
+    this.loadChildren()
   },
   methods: {
-    async loadNodes() {
+    async loadChildren() {
+      const nodeId = this.nodeStack.length > 0
+        ? this.nodeStack[this.nodeStack.length - 1].node_id
+        : null
+      if (!nodeId) return
+
       this.loading = true
       try {
-        const res = await getChildrenPaged({
-          node_id: this.folderId,
-          limit: 50,
-          cursor: this.cursor
-        })
-        this.nodes = res.nodes || res.data || []
-        this.cursor = res.cursor || null
-        this.hasMore = !!res.cursor
-      } catch (e) {
-        uni.showToast({ title: '加载失败', icon: 'none' })
-      } finally {
+        const res = await getChildrenPaged(nodeId, { page: 1, pageSize: 50 })
+        this.children = res.data?.items || []
+      } catch (e) { /* 已处理 */ } finally {
         this.loading = false
       }
     },
-    handleNodeClick(node) {
-      if (node.is_folder) {
-        uni.navigateTo({
-          url: `/pages/file-list/index?folder_id=${node.node_id}&folder_name=${encodeURIComponent(node.name)}`
-        })
+
+    handleItemClick(node) {
+      if (node.node_type === 'FOLDER') {
+        this.nodeStack.push({ node_id: node.node_id, node_name: node.node_name })
+        this.loadChildren()
       } else {
         uni.navigateTo({
-          url: `/pages/file-detail/index?node_id=${node.node_id}`
+          url: `/pages/file-detail/index?fileId=${node.node_id}&fileName=${encodeURIComponent(node.node_name)}`
         })
       }
     },
-    handleUpload() {
-      uni.navigateTo({ url: '/pages/upload/index' })
+
+    handleLongPress(node) {
+      this.selectedItem = node
+      this.menuShow = true
     },
-    handleNewFolder() {
-      uni.showModal({
-        title: '新建文件夹',
-        editable: true,
-        placeholderText: '请输入文件夹名称',
-        success: async (res) => {
-          if (res.confirm && res.content) {
-            try {
-              const { createNode } = await import('@/api/node')
-              await createNode({
-                parent_id: this.folderId,
-                name: res.content,
-                is_folder: true
-              })
-              uni.showToast({ title: '创建成功' })
-              this.loadNodes()
-            } catch (e) {
-              uni.showToast({ title: '创建失败', icon: 'none' })
-            }
-          }
-        }
-      })
+
+    handleMenuSelect(action) {
+      if (action.value === 'detail' && this.selectedItem) {
+        uni.navigateTo({
+          url: `/pages/file-detail/index?fileId=${this.selectedItem.node_id}&fileName=${encodeURIComponent(this.selectedItem.node_name)}`
+        })
+      }
+      this.menuShow = false
     },
-    formatFileSize
+
+    goBack() {
+      if (this.nodeStack.length > 0) {
+        this.nodeStack.pop()
+        this.loadChildren()
+      } else {
+        uni.navigateBack()
+      }
+    },
+
+    goHome() {
+      this.nodeStack = []
+      this.loadChildren()
+    },
+
+    onBreadcrumbNavigate(item) {
+      const idx = this.nodeStack.findIndex(n => n.node_id === item.node_id)
+      if (idx !== -1) {
+        this.nodeStack = this.nodeStack.slice(0, idx + 1)
+        this.loadChildren()
+      }
+    }
   }
 }
 </script>
 
 <style lang="scss" scoped>
-.file-list-page {
-  min-height: 100vh;
-  background: #f5f5f5;
-  padding-bottom: 100rpx;
-}
-.content {
-  padding: 20rpx;
-}
-.empty {
-  margin-top: 200rpx;
-}
-.node-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  padding: 24rpx 20rpx;
-  border-radius: 12rpx;
-  margin-bottom: 12rpx;
-}
-.node-left {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  overflow: hidden;
-}
-.node-name {
-  margin-left: 16rpx;
-  font-size: 28rpx;
-  color: #333;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.node-right {
-  display: flex;
-  align-items: center;
-}
-.node-size {
-  font-size: 24rpx;
-  color: #999;
-  margin-right: 8rpx;
-}
-.bottom-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  gap: 20rpx;
-  padding: 20rpx;
-  background: #fff;
-  border-top: 1px solid #eee;
-}
+.file-list-page { min-height: 100vh; background: #f5f5f5; }
+.file-list { margin: 16rpx 24rpx; background: #fff; border-radius: 16rpx; overflow: hidden; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06); }
 </style>

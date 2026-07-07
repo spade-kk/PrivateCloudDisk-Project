@@ -50,3 +50,8 @@ export function moveNode(nodeId, data) {
 export function renameNode(nodeId, data) {
   return patch(`${BASE}/${nodeId}/name`, data)
 }
+
+/** 获取文件详情 (别名，兼容页面调用) */
+export function getFileDetail(fileId) {
+  return get(`${BASE}/${fileId}`)
+}

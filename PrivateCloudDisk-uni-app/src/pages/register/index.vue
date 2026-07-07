@@ -1,191 +1,116 @@
 <template>
   <view class="register-page">
-    <view class="page-header">
-      <text class="title">注册账号</text>
-      <text class="subtitle">创建您的 PrivateCloudDisk 账号</text>
-    </view>
+    <view class="register-card">
+      <view class="title-section">
+        <text class="title">创建账号</text>
+        <text class="subtitle">加入私有云盘，开启安全存储之旅</text>
+      </view>
 
-    <view class="form-section">
-      <u-form :model="form" :rules="rules" ref="formRef" labelPosition="top">
-        <u-form-item label="手机号" prop="phone_number" required>
+      <view class="form-section">
+        <view class="form-item">
           <u-input
-            v-model="form.phone_number"
-            placeholder="请输入手机号"
-            prefixIcon="phone"
-            type="number"
-            maxlength="11"
-            clearable
-          />
-        </u-form-item>
-
-        <u-form-item label="验证码" prop="code" required>
-          <u-input
-            v-model="form.code"
-            placeholder="请输入验证码"
-            prefixIcon="tags"
-            clearable
-          >
-            <template #suffix>
-              <u-button
-                type="primary"
-                size="small"
-                :text="codeBtnText"
-                :disabled="codeBtnDisabled"
-                @click="sendCode"
-                style="height: 56rpx; font-size: 24rpx;"
-              />
-            </template>
-          </u-input>
-        </u-form-item>
-
-        <u-form-item label="用户名" prop="name" required>
-          <u-input
-            v-model="form.name"
-            placeholder="2-10位字母、数字或中文"
+            v-model="form.username"
+            placeholder="请输入用户名"
             prefixIcon="account"
+            prefixIconSize="40"
             clearable
           />
-        </u-form-item>
-
-        <u-form-item label="密码" prop="password" required>
+        </view>
+        <view class="form-item">
+          <u-input
+            v-model="form.email"
+            placeholder="请输入邮箱"
+            prefixIcon="email"
+            prefixIconSize="40"
+            clearable
+          />
+        </view>
+        <view class="form-item">
           <u-input
             v-model="form.password"
             type="password"
-            placeholder="8-15位，包含字母和数字"
+            placeholder="请输入密码（至少6位）"
             prefixIcon="lock"
+            prefixIconSize="40"
             clearable
           />
-        </u-form-item>
-
-        <u-form-item label="确认密码" prop="confirm_password" required>
+        </view>
+        <view class="form-item">
           <u-input
-            v-model="form.confirm_password"
+            v-model="form.confirmPassword"
             type="password"
-            placeholder="请再次输入密码"
+            placeholder="请确认密码"
             prefixIcon="lock"
+            prefixIconSize="40"
             clearable
           />
-        </u-form-item>
-      </u-form>
+        </view>
 
-      <u-button
-        type="primary"
-        :loading="loading"
-        @click="handleRegister"
-        class="register-btn"
-        text="注 册"
-      />
+        <u-button
+          type="primary"
+          text="注 册"
+          :loading="loading"
+          @click="handleRegister"
+          customStyle="height: 88rpx; font-size: 32rpx; background: #1a73e8; border-radius: 16rpx;"
+        />
 
-      <view class="login-link">
-        <text>已有账号？</text>
-        <text class="link" @click="goLogin">立即登录</text>
+        <view class="form-footer">
+          <text class="link-text" @click="goLogin">已有账号？立即登录</text>
+        </view>
       </view>
     </view>
   </view>
 </template>
 
 <script>
-import { useUserStore } from '@/store/user'
-import { validatePhone, validatePassword, validateName } from '@/utils/validator'
+import { register } from '@/api/auth'
 
 export default {
   data() {
     return {
-      loading: false,
-      codeBtnText: '获取验证码',
-      codeBtnDisabled: false,
-      codeCountdown: 0,
-      form: {
-        phone_number: '',
-        code: '',
-        name: '',
-        password: '',
-        confirm_password: ''
-      },
-      rules: {
-        phone_number: [
-          { required: true, message: '请输入手机号', trigger: 'blur' },
-          { validator: (rule, value, cb) => {
-            const msg = validatePhone(value)
-            cb(msg ? new Error(msg) : undefined)
-          }, trigger: 'blur' }
-        ],
-        code: [
-          { required: true, message: '请输入验证码', trigger: 'blur' }
-        ],
-        name: [
-          { required: true, message: '请输入用户名', trigger: 'blur' },
-          { validator: (rule, value, cb) => {
-            const msg = validateName(value)
-            cb(msg ? new Error(msg) : undefined)
-          }, trigger: 'blur' }
-        ],
-        password: [
-          { required: true, message: '请输入密码', trigger: 'blur' },
-          { validator: (rule, value, cb) => {
-            const msg = validatePassword(value)
-            cb(msg ? new Error(msg) : undefined)
-          }, trigger: 'blur' }
-        ],
-        confirm_password: [
-          { required: true, message: '请确认密码', trigger: 'blur' },
-          { validator: (rule, value, cb) => {
-            if (value !== this.form.password) cb(new Error('两次密码不一致'))
-            else cb()
-          }, trigger: 'blur' }
-        ]
-      }
+      form: { username: '', email: '', password: '', confirmPassword: '' },
+      loading: false
     }
   },
   methods: {
-    sendCode() {
-      const msg = validatePhone(this.form.phone_number)
-      if (msg) {
-        uni.showToast({ title: msg, icon: 'none' })
-        return
+    validate() {
+      if (!this.form.username.trim()) {
+        uni.showToast({ title: '请输入用户名', icon: 'none' })
+        return false
       }
-      // TODO: 对接验证码发送接口
-      uni.showToast({ title: '验证码已发送', icon: 'success' })
-      this.codeBtnDisabled = true
-      this.codeCountdown = 60
-      const timer = setInterval(() => {
-        this.codeCountdown--
-        this.codeBtnText = `${this.codeCountdown}s`
-        if (this.codeCountdown <= 0) {
-          clearInterval(timer)
-          this.codeBtnDisabled = false
-          this.codeBtnText = '获取验证码'
-        }
-      }, 1000)
+      if (!this.form.email.trim()) {
+        uni.showToast({ title: '请输入邮箱', icon: 'none' })
+        return false
+      }
+      if (this.form.password.length < 6) {
+        uni.showToast({ title: '密码至少6位', icon: 'none' })
+        return false
+      }
+      if (this.form.password !== this.form.confirmPassword) {
+        uni.showToast({ title: '两次密码不一致', icon: 'none' })
+        return false
+      }
+      return true
     },
-
     async handleRegister() {
-      try {
-        await this.$refs.formRef.validate()
-      } catch {
-        return
-      }
-
+      if (!this.validate()) return
       this.loading = true
       try {
-        const userStore = useUserStore()
-        const account = await userStore.doRegister({
-          phone_number: this.form.phone_number,
-          password: this.form.password,
-          code: this.form.code,
-          name: this.form.name
+        await register({
+          username: this.form.username.trim(),
+          email: this.form.email.trim(),
+          password: this.form.password
         })
-        uni.showToast({ title: `注册成功, 账号: ${account}`, icon: 'success' })
+        uni.showToast({ title: '注册成功，请登录', icon: 'success', duration: 2000 })
         setTimeout(() => {
           uni.navigateBack()
-        }, 1500)
+        }, 2000)
       } catch (e) {
-        console.error('注册失败:', e)
+        // 错误由 request.js 处理
       } finally {
         this.loading = false
       }
     },
-
     goLogin() {
       uni.navigateBack()
     }
@@ -196,44 +121,27 @@ export default {
 <style lang="scss" scoped>
 .register-page {
   min-height: 100vh;
-  padding: 48rpx;
-  background: $bg-white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #1a73e8 0%, #4a90d9 40%, #f5f5f5 40%);
 }
-
-.page-header {
-  margin-bottom: 48rpx;
-
-  .title {
-    font-size: 40rpx;
-    font-weight: 700;
-    color: $text-primary;
-    display: block;
-  }
-
-  .subtitle {
-    font-size: 26rpx;
-    color: $text-secondary;
-    margin-top: 8rpx;
-    display: block;
-  }
+.register-card {
+  width: 86%;
+  background: #fff;
+  border-radius: 24rpx;
+  overflow: hidden;
+  box-shadow: 0 8rpx 40rpx rgba(0,0,0,0.12);
 }
-
-.register-btn {
-  margin-top: 48rpx;
-  height: 88rpx;
-  border-radius: $radius-md;
-  font-size: 32rpx;
-}
-
-.login-link {
+.title-section {
+  padding: 48rpx 40rpx 24rpx;
   text-align: center;
-  margin-top: 32rpx;
-  font-size: 26rpx;
-  color: $text-secondary;
-
-  .link {
-    color: $primary-color;
-    margin-left: 8rpx;
-  }
 }
+.title { font-size: 40rpx; color: #202124; font-weight: 700; display: block; }
+.subtitle { font-size: 24rpx; color: #9aa0a6; margin-top: 8rpx; display: block; }
+
+.form-section { padding: 0 40rpx 48rpx; }
+.form-item { margin-bottom: 28rpx; }
+.form-footer { margin-top: 32rpx; text-align: center; }
+.link-text { font-size: 26rpx; color: #1a73e8; }
 </style>

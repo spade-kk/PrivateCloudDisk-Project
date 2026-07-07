@@ -1,160 +1,92 @@
 <template>
   <view class="edit-profile-page">
-    <view class="avatar-section" @click="changeAvatar">
-      <u-avatar :src="userStore.avatarUrl" size="120" mode="aspectFill" />
-      <text class="avatar-hint">点击更换头像</text>
+    <view class="avatar-section">
+      <u-avatar :src="avatar" size="140" />
+      <text class="avatar-tip" @click="handleChangeAvatar">更换头像</text>
     </view>
 
-    <u-cell-group>
-      <u-cell title="账号" :value="userStore.profile?.account || ''" :isLink="false" />
-      <u-cell title="用户 ID" :value="userStore.userId || ''" :isLink="false" />
-    </u-cell-group>
-
-    <u-form :model="form" :rules="rules" ref="formRef" labelPosition="top">
-      <view class="form-section">
-        <u-form-item label="用户名" prop="name">
-          <u-input
-            v-model="form.name"
-            :placeholder="userStore.profile?.name || '请输入用户名'"
-            prefixIcon="account"
-            clearable
-          />
-        </u-form-item>
-
-        <u-form-item label="手机号" prop="phone_number">
-          <u-input
-            v-model="form.phone_number"
-            :placeholder="userStore.profile?.phone_number || '请输入手机号'"
-            prefixIcon="phone"
-            type="number"
-            maxlength="11"
-            clearable
-          />
-        </u-form-item>
-
-        <u-form-item label="邮箱" prop="email">
-          <u-input
-            v-model="form.email"
-            :placeholder="userStore.profile?.email || '请输入邮箱'"
-            prefixIcon="email"
-            clearable
-          />
-        </u-form-item>
+    <view class="form-section">
+      <view class="form-item">
+        <text class="form-label">用户名</text>
+        <u-input v-model="form.username" placeholder="请输入用户名" clearable />
       </view>
-    </u-form>
+      <view class="form-item">
+        <text class="form-label">邮箱</text>
+        <u-input v-model="form.email" placeholder="请输入邮箱" clearable />
+      </view>
+      <view class="form-item">
+        <text class="form-label">手机号</text>
+        <u-input v-model="form.phone" type="number" placeholder="请输入手机号" clearable />
+      </view>
+    </view>
 
-    <u-button
-      type="primary"
-      text="保存修改"
-      :loading="saving"
-      @click="handleSave"
-      class="save-btn"
-    />
+    <view class="save-section">
+      <u-button
+        type="primary"
+        text="保存"
+        :loading="saving"
+        @click="handleSave"
+        customStyle="height: 88rpx; font-size: 32rpx; border-radius: 16rpx;"
+      />
+    </view>
   </view>
 </template>
 
 <script>
-import { useUserStore } from '@/store/user'
-import { uploadAvatar } from '@/api/user'
-import { validatePhone, validateName, validateEmail } from '@/utils/validator'
+import { useUserAuth } from '@/composables/useUserAuth'
+import { updateProfile } from '@/api/auth'
 
 export default {
+  setup() {
+    const { userStore } = useUserAuth()
+    return { userStore }
+  },
   data() {
     return {
-      saving: false,
       form: {
-        name: '',
-        phone_number: '',
-        email: ''
+        username: '',
+        email: '',
+        phone: ''
       },
-      rules: {
-        name: [
-          { validator: (rule, value, cb) => {
-            if (!value) return cb()
-            const msg = validateName(value)
-            cb(msg ? new Error(msg) : undefined)
-          }, trigger: 'blur' }
-        ],
-        phone_number: [
-          { validator: (rule, value, cb) => {
-            if (!value) return cb()
-            const msg = validatePhone(value)
-            cb(msg ? new Error(msg) : undefined)
-          }, trigger: 'blur' }
-        ],
-        email: [
-          { validator: (rule, value, cb) => {
-            if (!value) return cb()
-            const msg = validateEmail(value)
-            cb(msg ? new Error(msg) : undefined)
-          }, trigger: 'blur' }
-        ]
-      }
+      avatar: '',
+      saving: false
     }
-  },
-  computed: {
-    userStore() { return useUserStore() }
   },
   onShow() {
-    const profile = this.userStore.profile
-    if (profile) {
-      this.form.name = profile.name || ''
-      this.form.phone_number = profile.phone_number || ''
-      this.form.email = profile.email || ''
-    }
+    this.form.username = this.userStore.userName || ''
+    this.form.email = this.userStore.userEmail || ''
+    this.form.phone = this.userStore.userPhone || ''
+    this.avatar = this.userStore.userAvatar || ''
   },
   methods: {
-    changeAvatar() {
+    handleChangeAvatar() {
       uni.chooseImage({
         count: 1,
         sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-        success: async (res) => {
-          uni.showLoading({ title: '上传中...' })
-          try {
-            await uploadAvatar(res.tempFilePaths[0])
-            uni.hideLoading()
-            uni.showToast({ title: '头像上传成功', icon: 'success' })
-            await this.userStore.fetchProfile()
-          } catch (e) {
-            uni.hideLoading()
-          }
+        success: (res) => {
+          this.avatar = res.tempFilePaths[0]
         }
       })
     },
-
     async handleSave() {
-      const { name, phone_number, email } = this.form
-      const profile = this.userStore.profile
-
-      if (!name && !phone_number && !email) {
-        uni.showToast({ title: '没有修改任何信息', icon: 'none' })
-        return
+      if (!this.form.username.trim()) {
+        return uni.showToast({ title: '请输入用户名', icon: 'none' })
       }
-
-      try {
-        await this.$refs.formRef.validate()
-      } catch {
-        return
-      }
-
       this.saving = true
       try {
-        const params = {}
-        if (name && name !== profile?.name) params.new_name = name
-        if (phone_number && phone_number !== profile?.phone_number) params.new_phone_number = phone_number
-        if (email && email !== profile?.email) params.new_email = email
-
-        if (Object.keys(params).length === 0) {
-          uni.showToast({ title: '没有修改任何信息', icon: 'none' })
-          return
-        }
-
-        await this.userStore.doUpdateProfile(params)
-        uni.showToast({ title: '修改成功', icon: 'success' })
-        setTimeout(() => uni.navigateBack(), 1000)
-      } catch (e) {
-      } finally {
+        await updateProfile({
+          username: this.form.username.trim(),
+          email: this.form.email.trim(),
+          phone: this.form.phone.trim()
+        })
+        this.userStore.setUserInfo({
+          user_name: this.form.username.trim(),
+          email: this.form.email.trim(),
+          phone: this.form.phone.trim()
+        })
+        uni.showToast({ title: '保存成功', icon: 'success' })
+        setTimeout(() => uni.navigateBack(), 1500)
+      } catch (e) { /* 已处理 */ } finally {
         this.saving = false
       }
     }
@@ -163,38 +95,27 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.edit-profile-page {
-  min-height: 100vh;
-  padding: 24rpx;
-}
+.edit-profile-page { min-height: 100vh; background: #f5f5f5; padding-bottom: 32rpx; }
 
 .avatar-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 48rpx 0;
-  background: $bg-white;
-  border-radius: $radius-md;
-  margin-bottom: 24rpx;
-
-  .avatar-hint {
-    font-size: 24rpx;
-    color: $primary-color;
-    margin-top: 16rpx;
-  }
+  background: #fff;
+  margin-bottom: 16rpx;
 }
+.avatar-tip { font-size: 26rpx; color: #1a73e8; margin-top: 16rpx; }
 
 .form-section {
-  background: $bg-white;
-  margin: 24rpx 0;
-  padding: 24rpx;
-  border-radius: $radius-md;
+  margin: 0 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
 }
+.form-item { padding: 24rpx 32rpx; border-bottom: 1rpx solid #f0f0f0; &:last-child { border-bottom: none; } }
+.form-label { font-size: 28rpx; color: #5f6368; margin-bottom: 12rpx; display: block; }
 
-.save-btn {
-  height: 88rpx;
-  border-radius: $radius-md;
-  font-size: 32rpx;
-  margin-top: 48rpx;
-}
+.save-section { padding: 48rpx 32rpx; }
 </style>
