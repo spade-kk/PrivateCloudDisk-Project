@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToastStore } from './toastStore'
-import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, moveFileApi, moveNodeApi, renameFileApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi, moveFileToTrashApi, moveFolderToTrashApi } from '@/api/index'
+import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, getNodeInfoApi, resolvePathToNodeIdApi, getChildrenByPathApi, moveFileApi, moveNodeApi, renameFileApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi, moveFileToTrashApi, moveFolderToTrashApi } from '@/api/index'
 
 export interface PathNode {
   node_id: string
@@ -89,6 +89,123 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  /**
+   * 通过绝对路径加载子节点（混合查询模型）。
+   * 返回 { node_id, children }，供客户端保存 node_id 以便后续切换为 node_id 查询。
+   *
+   * @param absolutePath 绝对路径（面包屑路径），如 "xxx/hello"
+   */
+  async function loadChildrenByPath(absolutePath: string): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await getChildrenByPathApi({ absolute_path: absolutePath })
+      if (res.code === 200 && res.data) {
+        nodes.value = res.data.children || []
+        currentNodeId.value = res.data.node_id
+        // 重建面包屑路径
+        await rebuildPathStack(currentNodeId.value)
+      } else {
+        nodes.value = []
+        setLoadError('目录加载失败', res.message || '路径查询失败，请稍后重试')
+      }
+    } catch (error: any) {
+      console.error('路径加载子节点失败', error)
+      setLoadError('目录加载失败', error.message || '路径查询失败，请稍后重试', error)
+      nodes.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 通过父节点 + 相对路径加载子节点。
+   */
+  async function loadChildrenByRelativePath(parentNodeId: string, relativePath: string): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await getChildrenByPathApi({
+        node_id: parentNodeId,
+        relative_path: relativePath,
+      })
+      if (res.code === 200 && res.data) {
+        nodes.value = res.data.children || []
+        currentNodeId.value = res.data.node_id
+        await rebuildPathStack(currentNodeId.value)
+      } else {
+        nodes.value = []
+        setLoadError('目录加载失败', res.message || '路径查询失败，请稍后重试')
+      }
+    } catch (error: any) {
+      console.error('路径加载子节点失败', error)
+      setLoadError('目录加载失败', error.message || '路径查询失败，请稍后重试', error)
+      nodes.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 将路径解析为 node_id（不加载子节点）。
+   * 纯路径 → node_id 转换，供客户端在需要时调用。
+   */
+  async function resolvePathToNodeId(absolutePath: string): Promise<string | null> {
+    try {
+      const res = await resolvePathToNodeIdApi({ absolute_path: absolutePath })
+      if (res.code === 200 && res.data) {
+        return res.data.node_id
+      }
+      return null
+    } catch (error: any) {
+      console.error('路径解析失败', error)
+      return null
+    }
+  }
+
+  /**
+   * 重建面包屑路径栈。
+   * 从目标节点向上遍历父节点链，构建完整的路径栈。
+   */
+  async function rebuildPathStack(nodeId: string): Promise<void> {
+    try {
+      const chain: PathNode[] = []
+      let currentId: string | null = nodeId
+
+      while (currentId) {
+        const res = await getNodeInfoApi(currentId)
+        if (res.code === 200 && res.data) {
+          chain.unshift({
+            node_id: res.data.node_id,
+            node_name: res.data.name,
+          })
+          currentId = res.data.parent_id || null
+        } else {
+          break
+        }
+      }
+
+      if (chain.length > 0) {
+        pathStack.value = chain
+      }
+    } catch (error) {
+      console.error('重建路径栈失败', error)
+    }
+  }
+
+  /**
+   * 从当前 pathStack 构建面包屑路径字符串。
+   * 根节点返回 "/"，子目录返回 "/folder1/subfolder2"。
+   * 用于 URL query 参数 ?path=xxx，始终显示人类可读的路径。
+   */
+  function buildBreadcrumbPath(): string {
+    if (pathStack.value.length === 0) return '/'
+    // 跳过根节点（index 0），剩余部分拼接为路径
+    const parts = pathStack.value.slice(1).map(p => p.node_name)
+    if (parts.length === 0) return '/'
+    return '/' + parts.join('/')
   }
 
   function navigateTo(node: PathNode): void {
@@ -226,6 +343,11 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
     searchKeyword,
     loadRoot,
     loadChildren,
+    loadChildrenByPath,
+    loadChildrenByRelativePath,
+    resolvePathToNodeId,
+    rebuildPathStack,
+    buildBreadcrumbPath,
     navigateTo,
     goHome,
     createFolder,

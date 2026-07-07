@@ -92,6 +92,9 @@ export function generateThumbnailApi(
  * 返回可直接用于 <img src="..."> 的缩略图 URL。
  * 支持三种预设尺寸：small(100×100)、medium(400×400)、large(800×800)。
  *
+ * 注意：此函数仅用于图片文件缩略图。
+ * 视频文件缩略图请使用 getVideoThumbnailUrl。
+ *
  * @param fileId - 文件 ID
  * @param size - 缩略图尺寸: 'small' | 'medium' | 'large'
  * @returns 缩略图 URL 字符串
@@ -102,6 +105,26 @@ export function getThumbnailUrl(
 ): string {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
   return `${baseUrl}/files/files/${encodeURIComponent(fileId)}/thumbnail?size=${size}`
+}
+
+/**
+ * 获取视频缩略图直接 URL
+ *
+ * 返回可直接用于 <img src="..."> 的视频缩略图 URL。
+ * 使用 ffmpeg 提取首帧，与图片缩略图（libvips）生成逻辑分离。
+ * 支持三种预设尺寸：small(160×90)、medium(400×225)、large(800×450)。
+ *
+ * @param fileId - 文件 ID
+ * @param size - 缩略图尺寸: 'small' | 'medium' | 'large'
+ * @returns 视频缩略图 URL 字符串
+ */
+export function getVideoThumbnailUrl(
+  fileId: string,
+  size: 'small' | 'medium' | 'large' = 'small',
+): string {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+  const params = new URLSearchParams({ size })
+  return `${baseUrl}/files/video/stream/${encodeURIComponent(fileId)}/thumbnail?${params.toString()}`
 }
 
 // ============================================================

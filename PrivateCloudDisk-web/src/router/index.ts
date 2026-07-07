@@ -128,7 +128,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'help', name: 'Help', component: () => import('@/views/help/HelpView.vue') },
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue') },
       // 空间管理
-      { path: 'spaces', name: 'Spaces', component: () => import('@/pages/SpaceManagement.vue') },
+      { path: 'spaces', name: 'Spaces', component: () => import('@/views/SpaceManagementView.vue') },
       // 视频播放器：通过 fileId 参数指定播放文件
       { path: 'video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { requiresAuth: true } },
       // 视频/语音通话页面

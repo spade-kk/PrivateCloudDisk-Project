@@ -17,7 +17,7 @@ final class APIClient: @unchecked Sendable {
     // MARK: - 配置
 
     private var baseURL: String {
-        UserDefaults.standard.string(forKey: "api_base_url") ?? "http://localhost:8000"
+        UserDefaults.standard.string(forKey: "api_base_url") ?? "http://localhost:8080"
     }
 
     private var token: String? {

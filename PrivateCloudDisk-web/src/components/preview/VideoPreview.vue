@@ -33,7 +33,7 @@
       <div class="video-wrapper" ref="videoWrapper">
         <video
           ref="videoRef"
-          :src="videoUrl"
+          :src="isHlsSource ? undefined : videoUrl"
           @loadedmetadata="onMetadataLoaded"
           @timeupdate="onTimeUpdate"
           @progress="onProgress"
@@ -125,14 +125,19 @@ const errorMessage = ref('')
 const isHlsSource = ref(false)
 let hlsInstance: any = null
 
-// 计算视频URL
+// 计算视频URL（避免双前缀）
 const videoUrl = computed(() => {
   if (!props.fileUrl) return ''
   if (props.fileUrl.startsWith('http://') || props.fileUrl.startsWith('https://')) {
     return props.fileUrl
   }
   if (props.fileUrl.startsWith('/')) {
-    return import.meta.env.VITE_API_BASE_URL + props.fileUrl
+    const baseUrl = (import.meta.env.VITE_API_BASE_URL || '') as string
+    // 避免双前缀: 如果 URL 已经以 baseUrl 开头，不再重复拼接
+    if (baseUrl && props.fileUrl.startsWith(baseUrl + '/')) {
+      return props.fileUrl
+    }
+    return baseUrl + props.fileUrl
   }
   return props.fileUrl
 })

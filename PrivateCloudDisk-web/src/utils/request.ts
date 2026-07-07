@@ -26,7 +26,7 @@ import { generateSecurityHeaders } from '@/utils/securityToken'
 // ============================================================
 
 /** Token 在 Cookie 中的存储键名 */
-const TOKEN_COOKIE_KEY = 'cloud_drive_token'
+export const TOKEN_COOKIE_KEY = 'cloud_drive_token'
 
 /** 敏感接口路径前缀：这些接口需要附带 HMAC 安全签名头 */
 const SENSITIVE_API_PATTERNS = [

@@ -235,6 +235,39 @@
   background: #4096ff;
 }
 
+/* ==================== HLS 重连 / 加载中遮罩 ==================== */
+
+.vpc-connecting-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.vpc-connecting-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.vpc-connecting-text {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  animation: vpc-connecting-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes vpc-connecting-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
 /* ==================== 底部控制栏 ==================== */
 
 .vpc-controls {
@@ -390,6 +423,20 @@
   background-repeat: no-repeat;
   image-rendering: auto;
   will-change: background-position;
+}
+
+/* 雪碧图加载中骨架屏 */
+.vpc-progress__thumbnail--loading {
+  width: 160px;
+  height: 90px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  animation: vpc-sprite-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes vpc-sprite-loading {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
 
 /* 时间气泡 */

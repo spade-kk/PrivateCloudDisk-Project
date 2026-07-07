@@ -9,6 +9,7 @@ import {
   getVideoSpriteInfoApi,
   buildVideoStreamUrl,
   buildHlsStreamUrl,
+  getVideoThumbnailUrl,
   recordVideoHistoryApi
 } from '@/api/modules/video'
 
@@ -91,6 +92,18 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
   const isDash = computed(() => streamInfo.value?.has_dash ?? false)
   const isMp4 = computed(() => !isHls.value && !isDash.value)
 
+  /** 视频预览封面图 URL（medium 尺寸，用作 video poster） */
+  const previewThumbnailUrl = computed(() => {
+    if (!currentFile.value?.node_id) return ''
+    return getVideoThumbnailUrl(currentFile.value.node_id, 'medium')
+  })
+
+  /** 视频列表/网格缩略图 URL（small 尺寸） */
+  const listThumbnailUrl = computed(() => {
+    if (!currentFile.value?.node_id) return ''
+    return getVideoThumbnailUrl(currentFile.value.node_id, 'small')
+  })
+
   const videoSourceUrl = computed(() => {
     if (!streamInfo.value || !streamToken.value) return ''
     if (isHls.value) {
@@ -151,7 +164,7 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
         }
       }).catch(() => {})
 
-      getVideoSpriteInfoApi(file.node_id).then(res => {
+      getVideoSpriteInfoApi(file.node_id, streamToken.value).then(res => {
         if (res.code === 200) {
           spriteInfo.value = res.data
         }
@@ -495,6 +508,8 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
     isDash,
     isMp4,
     videoSourceUrl,
+    previewThumbnailUrl,
+    listThumbnailUrl,
     progressPercent,
     bufferedPercent,
     currentResolutionLabel,

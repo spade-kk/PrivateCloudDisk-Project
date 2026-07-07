@@ -65,7 +65,7 @@
         </div>
 
         <router-link
-          to="/notifications"
+          to="/app/notifications"
           class="flex items-center justify-center gap-2 border-t border-neutral-200 px-4 py-3 text-sm text-primary transition hover:bg-primary/5"
           @click="open = false"
         >
@@ -118,7 +118,7 @@ function handlePointerDown(event) {
 function openDetail(id) {
   notificationStore.markAsRead(id)
   open.value = false
-  router.push('/notifications')
+  router.push('/app/notifications')
 }
 
 function typeMeta(type) {

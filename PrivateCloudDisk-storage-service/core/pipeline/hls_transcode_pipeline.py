@@ -19,6 +19,7 @@ import asyncio
 import platform
 from dataclasses import dataclass, field
 import ffmpeg
+import math
 from core.config import settings, FailureReason, VIDEO_TYPES
 
 logger = logging.getLogger("hls_transcode_pipeline")
@@ -77,6 +78,12 @@ HLS_SEGMENT_DURATION = 6
 
 # 播放列表保留的分片数量 (0 = 全部保留)
 HLS_PLAYLIST_LENGTH = 0
+
+# 企业级雪碧图配置 (对标 B站)
+SPRITE_THUMB_WIDTH = 160      # 缩略图宽度
+SPRITE_THUMB_HEIGHT = 90      # 缩略图高度 (16:9)
+SPRITE_COLS = 10              # 每行 10 个缩略图
+SPRITE_INTERVAL = 10          # 每 10 秒截取一帧
 
 
 @dataclass
@@ -236,6 +243,16 @@ class HlsTranscodePipeline:
                 resolutions=hls_resolutions,
             )
 
+            # 4.5. 生成雪碧图 (Sprite Sheet) — 进度条悬停预览
+            sprite_config = await HlsTranscodePipeline._generate_sprite(
+                input_path=storage_path,
+                file_id=file_id,
+                hls_dir=hls_dir,
+                duration=source_duration,
+                source_width=source_width,
+                source_height=source_height,
+            )
+
             # 5. 写入 manifest.json 元数据
             manifest_path = os.path.join(hls_dir, "manifest.json")
             manifest = {
@@ -245,6 +262,7 @@ class HlsTranscodePipeline:
                 "duration": source_duration,
                 "resolutions": resolutions,
                 "preview_path": preview_path,
+                "sprite": sprite_config,
                 "created_at": None,
             }
             with open(manifest_path, "w") as f:
@@ -418,8 +436,8 @@ class HlsTranscodePipeline:
         segment_pattern = os.path.join(resolution_dir, "segment-%05d.ts")
 
         try:
-            # 构建基础输入流
-            stream = ffmpeg.input(input_path)
+            # 构建输入流（需要显式映射视频和音频流，否则 ffmpeg-python 可能丢失音频）
+            input_stream = ffmpeg.input(input_path)
 
             # 根据编码器类型构建输出参数
             if hw_encoder:
@@ -449,7 +467,8 @@ class HlsTranscodePipeline:
                 asyncio.to_thread(
                     lambda: (
                         ffmpeg
-                        .output(stream, output_playlist, **output_kwargs)
+                        .output(input_stream, output_playlist, **output_kwargs)
+                        .global_args('-map', '0:v', '-map', '0:a?')
                         .overwrite_output()
                         .run(capture_stdout=True, capture_stderr=True)
                     )
@@ -502,8 +521,14 @@ class HlsTranscodePipeline:
             "g": 60,
             "keyint_min": 60,
             "sc_threshold": 0,
-            # 音频编码
+            # 音频编码 — 使用 AAC-LC (Low Complexity) 确保浏览器兼容性
+            # AAC-LC 是所有主流浏览器（Chrome/Safari/Firefox/Edge）都支持的音频编码
+            # flags:a +bitexact 移除编码器元数据帧（如 "Lavc61.19.101"），
+            # 避免浏览器 MediaSource 将元数据帧误判为无效音频数据而抛出
+            # DECODER_ERROR_NOT_SUPPORTED: kUnsupportedConfig 错误
             "c:a": "aac",
+            "flags:a": "+bitexact",
+            "profile:a": "aac_low",
             "b:a": preset["audio_bitrate"],
             "ar": 48000,
             "ac": 2,
@@ -525,7 +550,11 @@ class HlsTranscodePipeline:
             "g": 60,
             "keyint_min": 60,
             "sc_threshold": 0,
+            # 音频编码 — 使用 AAC-LC 确保浏览器兼容性
+            # flags:a +bitexact 移除编码器元数据帧
             "c:a": "aac",
+            "flags:a": "+bitexact",
+            "profile:a": "aac_low",
             "b:a": preset["audio_bitrate"],
             "ar": 48000,
             "ac": 2,
@@ -592,4 +621,202 @@ class HlsTranscodePipeline:
         logger.info(
             f"[HLS] 主播放列表已生成: {master_playlist_path}, "
             f"包含 {len(resolutions)} 个码率流"
+        )
+
+    # =========================================================================
+    # 雪碧图生成 (Sprite Sheet) — 企业级进度条悬停预览
+    # =========================================================================
+    # 策略: 在 HLS 转码时预生成雪碧图，而非播放时动态生成。
+    # 原因:
+    #   1. 播放时动态生成需要多次 ffmpeg seek，延迟高、CPU 密集
+    #   2. 预生成可离线完成，播放时仅需一次 HTTP 请求加载雪碧图
+    #   3. 前端通过 CSS background-position 在 1ms 内完成缩略图切换
+    #   4. 对标 B站/YouTube 的企业级方案
+
+
+
+    @staticmethod
+    async def _generate_sprite(
+        input_path: str,
+        file_id: str,
+        hls_dir: str,
+        duration: float,
+        source_width: int = 0,
+        source_height: int = 0,
+    ) -> dict | None:
+        """
+        使用 ffmpeg 生成视频雪碧图 (Sprite Sheet) 和 VTT 元数据
+
+        企业级实现:
+        - 使用 ffmpeg fps + tile 滤镜一次性生成雪碧图
+        - 自动计算网格尺寸 (cols固定, rows动态)
+        - 生成 WebVTT 格式元数据文件，供前端 hls.js / video.js 使用
+        - 返回 sprite 配置信息写入 manifest.json
+
+        Args:
+            input_path: 源视频文件路径
+            file_id: 文件 ID
+            hls_dir: HLS 输出目录
+            duration: 视频时长 (秒)
+            source_width: 源视频宽度
+            source_height: 源视频高度
+
+        Returns:
+            dict: sprite 配置信息，包含 cols, rows, interval, thumb_width, thumb_height
+            None: 生成失败
+        """
+        sprite_image_path = os.path.join(hls_dir, "sprite.jpg")
+        vtt_path = os.path.join(hls_dir, "sprite.vtt")
+
+        if duration <= 0:
+            logger.warning(f"[HLS-SPRITE] 视频时长无效 ({duration}s)，跳过雪碧图生成")
+            return None
+
+        # 计算雪碧图网格
+        total_thumbnails = max(1, int(duration / SPRITE_INTERVAL))
+        rows = math.ceil(total_thumbnails / SPRITE_COLS)
+        total_slots = SPRITE_COLS * rows
+
+        # 计算 fps 滤镜参数: 每 SPRITE_INTERVAL 秒取一帧
+        # fps=1/SPRITE_INTERVAL 表示每 SPRITE_INTERVAL 秒输出一帧
+        fps_value = f"1/{SPRITE_INTERVAL}"
+
+        # 雪碧图总像素尺寸
+        sprite_width = SPRITE_COLS * SPRITE_THUMB_WIDTH
+        sprite_height = rows * SPRITE_THUMB_HEIGHT
+
+        logger.info(
+            f"[HLS-SPRITE] 开始生成雪碧图: file_id={file_id}, "
+            f"duration={duration:.1f}s, "
+            f"thumbnails={total_thumbnails}, "
+            f"grid={SPRITE_COLS}x{rows}, "
+            f"sprite_size={sprite_width}x{sprite_height}"
+        )
+
+        try:
+            # 使用 ffmpeg 一次性生成雪碧图
+            # ffmpeg -i input -vf "fps=1/10,scale=160:90,tile=10xN" -q:v 3 sprite.jpg
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: (
+                        ffmpeg
+                        .input(input_path)
+                        .output(
+                            sprite_image_path,
+                            vf=(
+                                f"fps={fps_value},"
+                                f"scale={SPRITE_THUMB_WIDTH}:{SPRITE_THUMB_HEIGHT},"
+                                f"tile={SPRITE_COLS}x{rows}"
+                            ),
+                            **{"q:v": "3"},
+                            vsync="0",
+                        )
+                        .overwrite_output()
+                        .run(capture_stdout=True, capture_stderr=True)
+                    )
+                ),
+                timeout=600,  # 雪碧图生成最多 10 分钟
+            )
+
+            if not os.path.exists(sprite_image_path):
+                logger.warning("[HLS-SPRITE] 雪碧图文件未生成")
+                return None
+
+            file_size = os.path.getsize(sprite_image_path)
+            logger.info(
+                f"[HLS-SPRITE] 雪碧图生成完成: "
+                f"size={file_size / 1024:.1f}KB, "
+                f"grid={SPRITE_COLS}x{rows}"
+            )
+
+            # 生成 WebVTT 元数据文件
+            await HlsTranscodePipeline._generate_sprite_vtt(
+                vtt_path=vtt_path,
+                total_thumbnails=total_thumbnails,
+                sprite_filename="sprite.jpg",
+            )
+
+            return {
+                "cols": SPRITE_COLS,
+                "rows": rows,
+                "interval": SPRITE_INTERVAL,
+                "thumb_width": SPRITE_THUMB_WIDTH,
+                "thumb_height": SPRITE_THUMB_HEIGHT,
+                "total_thumbnails": total_thumbnails,
+                "sprite_width": sprite_width,
+                "sprite_height": sprite_height,
+            }
+
+        except asyncio.TimeoutError:
+            logger.warning("[HLS-SPRITE] 雪碧图生成超时")
+            return None
+        except ffmpeg.Error as e:
+            stderr_text = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+            logger.warning(f"[HLS-SPRITE] 雪碧图生成失败: {stderr_text[:300]}")
+            return None
+        except Exception as e:
+            logger.warning(f"[HLS-SPRITE] 雪碧图生成异常: {e}")
+            return None
+
+    @staticmethod
+    async def _generate_sprite_vtt(
+        vtt_path: str,
+        total_thumbnails: int,
+        sprite_filename: str = "sprite.jpg",
+    ) -> None:
+        """
+        生成 WebVTT 格式的雪碧图元数据文件
+
+        VTT 格式示例:
+        ```
+        WEBVTT
+
+        00:00:00.000 --> 00:00:10.000
+        sprite.jpg#xywh=0,0,160,90
+
+        00:00:10.000 --> 00:00:20.000
+        sprite.jpg#xywh=160,0,160,90
+        ```
+
+        前端通过解析 VTT 文件，根据悬停时间计算对应的雪碧图坐标，
+        使用 CSS background-position 高速切换预览图。
+        """
+        def _format_time(seconds: float) -> str:
+            """格式化为 VTT 时间戳 HH:MM:SS.mmm"""
+            h = int(seconds // 3600)
+            m = int((seconds % 3600) // 60)
+            s = seconds % 60
+            return f"{h:02d}:{m:02d}:{s:06.3f}"
+
+        lines = ["WEBVTT", ""]
+
+        for i in range(total_thumbnails):
+            start_time = i * SPRITE_INTERVAL
+            end_time = min((i + 1) * SPRITE_INTERVAL, start_time + SPRITE_INTERVAL)
+
+            # 计算雪碧图中的坐标
+            col = i % SPRITE_COLS
+            row = i // SPRITE_COLS
+            x = col * SPRITE_THUMB_WIDTH
+            y = row * SPRITE_THUMB_HEIGHT
+
+            lines.append(f"{_format_time(start_time)} --> {_format_time(end_time)}")
+            lines.append(
+                f"{sprite_filename}#xywh={x},{y},"
+                f"{SPRITE_THUMB_WIDTH},{SPRITE_THUMB_HEIGHT}"
+            )
+            lines.append("")
+
+        content = "\n".join(lines)
+
+        #进入携程child线程写入文件，避免阻塞主线程 函数为同步函数
+        def _write_vtt():
+            with open(vtt_path, "w") as f:
+                f.write(content)
+
+        await asyncio.to_thread(_write_vtt)
+
+        logger.info(
+            f"[HLS-SPRITE] VTT 元数据已生成: {vtt_path}, "
+            f"entries={total_thumbnails}"
         )

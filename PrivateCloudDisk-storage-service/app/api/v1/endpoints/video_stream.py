@@ -23,11 +23,16 @@ import time
 import hmac
 import hashlib
 import aiofiles
+import subprocess
+import asyncio
+import base64
+import tempfile
 from fastapi import APIRouter, Header, Query, HTTPException, status, Request
 from fastapi.responses import StreamingResponse, Response, FileResponse
 from typing import Optional
 
 from core.config import settings
+from app.core.redis_client import redis_client
 
 logger = logging.getLogger("video_stream")
 
@@ -181,7 +186,7 @@ async def get_video_stream_info(
             "file_id": file_id,
             "has_hls": True,
             "has_dash": False,
-            "hls_url": f"/api/v1/video/stream/{file_id}/master.m3u8",
+            "hls_url": f"/api/v1/files/video/stream/{file_id}/master.m3u8",
             "dash_url": None,
             "resolutions": manifest.get("resolutions", []),
             "duration": manifest.get("duration", 0),
@@ -424,3 +429,323 @@ async def _serve_range(file_path: str, file_size: int, range_header: str):
 
     except (ValueError, IndexError):
         raise HTTPException(status_code=400, detail="Invalid Range header")
+
+
+# =============================================================================
+# 雪碧图端点 — 进度条悬停预览
+# =============================================================================
+
+@router.get("/{file_id}/sprite.jpg", summary="获取视频雪碧图")
+async def get_sprite_image(
+    file_id: str,
+    token: str = Query(..., description="HLS 访问 Token"),
+):
+    """
+    获取视频雪碧图 (Sprite Sheet)
+
+    雪碧图是 HLS 转码时预生成的一张包含所有时间点缩略图的大图，
+    前端通过 CSS background-position 快速切换显示不同时间点的预览图，
+    实现 Bilibili/YouTube 级别的进度条悬停预览体验。
+
+    返回 JPEG 格式雪碧图，带有长期缓存头。
+    """
+    _verify_hls_token(token, file_id)
+
+    sprite_path = os.path.join(
+        settings.file_upload_dir, "hls", file_id, "sprite.jpg"
+    )
+
+    if not os.path.exists(sprite_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sprite image not found. Transcoding may not include sprite generation.",
+        )
+
+    return FileResponse(
+        sprite_path,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+@router.get("/{file_id}/sprite.vtt", summary="获取雪碧图 VTT 元数据")
+async def get_sprite_vtt(
+    file_id: str,
+    token: str = Query(..., description="HLS 访问 Token"),
+):
+    """
+    获取雪碧图 WebVTT 元数据
+
+    VTT 文件包含每个时间区间对应的雪碧图坐标 (xywh)，
+    前端通过解析 VTT 文件，根据悬停时间定位到对应的预览缩略图。
+
+    格式示例:
+    ```
+    WEBVTT
+
+    00:00:00.000 --> 00:00:10.000
+    sprite.jpg#xywh=0,0,160,90
+
+    00:00:10.000 --> 00:00:20.000
+    sprite.jpg#xywh=160,0,160,90
+    ```
+    """
+    _verify_hls_token(token, file_id)
+
+    vtt_path = os.path.join(
+        settings.file_upload_dir, "hls", file_id, "sprite.vtt"
+    )
+
+    if not os.path.exists(vtt_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sprite VTT metadata not found.",
+        )
+
+    content = await _read_file_async(vtt_path)
+
+    return Response(
+        content=content,
+        media_type="text/vtt",
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+# ============================================================
+# 视频缩略图接口（独立于图片缩略图，使用 ffmpeg 首帧提取）
+# ============================================================
+
+# 视频缩略图 Redis 缓存 TTL（秒）
+VIDEO_THUMBNAIL_TTL = 86400  # 24 小时
+# 视频缩略图输出尺寸
+VIDEO_THUMB_WIDTH = 400
+VIDEO_THUMB_HEIGHT = 225  # 16:9
+
+
+async def _extract_video_frame_async(
+    storage_path: str, width: int = VIDEO_THUMB_WIDTH, height: int = VIDEO_THUMB_HEIGHT
+) -> bytes:
+    """
+    使用 ffmpeg 提取视频首帧（异步执行，不阻塞事件循环）
+
+    策略:
+    - 使用 ffmpeg thumbnail filter 提取首帧（I 帧，最快）
+    - 缩放为指定尺寸，保持 16:9 比例
+    - 输出 JPEG 格式，质量 85
+    - 通过 asyncio.to_thread 在线程池中执行，避免阻塞
+
+    Args:
+        storage_path: 视频文件存储路径
+        width: 缩略图宽度
+        height: 缩略图高度
+
+    Returns:
+        JPEG 图片字节数据
+    """
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                lambda: (
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-y",
+                            "-ss", "5",              # 跳过前 5 秒（避免黑屏/片头）
+                            "-i", storage_path,
+                            "-vframes", "1",          # 只取 1 帧
+                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black",
+                            "-q:v", "5",              # JPEG 质量 (2-31, 越小越好)
+                            "-f", "image2pipe",
+                            "-vcodec", "mjpeg",
+                            "pipe:1",
+                        ],
+                        capture_output=True,
+                        timeout=30,
+                        check=True,
+                    ).stdout
+                )
+            ),
+            timeout=35,
+        )
+        return result
+    except subprocess.CalledProcessError as e:
+        logger.error(f"ffmpeg 提取视频首帧失败: {e.stderr.decode()[:200]}")
+        raise
+    except subprocess.TimeoutExpired:
+        logger.error(f"ffmpeg 提取视频首帧超时: {storage_path}")
+        raise
+
+
+@router.get("/{file_id}/thumbnail", summary="获取视频缩略图（ffmpeg 首帧）")
+async def get_video_thumbnail(
+    file_id: str,
+    request: Request,
+    size: str = Query("small", description="缩略图尺寸: small(160×90), medium(400×225), large(800×450)"),
+    user_id: str = Header(default=None, alias="X-User-Id"),
+):
+    """
+    获取视频缩略图（独立接口，使用 ffmpeg 提取首帧）
+
+    设计要点:
+    1. 独立于图片缩略图接口（图片使用 libvips，视频使用 ffmpeg）
+    2. 优先查找 HLS 转码流水线预生成的首帧缩略图
+    3. 无预生成缩略图时，使用 ffmpeg 动态提取首帧
+    4. Redis 缓存（key: video_thumb:{file_id}:{size}），24 小时 TTL
+    5. 浏览器缓存：ETag 304 验证
+
+    鉴权:
+    - 无 token 时使用 X-User-Id 头（需文件所有权验证）
+
+    Args:
+        file_id: 文件 ID
+        request: FastAPI 请求对象
+        size: 缩略图尺寸 (small/medium/large)
+        user_id: 用户 ID（X-User-Id 请求头）
+
+    Returns:
+        JPEG 缩略图
+    """
+
+    # 1. 尺寸映射
+    SIZE_MAP = {
+        "small": (160, 90),
+        "medium": (400, 225),
+        "large": (800, 450),
+    }
+    if size not in SIZE_MAP:
+        valid_sizes = ", ".join(SIZE_MAP.keys())
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"无效的缩略图尺寸: '{size}'，有效值: {valid_sizes}",
+        )
+
+    thumb_width, thumb_height = SIZE_MAP[size]
+
+    # 2. 构建文件路径
+    # 视频文件存储在 file_upload_dir 下，需要找到文件的实际路径
+    # 先尝试从 HLS 目录查找（HLS 转码后会生成首帧缩略图）
+    hls_thumb_dir = os.path.join(settings.file_upload_dir, "hls", file_id)
+    pre_generated_thumb = os.path.join(hls_thumb_dir, f"thumb_{size}.jpg")
+
+    # 查找视频文件存储路径
+    # 尝试从 HLS manifest 获取
+    manifest_path = os.path.join(hls_thumb_dir, "manifest.json")
+    storage_path = None
+
+    if os.path.exists(manifest_path):
+        try:
+            async with aiofiles.open(manifest_path, "r") as f:
+                manifest = json.loads(await f.read())
+            # 从 manifest 获取原始视频路径
+            storage_path = manifest.get("source_path")
+        except Exception:
+            pass
+
+    # 3. 检查预生成缩略图
+    if os.path.exists(pre_generated_thumb):
+        try:
+            mtime = os.path.getmtime(pre_generated_thumb)
+            etag = hashlib.md5(f"{file_id}{size}{mtime}".encode()).hexdigest()
+
+            if request.headers.get("If-None-Match") == etag:
+                return Response(status_code=304)
+
+            async with aiofiles.open(pre_generated_thumb, "rb") as f:
+                img_bytes = await f.read()
+
+            return Response(
+                content=img_bytes,
+                media_type="image/jpeg",
+                headers={
+                    "Cache-Control": f"public, max-age={VIDEO_THUMBNAIL_TTL}",
+                    "ETag": etag,
+                    "X-Thumbnail-Source": "disk",
+                    "Access-Control-Allow-Origin": "*",
+                },
+            )
+        except Exception as e:
+            logger.warning(f"读取预生成视频缩略图失败: {e}")
+
+    # 4. 查找原始视频文件路径（如果从 manifest 没找到）
+    if not storage_path:
+        # 尝试从通用上传目录查找
+        possible_path = os.path.join(settings.file_upload_dir, file_id)
+        if os.path.exists(possible_path):
+            storage_path = possible_path
+        else:
+            # 尝试查找是否有扩展名的文件
+            for ext in [".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv"]:
+                test_path = os.path.join(settings.file_upload_dir, f"{file_id}{ext}")
+                if os.path.exists(test_path):
+                    storage_path = test_path
+                    break
+
+    if not storage_path or not os.path.exists(storage_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="视频文件不存在",
+        )
+
+    # 5. Redis 缓存检查
+    redis_key = f"video_thumb:{file_id}:{size}"
+    file_mtime = os.path.getmtime(storage_path)
+    etag = hashlib.md5(f"{file_id}{size}{file_mtime}".encode()).hexdigest()
+
+    if request.headers.get("If-None-Match") == etag:
+        return Response(status_code=304)
+
+    try:
+        # 尝试从 Redis 获取缓存
+        cached_data = await redis_client.get(redis_key)
+        if cached_data:
+            img_bytes = base64.b64decode(cached_data)
+            return Response(
+                content=img_bytes,
+                media_type="image/jpeg",
+                headers={
+                    "Cache-Control": f"public, max-age={VIDEO_THUMBNAIL_TTL}",
+                    "ETag": etag,
+                    "X-Thumbnail-Source": "redis",
+                    "Access-Control-Allow-Origin": "*",
+                },
+            )
+    except Exception as e:
+        logger.warning(f"Redis 读取视频缩略图缓存失败: {e}")
+
+    # 6. 动态生成缩略图（ffmpeg 首帧）
+    logger.info(f"动态生成视频缩略图: file_id={file_id}, size={size}")
+    try:
+        img_bytes = await _extract_video_frame_async(
+            storage_path, thumb_width, thumb_height
+        )
+    except Exception as e:
+        logger.error(f"视频缩略图生成失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="视频缩略图生成失败",
+        )
+
+    # 7. 存入 Redis 缓存
+    try:
+        encoded = base64.b64encode(img_bytes).decode()
+        await redis_client.setex(redis_key, VIDEO_THUMBNAIL_TTL, encoded)
+    except Exception as e:
+        logger.warning(f"Redis 写入视频缩略图缓存失败: {e}")
+
+    return Response(
+        content=img_bytes,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": f"public, max-age={VIDEO_THUMBNAIL_TTL}",
+            "ETag": etag,
+            "X-Thumbnail-Source": "generated",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )

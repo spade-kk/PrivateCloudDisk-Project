@@ -24,7 +24,7 @@
         <!-- 名称 -->
         <div class="flex min-w-0 cursor-pointer items-start gap-3 sm:col-span-5 sm:items-center" @click="$emit('itemClick', node)">
           <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-neutral-50 sm:h-8 sm:w-8">
-            <template v-if="node.node_type === 'FILE' && isImageFile(node.node_name)">
+            <template v-if="node.node_type === 'FILE' && isThumbnailable(node.node_name)">
               <ThumbnailImage
                 :file-id="node.node_id"
                 :file-name="node.node_name"
@@ -74,7 +74,7 @@
 import { computed } from 'vue'
 import { getFileExtension, formatFileSize } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'
-import { isImage } from '@/utils/previewHelper'
+import { isImage, isVideo } from '@/utils/previewHelper'
 import ThumbnailImage from './ThumbnailImage.vue'
 
 const props = defineProps({
@@ -89,6 +89,8 @@ const iconClass = (node) => getFileIconClass(node.node_name)
 const isSelected = (id) => props.selectedIds.has(id)
 const isStarred = (id) => props.starredIds.has(id)
 const isImageFile = (fileName: string) => isImage(fileName)
+const isVideoFile = (fileName: string) => isVideo(fileName)
+const isThumbnailable = (fileName: string) => isImage(fileName) || isVideo(fileName)
 const toggleSelect = (id, type) => emit('selection-change', id, type)
 
 const allSelected = computed(() => props.nodes.length > 0 && props.nodes.every(n => props.selectedIds.has(n.node_id)))

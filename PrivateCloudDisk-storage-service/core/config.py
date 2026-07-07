@@ -4,6 +4,18 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     file_upload_dir: str = "../Uploads"
+
+    # ========== 文件存储类型配置 ==========
+    # 存储类型: localstorage（本地磁盘）/ minio（MinIO 对象存储）
+    storage_type: str = "localstorage"
+
+    # MinIO 配置（仅在 storage_type=minio 时生效）
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "pcd-uploads"
+    minio_secure: bool = False
+
     business_service_url: str = "http://127.0.0.1:8080"
     private_key_path: str = "./private_key.pem"
     public_key_path: str = "./public_key.pem"

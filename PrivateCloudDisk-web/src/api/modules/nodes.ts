@@ -49,6 +49,53 @@ export function getNodeChildrenApi(node_id: string): Promise<any> {
 }
 
 // ============================================================
+// 路径查询与解析（混合模型）
+// ============================================================
+
+/**
+ * 路径 → node_id 转换接口。
+ *
+ * 将面包屑路径（绝对路径或 node_id+相对路径）解析为对应的 node_id。
+ * 支持两种模式：
+ *   - absolute_path：绝对路径（如 "/my_disk/folder1/sub"）
+ *   - node_id + relative_path：从指定节点出发的相对路径
+ *
+ * @param params.absolute_path - 绝对路径（可选）
+ * @param params.relative_path - 相对路径（可选，需配合 node_id）
+ * @param params.node_id - 父节点 ID（可选，需配合 relative_path）
+ * @returns Promise<{ node_id: string }> 解析后的目标节点 ID
+ */
+export function resolvePathToNodeIdApi(params: {
+  absolute_path?: string
+  relative_path?: string
+  node_id?: string
+}): Promise<{ code: number; message: string | null; data: { node_id: string } }> {
+  return get('business/nodes/resolve-path', { params })
+}
+
+/**
+ * 按路径查询子节点（混合查询模型）。
+ *
+ * 返回 { node_id, children } 结构，其中 node_id 是解析后的目标节点 ID 供客户端保存。
+ * 支持三种模式：
+ *   - absolute_path：绝对路径
+ *   - node_id + relative_path：从指定节点出发的相对路径
+ *   - 仅 node_id：退化为普通 node_id 查询
+ *
+ * @param params.absolute_path - 绝对路径（可选）
+ * @param params.relative_path - 相对路径（可选，需配合 node_id）
+ * @param params.node_id - 父节点 ID（可选）
+ * @returns Promise<{ node_id: string, children: Array }> 目标节点 ID 及子节点列表
+ */
+export function getChildrenByPathApi(params: {
+  absolute_path?: string
+  relative_path?: string
+  node_id?: string
+}): Promise<{ code: number; message: string | null; data: { node_id: string; children: any[] } }> {
+  return get('business/nodes/children-by-path', { params })
+}
+
+// ============================================================
 // 节点操作
 // ============================================================
 

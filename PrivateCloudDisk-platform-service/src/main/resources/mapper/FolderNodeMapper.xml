@@ -118,4 +118,13 @@
           AND node_status IN ('active', 'pending')
         LIMIT 1;
     </select>
+
+    <select id="findFolderNodeByNameAndParentId" resultMap="FolderNodeEntityMap">
+        SELECT * FROM pcd_directory_tree_table
+        WHERE node_name = #{name}
+          AND node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_status NOT IN ('trashed', 'deleted')
+        LIMIT 1;
+    </select>
 </mapper>

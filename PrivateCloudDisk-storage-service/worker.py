@@ -237,6 +237,29 @@ setup_logging(level=getattr(logging, log_level, logging.INFO), enable_color=True
 logger = get_logger("worker")
 
 
+def _init_storage():
+    """初始化文件存储层（Worker 进程）"""
+    from core.storage.factory import create_storage
+
+    if settings.storage_type == "minio":
+        create_storage(
+            storage_type="minio",
+            endpoint=settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            bucket=settings.minio_bucket,
+            secure=settings.minio_secure,
+            base_dir=settings.file_upload_dir,
+        )
+        logger.info(f"文件存储层初始化完成: MinIO ({settings.minio_endpoint}/{settings.minio_bucket})")
+    else:
+        create_storage(
+            storage_type="localstorage",
+            base_dir=settings.file_upload_dir,
+        )
+        logger.info(f"文件存储层初始化完成: LocalStorage ({settings.file_upload_dir})")
+
+
 class Worker:
     """
     独立 Worker 进程
@@ -279,6 +302,9 @@ class Worker:
         logger.info("连接 RabbitMQ 并声明拓扑...")
         await rabbitmq_service.connect()
         logger.info("RabbitMQ 连接成功")
+
+        # 1.5. 初始化文件存储层
+        #_init_storage()
 
         # 2. 初始化 OpenSearch 索引
         try:

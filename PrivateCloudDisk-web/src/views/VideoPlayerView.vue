@@ -52,6 +52,7 @@
         :is-hls="store.isHls"
         :hls-source-url="store.isHls ? store.videoSourceUrl : ''"
         :video-source-url="store.isMp4 ? store.videoSourceUrl : ''"
+        :poster-url="store.previewThumbnailUrl"
         :file-id="store.currentFile?.node_id"
         @timeupdate="onTimeUpdate"
         @progress-report="onProgressReport"

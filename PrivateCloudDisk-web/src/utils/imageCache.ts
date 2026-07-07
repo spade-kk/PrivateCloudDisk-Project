@@ -10,13 +10,13 @@
 //   6. 自动重试（指数退避）
 // ============================================================
 
-import { getThumbnailUrl } from '@/api/modules/preview'
+import { getThumbnailUrl, getVideoThumbnailUrl } from '@/api/modules/preview'
+// 依赖 axios 封装的 get 方法，自动附带 Token 不需要使用统一封装的axios实例，不使用统一的请求拦截器 响应拦截器实现无感加载
 import axios from 'axios'
 import { cookie } from '@/utils/cookie'
+import { TOKEN_COOKIE_KEY } from '@/utils/request'
 
 // ---- 常量 ----
-
-const TOKEN_COOKIE_KEY = 'cloud_drive_token'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 /** 最大缓存条目数 */
@@ -65,6 +65,25 @@ class ImageCacheManager {
    */
   async load(fileId: string, size: ThumbnailSize = 'small'): Promise<string> {
     const url = this.buildUrl(fileId, size)
+    return this._loadByUrl(url)
+  }
+
+  /**
+   * 加载视频缩略图（使用独立的视频缩略图接口，ffmpeg 首帧）
+   *
+   * @param fileId - 文件 ID
+   * @param size - 缩略图尺寸
+   * @returns object URL，可直接用于 <img src>
+   */
+  async loadVideo(fileId: string, size: ThumbnailSize = 'small'): Promise<string> {
+    const url = this.buildVideoUrl(fileId, size)
+    return this._loadByUrl(url)
+  }
+
+  /**
+   * 通过 URL 加载图片（内部共享方法，含缓存、去重、重试）
+   */
+  private async _loadByUrl(url: string): Promise<string> {
     const cacheKey = url
 
     // 1. 命中缓存 → 更新 LRU 并返回
@@ -163,6 +182,10 @@ class ImageCacheManager {
 
   private buildUrl(fileId: string, size: ThumbnailSize): string {
     return getThumbnailUrl(fileId, size)
+  }
+
+  private buildVideoUrl(fileId: string, size: ThumbnailSize): string {
+    return getVideoThumbnailUrl(fileId, size)
   }
 
   /**
@@ -267,6 +290,16 @@ export function loadThumbnail(
   size: ThumbnailSize = 'small',
 ): Promise<string> {
   return imageCache.load(fileId, size)
+}
+
+/**
+ * 异步加载视频缩略图（使用独立视频缩略图接口），返回 object URL
+ */
+export function loadVideoThumbnail(
+  fileId: string,
+  size: ThumbnailSize = 'small',
+): Promise<string> {
+  return imageCache.loadVideo(fileId, size)
 }
 
 /**

@@ -18,6 +18,7 @@ import org.project.model.entity.NodeEntity;
 import org.project.model.vo.FolderNodeVO;
 import org.project.model.vo.NodeVO;
 import org.project.model.vo.PageResultVO;
+import org.project.model.vo.PathChildrenVO;
 import org.project.model.vo.VoMapper;
 import org.project.service.DirectoryTreeService;
 import org.project.service.SpaceService;
@@ -233,6 +234,86 @@ public class NodeController extends BaseController {
                 clientIp);
 
         return new JsonResult<>(OK, response);
+    }
+
+    // ==================== 路径解析与路径查询接口 ====================
+
+    /**
+     * 路径 → node_id 转换接口。
+     * 支持两种模式：
+     * <ul>
+     *   <li>绝对路径：{@code absolute_path}（如 "/my_disk/folder1/sub"）</li>
+     *   <li>node_id + 相对路径：{@code node_id} + {@code relative_path}（如 node_id + "subfolder1/subfolder2"）</li>
+     * </ul>
+     * 返回目标节点的 node_id。
+     */
+    @GetMapping("/resolve-path")
+    public JsonResult<Map<String, String>> resolvePathToNodeId(
+            @RequestParam(required = false) String absolute_path,
+            @RequestParam(required = false) String relative_path,
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "node_id必须是有效的UUID格式")
+            @RequestParam(required = false) String node_id,
+            @RequestHeader("X-User-Id") String user_id) {
+        UUID userId = UUID.fromString(user_id);
+        UUID targetNodeId;
+
+        if (absolute_path != null && !absolute_path.isBlank()) {
+            // 模式1：绝对路径查询
+            targetNodeId = directoryTreeService.resolveAbsolutePathToNodeId(userId, absolute_path);
+        } else if (relative_path != null && !relative_path.isBlank() && node_id != null && !node_id.isBlank()) {
+            // 模式2：node_id + 相对路径查询
+            targetNodeId = directoryTreeService.resolveRelativePathToNodeId(
+                    userId, UUID.fromString(node_id), relative_path);
+        } else {
+            throw new IllegalArgumentException("必须提供 absolute_path 或 (node_id + relative_path)");
+        }
+
+        Map<String, String> result = new HashMap<>();
+        result.put("node_id", targetNodeId.toString());
+        return new JsonResult<>(OK, result);
+    }
+
+    /**
+     * 路径方式查询子节点（混合查询模型）。
+     * 支持三种模式：
+     * <ul>
+     *   <li>绝对路径：{@code absolute_path}（如 "/my_disk/folder1/sub"）</li>
+     *   <li>node_id + 相对路径：{@code node_id} + {@code relative_path}</li>
+     *   <li>纯 node_id：{@code node_id}（不传路径参数时）</li>
+     * </ul>
+     * 返回 { node_id, children } 结构，其中 node_id 是解析后的目标节点 ID 供客户端保存。
+     */
+    @GetMapping("/children-by-path")
+    public JsonResult<PathChildrenVO> getChildrenByPath(
+            @RequestParam(required = false) String absolute_path,
+            @RequestParam(required = false) String relative_path,
+            @Pattern(regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                    message = "node_id必须是有效的UUID格式")
+            @RequestParam(required = false) String node_id,
+            @RequestHeader("X-User-Id") String user_id) {
+        UUID userId = UUID.fromString(user_id);
+        UUID targetNodeId;
+
+        if (absolute_path != null && !absolute_path.isBlank()) {
+            // 模式1：绝对路径查询
+            targetNodeId = directoryTreeService.resolveAbsolutePathToNodeId(userId, absolute_path);
+        } else if (relative_path != null && !relative_path.isBlank() && node_id != null && !node_id.isBlank()) {
+            // 模式2：node_id + 相对路径查询
+            targetNodeId = directoryTreeService.resolveRelativePathToNodeId(
+                    userId, UUID.fromString(node_id), relative_path);
+        } else if (node_id != null && !node_id.isBlank()) {
+            // 模式3：纯 node_id 查询
+            targetNodeId = UUID.fromString(node_id);
+        } else {
+            throw new IllegalArgumentException("必须提供 absolute_path、relative_path+node_id 或 node_id");
+        }
+
+        List<NodeEntity> nodeList = directoryTreeService.findUserNodesByNodeId(targetNodeId, userId);
+        PathChildrenVO result = new PathChildrenVO(
+                targetNodeId.toString(),
+                VoMapper.toNodeVOList(nodeList));
+        return new JsonResult<>(OK, result);
     }
 
     @DeleteMapping({"/{node_id}", "/{node_id}/"})

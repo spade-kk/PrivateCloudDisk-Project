@@ -97,6 +97,26 @@ public interface FolderNodeMapper {
     int deleteFolderNodeByIdAndUserId(@Param("node_id") UUID node_id, @Param("user_id") UUID user_id);
 
     /**
+     * 根据父节点ID和名称查询子文件夹节点
+     * @param name 文件夹名称
+     * @param parent_id 父节点ID
+     * @param user_id 用户ID
+     * @return 文件夹节点数据，不存在返回null
+     */
+    FolderNodeEntity findFolderNodeByNameAndParentId(
+            @Param("name") String name,
+            @Param("parent_id") UUID parent_id,
+            @Param("user_id") UUID user_id);
+
+    /**
+     * 根据父节点ID和名称查询子文件夹节点（别名为 findFolderNodeByNameAndParentId）
+     */
+    FolderNodeEntity findFolderNodeByParentIdAndName(
+            @Param("name") String name,
+            @Param("parent_id") UUID parent_id,
+            @Param("user_id") UUID user_id);
+
+    /**
      * 统计用户文件夹总数（active/pending状态）
      * @param user_id 用户ID
      * @return 文件夹总数

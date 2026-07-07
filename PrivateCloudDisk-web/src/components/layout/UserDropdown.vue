@@ -100,9 +100,9 @@ const maskedPhone = computed(() => {
   return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
 })
 const menuItems = [
-  { path: '/profile', name: '个人中心', icon: 'fa fa-user-circle' },
-  { path: '/transfers', name: '传输记录', icon: 'fa fa-exchange' },
-  { path: '/notifications', name: '消息中心', icon: 'fa fa-bell' },
+  { path: '/app/profile', name: '个人中心', icon: 'fa fa-user-circle' },
+  { path: '/app/transfers', name: '传输记录', icon: 'fa fa-exchange' },
+  { path: '/app/notifications', name: '消息中心', icon: 'fa fa-bell' },
 ]
 
 function syncPointerMode() {

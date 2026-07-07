@@ -50,7 +50,7 @@ final class AuthService: ObservableObject {
         )
 
         // 3. 发送请求
-        let auth: AuthResponse = try await api.post("/api/auth/login", body: request)
+        let auth: AuthResponse = try await api.post("/api/v1/business/users/login", body: request)
 
         // 4. 存储凭据
         keychain.storeAuthToken(auth.token)
@@ -84,7 +84,7 @@ final class AuthService: ObservableObject {
             deviceInfo: DeviceInfo.current()
         )
 
-        let auth: AuthResponse = try await api.post("/api/auth/register", body: request)
+        let auth: AuthResponse = try await api.post("/api/v1/business/users/register", body: request)
 
         keychain.storeAuthToken(auth.token)
         if let refresh = auth.refreshToken {
@@ -107,7 +107,7 @@ final class AuthService: ObservableObject {
             struct LogoutBody: Encodable {
                 let token: String
             }
-            let _: EmptyBody? = try? await api.post("/api/auth/logout", body: LogoutBody(token: token))
+            let _: EmptyBody? = try? await api.post("/api/v1/business/users/logout", body: LogoutBody(token: token))
         }
 
         // 清除本地凭据
@@ -122,7 +122,7 @@ final class AuthService: ObservableObject {
         struct TokenValidationBody: Encodable {
             let token: String
         }
-        let user: UserModel = try await api.post("/api/auth/validate", body: TokenValidationBody(token: token))
+        let user: UserModel = try await api.post("/api/v1/business/users/validate", body: TokenValidationBody(token: token))
         return user
     }
 
@@ -143,7 +143,7 @@ final class AuthService: ObservableObject {
             if let refreshToken = keychain.readRefreshToken() {
                 do {
                     let body = RefreshTokenRequest(refreshToken: refreshToken)
-                    let auth: AuthResponse = try await api.post("/api/auth/refresh", body: body)
+                    let auth: AuthResponse = try await api.post("/api/v1/business/users/refresh", body: body)
                     keychain.updateTokens(
                         accessToken: auth.token,
                         refreshToken: auth.refreshToken,
@@ -164,7 +164,7 @@ final class AuthService: ObservableObject {
     // MARK: - 获取用户信息
 
     func fetchUserProfile() async throws -> UserModel {
-        let user: UserModel = try await api.get("/api/user/profile")
+        let user: UserModel = try await api.get("/api/v1/business/users/me")
         currentUser = user
         return user
     }
@@ -172,7 +172,7 @@ final class AuthService: ObservableObject {
     /// 更新用户头像
     func updateAvatar(imageData: Data) async throws -> UserModel {
         let response: Data = try await api.upload(
-            "/api/user/avatar",
+            "/api/v1/business/users/avatar",
             fileData: imageData,
             filename: "avatar.jpg",
             mimeType: "image/jpeg"

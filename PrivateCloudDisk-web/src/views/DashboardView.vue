@@ -229,7 +229,7 @@ function goHome() {
   fileBrowserStore.goHome()
 }
 
-function navigateTo(node) {
+function navigateTo(node: any) {
   fileBrowserStore.navigateTo(node)
 }
 

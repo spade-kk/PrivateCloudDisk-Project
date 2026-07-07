@@ -80,6 +80,29 @@ TAGS_METADATA = [
 # ==================== 应用生命周期管理 ====================
 
 
+def _init_storage():
+    """初始化文件存储层"""
+    from core.storage.factory import create_storage
+
+    if settings.storage_type == "minio":
+        create_storage(
+            storage_type="minio",
+            endpoint=settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            bucket=settings.minio_bucket,
+            secure=settings.minio_secure,
+            base_dir=settings.file_upload_dir,
+        )
+        logger.info(f"文件存储层初始化完成: MinIO ({settings.minio_endpoint}/{settings.minio_bucket})")
+    else:
+        create_storage(
+            storage_type="localstorage",
+            base_dir=settings.file_upload_dir,
+        )
+        logger.info(f"文件存储层初始化完成: LocalStorage ({settings.file_upload_dir})")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -104,6 +127,9 @@ async def lifespan(app: FastAPI):
         logger.info("RabbitMQ 连接成功 (发布模式)")
     except Exception as e:
         logger.warning(f"RabbitMQ 连接失败 (HTTP 服务仍可用): {e}")
+
+    # 初始化文件存储层
+    #_init_storage()
 
     logger.info("HTTP 服务初始化完成")
     logger.info("=" * 60)

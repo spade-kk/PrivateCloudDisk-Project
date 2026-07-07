@@ -22,8 +22,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { loadThumbnail, type ThumbnailSize } from '@/utils/imageCache'
+import { loadThumbnail, loadVideoThumbnail, type ThumbnailSize } from '@/utils/imageCache'
 import { getFileIconClass } from '@/utils/fileIcon'
+import { isVideo } from '@/utils/previewHelper'
 
 const props = withDefaults(
   defineProps<{
@@ -67,7 +68,11 @@ async function loadImage() {
   loaded.value = false
 
   try {
-    const url = await loadThumbnail(props.fileId, props.size)
+    // 视频文件使用独立的视频缩略图接口（ffmpeg 首帧）
+    const isVideoFile = isVideo(props.fileName)
+    const url = isVideoFile
+      ? await loadVideoThumbnail(props.fileId, props.size)
+      : await loadThumbnail(props.fileId, props.size)
     objectUrl.value = url
     loaded.value = true
     emit('load')

@@ -530,6 +530,128 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         return folderNode.getNode_id();
     }
 
+    // ==================== 路径 → node_id 解析（纯查询，不创建） ====================
+
+    @Override
+    public UUID resolveAbsolutePathToNodeId(UUID userId, String absolutePath) {
+        // 1. 路径校验
+        validatePath(absolutePath);
+
+        // 2. 标准化路径
+        String normalized = absolutePath.trim();
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isEmpty()) {
+            // 返回根节点
+            FolderNodeEntity root = folderNodeMapper.findRootFolderNodeByUserId(userId);
+            if (root == null) {
+                throw new NodeNotExistException("根节点不存在");
+            }
+            return root.getNode_id();
+        }
+
+        // 3. 尝试从缓存获取
+        String cacheKey = "/" + normalized;
+        UUID cached = pathCacheService.getAbsolutePath(userId, cacheKey);
+        if (cached != null) {
+            FolderNodeEntity cachedNode = findUserFolderNodeIfExist(cached, userId);
+            if (cachedNode != null) {
+                return cached;
+            }
+        }
+
+        // 4. 获取根节点
+        FolderNodeEntity rootNode = folderNodeMapper.findRootFolderNodeByUserId(userId);
+        if (rootNode == null) {
+            throw new NodeNotExistException("根节点不存在");
+        }
+
+        // 5. 拆路径，逐级查找
+        String[] parts = normalized.split("/");
+        validatePathDepth(parts.length, null, userId);
+
+        // 如果路径第一部分是根节点名则跳过
+        int startIdx = 0;
+        if (parts.length > 0 && parts[0].equals(rootNode.getName())) {
+            startIdx = 1;
+        }
+
+        UUID currentParentId = rootNode.getNode_id();
+        for (int i = startIdx; i < parts.length; i++) {
+            String folderName = parts[i];
+            if (folderName.isEmpty()) continue;
+            FolderNodeEntity child = folderNodeMapper.findFolderNodeByNameAndParentId(
+                    folderName, currentParentId, userId);
+            if (child == null) {
+                throw new NodeNotExistException("路径节点不存在: " + folderName + " (完整路径: " + cacheKey + ")");
+            }
+            currentParentId = child.getNode_id();
+        }
+
+        // 6. 缓存结果
+        pathCacheService.cacheAbsolutePath(userId, cacheKey, currentParentId);
+
+        return currentParentId;
+    }
+
+    @Override
+    public UUID resolveRelativePathToNodeId(UUID userId, UUID parentNodeId, String relativePath) {
+        // 1. 路径校验
+        validatePath(relativePath);
+
+        // 2. 标准化
+        String normalized = relativePath.trim();
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isEmpty()) {
+            return parentNodeId;
+        }
+
+        // 3. 检查父节点是否存在
+        FolderNodeEntity parentNode = findUserFolderNodeIfExist(parentNodeId, userId);
+        if (parentNode == null) {
+            throw new ParentNodeNotExistException("父节点不存在: " + parentNodeId);
+        }
+
+        // 4. 尝试从缓存获取
+        UUID cached = pathCacheService.getRelativePath(userId, parentNodeId, normalized);
+        if (cached != null) {
+            FolderNodeEntity cachedNode = findUserFolderNodeIfExist(cached, userId);
+            if (cachedNode != null) {
+                return cached;
+            }
+        }
+
+        // 5. 拆路径，逐级查找
+        String[] parts = normalized.split("/");
+        validatePathDepth(parts.length, parentNodeId, userId);
+
+        UUID currentParentId = parentNodeId;
+        for (String folderName : parts) {
+            if (folderName.isEmpty()) continue;
+            FolderNodeEntity child = folderNodeMapper.findFolderNodeByNameAndParentId(
+                    folderName, currentParentId, userId);
+            if (child == null) {
+                throw new NodeNotExistException("路径节点不存在: " + folderName
+                        + " (父节点: " + currentParentId + ")");
+            }
+            currentParentId = child.getNode_id();
+        }
+
+        // 6. 缓存结果
+        pathCacheService.cacheRelativePath(userId, parentNodeId, normalized, currentParentId);
+
+        return currentParentId;
+    }
+
     // ==================== 路径校验 ====================
 
     private void validatePath(String path) {

@@ -140,4 +140,31 @@ public interface DirectoryTreeService {
      * @return 最终文件夹节点 ID
      */
     UUID ensureFolderPath(UUID userId, String breadcrumbPath);
+
+    // ==================== 路径 → node_id 解析 ====================
+
+    /**
+     * 通过绝对路径（面包屑路径）解析目标文件夹节点 ID。
+     * 从用户根节点开始，逐级按名称查找子节点。
+     * 路径格式："/root_folder/subfolder1/subfolder2"（根节点名称可省略）
+     * <p>若路径中任何一级不存在，抛出 NodeNotExistException。
+     *
+     * @param userId       用户 ID
+     * @param absolutePath 绝对路径（面包屑路径）
+     * @return 目标节点 ID
+     */
+    UUID resolveAbsolutePathToNodeId(UUID userId, String absolutePath);
+
+    /**
+     * 通过 node_id + 相对路径解析目标文件夹节点 ID。
+     * 从 parentNodeId 开始，逐级按名称查找子节点。
+     * 相对路径格式："subfolder1/subfolder2"
+     * <p>若路径中任何一级不存在，抛出 NodeNotExistException。
+     *
+     * @param userId       用户 ID
+     * @param parentNodeId 父节点 ID
+     * @param relativePath 相对路径
+     * @return 目标节点 ID
+     */
+    UUID resolveRelativePathToNodeId(UUID userId, UUID parentNodeId, String relativePath);
 }

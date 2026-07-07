@@ -44,6 +44,7 @@
       @dblclick="toggleFullscreen"
     >
       <!-- 视频元素 -->
+      <!-- :poster="posterUrl" -->
       <video
         ref="videoRef"
         class="vpc-video"
@@ -121,6 +122,17 @@
         <span class="vpc-gesture-value">{{ Math.round(brightness * 100) }}%</span>
       </div>
 
+      <!-- ==================== HLS 重连 / 加载中遮罩 ==================== -->
+      <div v-if="hlsConnecting && !error" class="vpc-connecting-overlay">
+        <div class="vpc-connecting-content">
+          <svg class="vpc-spinner" viewBox="0 0 50 50">
+            <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3" />
+            <circle cx="25" cy="25" r="20" fill="none" stroke="#1677ff" stroke-width="3" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="60" />
+          </svg>
+          <p class="vpc-connecting-text">正在加载视频...</p>
+        </div>
+      </div>
+
       <!-- ==================== 错误遮罩 ==================== -->
       <div v-if="error" class="vpc-error-overlay">
         <div class="vpc-error-content">
@@ -148,6 +160,7 @@
           <!-- 悬停预览缩略图 -->
           <div v-if="hoverPreview.visible && spriteInfo" class="vpc-progress__preview" :style="{ left: hoverPreview.percent + '%' }">
             <div v-if="thumbnailStyle" class="vpc-progress__thumbnail" :style="thumbnailStyle" />
+            <div v-else-if="!spriteLoaded" class="vpc-progress__thumbnail vpc-progress__thumbnail--loading" />
             <div class="vpc-progress__time-bubble">{{ formatTime(hoverPreview.time) }}</div>
           </div>
           <!-- 缓冲区间 -->
@@ -314,12 +327,18 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 // ============================================================
 // 企业级视频播放器核心组件
 // ============================================================
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, Teleport } from 'vue'
 import Hls from 'hls.js'
+import axios from 'axios'
+import { cookie } from '@/utils/cookie'
+import { TOKEN_COOKIE_KEY } from '@/utils/request'
+
+
+const PRE_BASE_URL = '/api/v1'
 
 // ============================================================
 // Props
@@ -353,6 +372,8 @@ const props = defineProps({
   videoSourceUrl: { type: String, default: '' },
   /** 文件 ID (用于进度上报) */
   fileId: { type: String, default: '' },
+  /** 视频封面海报 URL */
+  posterUrl: { type: String, default: '' },
 })
 
 const emit = defineEmits([
@@ -396,6 +417,12 @@ const loop = ref(false)
 const abLoop = ref({ a: null, b: null, enabled: false })
 const isMirrored = ref(false)
 const brightness = ref(1)
+// HLS 重试状态
+const hlsRetryCount = ref(0)
+const hlsMaxRetry = 10
+const hlsRetryBackoff = ref(1000)
+const hlsConnecting = ref(false)    // 是否正在重连中（显示加载中状态）
+let hlsRetryTimer: ReturnType<typeof setTimeout> | null = null
 
 // ============================================================
 // UI 状态
@@ -413,6 +440,9 @@ const showBrightnessIndicator = ref(false)
 const contextMenu = ref({ visible: false, x: 0, y: 0 })
 const hoverPreview = ref({ visible: false, time: 0, percent: 0, spriteIndex: 0 })
 const touchStart = ref(null)
+const spriteLoaded = ref(false)               // 雪碧图 blob 是否已加载
+const spriteObjectUrl = ref<string | null>(null) // 雪碧图 blob Object URL（带鉴权加载）
+const spriteVttData = ref(null)              // 解析后的 VTT 元数据 [{start, end, col, row, x, y, w, h}]
 let volumeIndicatorTimer = null
 let brightnessIndicatorTimer = null
 
@@ -443,21 +473,61 @@ const currentResolutionLabel = computed(() => {
   return res?.label || '自动'
 })
 
+/**
+ * 企业级雪碧图缩略图样式计算
+ *
+ * 策略:
+ * 1. 优先使用 VTT 元数据解析的精确 XYWH 坐标（最精准）
+ * 2. 降级使用 config 参数计算网格坐标（通用方案）
+ * 3. 雪碧图通过 Axios blob 加载为 Object URL，带 Auth 鉴权头
+ * 4. hover 时通过 CSS background-position 在 1ms 内完成切换
+ * 5. 对标 B站/YouTube 的流畅体验
+ */
 const thumbnailStyle = computed(() => {
   if (!props.spriteInfo?.config || !hoverPreview.value.visible) return null
   const { config } = props.spriteInfo
   const cols = config.cols || 10
   const w = config.width || 160
   const h = config.height || 90
-  const idx = hoverPreview.value.spriteIndex
-  const col = idx % cols
-  const row = Math.floor(idx / cols)
+  const interval = config.interval || 10
+  const totalThumbnails = (config.cols || 10) * (config.rows || 10)
+
+  const time = hoverPreview.value.time
+  let x = 0, y = 0
+
+  // 优先使用 VTT 元数据精确定位
+  if (spriteVttData.value && spriteVttData.value.length > 0) {
+    const vttEntry = spriteVttData.value.find(
+      entry => time >= entry.start && time < entry.end
+    )
+    if (vttEntry) {
+      x = vttEntry.x
+      y = vttEntry.y
+    } else {
+      const lastEntry = spriteVttData.value[spriteVttData.value.length - 1]
+      x = lastEntry.x
+      y = lastEntry.y
+    }
+  } else {
+    // 降级：通过时间间隔计算网格坐标
+    const idx = Math.min(Math.floor(time / interval), totalThumbnails - 1)
+    const col = idx % cols
+    const row = Math.floor(idx / cols)
+    x = col * w
+    y = row * h
+  }
+
+  // 使用 Axios blob 加载的 Object URL（带鉴权）或直接使用原始 URL
+  const spriteUrl = spriteObjectUrl.value || props.spriteInfo.sprite_image || props.spriteInfo.sprite_url
+
   return {
-    backgroundImage: `url(${props.spriteInfo.sprite_image || props.spriteInfo.sprite_url})`,
-    backgroundPosition: `-${col * w}px -${row * h}px`,
+    backgroundImage: spriteUrl ? `url(${spriteUrl})` : undefined,
+    backgroundPosition: `-${x}px -${y}px`,
     backgroundSize: `${cols * w}px auto`,
     width: `${w}px`,
     height: `${h}px`,
+    opacity: spriteLoaded.value ? 1 : 0.5,
+    transition: 'opacity 0.15s ease',
   }
 })
 
@@ -468,7 +538,7 @@ const shortcutsList = [
   { key: '↑ / ↓', desc: '音量增加 / 减少' },
   { key: 'F', desc: '全屏 / 退出全屏' },
   { key: 'M', desc: '静音 / 取消静音' },
-  { key: '[' / ']', desc: '减速 / 加速' },
+  { key: '[\' / \']', desc: '减速 / 加速' },
   { key: 'J / L', desc: '快退 / 快进 10 秒' },
   { key: 'S', desc: '视频截图' },
   { key: '0-9', desc: '跳转到视频 0%-90%' },
@@ -512,6 +582,14 @@ function initVideo() {
 }
 
 function initHls(video, url) {
+  // 清除残留的重试定时器
+  if (hlsRetryTimer) {
+    clearTimeout(hlsRetryTimer)
+    hlsRetryTimer = null
+  }
+
+  console.log('[HLS] 初始化 HLS 播放器，URL:', url)
+
   if (hlsInstance) hlsInstance.destroy()
 
   if (!Hls.isSupported()) {
@@ -536,11 +614,17 @@ function initHls(video, url) {
     manifestLoadingMaxRetry: 4,
     levelLoadingMaxRetry: 4,
     fragLoadingMaxRetry: 6,
-    debug: false,
+    debug: true,
+    // 为 hls.js 所有内部 XHR 请求注入鉴权头
+    // 解决 hls.js 不经过 Axios 拦截器导致 401 的问题
+    xhrSetup: function(xhr, url) {
+      // 注入 Authorization Bearer Token（从 Cookie 读取）
+      const authToken = cookie.get(TOKEN_COOKIE_KEY)
+      if (authToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`)
+      }
+    },
   })
-
-  hlsInstance.loadSource(url)
-  hlsInstance.attachMedia(video)
 
   hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
     videoReady.value = true
@@ -550,20 +634,172 @@ function initHls(video, url) {
   })
 
   hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+    // ============================================================
+    // 企业级 HLS 分片错误处理与自动重试
+    // ============================================================
+    // 对标 B站/YouTube/腾讯视频:
+    //  - 非致命错误: 内部自动重试，不中断播放
+    //  - 致命网络错误: 指数退避重试，最多 hlsMaxRetry 次
+    //  - 致命媒体错误: 尝试恢复，失败后重试
+    //  - 重试期间显示 "加载中" 状态，不立即显示错误
+    //  - 超过最大重试次数或超时后才显示错误
+    //  - 单个 TS 分片失败不影响整体播放
+
     if (data.fatal) {
       switch (data.type) {
         case Hls.ErrorTypes.NETWORK_ERROR:
-          hlsInstance.startLoad()
+          // 网络错误（TS 分片加载失败、m3u8 加载失败等）
+          if (hlsRetryCount.value < hlsMaxRetry) {
+            hlsRetryCount.value++
+            hlsConnecting.value = true
+            console.warn(
+              `[HLS] 网络错误，自动重试 (${hlsRetryCount.value}/${hlsMaxRetry})，` +
+              `等待 ${hlsRetryBackoff.value}ms...`,
+              data.details
+            )
+
+            // 清除之前的重试定时器
+            if (hlsRetryTimer) clearTimeout(hlsRetryTimer)
+
+            // 指数退避重试: 1s, 2s, 4s, 8s... (最大 30s)
+            hlsRetryTimer = setTimeout(() => {
+              hlsConnecting.value = false
+              hlsInstance.startLoad()
+              // 成功加载后重置计数器（在 MANIFEST_PARSED / FRAG_LOADED 中）
+              hlsRetryBackoff.value = Math.min(hlsRetryBackoff.value * 2, 30000)
+            }, hlsRetryBackoff.value)
+          } else {
+            // 超过最大重试次数
+            hlsConnecting.value = false
+            emit('error', '网络连接失败')
+          }
           break
+
         case Hls.ErrorTypes.MEDIA_ERROR:
-          hlsInstance.recoverMediaError()
+          // 媒体错误（解码失败、音视频不兼容等）
+          console.error(
+            `[HLS] 媒体错误 (fatal, 重试 ${hlsRetryCount.value}/${hlsMaxRetry}):`,
+            data.details,
+            data
+          )
+
+          if (hlsRetryCount.value < hlsMaxRetry) {
+            hlsRetryCount.value++
+
+            // 如果是解码器不支持错误，尝试切换到更低分辨率
+            // 不同分辨率可能使用不同的编码参数，低分辨率通常更兼容
+            const isDecoderError = data.details?.includes('DECODER_ERROR') ||
+                                    data.details?.includes('kUnsupportedConfig')
+            if (isDecoderError && hlsInstance.levels && hlsInstance.levels.length > 0) {
+              const currentLevel = hlsInstance.currentLevel
+              if (currentLevel > 0) {
+                console.warn(
+                  `[HLS] 解码器不支持当前分辨率 (level=${currentLevel})，` +
+                  `自动切换到 level=${currentLevel - 1}`
+                )
+                hlsInstance.nextLevel = currentLevel - 1
+                hlsInstance.loadLevel = currentLevel - 1
+              }
+            }
+
+            hlsInstance.recoverMediaError()
+            // recoverMediaError 会触发新的加载，不需要手动 startLoad
+          } else {
+            emit('error', '媒体解码失败 — 视频编解码器不兼容，请尝试使用其他浏览器')
+          }
           break
+
         default:
-          error.value = '流媒体加载失败，请尝试切换分辨率'
+          // 其他致命错误
+          console.error('[HLS] 致命错误:', data.type, data.details)
+          if (hlsRetryCount.value < hlsMaxRetry) {
+            hlsRetryCount.value++
+            hlsConnecting.value = true
+            if (hlsRetryTimer) clearTimeout(hlsRetryTimer)
+            hlsRetryTimer = setTimeout(() => {
+              hlsConnecting.value = false
+              hlsInstance.startLoad()
+            }, hlsRetryBackoff.value)
+          } else {
+            emit('error', '流媒体加载失败')
+          }
           break
+      }
+    } else {
+      // 非致命错误：hls.js 内部会自行处理，不打断播放
+      // 仅记录日志，不影响用户体验
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        console.debug('[HLS] 非致命网络错误（自动重试中）:', data.details)
       }
     }
   })
+
+  // 监听分片加载成功，重置重试计数
+  hlsInstance.on(Hls.Events.FRAG_LOADED, () => {
+    if (hlsRetryCount.value > 0) {
+      hlsRetryCount.value = 0
+      hlsRetryBackoff.value = 1000
+      hlsConnecting.value = false
+    }
+  })
+
+  // 监听分片解析错误（编解码器不兼容的早期信号）
+  // FRAG_PARSING_ERROR 在 hls.js 解析 TS 分片时触发，比 MEDIA_ERROR 更早
+  hlsInstance.on(Hls.Events.FRAG_PARSING_ERROR, (event, data) => {
+    console.warn(
+      '[HLS] 分片解析错误（可能编解码器不兼容）:',
+      data.details || data.reason || '未知原因',
+      data
+    )
+
+    // 如果是编解码器不兼容，尝试切换到更低分辨率
+    if (hlsInstance.levels && hlsInstance.levels.length > 0) {
+      const currentLevel = hlsInstance.currentLevel
+      if (currentLevel > 0) {
+        console.warn(
+          `[HLS] 分片解析失败，自动降低分辨率: level=${currentLevel} → level=${currentLevel - 1}`
+        )
+        hlsInstance.nextLevel = currentLevel - 1
+        hlsInstance.loadLevel = currentLevel - 1
+      }
+    }
+  })
+
+  // 监听分片解析初始化错误（音频/视频轨道初始化失败）
+  hlsInstance.on(Hls.Events.FRAG_PARSING_INIT_SEGMENT, (event, data) => {
+    // 初始化段解析成功，不做额外处理
+    // 仅用于调试编解码器信息
+    if (data.tracks) {
+      const audioTrack = data.tracks.audio
+      const videoTrack = data.tracks.video
+      if (audioTrack) {
+        console.debug(
+          `[HLS] 音频轨道: codec=${audioTrack.codec}, ` +
+          `sampleRate=${audioTrack.sampleRate}, channels=${audioTrack.channelCount}`
+        )
+      }
+      if (videoTrack) {
+        console.debug(
+          `[HLS] 视频轨道: codec=${videoTrack.codec}, ` +
+          `width=${videoTrack.width}, height=${videoTrack.height}`
+        )
+      }
+    }
+  })
+
+  // 监听 Manifest 解析成功，重置重试
+  hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+    videoReady.value = true
+    hlsRetryCount.value = 0
+    hlsRetryBackoff.value = 1000
+    hlsConnecting.value = false
+    if (props.savedProgress > 0 && props.savedProgress < video.duration - 10) {
+      video.currentTime = props.savedProgress
+    }
+  })
+
+  hlsInstance.loadSource(url)
+  hlsInstance.attachMedia(video)
 }
 
 // ============================================================
@@ -622,9 +858,45 @@ function onEnded() {
 
 function onError(e) {
   const video = e.target
-  const codes = { 1: '视频加载被中止', 2: '网络错误导致加载失败', 3: '视频解码失败', 4: '视频格式不支持或文件损坏' }
-  const msg = video?.error ? (codes[video.error.code] || '播放错误') : '播放错误'
-  error.value = msg
+  const mediaError = video?.error
+  if (!mediaError) {
+    emit('error', '播放错误')
+    return
+  }
+
+  // 详细的错误码映射（对标 Chrome 浏览器 MediaError）
+  const codeMessages: Record<number, string> = {
+    1: '视频加载被中止',
+    2: '网络错误导致加载失败',
+    3: '视频解码失败 — 视频数据可能已损坏',
+    4: '视频格式不支持 — 音频或视频编解码器不兼容',
+  }
+  const msg = codeMessages[mediaError.code] || `播放错误 (code: ${mediaError.code})`
+
+  console.error(
+    `[VideoPlayerCore] 播放错误 (code=${mediaError.code}): ${mediaError.message || '无详细信息'}`,
+    mediaError
+  )
+
+  // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) — 通常是编解码器不兼容
+  // 这在 HLS 场景下通常意味着 TS 分片中的音频/视频编码不被浏览器支持
+  // 尝试切换到更低分辨率（低分辨率通常使用更兼容的编码参数）
+  if (mediaError.code === 4 && hlsInstance && hlsInstance.levels && hlsInstance.levels.length > 0) {
+    const currentLevel = hlsInstance.currentLevel
+    if (currentLevel > 0) {
+      console.warn(`[VideoPlayerCore] 当前分辨率 ${currentLevel} 解码失败，尝试切换到更低分辨率...`)
+      hlsInstance.nextLevel = currentLevel - 1
+      hlsInstance.loadLevel = currentLevel - 1
+      // 给 hls.js 一个机会用新分辨率重新加载
+      setTimeout(() => {
+        if (video.paused) {
+          video.play().catch(() => {})
+        }
+      }, 500)
+      return
+    }
+  }
+
   emit('error', msg)
 }
 
@@ -857,10 +1129,22 @@ function updateProgressFromEvent(e) {
   hoverPreview.value.percent = percent * 100
   hoverPreview.value.time = time
 
-  // 计算雪碧图索引
+  // 计算雪碧图索引（VTT 优先，降级使用间隔计算）
   if (props.spriteInfo?.config) {
-    const interval = props.spriteInfo.config.interval || 10
-    hoverPreview.value.spriteIndex = Math.floor(time / interval)
+    if (spriteVttData.value && spriteVttData.value.length > 0) {
+      // 使用 VTT 数据获取精确索引
+      const idx = spriteVttData.value.findIndex(
+        entry => time >= entry.start && time < entry.end
+      )
+      hoverPreview.value.spriteIndex = idx >= 0 ? idx : spriteVttData.value.length - 1
+    } else {
+      const interval = props.spriteInfo.config.interval || 10
+      const totalThumbnails = (props.spriteInfo.config.cols || 10) * (props.spriteInfo.config.rows || 10)
+      hoverPreview.value.spriteIndex = Math.min(
+        Math.floor(time / interval),
+        totalThumbnails - 1
+      )
+    }
   }
 }
 
@@ -970,7 +1254,7 @@ function onTouchStart(e) {
   }
 }
 
-function onTouchMove(e) {
+function onTouchMove(e: TouchEvent) {
   if (!touchStart.value || e.touches.length !== 1) return
   const start = touchStart.value
   const dx = e.touches[0].clientX - start.x
@@ -1009,7 +1293,7 @@ function onTouchEnd() {
 // ============================================================
 // 键盘快捷键
 // ============================================================
-function handleKeydown(e) {
+function handleKeydown(e: KeyboardEvent) {
   if (showShortcuts.value) {
     if (e.key === 'Escape') showShortcuts.value = false
     return
@@ -1141,6 +1425,149 @@ defineExpose({
 // ============================================================
 // 生命周期
 // ============================================================
+
+/**
+ * 解析 VTT 雪碧图元数据，提取精确的 XYWH 坐标
+ *
+ * VTT 格式:
+ *   WEBVTT
+ *   00:00:00.000 --> 00:00:10.000
+ *   sprite.jpg#xywh=0,0,160,90
+ *
+ * 返回: [{start, end, x, y, w, h}]
+ */
+async function parseSpriteVtt(vttUrl: string): Promise<any[] | null> {
+  try {
+    const authToken = cookie.get(TOKEN_COOKIE_KEY)
+    const headers: Record<string, string> = {}
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+
+    const response = await axios.get(vttUrl, {
+      responseType: 'text',
+      headers,
+    })
+    const text = response.data as string
+
+    const entries: any[] = []
+    const lines = text.split('\n')
+    let currentEntry: any = null
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed === 'WEBVTT') continue
+
+      // 匹配时间戳行: 00:00:00.000 --> 00:00:10.000
+      const timeMatch = trimmed.match(
+        /^(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})$/
+      )
+      if (timeMatch) {
+        const startH = parseInt(timeMatch[1]), startM = parseInt(timeMatch[2])
+        const startS = parseInt(timeMatch[3]), startMs = parseInt(timeMatch[4])
+        const endH = parseInt(timeMatch[5]), endM = parseInt(timeMatch[6])
+        const endS = parseInt(timeMatch[7]), endMs = parseInt(timeMatch[8])
+
+        currentEntry = {
+          start: startH * 3600 + startM * 60 + startS + startMs / 1000,
+          end: endH * 3600 + endM * 60 + endS + endMs / 1000,
+        }
+        continue
+      }
+
+      // 匹配坐标行: sprite.jpg#xywh=0,0,160,90
+      const xywhMatch = trimmed.match(/#xywh=(\d+),(\d+),(\d+),(\d+)/)
+      if (xywhMatch && currentEntry) {
+        currentEntry.x = parseInt(xywhMatch[1])
+        currentEntry.y = parseInt(xywhMatch[2])
+        currentEntry.w = parseInt(xywhMatch[3])
+        currentEntry.h = parseInt(xywhMatch[4])
+        entries.push(currentEntry)
+        currentEntry = null
+      }
+    }
+
+    return entries.length > 0 ? entries : null
+  } catch (e) {
+    console.warn('[SpritePreview] VTT parsing failed:', e)
+    return null
+  }
+}
+
+/**
+ * 使用 Axios 加载雪碧图为 Blob 并创建 Object URL
+ *
+ * 关键设计:
+ * - 使用 axios.get()（非全局实例）直接发起请求，手动注入 Authorization 头
+ * - 不使用全局 request.ts 的 get()，避免触发 Toast 提示等拦截器
+ * - 获取 Blob 后创建 Object URL，CSS background-image 可直接使用
+ * - 加载完成后设置 spriteLoaded = true，触发预览图显示
+ */
+async function loadSpriteImage(url: string) {
+  if (!url) return
+
+  // 释放旧的 Object URL
+  if (spriteObjectUrl.value) {
+    URL.revokeObjectURL(spriteObjectUrl.value)
+    spriteObjectUrl.value = null
+  }
+  spriteLoaded.value = false
+
+  try {
+    const authToken = cookie.get(TOKEN_COOKIE_KEY)
+    const headers: Record<string, string> = {}
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+
+    const response = await axios.get(url, {
+      responseType: 'blob',
+      headers,
+    })
+
+    const blob = response.data as Blob
+    spriteObjectUrl.value = URL.createObjectURL(blob)
+    spriteLoaded.value = true
+  } catch (e) {
+    console.warn('[SpritePreview] Sprite image load failed:', e)
+    spriteLoaded.value = false
+  }
+}
+
+/**
+ * 监听雪碧图信息变化，通过 Axios 加载雪碧图 Blob 并解析 VTT 元数据
+ */
+watch(
+  () => props.spriteInfo,
+  async (newInfo) => {
+    spriteVttData.value = null
+
+    if (!newInfo) {
+      spriteLoaded.value = false
+      return
+    }
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+    const spriteUrl = newInfo.sprite_image || newInfo.sprite_url
+    if (spriteUrl) {
+      // 构建完整 URL（支持相对路径和绝对路径）
+      const fullSpriteUrl = spriteUrl.startsWith(PRE_BASE_URL)
+        ? `${baseUrl}${spriteUrl.slice(PRE_BASE_URL.length)}`
+        : `${baseUrl}${spriteUrl}`
+      await loadSpriteImage(fullSpriteUrl)
+    }
+
+    // 尝试获取 VTT 元数据
+    const vttUrl = newInfo.sprite_vtt_url
+    if (vttUrl) {
+      const fullVttUrl = vttUrl.startsWith(PRE_BASE_URL)
+        ? `${baseUrl}${vttUrl.slice(PRE_BASE_URL.length)}`
+        : `${baseUrl}${vttUrl}`
+      const vttData = await parseSpriteVtt(fullVttUrl)
+      if (vttData) {
+        spriteVttData.value = vttData
+      }
+    }
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('click', onDocumentClick)
@@ -1155,6 +1582,8 @@ onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
   if (hlsInstance) {
+    console.log('[HLS] 销毁 HLS 播放器')
+    console.trace(); // 打印调用栈
     hlsInstance.destroy()
     hlsInstance = null
   }
@@ -1162,10 +1591,33 @@ onUnmounted(() => {
   if (controlsTimer) clearTimeout(controlsTimer)
   if (volumeIndicatorTimer) clearTimeout(volumeIndicatorTimer)
   if (brightnessIndicatorTimer) clearTimeout(brightnessIndicatorTimer)
+  if (hlsRetryTimer) clearTimeout(hlsRetryTimer)
+  // 释放雪碧图 Object URL
+  if (spriteObjectUrl.value) {
+    URL.revokeObjectURL(spriteObjectUrl.value)
+    spriteObjectUrl.value = null
+  }
 })
 
-// 监听分辨率变化，重新加载视频
-watch(() => currentResolution.value, () => {
+// 监听分辨率变化，切换 HLS 质量等级
+watch(() => currentResolution.value, (newRes) => {
+  if (hlsInstance && hlsInstance.levels && hlsInstance.levels.length > 0) {
+    const levels = hlsInstance.levels
+    if (newRes === 'auto') {
+      // 自动模式：让 hls.js 自适应选择
+      hlsInstance.currentLevel = -1
+    } else {
+      // 手动模式：匹配分辨率
+      const target = newRes.replace('p', '') // "720p" -> "720"
+      const levelIdx = levels.findIndex(
+        level => level.height === parseInt(target) || level.attrs?.RESOLUTION?.includes(target)
+      )
+      if (levelIdx >= 0) {
+        hlsInstance.currentLevel = levelIdx
+      }
+    }
+  }
+  // 保持当前播放位置
   const video = videoRef.value
   if (!video) return
   const currentTimeSnapshot = video.currentTime

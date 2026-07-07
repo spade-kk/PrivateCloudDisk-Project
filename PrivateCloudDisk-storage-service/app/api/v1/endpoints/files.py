@@ -193,94 +193,13 @@ async def download_file(
             headers={"Accept-Ranges": "bytes"}
         )
 
-
-@router.get("/files/nodes/{node_id}/thumbnails/{file_name}", summary="获取缩略图")
-async def get_thumbnail(
-    node_id: str,
-    file_name: str,
-    request: Request,
-    user_id: str = Header(..., alias="X-User-Id"),
-    width: int = Query(200, ge=50, le=800, description="缩略图宽度（像素）"),
-    height: int = Query(200, ge=50, le=800, description="缩略图高度（像素）")
-):
-    """
-    获取文件缩略图
-
-    功能说明：
-    获取指定图片文件的缩略图。使用 libvips 高性能图片处理库生成，
-    支持 Redis 缓存和浏览器缓存（ETag）。
-
-    业务流程：
-    1. 调用业务服务验证文件权限并获取文件存储路径
-    2. 调用缩略图服务生成或获取缓存的缩略图
-    3. 检查浏览器缓存（If-None-Match 头）
-    4. 返回缩略图响应
-
-    缓存策略：
-    - 服务端缓存：Redis 缓存缩略图，TTL 由 THUMBNAIL_TTL 配置
-    - 浏览器缓存：ETag 缓存验证，返回 304 状态码
-
-    图片处理：
-    - 等比缩放，不超过目标宽高
-    - Lanczos3 重采样算法，高质量缩放
-    - JPEG 编码优化（质量85）
-
-    Args:
-        node_id: 文件节点ID（UUID格式）
-        file_name: 文件名
-        request: FastAPI 请求对象
-        user_id: 用户唯一标识符（从 X-User-Id 请求头获取）
-        width: 缩略图宽度（像素），默认200，范围50-800
-        height: 缩略图高度（像素），默认200，范围50-800
-
-    Returns:
-        Response:
-            - 200: 返回缩略图（JPEG格式）
-            - 304: 缓存未修改（ETag匹配）
-
-    Response Headers:
-        - Content-Type: image/jpeg
-        - Cache-Control: public, max-age={THUMBNAIL_TTL}
-        - ETag: 缩略图唯一标识
-
-    Raises:
-        HTTPException:
-            - 404: 文件不存在或用户无权限
-            - 500: 缩略图生成失败
-    """
-    # 1. 通过 SDK 异步调用业务服务，验证文件权限并获取文件存储路径
-    result = await business_service_client.get_file_by_node(node_id, file_name, user_id)
-
-    if result["code"] != 200:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="文件不存在用户网盘, 或者路径目录不存在"
-        )
-
-    # 2. 获取缩略图
-    img_bytes, etag = await get_thumbnail_bytes(result["data"]["storage_path"], width, height)
-
-    # 3. 检查浏览器缓存
-    if request.headers.get("If-None-Match") == etag:
-        return Response(status_code=304)
-
-    # 4. 返回缩略图响应
-    return Response(
-        content=img_bytes,
-        media_type="image/jpeg",
-        headers={
-            "Cache-Control": f"public, max-age={settings.thumbnail_ttl}",
-            "ETag": etag
-        }
-    )
-
-
 @router.get("/files/files/{file_id}/thumbnail", summary="获取预生成缩略图（大/中/小）")
 async def get_pregenerated_thumbnail(
     file_id: str,
     request: Request,
     user_id: str = Header(..., alias="X-User-Id"),
     size: str = Query("small", description="缩略图尺寸: small(100×100), medium(400×400), large(800×800)"),
+    token: str = Query(default=None, description="HLS 流媒体访问 Token（可选，用于无 Header 鉴权场景）"),
 ):
     """
     获取预生成缩略图（大/中/小）
@@ -401,8 +320,6 @@ async def get_pregenerated_thumbnail(
                 "X-Thumbnail-Source": "generated",
             }
         )
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"动态生成缩略图失败: {e}")
         raise HTTPException(
