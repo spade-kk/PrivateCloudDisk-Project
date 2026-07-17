@@ -671,7 +671,7 @@ services:
       - "443:443"
     volumes:
       # Let's Encrypt 证书持久化
-      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt:ro
       # 客户端二进制下载文件（DMG / EXE / AppImage / DEB / RPM）
       # 方式 A（推荐 CI/CD）：bind mount，CI/CD 通过 rsync/scp 直接上传到宿主机 ./downloads/binaries/

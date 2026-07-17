@@ -5,8 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>私有云 - 企业级私有云盘</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- ============================================================ -->
+  <!-- CDN 预连接 — 提前完成 DNS/TCP/TLS 握手，加速资源加载 -->
+  <!-- ============================================================ -->
+  <!-- jsDelivr CDN：font-awesome + Monaco Editor -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+
+  <!-- 第三方资源 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!--
+    Monaco Editor 由 monacoLoader.ts 在路由进入代码预览页时动态从 CDN 加载，
+    此处不预加载以避免首屏白屏（按需加载策略）。
+    CDN 地址：https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs/loader.js
+  -->
 </head>
 <body>
   <div id="app"></div>

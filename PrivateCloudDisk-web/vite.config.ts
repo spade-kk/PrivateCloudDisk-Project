@@ -351,6 +351,11 @@ export default defineConfig(({ command, mode }) => {
 
       // === 代码分割 ===
       rollupOptions: {
+        // === 外部依赖（不打包进产物，运行时从 CDN 加载） ===
+        // Monaco Editor 改为 CDN 动态加载（monacoLoader.ts）
+        // 此处声明为 external 防止构建时残留打包引用导致 OOM
+        external: ['monaco-editor'],
+
         output: {
           // 手动代码分割策略 — 按框架/库分层，最大化浏览器缓存命中率
           manualChunks: {

@@ -327,94 +327,26 @@ import {
   nextTick,
   shallowRef,
 } from 'vue'
-import * as monaco from 'monaco-editor'
+import type * as monaco from 'monaco-editor'
+import { loadMonaco, getMonacoSync } from '@/utils/monacoLoader'
 
 // ============================================================
-// Monaco Editor Web Workers 配置（Vite 环境）
+// Monaco Editor CDN 动态加载策略
 // ============================================================
-// Monaco Editor 使用 Web Workers 进行语法高亮和语言服务，
-// 在 Vite 中需要显式配置 Worker 加载路径。
-// 通过 ?worker 后缀让 Vite 将 Worker 打包为独立的 chunk。
+// Monaco Editor 已从本地 npm 包改为 CDN 动态加载，原因：
+//   1. monaco-editor 包体积 50MB+，包含 5 个 Workers 和 100+ 语言特性，
+//      本地打包会导致 Vite/Terser 内存溢出（OOM）。
+//   2. 改为 CDN 加载后，Workers 由 CDN 自动按需拉取，无需手动配置 ?worker 入口。
+//   3. 首次加载由 monacoLoader.ts 单例 Promise 控制，确保全应用只加载一次。
+//
+// 工作流：
+//   1. 组件挂载时调用 loadMonaco() 异步加载 CDN 资源
+//   2. 加载完成后通过 getMonacoSync() 获取全局 monaco 实例
+//   3. 调用 monaco.editor.create() 创建编辑器
 // ============================================================
 
-// 预加载 Worker 模块（Vite 会在构建时处理 ?worker 导入）
-// 使用动态 import 避免在非 Vite 环境中报错
-let EditorWorker: new () => Worker
-let TsWorker: new () => Worker
-let JsonWorker: new () => Worker
-let CssWorker: new () => Worker
-let HtmlWorker: new () => Worker
-
-/**
- * 动态加载 Monaco Worker 模块
- * 使用 try-catch 包裹以兼容不同的构建环境
- */
-const loadMonacoWorkers = async (): Promise<void> => {
-  try {
-    // Vite 环境下通过 ?worker 后缀导入 Worker 构造函数
-    const editorWorkerMod = await import(
-      'monaco-editor/esm/vs/editor/editor.worker?worker'
-    )
-    EditorWorker = editorWorkerMod.default
-
-    const tsWorkerMod = await import(
-      'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
-    )
-    TsWorker = tsWorkerMod.default
-
-    const jsonWorkerMod = await import(
-      'monaco-editor/esm/vs/language/json/json.worker?worker'
-    )
-    JsonWorker = jsonWorkerMod.default
-
-    const cssWorkerMod = await import(
-      'monaco-editor/esm/vs/language/css/css.worker?worker'
-    )
-    CssWorker = cssWorkerMod.default
-
-    const htmlWorkerMod = await import(
-      'monaco-editor/esm/vs/language/html/html.worker?worker'
-    )
-    HtmlWorker = htmlWorkerMod.default
-  } catch {
-    // 降级方案：不使用 Web Workers（如 Jest 测试环境）
-    // Monaco 会回退到主线程执行
-    console.warn('[MonacoPreview] Worker 加载失败，使用主线程模式')
-  }
-}
-
-/**
- * 配置 Monaco Environment 的 Worker 获取策略
- * 根据语言标签返回对应的 Web Worker 实例
- */
-const setupMonacoEnvironment = (): void => {
-  ;(self as any).MonacoEnvironment = {
-    getWorker(_workerId: string, label: string): Worker {
-      try {
-        switch (label) {
-          case 'typescript':
-          case 'javascript':
-            return TsWorker ? new TsWorker() : new EditorWorker()
-          case 'json':
-            return JsonWorker ? new JsonWorker() : new EditorWorker()
-          case 'css':
-          case 'scss':
-          case 'less':
-            return CssWorker ? new CssWorker() : new EditorWorker()
-          case 'html':
-          case 'handlebars':
-          case 'razor':
-            return HtmlWorker ? new HtmlWorker() : new EditorWorker()
-          default:
-            return new EditorWorker()
-        }
-      } catch {
-        // 如果特定 Worker 创建失败，使用通用编辑器 Worker
-        return new EditorWorker()
-      }
-    },
-  }
-}
+// 当前已加载的 monaco 实例（同步引用，避免每次访问都 await）
+let monacoNS: typeof monaco | null = null
 
 // ============================================================
 // Props 定义
@@ -570,7 +502,6 @@ const EXTENSION_TO_MONACO_LANG: Record<string, string> = {
   pl: 'perl', pm: 'perl',
   groovy: 'groovy', gvy: 'groovy',
   jl: 'julia',
-  dart: 'dart',
   sol: 'solidity',
   nim: 'nim',
   zig: 'zig',
@@ -914,9 +845,29 @@ const initMonacoEditor = async (): Promise<void> => {
     return
   }
 
+  // 确保 Monaco CDN 已加载完成
+  if (!monacoNS) {
+    try {
+      monacoNS = await loadMonaco()
+    } catch (err: any) {
+      console.error('[MonacoPreview] Monaco CDN 加载失败:', err)
+      initError.value = err?.message || 'Monaco Editor 加载失败，请检查网络连接'
+      loading.value = false
+      emit('error', err instanceof Error ? err : new Error(String(err)))
+      return
+    }
+  }
+
+  // 二次检查：loadMonaco 完成后 monacoNS 应已赋值
+  if (!monacoNS) {
+    initError.value = 'Monaco Editor 实例不可用'
+    loading.value = false
+    return
+  }
+
   try {
     // 创建编辑器实例
-    const editor = monaco.editor.create(editorContainerRef.value, {
+    const editor = monacoNS.editor.create(editorContainerRef.value, {
       // ---- 基础配置 ----
       value: props.codeContent,
       language: monacoLanguageId.value,
@@ -987,7 +938,6 @@ const initMonacoEditor = async (): Promise<void> => {
       // ---- 选择 ----
       selectionHighlight: true,
       occurrencesHighlight: 'singleFile',
-      renderLineHighlightOnlyWhenFocus: false,
 
       // ---- 搜索 ----
       find: {
@@ -1106,8 +1056,8 @@ const detectIndentation = (): void => {
   if (!editor) return
 
   const options = editor.getOptions()
-  const tabSize = options.get(monaco.editor.EditorOption.tabSize)
-  const insertSpaces = options.get(monaco.editor.EditorOption.insertSpaces)
+  const tabSize = options.get(monacoNS!.editor.EditorOption.tabSize)
+  const insertSpaces = options.get(monacoNS!.editor.EditorOption.insertSpaces)
 
   if (insertSpaces) {
     detectedIndent.value = `Spaces: ${tabSize}`
@@ -1305,8 +1255,8 @@ const setLanguage = (extension: string): void => {
 
   const langId = EXTENSION_TO_MONACO_LANG[extension] || 'plaintext'
   const model = editor.getModel()
-  if (model) {
-    monaco.editor.setModelLanguage(model, langId)
+  if (model && monacoNS) {
+    monacoNS.editor.setModelLanguage(model, langId)
     parseCodeSymbols()
   }
 }
@@ -1315,7 +1265,8 @@ const setLanguage = (extension: string): void => {
  * 设置编辑器主题
  */
 const setTheme = (theme: 'vs' | 'vs-dark' | 'hc-black' | 'hc-light'): void => {
-  monaco.editor.setTheme(theme)
+  if (!monacoNS) return
+  monacoNS.editor.setTheme(theme)
 }
 
 /**
@@ -1358,13 +1309,19 @@ defineExpose({
 // ============================================================
 
 onMounted(async () => {
-  // 1. 加载 Monaco Worker 模块
-  await loadMonacoWorkers()
+  // 1. 异步加载 Monaco Editor（CDN 单例模式，已加载则立即返回）
+  //    若已预加载完成，这里会立即 resolve
+  try {
+    monacoNS = getMonacoSync() ?? (await loadMonaco())
+  } catch (err: any) {
+    console.error('[MonacoPreview] Monaco 加载失败:', err)
+    initError.value = err?.message || 'Monaco Editor 加载失败，请检查网络连接'
+    loading.value = false
+    emit('error', err instanceof Error ? err : new Error(String(err)))
+    return
+  }
 
-  // 2. 配置 Monaco Environment
-  setupMonacoEnvironment()
-
-  // 3. 初始化编辑器
+  // 2. 等待 DOM 更新完成后初始化编辑器
   await nextTick()
   await initMonacoEditor()
 })
@@ -1405,8 +1362,8 @@ watch(
     if (!editor) return
 
     const model = editor.getModel()
-    if (model) {
-      monaco.editor.setModelLanguage(model, langId)
+    if (model && monacoNS) {
+      monacoNS.editor.setModelLanguage(model, langId)
       parseCodeSymbols()
     }
   }
