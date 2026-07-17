@@ -20,7 +20,7 @@
         @click="handleThirdPartyLogin(provider.id)"
       >
         <i v-if="loadingProvider === provider.id" class="fa fa-spinner fa-spin"></i>
-        <span v-else v-html="provider.icon"></span>
+        <span v-else v-safe-html="provider.icon"></span>
         <span class="text-sm">{{ provider.label }}</span>
       </button>
     </div>

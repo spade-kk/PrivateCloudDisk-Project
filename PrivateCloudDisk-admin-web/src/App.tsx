@@ -27,6 +27,37 @@ import AvatarAuditPage from '@/pages/AvatarAuditPage'
 import OrdersPage from '@/pages/OrdersPage'
 import FileMetadataPage from '@/pages/FileMetadataPage'
 
+// 平台运维后台 - 平台运维
+import NodeMonitorPage from '@/pages/ops/NodeMonitorPage'
+import DockerManagePage from '@/pages/ops/DockerManagePage'
+import StorageManagePage from '@/pages/ops/StorageManagePage'
+import ClusterManagePage from '@/pages/ops/ClusterManagePage'
+import BackupManagePage from '@/pages/ops/BackupManagePage'
+
+// 平台运维后台 - 平台管理
+import PlatformManagePage from '@/pages/ops/PlatformManagePage'
+
+// 第三方中间件后台 - 中间件
+import NacosManagePage from '@/pages/middleware/NacosManagePage'
+import RabbitMQManagePage from '@/pages/middleware/RabbitMQManagePage'
+import XXLJobManagePage from '@/pages/middleware/XXLJobManagePage'
+import MinIOManagePage from '@/pages/middleware/MinIOManagePage'
+import OpenSearchManagePage from '@/pages/middleware/OpenSearchManagePage'
+
+// 第三方中间件后台 - 监控
+import GrafanaIntegrationPage from '@/pages/monitor/GrafanaIntegrationPage'
+import SkyWalkingIntegrationPage from '@/pages/monitor/SkyWalkingIntegrationPage'
+import PrometheusIntegrationPage from '@/pages/monitor/PrometheusIntegrationPage'
+
+// 第三方中间件后台 - 日志
+import LokiIntegrationPage from '@/pages/logs/LokiIntegrationPage'
+import KibanaIntegrationPage from '@/pages/logs/KibanaIntegrationPage'
+
+// 第三方中间件后台 - 开发
+import SwaggerDocPage from '@/pages/dev/SwaggerDocPage'
+import ApiManagePage from '@/pages/dev/ApiManagePage'
+import OpenAPIPage from '@/pages/dev/OpenAPIPage'
+
 /** 路由守卫组件 - 未登录跳转登录页 */
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, initialize, loading } = useAuthStore()
@@ -107,6 +138,37 @@ function AppRoutes() {
         <Route path="system/config" element={<SystemConfigPage />} />
         <Route path="system/resources" element={<SystemResourcesPage />} />
         <Route path="system/api-docs" element={<ApiDocsPage />} />
+
+        {/* ===== 平台运维后台 - 平台运维 ===== */}
+        <Route path="ops/nodes" element={<NodeMonitorPage />} />
+        <Route path="ops/docker" element={<DockerManagePage />} />
+        <Route path="ops/storage" element={<StorageManagePage />} />
+        <Route path="ops/cluster" element={<ClusterManagePage />} />
+        <Route path="ops/backup" element={<BackupManagePage />} />
+
+        {/* ===== 平台运维后台 - 平台管理 ===== */}
+        <Route path="ops/platform" element={<PlatformManagePage />} />
+
+        {/* ===== 第三方中间件后台 - 中间件 ===== */}
+        <Route path="middleware/nacos" element={<NacosManagePage />} />
+        <Route path="middleware/rabbitmq" element={<RabbitMQManagePage />} />
+        <Route path="middleware/xxl-job" element={<XXLJobManagePage />} />
+        <Route path="middleware/minio" element={<MinIOManagePage />} />
+        <Route path="middleware/opensearch" element={<OpenSearchManagePage />} />
+
+        {/* ===== 第三方中间件后台 - 监控 ===== */}
+        <Route path="monitor/grafana" element={<GrafanaIntegrationPage />} />
+        <Route path="monitor/skywalking" element={<SkyWalkingIntegrationPage />} />
+        <Route path="monitor/prometheus" element={<PrometheusIntegrationPage />} />
+
+        {/* ===== 第三方中间件后台 - 日志 ===== */}
+        <Route path="logs/loki" element={<LokiIntegrationPage />} />
+        <Route path="logs/kibana" element={<KibanaIntegrationPage />} />
+
+        {/* ===== 第三方中间件后台 - 开发 ===== */}
+        <Route path="dev/swagger" element={<SwaggerDocPage />} />
+        <Route path="dev/api-manage" element={<ApiManagePage />} />
+        <Route path="dev/openapi" element={<OpenAPIPage />} />
 
         {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />

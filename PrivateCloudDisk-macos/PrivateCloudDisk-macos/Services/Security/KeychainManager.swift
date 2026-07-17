@@ -28,8 +28,10 @@ final class KeychainManager {
 
     // MARK: - 配置
 
-    private let serviceName = "com.privateclouddisk.app"
-    private let accessGroup = "com.privateclouddisk.shared"
+    /// 使用 Bundle ID 动态生成 serviceName，确保 Keychain 命名空间与 entitlements 匹配
+    private let serviceName: String = {
+        Bundle.main.bundleIdentifier ?? "com.spadek.PrivateCloudDisk-macos"
+    }()
 
     private enum KeychainKey: String, CaseIterable {
         case authToken = "auth_token"
@@ -38,6 +40,7 @@ final class KeychainManager {
         case username = "username"
         case encryptionKey = "encryption_key"
         case deviceId = "device_id"
+        case deviceClientIdentity = "device_client_identity"
     }
 
     // MARK: - 写入

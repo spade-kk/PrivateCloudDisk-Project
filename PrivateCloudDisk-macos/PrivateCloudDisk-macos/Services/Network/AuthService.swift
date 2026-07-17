@@ -1,12 +1,14 @@
 import Foundation
 import Combine
+import AppKit
 
 // MARK: - 认证服务
 
 /// 用户认证服务
 ///
-/// 对应 Windows 的 AuthService + AuthTokenStore
-/// 使用 Keychain 持久化 Token，支持自动刷新和设备管理
+/// 对应后端 platform-service 的 UserController
+/// 登录接口返回 data: "token_string"（String 类型）
+/// 用户信息需通过 /business/users/me 接口获取
 @MainActor
 final class AuthService: ObservableObject {
 
@@ -33,43 +35,43 @@ final class AuthService: ObservableObject {
 
     // MARK: - 登录
 
-    func login(username: String, password: String, turnstileToken: String?) async throws -> UserModel {
+    /// 登录（与后端 LoginRequest 对齐）
+    /// 后端返回格式: { "code": 200, "message": "success", "data": "token_string" }
+    /// 用户信息需通过 /business/users/me 获取
+    func login(phoneNumber: String, password: String, captchaToken: String = "", captchaAction: String = "login") async throws -> UserModel {
         isLoading = true
         error = nil
         defer { isLoading = false }
 
-        // 1. 前端加密密码
         let passwordHash = CryptoService.hashPasswordForTransport(password)
 
-        // 2. 构建请求
         let request = LoginRequest(
-            username: username,
-            passwordHash: passwordHash,
-            turnstileToken: turnstileToken,
-            deviceInfo: DeviceInfo.current()
+            phoneNumber: phoneNumber,
+            password: passwordHash,
+            captchaToken: captchaToken,
+            captchaAction: captchaAction
         )
 
-        // 3. 发送请求
-        let auth: AuthResponse = try await api.post("/api/v1/business/users/login", body: request)
+        let token: String = try await api.post("business/users/login", body: request)
 
-        // 4. 存储凭据
-        keychain.storeAuthToken(auth.token)
-        if let refresh = auth.refreshToken {
-            keychain.storeRefreshToken(refresh)
-        }
-        keychain.storeUserId(auth.user.id)
-        keychain.storeUsername(auth.user.username)
+        keychain.storeAuthToken(token)
 
-        // 5. 更新状态
-        currentUser = auth.user
+        let user = try await fetchUserProfile()
+
+        currentUser = user
         isAuthenticated = true
 
-        return auth.user
+        Task {
+            await DeviceIdentityManager.shared.triggerAutoRegistrationIfNeeded()
+        }
+
+        return user
     }
 
     // MARK: - 注册
 
-    func register(username: String, email: String, password: String, turnstileToken: String?) async throws -> UserModel {
+    /// 注册（与后端 RegisterUserRequest 对齐）
+    func register(phoneNumber: String, password: String, code: String, username: String, captchaToken: String = "", captchaAction: String = "register") async throws -> UserModel {
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -77,53 +79,48 @@ final class AuthService: ObservableObject {
         let passwordHash = CryptoService.hashPasswordForTransport(password)
 
         let request = RegisterRequest(
-            username: username,
-            email: email,
-            passwordHash: passwordHash,
-            turnstileToken: turnstileToken,
-            deviceInfo: DeviceInfo.current()
+            phoneNumber: phoneNumber,
+            password: passwordHash,
+            code: code,
+            name: username,
+            captchaToken: captchaToken,
+            captchaAction: captchaAction
         )
 
-        let auth: AuthResponse = try await api.post("/api/v1/business/users/register", body: request)
+        let token: String = try await api.post("business/users/", body: request)
 
-        keychain.storeAuthToken(auth.token)
-        if let refresh = auth.refreshToken {
-            keychain.storeRefreshToken(refresh)
-        }
-        keychain.storeUserId(auth.user.id)
-        keychain.storeUsername(auth.user.username)
+        keychain.storeAuthToken(token)
 
-        currentUser = auth.user
+        let user = try await fetchUserProfile()
+
+        currentUser = user
         isAuthenticated = true
 
-        return auth.user
+        Task {
+            await DeviceIdentityManager.shared.triggerAutoRegistrationIfNeeded()
+        }
+
+        return user
     }
 
     // MARK: - 登出
 
     func logout() async {
-        // 通知后端登出
-        if let token = keychain.readAuthToken() {
-            struct LogoutBody: Encodable {
-                let token: String
-            }
-            let _: EmptyBody? = try? await api.post("/api/v1/business/users/logout", body: LogoutBody(token: token))
+        if let _ = keychain.readAuthToken() {
+            let _: EmptyBody? = try? await api.post("auth/oauth2/token/revoke", body: EmptyBody())
         }
 
-        // 清除本地凭据
         keychain.clearAll()
         currentUser = nil
         isAuthenticated = false
+
+        transitionToLoginWindow()
     }
 
     // MARK: - Token 验证
 
     func validateToken(_ token: String) async throws -> UserModel {
-        struct TokenValidationBody: Encodable {
-            let token: String
-        }
-        let user: UserModel = try await api.post("/api/v1/business/users/validate", body: TokenValidationBody(token: token))
-        return user
+        return try await fetchUserProfile()
     }
 
     // MARK: - 会话恢复
@@ -135,22 +132,26 @@ final class AuthService: ObservableObject {
         }
 
         do {
-            let user = try await validateToken(token)
+            let user = try await fetchUserProfile()
             currentUser = user
             isAuthenticated = true
+
+            Task {
+                await DeviceIdentityManager.shared.triggerAutoRegistrationIfNeeded()
+            }
         } catch {
-            // Token 过期，尝试刷新
-            if let refreshToken = keychain.readRefreshToken() {
+            if let refreshToken = keychain.readRefreshToken(), !refreshToken.isEmpty {
                 do {
-                    let body = RefreshTokenRequest(refreshToken: refreshToken)
-                    let auth: AuthResponse = try await api.post("/api/v1/business/users/refresh", body: body)
-                    keychain.updateTokens(
-                        accessToken: auth.token,
-                        refreshToken: auth.refreshToken,
-                        userId: auth.user.id
-                    )
-                    currentUser = auth.user
+                    let newToken: String = try await api.post("auth/oauth2/token/refresh", body: RefreshTokenRequest(refreshToken: refreshToken))
+                    keychain.storeAuthToken(newToken)
+
+                    let user = try await fetchUserProfile()
+                    currentUser = user
                     isAuthenticated = true
+
+                    Task {
+                        await DeviceIdentityManager.shared.triggerAutoRegistrationIfNeeded()
+                    }
                     return
                 } catch {
                     // 刷新也失败
@@ -163,8 +164,9 @@ final class AuthService: ObservableObject {
 
     // MARK: - 获取用户信息
 
+    /// 获取当前用户信息（与后端 UserProfileVO 对齐）
     func fetchUserProfile() async throws -> UserModel {
-        let user: UserModel = try await api.get("/api/v1/business/users/me")
+        let user: UserModel = try await api.get("business/users/me")
         currentUser = user
         return user
     }
@@ -172,14 +174,32 @@ final class AuthService: ObservableObject {
     /// 更新用户头像
     func updateAvatar(imageData: Data) async throws -> UserModel {
         let response: Data = try await api.upload(
-            "/api/v1/business/users/avatar",
+            "business/users/me/avatar",
             fileData: imageData,
             filename: "avatar.jpg",
             mimeType: "image/jpeg"
         )
         let decoded = try JSONDecoder().decode(ApiResponse<UserModel>.self, from: response)
-        guard let user = decoded.data else { throw ApiError.serverError(decoded.code, decoded.message) }
+        guard let user = decoded.data else { throw ApiError.serverError(decoded.code, decoded.message ?? "更新失败") }
         currentUser = user
         return user
+    }
+
+    // MARK: - 强制登出
+
+    func forceLogout() async {
+        keychain.clearAll()
+        currentUser = nil
+        isAuthenticated = false
+        transitionToLoginWindow()
+    }
+
+    // MARK: - 窗口切换
+
+    private func transitionToLoginWindow() {
+        DispatchQueue.main.async {
+            guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+            window.transitionToLoginWindow()
+        }
     }
 }

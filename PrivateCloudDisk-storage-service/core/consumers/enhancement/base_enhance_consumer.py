@@ -52,6 +52,9 @@ class BaseEnhanceConsumer(ABC):
             TaskTypes.VIDEO_TRANSCODE: settings.file_enhance_transcode_max_retries,
             TaskTypes.HLS_TRANSCODE: settings.file_enhance_hls_max_retries,
             TaskTypes.CONTENT_INDEX: settings.file_enhance_index_max_retries,
+            TaskTypes.OFFICE_TO_PDF: settings.file_enhance_office_to_pdf_max_retries,
+            TaskTypes.ARCHIVE_PARSE: settings.file_enhance_archive_parse_max_retries,
+            TaskTypes.MARKDOWN_TO_HTML: settings.file_enhance_markdown_to_html_max_retries,
         }
         return overrides.get(self.stage, 3)
 
@@ -205,6 +208,9 @@ class BaseEnhanceConsumer(ABC):
             TaskTypes.VIDEO_TRANSCODE: settings.file_enhance_transcode_dlq_routing_key,
             TaskTypes.HLS_TRANSCODE: settings.file_enhance_hls_dlq_routing_key,
             TaskTypes.CONTENT_INDEX: settings.file_enhance_index_dlq_routing_key,
+            TaskTypes.OFFICE_TO_PDF: settings.file_enhance_office_to_pdf_dlq_routing_key,
+            TaskTypes.ARCHIVE_PARSE: settings.file_enhance_archive_parse_dlq_routing_key,
+            TaskTypes.MARKDOWN_TO_HTML: settings.file_enhance_markdown_to_html_dlq_routing_key,
         }
 
         dlq_event = event.with_retry_increment()
@@ -229,6 +235,9 @@ class BaseEnhanceConsumer(ABC):
             TaskTypes.VIDEO_TRANSCODE: settings.file_enhance_transcode_routing_key,
             TaskTypes.HLS_TRANSCODE: settings.file_enhance_hls_routing_key,
             TaskTypes.CONTENT_INDEX: settings.file_enhance_index_routing_key,
+            TaskTypes.OFFICE_TO_PDF: settings.file_enhance_office_to_pdf_routing_key,
+            TaskTypes.ARCHIVE_PARSE: settings.file_enhance_archive_parse_routing_key,
+            TaskTypes.MARKDOWN_TO_HTML: settings.file_enhance_markdown_to_html_routing_key,
         }
         return rks.get(self.stage, "")
 

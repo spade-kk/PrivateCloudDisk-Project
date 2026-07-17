@@ -87,8 +87,8 @@ struct ContentView: View {
     // MARK: - 窗口模式切换
 
     private func transitionToMainWindow() {
-        DispatchQueue.main.async {
-            guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            guard let window = NSApp.keyWindow ?? NSApp.windows.first else { return }
             window.transitionToMainWindow()
         }
     }

@@ -40,7 +40,7 @@
     <select id="selectByUserId" resultMap="BaseResultMap">
         SELECT g.id, g.<include refid="BaseColumns"/>
         FROM pcd_im_group g
-        INNER JOIN im_group_member gm ON g.group_id = gm.group_id
+        INNER JOIN pcd_im_group_member gm ON g.group_id = gm.group_id
         WHERE gm.user_id = #{userId} AND g.status = 0
         ORDER BY g.create_time DESC
     </select>

@@ -99,6 +99,38 @@
         "navigationBarBackgroundColor": "#1a73e8",
         "navigationBarTextStyle": "white"
       }
+    },
+    {
+      "path": "pages/profile/change-email/index",
+      "style": {
+        "navigationBarTitleText": "换绑邮箱",
+        "navigationBarBackgroundColor": "#1a73e8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/profile/change-phone/index",
+      "style": {
+        "navigationBarTitleText": "换绑手机号",
+        "navigationBarBackgroundColor": "#1a73e8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/video-player/index",
+      "style": {
+        "navigationBarTitleText": "视频播放",
+        "navigationStyle": "custom",
+        "pageOrientation": "auto"
+      }
+    },
+    {
+      "path": "pages/image-preview/index",
+      "style": {
+        "navigationBarTitleText": "图片预览",
+        "navigationStyle": "custom",
+        "backgroundColor": "#000000"
+      }
     }
   ],
   "globalStyle": {

@@ -1,84 +1,319 @@
 import Foundation
+import SwiftUI
 
-// MARK: - 文件/节点模型
+// MARK: - 文件分类枚举
 
-/// 文件节点（对应 API 返回的 node 对象）
-struct FileNode: Codable, Identifiable, Equatable {
+/// 文件分类（用于图标、颜色映射）
+enum FileCategory: String, Codable, CaseIterable {
+    case document
+    case image
+    case video
+    case audio
+    case archive
+    case code
+    case other
+
+    /// SF Symbol 图标名
+    var sfSymbolName: String {
+        switch self {
+        case .document: return "doc.fill"
+        case .image:    return "photo.fill"
+        case .video:    return "play.rectangle.fill"
+        case .audio:    return "waveform.circle.fill"
+        case .archive:  return "archivebox.fill"
+        case .code:     return "chevron.left.forwardslash.chevron.right"
+        case .other:    return "file.fill"
+        }
+    }
+
+    /// 分类颜色
+    var color: Color {
+        switch self {
+        case .document: return AppColors.primary
+        case .image:    return AppColors.fileImage
+        case .video:    return AppColors.fileVideo
+        case .audio:    return AppColors.fileAudio
+        case .archive:  return AppColors.fileArchive
+        case .code:     return AppColors.fileCode
+        case .other:    return AppColors.textTertiary
+        }
+    }
+
+    /// 根据文件名扩展名推导分类
+    static func from(filename: String) -> FileCategory {
+        let ext = filename.split(separator: ".").last?.lowercased() ?? ""
+        switch ext {
+        // 文档
+        case "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+             "txt", "rtf", "csv", "pages", "numbers", "key":
+            return .document
+        // 图片
+        case "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif",
+             "webp", "heic", "heif", "svg", "ico", "raw", "psd":
+            return .image
+        // 视频
+        case "mp4", "avi", "mov", "mkv", "wmv", "flv", "webm",
+             "m4v", "mpg", "mpeg", "3gp", "ogv":
+            return .video
+        // 音频
+        case "mp3", "wav", "aac", "flac", "ogg", "wma", "m4a",
+             "aiff", "alac", "opus":
+            return .audio
+        // 压缩包
+        case "zip", "rar", "7z", "tar", "gz", "bz2", "xz",
+             "iso", "dmg", "pkg":
+            return .archive
+        // 代码
+        case "swift", "java", "py", "js", "ts", "jsx", "tsx",
+             "html", "css", "scss", "less", "json", "xml", "yaml", "yml",
+             "c", "cpp", "h", "hpp", "go", "rs", "rb", "php",
+             "sh", "bash", "zsh", "kt", "scala", "r", "sql",
+             "md", "toml", "plist", "xcconfig", "entitlements":
+            return .code
+        default:
+            return .other
+        }
+    }
+}
+
+// MARK: - 节点模型（与后端 NodeVO 完全对齐）
+
+struct NodeVO: Codable {
+    let nodeId: String
+    let nodeType: String
+    let nodeName: String
+    let nodeSize: Int64?
+
+    var isFolder: Bool { nodeType == "FOLDER" || nodeType == "folder" }
+}
+
+struct PathChildrenVO: Codable {
+    let nodeId: String
+    let children: [NodeVO]
+}
+
+// MARK: - 文件夹节点模型（与后端 FolderNodeVO 对齐）
+
+struct FolderNodeVO: Codable {
+    let nodeId: String
+    let parentId: String?
+    let name: String
+    let createTime: String
+}
+
+// MARK: - 文件模型（与后端 FileVO 对齐）
+
+struct FileVO: Codable {
     let id: String
     let name: String
-    let parentId: String?
-    let isFolder: Bool
+    let type: String
     let size: Int64
+    let uploadedTime: String
+    let nodeId: String
+    let totalChunks: Int
+
+    var mimeType: String { type }
+}
+
+// MARK: - 收藏模型（与后端 FileStarVO 对齐）
+
+struct FileStarVO: Codable {
+    let starId: Int
+    let targetType: String
+    let targetId: String
+    let targetName: String
+    let targetSize: Int64
+    let fileType: String?
+    let fileStatus: String?
+    let starredAt: String
+
+    var isFolder: Bool { targetType == "folder" }
+}
+
+// MARK: - 回收站模型（与后端 TrashTargetVO 对齐）
+
+struct TrashTargetVO: Codable {
+    let trashId: Int
+    let targetId: String
+    let targetName: String
+    let fileType: String?
+    let targetSize: Int64
+    let targetType: String
+    let originalNodeId: String
+    let deletedAt: String
+    let expiresAt: String?
+
+    var isFolder: Bool { targetType == "folder" }
+}
+
+// MARK: - 文件列表模型
+
+struct FileNode: Identifiable, Hashable, Codable {
+    let id: String
+    let name: String
+    let size: Int64
+    let type: String
+    let createdAt: String
+    let updatedAt: String
+    let nodeId: String
+    let parentId: String?
     let mimeType: String?
+    let isFolder: Bool
     let md5: String?
     let sha256: String?
-    let createdAt: String?
-    let updatedAt: String?
-    let isStarred: Bool?
-    let isDeleted: Bool?
+    let isStarred: Bool
+    let isDeleted: Bool
     let thumbnailUrl: String?
     let downloadUrl: String?
     let children: [FileNode]?
+    var category: FileCategory
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, size, children
-        case parentId = "parent_id"
-        case isFolder = "is_folder"
-        case mimeType = "mime_type"
-        case md5, sha256
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case isStarred = "is_starred"
-        case isDeleted = "is_deleted"
-        case thumbnailUrl = "thumbnail_url"
-        case downloadUrl = "download_url"
+    init(nodeVO: NodeVO) {
+        self.id = nodeVO.nodeId
+        self.name = nodeVO.nodeName
+        self.size = nodeVO.nodeSize ?? 0
+        self.type = nodeVO.nodeType
+        self.createdAt = ""
+        self.updatedAt = ""
+        self.nodeId = nodeVO.nodeId
+        self.parentId = nil
+        self.mimeType = nodeVO.isFolder ? nil : ""
+        self.isFolder = nodeVO.isFolder
+        self.md5 = nil
+        self.sha256 = nil
+        self.isStarred = false
+        self.isDeleted = false
+        self.thumbnailUrl = nil
+        self.downloadUrl = nil
+        self.children = nil
+        self.category = nodeVO.isFolder ? .other : FileCategory.from(filename: nodeVO.nodeName)
     }
 
-    static func == (lhs: FileNode, rhs: FileNode) -> Bool {
-        lhs.id == rhs.id
+    init(fileStarVO: FileStarVO) {
+        self.id = String(fileStarVO.starId)
+        self.name = fileStarVO.targetName
+        self.size = fileStarVO.targetSize
+        self.type = fileStarVO.targetType
+        self.createdAt = fileStarVO.starredAt
+        self.updatedAt = ""
+        self.nodeId = fileStarVO.targetId
+        self.parentId = nil
+        self.mimeType = fileStarVO.fileType
+        self.isFolder = fileStarVO.isFolder
+        self.md5 = nil
+        self.sha256 = nil
+        self.isStarred = true
+        self.isDeleted = false
+        self.thumbnailUrl = nil
+        self.downloadUrl = nil
+        self.children = nil
+        self.category = fileStarVO.isFolder ? .other : FileCategory.from(filename: fileStarVO.targetName)
     }
 
-    /// 文件类型分类
-    enum FileCategory: String {
-        case document, image, video, audio, archive, code, other
-
-        var sfSymbolName: String {
-            switch self {
-            case .document: return "doc.text"
-            case .image: return "photo"
-            case .video: return "film"
-            case .audio: return "music.note"
-            case .archive: return "archivebox"
-            case .code: return "chevron.left.forwardslash.chevron.right"
-            case .other: return "doc"
-            }
-        }
+    init(trashTargetVO: TrashTargetVO) {
+        self.id = String(trashTargetVO.trashId)
+        self.name = trashTargetVO.targetName
+        self.size = trashTargetVO.targetSize
+        self.type = trashTargetVO.targetType
+        self.createdAt = trashTargetVO.deletedAt
+        self.updatedAt = ""
+        self.nodeId = trashTargetVO.targetId
+        self.parentId = nil
+        self.mimeType = trashTargetVO.fileType
+        self.isFolder = trashTargetVO.isFolder
+        self.md5 = nil
+        self.sha256 = nil
+        self.isStarred = false
+        self.isDeleted = true
+        self.thumbnailUrl = nil
+        self.downloadUrl = nil
+        self.children = nil
+        self.category = trashTargetVO.isFolder ? .other : FileCategory.from(filename: trashTargetVO.targetName)
     }
 
-    var category: FileCategory {
-        guard let mime = mimeType else { return .other }
-        if mime.hasPrefix("image/") { return .image }
-        if mime.hasPrefix("video/") { return .video }
-        if mime.hasPrefix("audio/") { return .audio }
-        if mime.contains("pdf") || mime.contains("document") || mime.contains("text") { return .document }
-        if mime.contains("zip") || mime.contains("rar") || mime.contains("tar") || mime.contains("gzip") { return .archive }
-        if mime.contains("json") || mime.contains("xml") || mime.contains("javascript") || mime.contains("swift") { return .code }
-        return .other
+    init(fileVO: FileVO) {
+        self.id = fileVO.id
+        self.name = fileVO.name
+        self.size = fileVO.size
+        self.type = fileVO.type
+        self.createdAt = fileVO.uploadedTime
+        self.updatedAt = ""
+        self.nodeId = fileVO.nodeId
+        self.parentId = nil
+        self.mimeType = fileVO.type
+        self.isFolder = false
+        self.md5 = nil
+        self.sha256 = nil
+        self.isStarred = false
+        self.isDeleted = false
+        self.thumbnailUrl = nil
+        self.downloadUrl = nil
+        self.children = nil
+        self.category = FileCategory.from(filename: fileVO.name)
+    }
+
+    init(
+        id: String, name: String, parentId: String?,
+        isFolder: Bool, size: Int64, mimeType: String?,
+        md5: String?, sha256: String?,
+        createdAt: String, updatedAt: String,
+        isStarred: Bool, isDeleted: Bool,
+        thumbnailUrl: String?, downloadUrl: String?,
+        children: [FileNode]?
+    ) {
+        self.id = id
+        self.name = name
+        self.size = size
+        self.type = isFolder ? "folder" : "file"
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.nodeId = id
+        self.parentId = parentId
+        self.mimeType = mimeType
+        self.isFolder = isFolder
+        self.md5 = md5
+        self.sha256 = sha256
+        self.isStarred = isStarred
+        self.isDeleted = isDeleted
+        self.thumbnailUrl = thumbnailUrl
+        self.downloadUrl = downloadUrl
+        self.children = children
+        self.category = isFolder ? .other : FileCategory.from(filename: name)
     }
 
     var formattedSize: String {
-        ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        let bytes = size
+        if bytes < 1024 {
+            return "\(bytes) B"
+        } else if bytes < 1024 * 1024 {
+            return String(format: "%.1f KB", Double(bytes) / 1024)
+        } else if bytes < 1024 * 1024 * 1024 {
+            return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
+        } else {
+            return String(format: "%.1f GB", Double(bytes) / (1024 * 1024 * 1024))
+        }
     }
 
     var formattedDate: String {
-        guard let dateStr = updatedAt ?? createdAt else { return "" }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: dateStr) {
-            return date.formatted(date: .abbreviated, time: .shortened)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        if let date = ISO8601DateFormatter().date(from: createdAt) {
+            return formatter.string(from: date)
         }
-        return dateStr
+        return createdAt
     }
+}
+// MARK: - 分享链接模型
+
+struct ShareLink: Codable, Identifiable {
+    let id: String
+    let nodeId: String
+    let filename: String
+    let shareUrl: String
+    let password: String?
+    let expireAt: String
+    let createdAt: String
+    let downloadCount: Int
 }
 
 // MARK: - 文件列表请求
@@ -89,14 +324,6 @@ struct FileListRequest: Codable {
     let pageSize: Int
     let sortBy: String?
     let sortOrder: String?
-
-    enum CodingKeys: String, CodingKey {
-        case parentId = "parent_id"
-        case page
-        case pageSize = "page_size"
-        case sortBy = "sort_by"
-        case sortOrder = "sort_order"
-    }
 }
 
 // MARK: - 创建文件夹请求
@@ -104,21 +331,12 @@ struct FileListRequest: Codable {
 struct CreateFolderRequest: Codable {
     let name: String
     let parentId: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case parentId = "parent_id"
-    }
 }
 
 // MARK: - 重命名请求
 
 struct RenameRequest: Codable {
     let newName: String
-
-    enum CodingKeys: String, CodingKey {
-        case newName = "new_name"
-    }
 }
 
 // MARK: - 移动请求
@@ -126,11 +344,6 @@ struct RenameRequest: Codable {
 struct MoveRequest: Codable {
     let targetParentId: String
     let nodeIds: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case targetParentId = "target_parent_id"
-        case nodeIds = "node_ids"
-    }
 }
 
 // MARK: - 文件搜索结果
@@ -144,14 +357,6 @@ struct FileSearchResult: Codable, Identifiable {
     let mimeType: String?
     let updatedAt: String?
     let highlight: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, size, highlight
-        case parentId = "parent_id"
-        case isFolder = "is_folder"
-        case mimeType = "mime_type"
-        case updatedAt = "updated_at"
-    }
 }
 
 // MARK: - 收藏操作
@@ -159,19 +364,10 @@ struct FileSearchResult: Codable, Identifiable {
 struct StarRequest: Codable {
     let nodeId: String
     let starred: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case nodeId = "node_id"
-        case starred
-    }
 }
 
 // MARK: - 回收站恢复
 
 struct TrashActionRequest: Codable {
     let nodeIds: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case nodeIds = "node_ids"
-    }
 }

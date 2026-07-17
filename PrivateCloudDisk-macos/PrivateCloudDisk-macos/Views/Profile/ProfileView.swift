@@ -95,7 +95,7 @@ struct ProfileView: View {
             )
 
             VStack(spacing: 4) {
-                Text(authService.currentUser?.nickname ?? authService.currentUser?.username ?? "用户")
+                Text(authService.currentUser?.name ?? authService.currentUser?.account ?? "用户")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
 
                 Text(authService.currentUser?.email ?? "")
@@ -119,13 +119,13 @@ struct ProfileView: View {
             sectionHeader(title: "账户信息", icon: "person.text.rectangle")
 
             VStack(spacing: 0) {
-                ProfileInfoRow(label: "用户名", value: authService.currentUser?.username ?? "-")
+                ProfileInfoRow(label: "用户名", value: authService.currentUser?.name ?? "-")
                 ProfileDivider()
                 ProfileInfoRow(label: "邮箱", value: authService.currentUser?.email ?? "-")
                 ProfileDivider()
-                ProfileInfoRow(label: "手机", value: authService.currentUser?.phone ?? "未绑定")
+                ProfileInfoRow(label: "手机", value: authService.currentUser?.phoneNumber ?? "未绑定")
                 ProfileDivider()
-                ProfileInfoRow(label: "注册时间", value: authService.currentUser?.createdAt ?? "-")
+                ProfileInfoRow(label: "注册时间", value: "-")
             }
         }
         .padding(20)
@@ -309,7 +309,7 @@ struct ProfileView: View {
     }
 
     private var avatarInitials: String {
-        let name = authService.currentUser?.nickname ?? authService.currentUser?.username ?? "?"
+        let name = authService.currentUser?.name ?? authService.currentUser?.account ?? "?"
         return String(name.prefix(1)).uppercased()
     }
 }

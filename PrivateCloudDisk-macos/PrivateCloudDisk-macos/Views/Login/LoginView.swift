@@ -484,9 +484,10 @@ struct LoginView: View {
             }
             do {
                 try await authService.login(
-                    username: username.trimmingCharacters(in: .whitespaces),
+                    phoneNumber: username.trimmingCharacters(in: .whitespaces),
                     password: password,
-                    turnstileToken: token
+                    captchaToken: token,
+                    captchaAction: "login"
                 )
             } catch {
                 DispatchQueue.main.async {

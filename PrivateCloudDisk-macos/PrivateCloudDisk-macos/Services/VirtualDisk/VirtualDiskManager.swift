@@ -276,15 +276,19 @@ final class VirtualDiskManager: ObservableObject {
         logger.info("开始同步...")
 
         do {
-            let remoteFiles = try await FileService.shared.listFiles(pageSize: 1000)
+            let rootNode = try await FileService.shared.getRootNode()
+            let remoteFiles = try await FileService.shared.getNodeChildren(nodeId: rootNode.nodeId)
 
+            // 通知 FileProvider 重新枚举根容器和工作集
+            // 这样 Finder 中的共享目录会刷新文件列表
             if let domain = fileProviderDomain {
                 let manager = NSFileProviderManager(for: domain)
                 try await manager?.signalEnumerator(for: .workingSet)
+                try await manager?.signalEnumerator(for: .rootContainer)
             }
 
             status = .connected
-            logger.info("同步完成: \(remoteFiles.items.count) 个文件")
+            logger.info("同步完成: \(remoteFiles.count) 个文件")
         } catch {
             status = .error
             logger.error("同步失败: \(error.localizedDescription)")
@@ -349,12 +353,18 @@ final class VirtualDiskManager: ObservableObject {
         defaults.set(config.autoSync, forKey: "VirtualDisk.AutoSync")
         defaults.set(config.syncInterval, forKey: "VirtualDisk.SyncInterval")
 
-        // 2. 同步写入共享 UserDefaults（App Group），供 FinderSync 扩展读取
-        //    FinderSync 使用 UserDefaults(suiteName: "group.com.privateclouddisk.app")
+        // 2. 同步写入共享 UserDefaults（App Group），供扩展读取
+        //    FinderSync 和 FileProvider 扩展使用 UserDefaults(suiteName: "group.com.privateclouddisk.app")
         sharedDefaults?.set(isMounted, forKey: "VirtualDisk.IsMounted")
         sharedDefaults?.set(config.mountPoint, forKey: "fp.mountPoint")
         sharedDefaults?.set(config.displayName, forKey: "fp.displayName")
         sharedDefaults?.set(config.userId, forKey: "fp.userId")
+
+        // 关键：同步 auth token 和 API URL，FileProvider 扩展需要这些信息才能调用后端 API
+        let authToken = KeychainManager.shared.readAuthToken() ?? ""
+        let apiBaseURL = "http://localhost:8080/api/v1/"
+        sharedDefaults?.set(authToken, forKey: "fp.token")
+        sharedDefaults?.set(apiBaseURL, forKey: "fp.apiBaseUrl")
         sharedDefaults?.synchronize()
     }
 

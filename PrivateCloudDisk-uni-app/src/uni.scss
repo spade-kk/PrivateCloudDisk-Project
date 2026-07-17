@@ -1,59 +1,45 @@
-/* uni.scss - 全局 SCSS 变量与主题色 */
-/* 私有云盘 - 统一主题色: 蓝色 #1a73e8 + 白色 #ffffff */
+/* uni.scss - 全局 SCSS 变量与主题 */
+/* 私有云盘 - 统一设计系统入口 */
 @import "uview-plus/theme.scss";
+@import "@/styles/design-system.scss";
 
-/* ========== 品牌色 (蓝色系) ========== */
-$primary-color: #1a73e8;
-$primary-light: #4a90e2;
-$primary-dark: #0d5bbd;
-$primary-bg: #e8f0fe;
-
-/* ========== 功能色 ========== */
-$success-color: #34a853;
-$warning-color: #fbbc04;
-$danger-color: #ea4335;
-$info-color: #909399;
-
-/* ========== 中性色 ========== */
-$text-primary: #202124;
-$text-regular: #5f6368;
-$text-secondary: #9aa0a6;
-$text-placeholder: #c4c7cc;
-$border-color: #e0e0e0;
-$bg-color: #f5f5f5;
-$bg-white: #ffffff;
-
-/* ========== 间距 ========== */
-$spacing-xs: 8rpx;
-$spacing-sm: 16rpx;
-$spacing-md: 24rpx;
-$spacing-lg: 32rpx;
-$spacing-xl: 48rpx;
-
-/* ========== 圆角 ========== */
-$radius-sm: 8rpx;
-$radius-md: 12rpx;
-$radius-lg: 16rpx;
-$radius-round: 50%;
-
-/* ========== 阴影 ========== */
-$shadow-light: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
-$shadow-card: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
-
-/* ========== 字体大小 ========== */
-$font-xs: 22rpx;
-$font-sm: 24rpx;
-$font-md: 28rpx;
-$font-lg: 32rpx;
-$font-xl: 36rpx;
-$font-xxl: 40rpx;
+/* ========== 向下兼容旧变量名 ========== */
+$primary-color:   $color-primary;
+$primary-light:   $color-primary-light;
+$primary-dark:    $color-primary-dark;
+$primary-bg:      $color-primary-lighter;
+$success-color:   $color-success;
+$warning-color:   $color-warning;
+$danger-color:    $color-danger;
+$info-color:      $color-info;
+$text-primary:    $color-text-primary;
+$text-regular:    $color-text-regular;
+$text-secondary:  $color-text-secondary;
+$text-placeholder:$color-text-placeholder;
+$border-color:    $color-border;
+$bg-color:        $color-bg-page;
+$bg-white:        $color-bg-card;
+$spacing-xs:      8rpx;
+$spacing-sm:      16rpx;
+$spacing-md:      24rpx;
+$spacing-lg:      32rpx;
+$spacing-xl:      48rpx;
+$radius-sm:       8rpx;
+$radius-md:       12rpx;
+$radius-lg:       16rpx;
+$radius-round:    50%;
+$shadow-light:    $shadow-sm;
+$shadow-card:     $card-shadow;
+$font-xs:         $font-size-caption;
+$font-sm:         $font-size-body-sm;
+$font-md:         $font-size-body;
+$font-lg:         $font-size-subtitle;
+$font-xl:         $font-size-title;
+$font-xxl:        $font-size-headline;
 
 /* ========== uView Plus 主题覆盖 ========== */
-$u-primary: $primary-color;
-$u-success: $success-color;
-$u-warning: $warning-color;
-$u-error: $danger-color;
-$u-info: $info-color;
-
-/* ========== 多平台兼容配置 ========== */
-/* 小程序端使用 rpx 单位，自动适配各平台 */
+$u-primary: $color-primary;
+$u-success: $color-success;
+$u-warning: $color-warning;
+$u-error: $color-danger;
+$u-info: $color-info;

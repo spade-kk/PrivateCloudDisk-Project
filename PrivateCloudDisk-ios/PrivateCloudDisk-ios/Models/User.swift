@@ -14,7 +14,7 @@ struct UserProfile: Codable, Identifiable {
     let account: String
     let email: String
     let phoneNumber: String
-    let imagePath: String
+    let imagePath: String?
     let role: String?
     let createdAt: String?
 
@@ -25,8 +25,8 @@ struct UserProfile: Codable, Identifiable {
         return src.isEmpty ? "U" : String(src.prefix(1)).uppercased()
     }
     var avatarURL: URL? {
-        guard !imagePath.isEmpty else { return nil }
-        return URL(string: imagePath)
+        guard imagePath!.isEmpty else { return nil }
+        return URL(string: imagePath!)
     }
 
     enum CodingKeys: String, CodingKey {

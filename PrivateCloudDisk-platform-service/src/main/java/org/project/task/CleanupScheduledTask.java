@@ -147,11 +147,12 @@ public class CleanupScheduledTask {
 
     @Scheduled(fixedRate = 30000)
     public void cleanupFailStatusFiles() {
-        log.info("开始清理失败状态文件...");
+        log.debug("开始清理失败状态文件...");
         try {
             /* 一次最多删除1000行数据 防止锁表 */
             Integer rows = fileMapper.cleanFailedStatusFiles();
-            log.info("清理失败状态文件成功 已经删除[" + rows + "]行数据");
+            if(rows == 0) log.debug("清理失败状态文件成功 但是没有失败的文件数据记录可以删除");
+            else log.info("清理失败状态文件成功 已经删除[" + rows + "]行数据");
         } catch (Exception e) {
             log.error("理失败状态文件失败: {}", e.getMessage(), e);
         }

@@ -356,14 +356,4 @@ struct IMConversation: Codable, Identifiable {
     let lastMessageTime: Date?
     let unreadCount: Int
     let isOnline: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case username, avatar
-        case lastMessage = "last_message"
-        case lastMessageTime = "last_message_time"
-        case unreadCount = "unread_count"
-        case isOnline = "is_online"
-    }
 }

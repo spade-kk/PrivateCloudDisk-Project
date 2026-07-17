@@ -2,41 +2,30 @@ import Foundation
 
 // MARK: - 上传模型
 
-/// 上传初始化请求
 struct UploadInitRequest: Codable {
-    let filename: String
+    let totalChunks: Int
     let fileSize: Int64
-    let mimeType: String
-    let parentId: String?
-    let chunkSize: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case filename
-        case fileSize = "file_size"
-        case mimeType = "mime_type"
-        case parentId = "parent_id"
-        case chunkSize = "chunk_size"
-    }
+    let fileChecksum: String
+    let chunksMaxSize: Int
+    let fileType: String
+    let fileName: String
+    let nodeId: String?
 }
 
-/// 上传初始化响应
 struct UploadInitResponse: Codable {
     let uploadId: String
     let nodeId: String?
-    let chunkSize: Int
-    let totalChunks: Int
-    let uploadedChunks: [Int]?
+    let chunksMaxSize: Int
+    let uploadedChunks: [Int]
 
-    enum CodingKeys: String, CodingKey {
-        case uploadId = "upload_id"
-        case nodeId = "node_id"
-        case chunkSize = "chunk_size"
-        case totalChunks = "total_chunks"
-        case uploadedChunks = "uploaded_chunks"
-    }
+    var chunkSize: Int { chunksMaxSize }
+    var totalChunks: Int { 0 }
 }
 
-/// 上传进度信息
+struct UploadCompleteResponse: Codable {
+    let backendTaskId: String
+}
+
 struct UploadProgress: Codable {
     let uploadId: String
     let filename: String
@@ -45,16 +34,6 @@ struct UploadProgress: Codable {
     let totalChunks: Int
     let completedChunks: Int
     let status: UploadStatus
-
-    enum CodingKeys: String, CodingKey {
-        case uploadId = "upload_id"
-        case filename
-        case totalBytes = "total_bytes"
-        case uploadedBytes = "uploaded_bytes"
-        case totalChunks = "total_chunks"
-        case completedChunks = "completed_chunks"
-        case status
-    }
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }
@@ -73,21 +52,12 @@ enum UploadStatus: String, Codable {
 
 // MARK: - 下载模型
 
-/// 下载进度信息
 struct DownloadProgress: Codable {
     let nodeId: String
     let filename: String
     let totalBytes: Int64
     let downloadedBytes: Int64
     let status: DownloadStatus
-
-    enum CodingKeys: String, CodingKey {
-        case nodeId = "node_id"
-        case filename
-        case totalBytes = "total_bytes"
-        case downloadedBytes = "downloaded_bytes"
-        case status
-    }
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }
@@ -152,6 +122,7 @@ final class UploadTask: Identifiable, Codable {
     var status: UploadStatus
     let createdAt: Date
     var mimeType: String
+    var backendTaskId: String?
 
     init(
         uploadId: String,
@@ -171,5 +142,6 @@ final class UploadTask: Identifiable, Codable {
         self.status = .pending
         self.createdAt = Date()
         self.mimeType = mimeType
+        self.backendTaskId = nil
     }
 }

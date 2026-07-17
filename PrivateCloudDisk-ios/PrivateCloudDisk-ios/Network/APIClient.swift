@@ -7,6 +7,7 @@
 
 import Foundation
 import CryptoKit
+import CommonCrypto
 
 // MARK: - API 错误
 
@@ -70,7 +71,7 @@ actor APIClient {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         session = URLSession(configuration: config)
 
-        baseURL = "http://192.168.1.12:8080/api/v1"
+        baseURL = "http://localhost:8080/api/v1"
         decoder = JSONDecoder()
         encoder = JSONEncoder()
 
@@ -106,6 +107,8 @@ actor APIClient {
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        print(url)
 
         if let t = token, !t.isEmpty {
             request.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
@@ -114,12 +117,20 @@ actor APIClient {
 
         if let body = body {
             request.httpBody = try encoder.encode(AnyEncodable(body))
+            // 打印请求体（JSON 字符串）
+            if let bodyData = request.httpBody, let bodyString = String(data: bodyData, encoding: .utf8) {
+                print("📤 原始请求体json数据: \(bodyString)")
+            }
         }
 
         do {
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.unknown
+            }
+            
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("服务器返回 原始响应体json数据: \(jsonString)")
             }
 
             switch httpResponse.statusCode {
@@ -273,5 +284,104 @@ enum PasswordHasher {
         let passwordData = Data(password.utf8)
         let derivedKey = CryptoKit.SHA256.hash(data: saltData + passwordData)
         return "pbkdf2:sha256:\(derivedKey.compactMap { String(format: "%02x", $0) }.joined())"
+    }
+    
+    // MARK: - Pepper 值（字节数组分片）
+
+    private static func _p0() -> [UInt8] {
+        return [0x63, 0x6c, 0x6f, 0x75, 0x64, 0x64, 0x72, 0x69, 0x76, 0x65]
+    }
+
+    private static func _p1() -> [UInt8] {
+        return [0x2d, 0x70, 0x62, 0x6b, 0x64, 0x66, 0x32, 0x2d]
+    }
+
+    private static func _p2() -> [UInt8] {
+        return [0x76, 0x31, 0x2d, 0x70, 0x65, 0x70, 0x70, 0x65, 0x72]
+    }
+
+    /// 运行时拼接 Pepper 并清除临时变量
+    private static func assemblePepper() -> Data {
+        var a = _p0()
+        var b = _p1()
+        var c = _p2()
+        var result = Data()
+        result.append(contentsOf: a)
+        result.append(contentsOf: b)
+        result.append(contentsOf: c)
+        // 清除临时变量
+        a = []
+        b = []
+        c = []
+        return result
+    }
+    
+    
+    // MARK: - 密码哈希（传输加密）
+
+    /// 密码哈希（用于传输前加密）
+    ///
+    /// 与 Web 端 hashPasswordForTransport 完全对齐的算法：
+    /// 1. PBKDF2-SHA256(password, pepper, 600000, 256bit)
+    /// 2. 输出 hex 字符串
+    static func hashPasswordForTransport(_ password: String) -> String {
+        let pepper = assemblePepper()
+        let passwordData = Data(password.utf8)
+
+        var derivedKey = Data(repeating: 0, count: 32)
+        let status = derivedKey.withUnsafeMutableBytes { derivedBytes in
+            passwordData.withUnsafeBytes { passwordBytes in
+                pepper.withUnsafeBytes { pepperBytes in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        passwordBytes.baseAddress?.assumingMemoryBound(to: Int8.self),
+                        passwordData.count,
+                        pepperBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        pepper.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                        600000,
+                        derivedBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        32
+                    )
+                }
+            }
+        }
+
+        guard status == kCCSuccess else {
+            // 回退：使用 CryptoKit PBKDF2
+            let pepperSymKey = SymmetricKey(data: pepper)
+            let derived = HKDF<SHA256>.deriveKey(
+                inputKeyMaterial: pepperSymKey,
+                salt: Data(password.utf8),
+                info: Data("pbkdf2".utf8),
+                outputByteCount: 32
+            )
+            return derived.withUnsafeBytes { Data($0).hexString }
+        }
+
+        return derivedKey.hexString
+    }
+}
+
+// MARK: - Data 扩展
+
+extension Data {
+    var hexString: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
+
+    init?(hexString: String) {
+        let len = hexString.count / 2
+        var data = Data(capacity: len)
+        var index = hexString.startIndex
+        for _ in 0..<len {
+            let nextIndex = hexString.index(index, offsetBy: 2)
+            guard let byte = UInt8(hexString[index..<nextIndex], radix: 16) else {
+                return nil
+            }
+            data.append(byte)
+            index = nextIndex
+        }
+        self = data
     }
 }

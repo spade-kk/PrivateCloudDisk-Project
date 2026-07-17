@@ -697,11 +697,11 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!authStore.token || imClient) return
 
     const wsBase = import.meta.env.VITE_IM_WS_URL ||
-      `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/im`
+      `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
 
     try {
       imClient = getImClient({
-        url: `${wsBase}/api/v1/ws`,
+        url: `${wsBase}/ws`,
         token: () => authStore.token,
         autoReconnect: true,
         enableHeartbeat: true,

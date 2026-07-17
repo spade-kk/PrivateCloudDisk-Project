@@ -108,15 +108,15 @@ export function getThumbnailUrl(
 }
 
 /**
- * 获取视频缩略图直接 URL
+ * 获取视频缩略图 URL（独立于图片缩略图接口）
  *
- * 返回可直接用于 <img src="..."> 的视频缩略图 URL。
- * 使用 ffmpeg 提取首帧，与图片缩略图（libvips）生成逻辑分离。
- * 支持三种预设尺寸：small(160×90)、medium(400×225)、large(800×450)。
+ * 后端: GET /api/v1/files/video/stream/{file_id}/thumbnail?size=small|medium|large
+ * 使用 ffmpeg 提取视频首帧，与图片缩略图（libvips）生成逻辑分离。
  *
  * @param fileId - 文件 ID
- * @param size - 缩略图尺寸: 'small' | 'medium' | 'large'
- * @returns 视频缩略图 URL 字符串
+ * @param size - 尺寸: small(160×90), medium(400×225), large(800×450)
+ * @param token - HLS 流媒体访问 Token（可选，用于无 Header 鉴权场景如 img 标签）
+ * @returns 完整的缩略图 URL 字符串
  */
 export function getVideoThumbnailUrl(
   fileId: string,

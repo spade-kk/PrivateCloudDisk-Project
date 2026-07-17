@@ -14,6 +14,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.im.server.netty.handler.AuthHandler;
+import org.project.im.server.netty.handler.HttpRequestInterceptor;
 import org.project.im.server.netty.handler.MessageHandler;
 import org.project.im.server.netty.handler.V2AuthHandler;
 import org.project.im.server.netty.handler.V2MessageHandler;
@@ -116,6 +117,9 @@ public class NettyWebSocketServer {
                         pipeline.addLast(new HttpServerCodec());
                         pipeline.addLast(new ChunkedWriteHandler());
                         pipeline.addLast(new HttpObjectAggregator(65536));
+                        // 在 WebSocket 协议处理器之前拦截 HTTP 请求，剥离查询字符串
+                        // 解决 ws://host:port/ws?token=xxx 握手失败的问题
+                        pipeline.addLast(new HttpRequestInterceptor());
                         pipeline.addLast(new WebSocketServerProtocolHandler(websocketPath));
                         pipeline.addLast(authHandler);
                         pipeline.addLast(messageHandler);
@@ -148,6 +152,8 @@ public class NettyWebSocketServer {
                         pipeline.addLast(new ChunkedWriteHandler());
                         // HTTP 消息聚合（最大 256KB，V2 协议可能包含密钥交换数据）
                         pipeline.addLast(new HttpObjectAggregator(256 * 1024));
+                        // 在 WebSocket 协议处理器之前拦截 HTTP 请求，剥离查询字符串
+                        pipeline.addLast(new HttpRequestInterceptor());
                         // WebSocket 协议处理
                         pipeline.addLast(new WebSocketServerProtocolHandler(v2WebsocketPath,
                                 null, true, 256 * 1024));

@@ -10,6 +10,9 @@
 | hls        | TRANSCODE_ERROR      | 标记文件为 DEGRADED (无 HLS)        |
 | index      | CONTENT_EXTRACT_ERROR| 标记文件为 DEGRADED (无索引)        |
 | index      | CONTENT_INDEX_ERROR  | 标记文件为 DEGRADED (无索引)        |
+| office/PDF | OFFICE_TO_PDF_ERROR  | 标记文件为 DEGRADED (无 PDF 预览)    |
+| markdown   | MARKDOWN_TO_HTML_ERR | 标记文件为 DEGRADED (无 HTML 预览)   |
+| archive    | ARCHIVE_PARSE_ERROR  | 标记文件为 DEGRADED (无目录预览)      |
 | 全部       | UNKNOWN              | 全面记录日志，人工排查               |
 
 与 Backend DLQ 的关键区别:
@@ -45,6 +48,9 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
             FailureReason.TRANSCODE_ERROR: self._handle_degraded,
             FailureReason.CONTENT_EXTRACT_ERROR: self._handle_degraded,
             FailureReason.CONTENT_INDEX_ERROR: self._handle_degraded,
+            FailureReason.OFFICE_TO_PDF_ERROR: self._handle_degraded,
+            FailureReason.MARKDOWN_TO_HTML_ERROR: self._handle_degraded,
+            FailureReason.ARCHIVE_PARSE_ERROR: self._handle_degraded,
             FailureReason.UNKNOWN: self._handle_unknown,
         }
         return handlers.get(failure_reason, self._handle_unknown)

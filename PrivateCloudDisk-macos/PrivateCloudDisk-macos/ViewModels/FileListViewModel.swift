@@ -17,13 +17,11 @@ final class FileListViewModel: ObservableObject {
     @Published var sortBy = "updated_at"
     @Published var sortOrder = "desc"
     @Published var searchQuery = ""
-    @Published var searchResults: [FileSearchResult] = []
+    @Published var searchResults: [FileNode] = []
 
-    // 选择状态
     @Published var selectedNodeIds: Set<String> = []
     @Published var isSelectionMode = false
 
-    // 右键菜单
     @Published var contextMenuNode: FileNode?
 
     private let fileService = FileService.shared
@@ -38,15 +36,17 @@ final class FileListViewModel: ObservableObject {
         currentPage = 1
 
         do {
-            let result = try await fileService.listFiles(
-                parentId: parentId,
-                page: 1,
-                pageSize: pageSize,
-                sortBy: sortBy,
-                sortOrder: sortOrder
-            )
-            files = result.items
-            hasMorePages = result.totalPages > 1
+            var nodeVOs: [NodeVO] = []
+
+            if let parentId = parentId {
+                nodeVOs = try await fileService.getNodeChildren(nodeId: parentId)
+            } else {
+                let rootNode = try await fileService.getRootNode()
+                nodeVOs = try await fileService.getNodeChildren(nodeId: rootNode.nodeId)
+            }
+
+            files = nodeVOs.map { FileNode(nodeVO: $0) }
+            hasMorePages = false
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -60,21 +60,6 @@ final class FileListViewModel: ObservableObject {
         isLoadingMore = true
         currentPage += 1
 
-        do {
-            let result = try await fileService.listFiles(
-                parentId: currentParentId,
-                page: currentPage,
-                pageSize: pageSize,
-                sortBy: sortBy,
-                sortOrder: sortOrder
-            )
-            files.append(contentsOf: result.items)
-            hasMorePages = currentPage < result.totalPages
-        } catch {
-            errorMessage = error.localizedDescription
-            currentPage -= 1
-        }
-
         isLoadingMore = false
     }
 
@@ -86,62 +71,118 @@ final class FileListViewModel: ObservableObject {
 
     func createFolder(name: String) async {
         do {
-            let folder = try await fileService.createFolder(name: name, parentId: currentParentId)
-            files.insert(folder, at: 0)
+            try await fileService.createFolder(name: name, parentId: currentParentId)
+            await refreshFiles()
+            showSuccessToast("文件夹创建成功")
         } catch {
             errorMessage = error.localizedDescription
+            showErrorToast(error.localizedDescription)
         }
     }
 
     func renameNode(nodeId: String, newName: String) async {
         do {
-            let updated = try await fileService.rename(nodeId: nodeId, newName: newName)
-            if let index = files.firstIndex(where: { $0.id == nodeId }) {
-                files[index] = updated
+            if let node = files.first(where: { $0.id == nodeId }) {
+                if node.isFolder {
+                    try await fileService.renameFolder(nodeId: nodeId, newName: newName)
+                } else {
+                    try await fileService.renameFile(fileId: nodeId, newName: newName)
+                }
+                if let index = files.firstIndex(where: { $0.id == nodeId }) {
+                    var updatedNode = files[index]
+                    updatedNode = FileNode(
+                        id: updatedNode.id, name: newName, parentId: updatedNode.parentId,
+                        isFolder: updatedNode.isFolder, size: updatedNode.size, mimeType: updatedNode.mimeType,
+                        md5: updatedNode.md5, sha256: updatedNode.sha256,
+                        createdAt: updatedNode.createdAt, updatedAt: updatedNode.updatedAt,
+                        isStarred: updatedNode.isStarred, isDeleted: updatedNode.isDeleted,
+                        thumbnailUrl: updatedNode.thumbnailUrl, downloadUrl: updatedNode.downloadUrl,
+                        children: updatedNode.children
+                    )
+                    files[index] = updatedNode
+                }
+                showSuccessToast("重命名成功")
             }
         } catch {
             errorMessage = error.localizedDescription
+            showErrorToast(error.localizedDescription)
         }
     }
 
     func deleteNodes(_ nodeIds: [String]) async {
         do {
-            try await fileService.delete(nodeIds: nodeIds)
+            for nodeId in nodeIds {
+                if let node = files.first(where: { $0.id == nodeId }) {
+                    if node.isFolder {
+                        try await fileService.deleteFolder(nodeId: nodeId)
+                    } else {
+                        try await fileService.deleteFile(fileId: nodeId)
+                    }
+                }
+            }
             files.removeAll { nodeIds.contains($0.id) }
             selectedNodeIds.removeAll()
+            showSuccessToast("已移至回收站")
         } catch {
             errorMessage = error.localizedDescription
+            showErrorToast(error.localizedDescription)
         }
     }
 
     func moveNodes(_ nodeIds: [String], to targetParentId: String) async {
         do {
-            try await fileService.move(nodeIds: nodeIds, targetParentId: targetParentId)
+            for nodeId in nodeIds {
+                if let node = files.first(where: { $0.id == nodeId }) {
+                    if node.isFolder {
+                        try await fileService.moveFolder(nodeId: nodeId, targetPosition: targetParentId)
+                    } else {
+                        try await fileService.moveFile(fileId: nodeId, targetNodeId: targetParentId)
+                    }
+                }
+            }
             files.removeAll { nodeIds.contains($0.id) }
             selectedNodeIds.removeAll()
+            showSuccessToast("移动成功")
         } catch {
             errorMessage = error.localizedDescription
+            showErrorToast(error.localizedDescription)
         }
     }
 
     func toggleStar(nodeId: String, starred: Bool) async {
         do {
-            try await fileService.toggleStar(nodeId: nodeId, starred: starred)
-            if let index = files.firstIndex(where: { $0.id == nodeId }) {
-                var node = files[index]
-                node = FileNode(
-                    id: node.id, name: node.name, parentId: node.parentId,
-                    isFolder: node.isFolder, size: node.size, mimeType: node.mimeType,
-                    md5: node.md5, sha256: node.sha256,
-                    createdAt: node.createdAt, updatedAt: node.updatedAt,
-                    isStarred: starred, isDeleted: node.isDeleted,
-                    thumbnailUrl: node.thumbnailUrl, downloadUrl: node.downloadUrl,
-                    children: node.children
-                )
-                files[index] = node
+            if let node = files.first(where: { $0.id == nodeId }) {
+                if node.isFolder {
+                    if starred {
+                        try await fileService.addFolderStar(nodeId: nodeId)
+                    } else {
+                        try await fileService.removeFolderStar(nodeId: nodeId)
+                    }
+                } else {
+                    if starred {
+                        try await fileService.addFileStar(fileId: nodeId)
+                    } else {
+                        try await fileService.removeFileStar(fileId: nodeId)
+                    }
+                }
+                if let index = files.firstIndex(where: { $0.id == nodeId }) {
+                    var updatedNode = files[index]
+                    updatedNode = FileNode(
+                        id: updatedNode.id, name: updatedNode.name, parentId: updatedNode.parentId,
+                        isFolder: updatedNode.isFolder, size: updatedNode.size, mimeType: updatedNode.mimeType,
+                        md5: updatedNode.md5, sha256: updatedNode.sha256,
+                        createdAt: updatedNode.createdAt, updatedAt: updatedNode.updatedAt,
+                        isStarred: starred, isDeleted: updatedNode.isDeleted,
+                        thumbnailUrl: updatedNode.thumbnailUrl, downloadUrl: updatedNode.downloadUrl,
+                        children: updatedNode.children
+                    )
+                    files[index] = updatedNode
+                }
+                showSuccessToast(starred ? "已添加收藏" : "已取消收藏")
             }
         } catch {
             errorMessage = error.localizedDescription
+            showErrorToast(error.localizedDescription)
         }
     }
 
@@ -155,7 +196,26 @@ final class FileListViewModel: ObservableObject {
 
         isLoading = true
         do {
-            searchResults = try await fileService.search(query: searchQuery)
+            let searchVO = try await fileService.searchFiles(keyword: searchQuery)
+            searchResults = searchVO.hits.map { hit in
+                FileNode(
+                    id: hit.id,
+                    name: hit.name,
+                    parentId: nil,
+                    isFolder: hit.isFolder,
+                    size: hit.size,
+                    mimeType: hit.mimeType,
+                    md5: nil,
+                    sha256: nil,
+                    createdAt: "",
+                    updatedAt: hit.updatedAt ?? "",
+                    isStarred: false,
+                    isDeleted: false,
+                    thumbnailUrl: nil,
+                    downloadUrl: nil,
+                    children: nil
+                )
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -186,5 +246,15 @@ final class FileListViewModel: ObservableObject {
     func selectAll() {
         selectedNodeIds = Set(files.map { $0.id })
         isSelectionMode = true
+    }
+
+    // MARK: - Toast 通知
+
+    private func showErrorToast(_ message: String) {
+        ContentViewModel.shared.showToast(message, type: .error)
+    }
+
+    private func showSuccessToast(_ message: String) {
+        ContentViewModel.shared.showToast(message, type: .success)
     }
 }

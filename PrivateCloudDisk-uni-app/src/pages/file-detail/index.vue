@@ -11,9 +11,23 @@
 
     <!-- 操作按钮 -->
     <view class="action-grid">
-      <view class="action-item" @click="handleDownload">
+      <!-- 视频文件: 预览按钮 -->
+      <view class="action-item" v-if="isVideo" @click="handlePreview">
         <view class="action-icon action-icon-blue">
-          <u-icon name="download" size="40" color="#1a73e8" />
+          <u-icon name="play-circle" size="40" color="#4F6EF7" />
+        </view>
+        <text class="action-text">预览</text>
+      </view>
+      <!-- 图片文件: 预览按钮 -->
+      <view class="action-item" v-if="isImage" @click="handlePreview">
+        <view class="action-icon action-icon-blue">
+          <u-icon name="photo" size="40" color="#4F6EF7" />
+        </view>
+        <text class="action-text">预览</text>
+      </view>
+      <view class="action-item" @click="handleDownload">
+        <view class="action-icon action-icon-green">
+          <u-icon name="download" size="40" color="#34a853" />
         </view>
         <text class="action-text">下载</text>
       </view>
@@ -63,10 +77,12 @@
 </template>
 
 <script>
-import { getFileDetail } from '@/api/node'
+import { getFileDetail } from '@/api/file'
 import { addFavorite, removeFavorite } from '@/api/favorite'
 import { moveFileToTrash } from '@/api/trash'
+import { requestOperationToken, downloadFile } from '@/api/download'
 import { formatFileSize, getFileIcon, getFileIconColor } from '@/utils/helper'
+import { isVideoFile, isImageFile } from '@/utils/format'
 
 export default {
   data() {
@@ -76,7 +92,9 @@ export default {
       fileSize: 0,
       fileType: '',
       updateTime: '',
-      isFavorited: false
+      isFavorited: false,
+      streamUrl: '',
+      thumbnailUrl: ''
     }
   },
   computed: {
@@ -85,6 +103,12 @@ export default {
     },
     iconColor() {
       return getFileIconColor(this.fileName)
+    },
+    isVideo() {
+      return isVideoFile(this.fileName) || this.fileType?.startsWith('video/')
+    },
+    isImage() {
+      return isImageFile(this.fileName) || this.fileType?.startsWith('image/')
     }
   },
   onLoad(options) {
@@ -100,31 +124,61 @@ export default {
       try {
         const res = await getFileDetail(this.fileId)
         const data = res.data
-        this.fileName = data.node_name || this.fileName
-        this.fileSize = data.node_size || 0
-        this.fileType = data.content_type || '-'
+        this.fileName = data.node_name || data.file_name || this.fileName
+        this.fileSize = data.node_size || data.file_size || 0
+        this.fileType = data.content_type || ''
         this.updateTime = data.updated_at || ''
         this.isFavorited = data.is_favorite || false
-      } catch (e) { /* 已处理 */ }
+        this.streamUrl = data.stream_url || ''
+        this.thumbnailUrl = data.thumbnail_url || ''
+      } catch (e) {
+        console.error('[FileDetail] 加载详情失败:', e)
+      }
     },
 
-    handleDownload() {
+    handlePreview() {
+      if (this.isVideo) {
+        uni.navigateTo({
+          url: `/pages/video-player/index?fileId=${this.fileId}&title=${encodeURIComponent(this.fileName)}&poster=${encodeURIComponent(this.thumbnailUrl)}`
+        })
+      } else if (this.isImage) {
+        const urls = encodeURIComponent(JSON.stringify([{ url: this.streamUrl || this.thumbnailUrl }]))
+        uni.navigateTo({
+          url: `/pages/image-preview/index?fileId=${this.fileId}&name=${encodeURIComponent(this.fileName)}&urls=${urls}&index=0`
+        })
+      }
+    },
+
+    async handleDownload() {
       uni.showLoading({ title: '准备下载...' })
-      uni.downloadFile({
-        url: this.fileId,
-        success: (res) => {
-          uni.hideLoading()
-          uni.openDocument({ filePath: res.tempFilePath })
-        },
-        fail: () => {
-          uni.hideLoading()
-          uni.showToast({ title: '下载失败', icon: 'none' })
-        }
-      })
+      try {
+        const tokenRes = await requestOperationToken({ file_id: this.fileId, operation: 'download' })
+        const operationToken = tokenRes.data.token
+
+        const tempFilePath = await downloadFile(this.fileId, operationToken, (received, total) => {
+          if (total > 0) {
+            const progress = Math.round((received / total) * 100)
+            uni.showLoading({ title: `下载中 ${progress}%` })
+          }
+        })
+
+        uni.hideLoading()
+
+        uni.openDocument({
+          filePath: tempFilePath,
+          showMenu: true,
+          fail: () => {
+            uni.showToast({ title: '无法打开文件', icon: 'none' })
+          }
+        })
+      } catch (e) {
+        uni.hideLoading()
+        console.error('[FileDetail] 下载失败:', e)
+        uni.showToast({ title: e.message || '下载失败', icon: 'none' })
+      }
     },
 
     handleShare() {
-      // 小程序分享由 onShareAppMessage 处理
       uni.showToast({ title: '点击右上角分享', icon: 'none' })
     },
 
@@ -139,7 +193,9 @@ export default {
           this.isFavorited = true
           uni.showToast({ title: '已收藏', icon: 'success' })
         }
-      } catch (e) { /* 已处理 */ }
+      } catch (e) {
+        console.error('[FileDetail] 收藏失败:', e)
+      }
     },
 
     async handleTrash() {
@@ -152,7 +208,9 @@ export default {
           await moveFileToTrash(this.fileId)
           uni.showToast({ title: '已移入回收站', icon: 'success' })
           setTimeout(() => uni.navigateBack(), 1500)
-        } catch (e) { /* 已处理 */ }
+        } catch (e) {
+          console.error('[FileDetail] 删除失败:', e)
+        }
       }
     }
   }

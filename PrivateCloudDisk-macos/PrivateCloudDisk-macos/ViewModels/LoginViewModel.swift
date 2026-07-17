@@ -16,7 +16,6 @@ final class LoginViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showError = false
 
-    // Turnstile 人机验证
     @Published var turnstileToken: String?
 
     private let authService = AuthService.shared
@@ -50,11 +49,12 @@ final class LoginViewModel: ObservableObject {
 
         do {
             let user = try await authService.login(
-                username: username,
+                phoneNumber: username,
                 password: password,
-                turnstileToken: turnstileToken
+                captchaToken: turnstileToken ?? "",
+                captchaAction: "login"
             )
-            print("[LoginViewModel] 登录成功: \(user.username)")
+            print("[LoginViewModel] 登录成功: \(user.name)")
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -71,12 +71,14 @@ final class LoginViewModel: ObservableObject {
 
         do {
             let user = try await authService.register(
-                username: username,
-                email: email,
+                phoneNumber: username,
                 password: password,
-                turnstileToken: turnstileToken
+                code: "",
+                username: email,
+                captchaToken: turnstileToken ?? "",
+                captchaAction: "register"
             )
-            print("[LoginViewModel] 注册成功: \(user.username)")
+            print("[LoginViewModel] 注册成功: \(user.name)")
         } catch {
             errorMessage = error.localizedDescription
             showError = true

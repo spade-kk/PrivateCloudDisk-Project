@@ -1,10 +1,36 @@
 // ============================================================
 // helpers.ts — 通用工具函数集
 // ============================================================
-// 提供文件大小格式化、日期时间格式化、防抖/节流、SHA-256 哈希、
-// 剪贴板操作、Blob 下载等企业级通用工具函数。
+// 提供文件大小格式化、防抖/节流、SHA-256 哈希、剪贴板操作、
+// Blob 下载等企业级通用工具函数。
+//
+// 日期时间格式化已迁移至 @/utils/dayjs.ts（基于 dayjs 库），
+// 此处保留兼容性重导出，逐步迁移建议直接使用 dayjs 模块。
 // 所有函数均为纯函数，无副作用，可直接在任何模块中安全调用。
 // ============================================================
+
+// ============================================================
+// 日期时间格式化（兼容性重导出）
+// ============================================================
+// 原有自定义实现已替换为基于 dayjs 的企业级日期处理。
+// 外部调用方式不变，内部实现已升级。
+// ============================================================
+
+export {
+  formatDateTime,
+  formatDate,
+  formatTime,
+  formatChinese,
+  timeAgo,
+  diffDays,
+  diffHours,
+  isToday,
+  isThisWeek,
+  isExpired,
+  dayjs,
+} from './dayjs'
+
+export type { DateInput } from './dayjs'
 
 // ============================================================
 // 文件大小格式化
@@ -157,114 +183,6 @@ export function calculateSHA256(file: File): Promise<string> {
     }
     worker.postMessage(file)
   })
-}
-
-// ============================================================
-// 日期时间格式化
-// ============================================================
-
-/**
- * 格式化完整日期时间
- *
- * 将日期对象、时间戳或 ISO 字符串格式化为 "YYYY-MM-DD HH:mm:ss" 格式。
- * 无效日期返回 "--" 占位符，避免 UI 崩溃。
- *
- * @param date - 日期对象、Unix 毫秒时间戳或 ISO 8601 字符串；null/undefined 返回 "--"
- * @returns 格式化后的日期时间字符串，如 "2025-06-01 14:30:25"
- *
- * @example
- * formatDateTime(new Date())           // => "2025-06-01 14:30:25"
- * formatDateTime(1717230625000)        // => "2025-06-01 14:30:25"
- * formatDateTime("2025-06-01T14:30:25") // => "2025-06-01 14:30:25"
- * formatDateTime(null)                 // => "--"
- */
-export function formatDateTime(date: string | number | Date | null | undefined): string {
-  if (!date) return '--'
-  const d = new Date(date)
-  if (isNaN(d.getTime())) return '--'
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const hours = String(d.getHours()).padStart(2, '0')
-  const minutes = String(d.getMinutes()).padStart(2, '0')
-  const seconds = String(d.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-}
-
-/**
- * 格式化日期（仅年月日）
- *
- * 格式化为 "YYYY-MM-DD" 格式，用于日期列表、文件修改日期等场景。
- *
- * @param date - 日期对象、时间戳或 ISO 字符串；null/undefined 返回 "--"
- * @returns 格式化后的日期字符串，如 "2025-06-01"
- *
- * @example
- * formatDate(new Date())    // => "2025-06-01"
- * formatDate("2025-06-01")  // => "2025-06-01"
- */
-export function formatDate(date: string | number | Date | null | undefined): string {
-  if (!date) return '--'
-  const d = new Date(date)
-  if (isNaN(d.getTime())) return '--'
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-/**
- * 格式化时间（仅时分秒）
- *
- * 格式化为 "HH:mm:ss" 格式，用于显示纯时间信息。
- *
- * @param date - 日期对象、时间戳或 ISO 字符串；null/undefined 返回 "--"
- * @returns 格式化后的时间字符串，如 "14:30:25"
- *
- * @example
- * formatTime(new Date())   // => "14:30:25"
- */
-export function formatTime(date: string | number | Date | null | undefined): string {
-  if (!date) return '--'
-  const d = new Date(date)
-  if (isNaN(d.getTime())) return '--'
-  const hours = String(d.getHours()).padStart(2, '0')
-  const minutes = String(d.getMinutes()).padStart(2, '0')
-  const seconds = String(d.getSeconds()).padStart(2, '0')
-  return `${hours}:${minutes}:${seconds}`
-}
-
-/**
- * 相对时间（人性化时间差）
- *
- * 将时间戳转换为 "刚刚"、"5 分钟前"、"3 小时前"、"2 天前" 等相对描述。
- * 超过 30 天则降级为显示完整日期（formatDate）。
- *
- * 阈值策略：
- * - < 60 秒：显示 "刚刚"
- * - < 1 小时：显示 "X 分钟前"
- * - < 24 小时：显示 "X 小时前"
- * - < 30 天：显示 "X 天前"
- * - >= 30 天：显示完整日期（如 "2025-06-01"）
- *
- * @param date - 日期对象、时间戳或 ISO 字符串
- * @returns 人性化相对时间描述
- *
- * @example
- * timeAgo(Date.now() - 5000)       // => "刚刚"
- * timeAgo(Date.now() - 300000)     // => "5分钟前"
- * timeAgo(Date.now() - 7200000)    // => "2小时前"
- * timeAgo("2025-01-01")            // => "2025-01-01"
- */
-export function timeAgo(date: string | number | Date): string {
-  const timestamp = new Date(date).getTime()
-  const now = Date.now()
-  const diff = (now - timestamp) / 1000 // 转为秒
-  if (diff < 60) return '刚刚'
-  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`
-  if (diff < 2592000) return `${Math.floor(diff / 86400)}天前`
-  return formatDate(date)
 }
 
 // ============================================================

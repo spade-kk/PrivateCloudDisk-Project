@@ -1,12 +1,12 @@
 <template>
   <view class="breadcrumb-nav">
     <view class="back-btn" @click="$emit('back')">
-      <u-icon name="arrow-left" size="36" color="#1a73e8" />
+      <u-icon name="arrow-left" size="36" color="#4F6EF7" />
     </view>
     <scroll-view scroll-x class="crumb-scroll" :show-scrollbar="false">
       <view class="crumb-list">
         <view class="crumb-item" @click="$emit('home')">
-          <text class="crumb-text crumb-root">首页</text>
+          <u-icon name="home" size="28" color="#4F6EF7" />
         </view>
         <template v-for="(item, idx) in pathStack" :key="item.node_id || idx">
           <text class="crumb-sep">/</text>
@@ -37,10 +37,13 @@ export default {
 .breadcrumb-nav {
   display: flex;
   align-items: center;
-  padding: 16rpx 24rpx;
-  background: #fff;
-  border-bottom: 1rpx solid #f0f0f0;
+  padding: 14rpx 24rpx;
+  margin: 12rpx 24rpx;
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  box-shadow: $shadow-sm;
 }
+
 .back-btn {
   width: 56rpx;
   height: 56rpx;
@@ -48,14 +51,63 @@ export default {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-right: 8rpx;
+  border-radius: $radius-sm;
+  transition: background $transition-fast;
+
+  &:active {
+    background: $color-bg-hover;
+  }
 }
-.crumb-scroll { flex: 1; white-space: nowrap; }
-.crumb-list { display: flex; align-items: center; }
-.crumb-item { padding: 8rpx 12rpx; border-radius: 8rpx; }
-.crumb-item:active { background: #f0f4ff; }
-.crumb-text { font-size: 28rpx; color: #5f6368; }
-.crumb-root { color: #1a73e8; font-weight: 500; }
-.crumb-active .crumb-text { color: #1a73e8; font-weight: 600; }
-.crumb-sep { font-size: 28rpx; color: #c4c7cc; margin: 0 4rpx; }
+
+.crumb-scroll {
+  flex: 1;
+  margin-left: 4rpx;
+}
+
+.crumb-list {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.crumb-item {
+  display: flex;
+  align-items: center;
+  padding: 8rpx 12rpx;
+  border-radius: $radius-sm;
+  transition: background $transition-fast;
+
+  &:active {
+    background: $color-bg-hover;
+  }
+}
+
+.crumb-active {
+  background: $color-primary-lighter;
+}
+
+.crumb-text {
+  font-size: $font-size-body-sm;
+  color: $color-text-regular;
+  max-width: 200rpx;
+  @include text-ellipsis;
+}
+
+.crumb-active .crumb-text {
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.crumb-root {
+  .crumb-item:first-child & {
+    color: $color-primary;
+    font-weight: $font-weight-medium;
+  }
+}
+
+.crumb-sep {
+  font-size: $font-size-body-sm;
+  color: $color-text-placeholder;
+  margin: 0 2rpx;
+}
 </style>

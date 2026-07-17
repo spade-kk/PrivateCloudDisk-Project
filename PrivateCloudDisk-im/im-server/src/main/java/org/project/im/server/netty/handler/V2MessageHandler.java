@@ -50,7 +50,7 @@ import org.springframework.stereotype.Component;
 public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
 
     private final SessionManager sessionManager;
-    private final IMSessionKeyManager keyManager;
+    private final IMSessionKeyManager keyManager = IMSessionKeyManager.createIMSessionKeyManager();
     private final V2MessageRouter messageRouter;
 
     /** 标记属性名，标识 Channel 是否已完成密钥协商 */

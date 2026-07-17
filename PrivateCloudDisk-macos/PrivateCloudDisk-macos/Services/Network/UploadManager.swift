@@ -52,14 +52,19 @@ final class UploadManager: ObservableObject {
         let mime = mimeType ?? localURL.mimeType()
 
         // 1. 初始化上传
+        let checksum = try await calculateFileChecksum(localURL: localURL)
+        let totalChunks = (fileSize + Int64(defaultChunkSize) - 1) / Int64(defaultChunkSize)
+
         let initRequest = UploadInitRequest(
-            filename: filename,
+            totalChunks: Int(totalChunks),
             fileSize: fileSize,
-            mimeType: mime,
-            parentId: parentId,
-            chunkSize: defaultChunkSize
+            fileChecksum: checksum,
+            chunksMaxSize: defaultChunkSize,
+            fileType: mime,
+            fileName: filename,
+            nodeId: parentId
         )
-        let initResponse: UploadInitResponse = try await api.post("/api/files/upload/init", body: initRequest)
+        let initResponse: UploadInitResponse = try await api.post("business/uploads/", body: initRequest)
 
         // 2. 创建本地任务记录
         let task = UploadTask(
@@ -142,7 +147,7 @@ final class UploadManager: ObservableObject {
 
                     do {
                         _ = try await self.api.uploadChunk(
-                            "/api/files/upload/chunk",
+                            "files/uploads/\(task.uploadId)/chunks",
                             chunkData: data,
                             chunkIndex: chunkIndex,
                             uploadId: task.uploadId,
@@ -176,11 +181,11 @@ final class UploadManager: ObservableObject {
                 struct CompleteUploadRequest: Encodable {
                     let uploadId: String
                 }
-                let node: FileNode = try await api.post(
-                    "/api/files/upload/complete",
+                let result: UploadCompleteResponse = try await api.post(
+                    "files/uploads/\(task.uploadId)/merge",
                     body: CompleteUploadRequest(uploadId: task.uploadId)
                 )
-                await markTaskCompleted(task.uploadId, node: node)
+                await markTaskCompleted(task.uploadId, backendTaskId: result.backendTaskId)
             } catch {
                 await markTaskFailed(task.uploadId, error: "完成上传失败: \(error.localizedDescription)")
             }
@@ -223,14 +228,27 @@ final class UploadManager: ObservableObject {
         updateOverallProgress()
     }
 
-    private func markTaskCompleted(_ uploadId: String, node: FileNode) {
+    private func markTaskCompleted(_ uploadId: String, backendTaskId: String) {
         tasks[uploadId]?.status = .completed
+        tasks[uploadId]?.backendTaskId = backendTaskId
         cancellables.removeValue(forKey: uploadId)
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             self?.activeTasks.removeAll { $0.uploadId == uploadId }
             self?.tasks.removeValue(forKey: uploadId)
             self?.updateOverallProgress()
         }
+    }
+
+    private func calculateFileChecksum(localURL: URL) async throws -> String {
+        let handle = try FileHandle(forReadingFrom: localURL)
+        defer { try? handle.close() }
+
+        var hasher = SHA256()
+        while let data = try handle.read(upToCount: 64 * 1024) {
+            hasher.update(data: data)
+        }
+        let digest = hasher.finalize()
+        return digest.compactMap { String(format: "%02x", $0) }.joined()
     }
 
     private func markTaskFailed(_ uploadId: String, error: String) {

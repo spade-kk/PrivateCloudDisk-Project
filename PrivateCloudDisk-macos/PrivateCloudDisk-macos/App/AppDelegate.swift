@@ -42,7 +42,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // ── 3. 初始化核心服务 ──
         initializeServices()
 
-        // ── 4. 注册 URL Scheme 处理 ──
+        // ── 4. 配置初始窗口（登录模式）──
+        configureInitialLoginWindow()
+
+        // ── 5. 注册 URL Scheme 处理 ──
         NSAppleEventManager.shared().setEventHandler(
             self,
             andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
@@ -50,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             andEventID: AEEventID(kAEGetURL)
         )
 
-        // ── 5. 注册通知 ──
+        // ── 6. 注册通知 ──
         UNUserNotificationCenter.current().delegate = self
         notificationManager.requestAuthorization()
     }
@@ -120,12 +123,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    private func configureInitialLoginWindow() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard let window = NSApp.windows.first else { return }
+
+            window.identifier = NSUserInterfaceItemIdentifier("main")
+
+            // ── 无边框配置 ──
+            window.titlebarAppearsTransparent = true
+            window.title = ""
+            window.titlebarSeparatorStyle = .none
+
+            // ── 窗口外观 ──
+            window.backgroundColor = .white
+            window.isOpaque = true
+            window.appearance = NSApp.effectiveAppearance
+
+            // ── 固定尺寸：不可缩放 ──
+            window.styleMask.remove(.resizable)
+            window.setContentSize(PrivateCloudDiskApp.loginWindowSize)
+            window.minSize = PrivateCloudDiskApp.loginWindowSize
+            window.maxSize = PrivateCloudDiskApp.loginWindowSize
+
+            // ── 窗口行为：仅允许关闭，禁止最小化和全屏 ──
+            window.collectionBehavior = []
+            window.level = .normal
+
+            // ── 隐藏最小化和缩放按钮，仅保留关闭按钮 ──
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            window.standardWindowButton(.zoomButton)?.isHidden = true
+            window.standardWindowButton(.closeButton)?.isHidden = false
+
+            // ── 居中显示 ──
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
     private func initializeServices() {
         // 网络层
         authService = AuthService.shared
 
         // 安全层
         _ = KeychainManager.shared
+
+        // ── 设备自动注册：应用启动时触发首次检查 ──
+        Task {
+            await DeviceIdentityManager.shared.triggerAutoRegistrationIfNeeded()
+        }
 
         // 系统集成
         menuBarManager = MenuBarManager()

@@ -82,8 +82,8 @@
 | 服务 | 技术栈 | 端口 | 说明 |
 |---|---|---|---|
 | **frontend** | Nginx + Vue 3 | 80, 443 | 前端静态资源 + SSL 终止 |
-| **gateway-service-backend** | Spring Boot 3 + Java 18 | 8080 | API 网关，JWT 鉴权，路由分发 |
-| **platform-service-backend** | Spring Boot 3 + Java 18 | 8081 | 核心业务：用户、文件、配额、上传会话 |
+| **gateway-service-backend** | Spring Boot 3 + Spring Cloud Gateway + Java 18 | 8080 | API 网关，JWT 鉴权，路由分发 |
+| **platform-service-backend** | Spring Boot 3 + Java 18 + MyBatis | 8081 | 核心业务：用户、文件、配额、上传会话 |
 | **file-service-backend** | FastAPI + Python 3 | 8000 | 文件服务：上传/下载/缩略图/全文检索 |
 | **file-service-worker** | Python 3 | — | 异步任务：病毒扫描、转码、内容提取 |
 | **mysql** | MySQL 8.0 | 3306 | 关系型数据库 |

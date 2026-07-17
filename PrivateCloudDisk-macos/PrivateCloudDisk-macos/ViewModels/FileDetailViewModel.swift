@@ -25,7 +25,8 @@ final class FileDetailViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            node = try await fileService.getFileDetail(nodeId: nodeId)
+            let fileVO = try await fileService.getFileDetail(fileId: nodeId)
+            node = FileNode(fileVO: fileVO)
             // 索引到 Spotlight
             if let node = node {
                 spotlightIndexer.indexFile(node)
@@ -57,8 +58,9 @@ final class FileDetailViewModel: ObservableObject {
     // MARK: - 分享
 
     func loadShareLinks() async {
+        guard let node = node else { return }
         do {
-            shareLinks = try await fileService.getShareLinks()
+            shareLinks = try await fileService.getShareLinks(fileId: node.id)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -68,10 +70,11 @@ final class FileDetailViewModel: ObservableObject {
         guard let node = node else { return }
 
         do {
+            let expiresAt = expireDays > 0 ? Calendar.current.date(byAdding: .day, value: expireDays, to: Date())?.ISO8601Format() : nil
             let link = try await fileService.createShareLink(
-                nodeId: node.id,
-                expireDays: expireDays,
-                password: password
+                fileId: node.id,
+                permission: "read",
+                expiresAt: expiresAt
             )
             shareLinks.insert(link, at: 0)
         } catch {

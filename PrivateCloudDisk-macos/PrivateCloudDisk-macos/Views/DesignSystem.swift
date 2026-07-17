@@ -13,11 +13,11 @@ import SwiftUI
 
 struct AppColors {
     // ── 品牌主色 ──
-    // 与 Web 前端 tailwind.config.ts 中 primary: '#165DFF' 完全一致
-    static let primary       = Color(hex: "#165DFF")   // 主色
-    static let primaryLight  = Color(hex: "#4080FF")   // 浅主色（hover 态）
-    static let primaryDark   = Color(hex: "#0E42D2")   // 深主色（active 态）
-    static let primaryBg     = Color(hex: "#E8F0FE")   // 主色背景（10% opacity 等效）
+    // 与 Web 前端 tailwind.config.ts 中 primary: '#4F6EF7' 完全一致
+    static let primary       = Color(hex: "#4F6EF7")   // 主色
+    static let primaryLight  = Color(hex: "#7B93FA")   // 浅主色（hover 态）
+    static let primaryDark   = Color(hex: "#3B54D4")   // 深主色（active 态）
+    static let primaryBg     = Color(hex: "#E8ECFF")   // 主色背景（10% opacity 等效）
 
     // ── 辅助色 ──
     // 与 Web 前端 secondary: '#36CFC9' 对齐
@@ -83,21 +83,21 @@ struct AppColors {
 struct AppGradients {
     /// 品牌主渐变（蓝 → 浅蓝）
     static let primary = LinearGradient(
-        colors: [Color(hex: "#165DFF"), Color(hex: "#4080FF")],
+        colors: [Color(hex: "#4F6EF7"), Color(hex: "#7B93FA")],
         startPoint: .leading,
         endPoint: .trailing
     )
 
     /// 品牌扩展渐变（用于启动页等）
     static let primaryExtended = LinearGradient(
-        colors: [Color(hex: "#165DFF"), Color(hex: "#4080FF"), Color(hex: "#69B1FF")],
+        colors: [Color(hex: "#4F6EF7"), Color(hex: "#7B93FA"), Color(hex: "#A0B4FB")],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     /// 头像渐变
     static let avatar = LinearGradient(
-        colors: [Color(hex: "#165DFF"), Color(hex: "#4080FF")],
+        colors: [Color(hex: "#4F6EF7"), Color(hex: "#7B93FA")],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )

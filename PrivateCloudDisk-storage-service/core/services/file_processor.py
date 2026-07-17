@@ -15,6 +15,9 @@ from core.pipeline.transcode_pipeline import TranscodePipeline, TranscodeResult
 from core.pipeline.hls_transcode_pipeline import HlsTranscodePipeline, HlsTranscodeResult
 from core.pipeline.mark_active_pipeline import MarkActivePipeline, MarkActiveResult
 from core.pipeline.content_index_pipeline import ContentIndexPipeline, ContentIndexResult
+from core.pipeline.office_to_pdf_pipeline import OfficeToPdfPipeline, OfficeToPdfResult
+from core.pipeline.markdown_to_html_pipeline import MarkdownToHtmlPipeline, MarkdownToHtmlResult
+from core.pipeline.archive_parse_pipeline import ArchiveParsePipeline, ArchiveParseResult
 
 logger = logging.getLogger("file_processor")
 
@@ -76,6 +79,12 @@ class FileProcessor:
                     return await FileProcessor._do_mark_active(event)
                 case TaskTypes.CONTENT_INDEX:
                     return await FileProcessor._do_content_index(event)
+                case TaskTypes.OFFICE_TO_PDF:
+                    return await FileProcessor._do_office_to_pdf(event)
+                case TaskTypes.MARKDOWN_TO_HTML:
+                    return await FileProcessor._do_markdown_to_html(event)
+                case TaskTypes.ARCHIVE_PARSE:
+                    return await FileProcessor._do_archive_parse(event)
                 case _:
                     logger.warning(f"未知任务类型: {task_type}")
                     return ProcessResult(
@@ -241,4 +250,101 @@ class FileProcessor:
             failure_reason=result.failure_reason,
             error=result.error,
             data=result.data,
+        )
+
+    @staticmethod
+    async def _do_office_to_pdf(event) -> ProcessResult:
+        """
+        执行 Office 文件转 PDF 增强处理
+
+        将 Office 文档（Word/Excel/PPT）转换为 PDF 格式，
+        同时为 PDF 文件生成首页缩略图。
+
+        Args:
+            event: FileEnhanceEvent 增强事件
+
+        Returns:
+            ProcessResult: 统一处理结果
+        """
+        result: OfficeToPdfResult = await OfficeToPdfPipeline.execute(
+            file_id=event.file_id,
+            storage_path=event.storage_path,
+            file_type=event.file_type,
+        )
+        return ProcessResult(
+            success=result.success,
+            task_type=TaskTypes.OFFICE_TO_PDF,
+            failure_reason=result.failure_reason,
+            error=result.error,
+            data={
+                "pdf_path": result.pdf_path,
+                "pdf_size": result.pdf_size,
+                "preview_path": result.preview_path,
+                "source_type": result.source_type,
+                "skipped": result.skipped,
+            },
+        )
+
+    @staticmethod
+    async def _do_markdown_to_html(event) -> ProcessResult:
+        """
+        执行 Markdown 文件转 HTML 增强处理
+
+        将 Markdown 文件转换为 HTML 格式，包含代码高亮、表格等。
+        生成的 HTML 文件存储在 previews/ 目录下，供前端直接渲染。
+
+        Args:
+            event: FileEnhanceEvent 增强事件
+
+        Returns:
+            ProcessResult: 统一处理结果
+        """
+        result: MarkdownToHtmlResult = await MarkdownToHtmlPipeline.execute(
+            file_id=event.file_id,
+            storage_path=event.storage_path,
+            file_type=event.file_type,
+        )
+        return ProcessResult(
+            success=result.success,
+            task_type=TaskTypes.MARKDOWN_TO_HTML,
+            failure_reason=result.failure_reason,
+            error=result.error,
+            data={
+                "html_path": result.html_path,
+                "html_size": result.html_size,
+                "skipped": result.skipped,
+            },
+        )
+
+    @staticmethod
+    async def _do_archive_parse(event) -> ProcessResult:
+        """
+        执行压缩包目录结构解析增强处理
+
+        解析压缩包文件（ZIP/RAR/7Z/ISO等），提取目录结构信息，
+        生成 JSON 格式目录树供前端预览。不解压完整文件内容。
+
+        Args:
+            event: FileEnhanceEvent 增强事件
+
+        Returns:
+            ProcessResult: 统一处理结果
+        """
+        result: ArchiveParseResult = await ArchiveParsePipeline.execute(
+            file_id=event.file_id,
+            storage_path=event.storage_path,
+            file_name=event.file_name,
+            file_type=event.file_type,
+        )
+        return ProcessResult(
+            success=result.success,
+            task_type=TaskTypes.ARCHIVE_PARSE,
+            failure_reason=result.failure_reason,
+            error=result.error,
+            data={
+                "tree_json_path": result.tree_json_path,
+                "total_files": result.total_files,
+                "total_dirs": result.total_dirs,
+                "total_size": result.total_size,
+            },
         )

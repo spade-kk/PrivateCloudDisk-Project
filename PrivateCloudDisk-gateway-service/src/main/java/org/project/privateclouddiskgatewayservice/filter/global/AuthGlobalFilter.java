@@ -55,8 +55,12 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             new ExcludedPath("/api/v1/business/users/", "POST"),                       // 注册
             new ExcludedPath("/api/v1/business/verification-code/register/send", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/business/verification-code/register/resend", "POST"),// 邮箱验证码
+            new ExcludedPath("/api/v1/client/register-challenge", "POST"),             // 客户端注册挑战值
+            new ExcludedPath("/api/v1/client/register", "POST"),                       // 客户端注册
+            new ExcludedPath("/api/v1/client/internal/**", "*"),                       // 客户端注册服务内部接口
             new ExcludedPath("/api/v1/business/admin/**", "*"),                        // 管理员接口（由 AdminGatewayFilter 处理）
-            new ExcludedPath("/api/v1/business/internal/**", "*")                      // 内部服务通信
+            new ExcludedPath("/api/v1/business/internal/**", "*"),                      // 内部服务通信
+            new ExcludedPath("/ws/**", "*")                                             // im websocket协议服务 方向代理路径地址 不需要网关鉴权直接放行下游
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();

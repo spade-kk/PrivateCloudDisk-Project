@@ -126,7 +126,7 @@
             <div class="min-w-0 flex-1">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
-                  <h3 class="result-title" v-html="highlight(hit, 'filename', fileName(hit))"></h3>
+                  <h3 class="result-title" v-safe-html="highlight(hit, 'filename', fileName(hit))"></h3>
                   <div class="meta-row">
                     <span>{{ categoryName(field(hit, ['file_category', 'category'], 'file')) }}</span>
                     <span>{{ formatFileSize(Number(field(hit, ['size_bytes', 'file_size', 'size'], 0))) }}</span>
@@ -138,7 +138,7 @@
                   <span>定位</span>
                 </button>
               </div>
-              <p class="snippet" v-html="bestSnippet(hit)"></p>
+              <p class="snippet" v-safe-html="bestSnippet(hit)"></p>
               <div class="tag-row" v-if="normalizeTags(field(hit, ['tags'], [])).length">
                 <span v-for="tag in normalizeTags(field(hit, ['tags'], []))" :key="tag">{{ tag }}</span>
               </div>

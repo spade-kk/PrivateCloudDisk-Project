@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @since 1.0.0
  */
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/im")
 @Tag(name = "健康检查", description = "服务存活和就绪探针")
 public class HealthController {
 

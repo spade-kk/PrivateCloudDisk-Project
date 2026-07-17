@@ -31,7 +31,8 @@ export const usePreviewStore = defineStore('preview', () => {
     audios: ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'],
     documents: ['pdf'],
     office: ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pptm'],
-    code: ['js', 'ts', 'html', 'css', 'json', 'xml', 'py', 'java', 'cpp', 'c', 'cs', 'go', 'rb', 'php', 'sql', 'sh', 'md', 'yaml', 'yml', 'txt', 'log'],
+    code: ['js', 'ts', 'html', 'css', 'json', 'xml', 'py', 'java', 'cpp', 'c', 'cs', 'go', 'rb', 'php', 'sql', 'sh', 'yaml', 'yml', 'txt', 'log'],
+    markdown: ['md', 'markdown', 'mdown', 'mkdn', 'mkd', 'mdwn'],
     archives: ['zip', 'rar', '7z', 'tar', 'gz']
   })
 
@@ -50,12 +51,13 @@ export const usePreviewStore = defineStore('preview', () => {
   const isExcel = computed(() => ['xls', 'xlsx', 'csv'].includes(fileExtension.value))
   const isPowerPoint = computed(() => ['ppt', 'pptx', 'pptm'].includes(fileExtension.value))
   const isCode = computed(() => supportedFormats.value.code.includes(fileExtension.value))
-  const isArchive = computed(() => supportedFormats.value.archives.includes(fileExtension.value))
-  const isText = computed(() => ['txt', 'md', 'log'].includes(fileExtension.value))
+  isMarkdown = computed(() => supportedFormats.value.markdown.includes(fileExtension.value))
+  isArchive = computed(() => supportedFormats.value.archives.includes(fileExtension.value))
+  isText = computed(() => ['txt', 'log'].includes(fileExtension.value))
 
   const isPreviewable = computed(() => {
     return isImage.value || isVideo.value || isAudio.value || isPdf.value ||
-           isOffice.value || isCode.value || isArchive.value || isText.value
+           isOffice.value || isCode.value || isArchive.value || isText.value || isMarkdown.value
   })
 
   const fileSizeFormatted = computed(() => {
@@ -86,6 +88,8 @@ export const usePreviewStore = defineStore('preview', () => {
         await loadOfficePreview(file)
       } else if (isCode.value || isText.value) {
         await loadTextPreview(file)
+      } else if (isMarkdown.value) {
+        await loadMarkdownPreview(file)
       } else if (isArchive.value) {
         await loadArchivePreview(file)
       } else {
@@ -206,6 +210,31 @@ export const usePreviewStore = defineStore('preview', () => {
     }
   }
 
+  /**
+   * 加载 Markdown 预览
+   *
+   * 优先获取后端预渲染的 HTML 内容，若不可用则回退到原始 Markdown 文本，
+   * 由前端 MarkdownPreview 组件进行实时渲染。
+   */
+  async function loadMarkdownPreview(file: any): Promise<void> {
+    try {
+      // 尝试获取后端预渲染的 HTML
+      const res = await getFileContentApi(file.node_id, {
+        maxSize: 10 * 1024 * 1024,  // Markdown 文件通常不大，但预留 10MB
+        encoding: 'utf-8',
+        preview: 'markdown',         // 请求 Markdown 预览资源
+      })
+      if (res.code === 200) {
+        // 后端可能返回预渲染的 HTML 或原始 Markdown 内容
+        previewContent.value = res.data?.content || res.data?.html || ''
+      } else {
+        throw new Error(res.message || '获取 Markdown 内容失败')
+      }
+    } catch (err: any) {
+      throw new Error('无法加载 Markdown 预览: ' + err.message)
+    }
+  }
+
   async function loadArchivePreview(_file: any): Promise<void> {
     error.value = {
       title: '压缩包预览',
@@ -251,6 +280,7 @@ export const usePreviewStore = defineStore('preview', () => {
     isExcel,
     isPowerPoint,
     isCode,
+    isMarkdown,
     isArchive,
     isText,
     isPreviewable,

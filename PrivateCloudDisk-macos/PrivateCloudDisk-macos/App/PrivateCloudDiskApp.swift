@@ -37,67 +37,14 @@ struct PrivateCloudDiskApp: App {
             ContentView()
                 .environmentObject(authService)
                 .environmentObject(virtualDiskManager)
-                .frame(
-                    minWidth: 400,
-                    idealWidth: 400,
-                    maxWidth: 400,
-                    minHeight: 520,
-                    idealHeight: 520,
-                    maxHeight: 520
-                )
-                .onAppear {
-                    configureLoginWindow()
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unifiedCompact)
-        .defaultSize(width: 400, height: 520)
-        .windowResizability(.contentSize)
+        .defaultSize(width: Self.loginWindowSize.width, height: Self.loginWindowSize.height)
+        .windowResizability(.automatic)
         .commands {
             CommandGroup(replacing: .newItem) { }
             CommandGroup(replacing: .toolbar) { }
-        }
-    }
-
-    // MARK: - 登录窗口配置（紧凑、固定、不可缩放）
-
-    private func configureLoginWindow() {
-        DispatchQueue.main.async {
-            guard let window = NSApp.windows.first(where: {
-                $0.isKeyWindow || $0.identifier?.rawValue == "main"
-            }) ?? NSApp.windows.first
-            else { return }
-
-            window.identifier = NSUserInterfaceItemIdentifier("main")
-
-            // ── 无边框配置 ──
-            window.titlebarAppearsTransparent = true
-            window.title = ""
-            window.titlebarSeparatorStyle = .none
-
-            // ── 窗口外观 ──
-            window.backgroundColor = .white
-            window.isOpaque = true
-            window.appearance = NSApp.effectiveAppearance
-
-            // ── 固定尺寸：不可缩放 ──
-            window.styleMask.remove(.resizable)
-            window.setContentSize(Self.loginWindowSize)
-            window.minSize = Self.loginWindowSize
-            window.maxSize = Self.loginWindowSize
-
-            // ── 窗口行为：仅允许关闭，禁止最小化和全屏 ──
-            window.collectionBehavior = []
-            window.level = .normal
-
-            // ── 隐藏最小化和缩放按钮，仅保留关闭按钮 ──
-            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-            window.standardWindowButton(.zoomButton)?.isHidden = true
-            window.standardWindowButton(.closeButton)?.isHidden = false
-
-            // ── 居中显示 ──
-            window.center()
-            window.makeKeyAndOrderFront(nil)
         }
     }
 }
@@ -106,7 +53,7 @@ struct PrivateCloudDiskApp: App {
 
 extension NSWindow {
 
-    /// 切换到主窗口模式（可缩放、完整控制按钮）
+    /// 切换到主窗口模式（可缩放、完整控制按钮、自定义标题栏）
     func transitionToMainWindow() {
         // 启用缩放
         styleMask.insert(.resizable)
@@ -137,6 +84,10 @@ extension NSWindow {
         backgroundColor = NSColor(red: 0.96, green: 0.97, blue: 0.98, alpha: 1.0) // #F5F7FA
         isOpaque = false
         titlebarSeparatorStyle = .none
+
+        // 自定义标题栏配置（与登录窗口一致）
+        titlebarAppearsTransparent = true
+        title = ""
 
         // 自定义 Traffic Light 按钮位置
         configureTrafficLightButtons()

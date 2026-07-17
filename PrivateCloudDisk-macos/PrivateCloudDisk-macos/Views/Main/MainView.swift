@@ -307,7 +307,7 @@ struct MainView: View {
 
                 // 用户名
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(authService.currentUser?.nickname ?? authService.currentUser?.username ?? "用户")
+                    Text(authService.currentUser?.name ?? authService.currentUser?.name ?? "用户")
                         .font(.system(size: 12, weight: .medium, design: .default))
                         .foregroundColor(AppColors.textPrimary)
                         .lineLimit(1)
@@ -346,7 +346,7 @@ struct MainView: View {
                         .foregroundColor(.white)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(authService.currentUser?.nickname ?? authService.currentUser?.username ?? "用户")
+                    Text(authService.currentUser?.name ?? authService.currentUser?.account ?? "用户")
                         .font(.system(size: 14, weight: .semibold, design: .default))
                     Text(authService.currentUser?.email ?? "")
                         .font(.system(size: 11, design: .default))
@@ -398,8 +398,8 @@ struct MainView: View {
     }
 
     private var userInitials: String {
-        let name = authService.currentUser?.nickname
-            ?? authService.currentUser?.username
+        let name = authService.currentUser?.name
+            ?? authService.currentUser?.account
             ?? "用户"
         return String(name.prefix(1)).uppercased()
     }
@@ -422,6 +422,20 @@ struct MainView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: contentVM.selectedTab) { tab in
+            Task {
+                switch tab {
+                case .home:
+                    await fileListVM.loadFiles()
+                case .favorites:
+                    await favoritesTrashVM.loadFavorites()
+                case .trash:
+                    await favoritesTrashVM.loadTrash()
+                default:
+                    break
+                }
+            }
+        }
     }
 
     // MARK: - 底部（与 Web 前端 footer 统一）
@@ -731,7 +745,7 @@ struct SidebarView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(authService.currentUser?.nickname ?? authService.currentUser?.username ?? "用户")
+                    Text(authService.currentUser?.name ?? authService.currentUser?.account ?? "用户")
                         .font(.system(size: 12, weight: .medium, design: .default))
                         .foregroundColor(AppColors.textPrimary)
                         .lineLimit(1)
@@ -767,7 +781,7 @@ struct SidebarView: View {
                         .foregroundColor(.white)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(authService.currentUser?.nickname ?? authService.currentUser?.username ?? "用户")
+                    Text(authService.currentUser?.name ?? authService.currentUser?.account ?? "用户")
                         .font(.system(size: 14, weight: .semibold, design: .default))
                     Text(authService.currentUser?.email ?? "")
                         .font(.system(size: 11, design: .default))
@@ -808,8 +822,8 @@ struct SidebarView: View {
     }
 
     private var userInitials: String {
-        let name = authService.currentUser?.nickname
-            ?? authService.currentUser?.username
+        let name = authService.currentUser?.name
+            ?? authService.currentUser?.account
             ?? "用户"
         return String(name.prefix(1)).uppercased()
     }

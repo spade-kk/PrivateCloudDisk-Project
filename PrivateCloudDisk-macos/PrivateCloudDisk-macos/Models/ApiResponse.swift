@@ -1,17 +1,18 @@
 import Foundation
 
-// MARK: - 通用 API 响应
+// MARK: - 通用 API 响应（与后端 JsonResult 完全对齐）
 
 /// 通用 API 响应模型
+/// 与后端 org.project.control.result.JsonResult 完全对齐
 struct ApiResponse<T: Decodable>: Decodable {
     let code: Int
-    let message: String
+    let message: String?
     let data: T?
 
-    var isSuccess: Bool { code == 200 || code == 0 }
+    var isSuccess: Bool { code == 200 }
 }
 
-/// 分页响应
+/// 分页响应（与后端 PageResultVO 对齐）
 struct PaginatedResponse<T: Decodable>: Decodable {
     let code: Int
     let message: String
@@ -31,6 +32,9 @@ struct EmptyResponse: Codable {
     let code: Int
     let message: String
 }
+
+/// 空请求体
+struct EmptyBody: Codable {}
 
 // MARK: - API 错误
 

@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.im.common.enums.CommandType;
 import org.project.im.common.protocol.MessageProtocol;
+import org.project.im.common.protocol.v2.IMProtocolV2;
+import org.project.im.common.protocol.v2.MessageTypeDispatcher;
+import org.project.im.common.security.IMSessionKeys;
 import org.project.im.server.netty.SessionManager;
 import org.project.im.server.signaling.manager.CallSessionManager;
 import org.project.im.server.signaling.model.CallSession;
@@ -952,5 +955,9 @@ public class SignalingHandler {
                 }
             }
         }
+    }
+
+    public void handleV2(ChannelHandlerContext ctx, IMProtocolV2.IMEnvelope envelope, MessageTypeDispatcher.DispatchedMessage dispatched, IMSessionKeys sessionKeys) {
+        log.info("信令处理V2 Message Frame: command={}, senderId={}", envelope.getCommand(), envelope.getSenderId());
     }
 }

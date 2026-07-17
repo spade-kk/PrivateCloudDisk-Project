@@ -66,14 +66,19 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
     private var itemCache: [NSFileProviderItemIdentifier: FileProviderItem] = [:]
     private let cacheLock = NSLock()
 
+    /// 根节点 ID 缓存（避免每次枚举都请求根节点）
+    private var cachedRootNodeId: String?
+
     /// 当前认证 Token
     private var authToken: String? {
         sharedDefaults?.string(forKey: AppGroup.Keys.authToken)
     }
 
-    /// API 基础 URL
+    /// API 基础 URL（与主应用一致：http://localhost:8080/api/v1/）
     private var apiBaseURL: String {
-        sharedDefaults?.string(forKey: AppGroup.Keys.apiBaseURL) ?? "http://localhost:8000"
+        let url = sharedDefaults?.string(forKey: AppGroup.Keys.apiBaseURL) ?? "http://localhost:8080/api/v1/"
+        // 确保以 / 结尾
+        return url.hasSuffix("/") ? url : url + "/"
     }
 
     /// 当前用户 ID
@@ -401,10 +406,25 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
     ) async throws -> [FileProviderItem] {
         logger.info("枚举子项: \(identifier.rawValue, privacy: .public)")
 
-        let parentId: String? = identifier == .rootContainer ? nil : identifier.rawValue
-        let nodes: [FileNode] = try await fetchFileList(parentId: parentId)
-        let parentIdentifier = identifier
+        let nodes: [FileNode]
 
+        // 根容器：先获取根节点 ID，再获取子节点
+        if identifier == .rootContainer {
+            // 优先使用缓存的根节点 ID
+            if let cachedRootId = cachedRootNodeId {
+                nodes = try await fetchChildren(nodeId: cachedRootId)
+            } else {
+                // 获取根节点
+                let rootNode: FolderNode = try await fetchRootNode()
+                cachedRootNodeId = rootNode.nodeId
+                nodes = try await fetchChildren(nodeId: rootNode.nodeId)
+            }
+        } else {
+            // 非根容器：直接获取子节点
+            nodes = try await fetchChildren(nodeId: identifier.rawValue)
+        }
+
+        let parentIdentifier = identifier
         let providerItems = nodes.map { node in
             FileProviderItem(from: node, parentIdentifier: parentIdentifier)
         }
@@ -444,20 +464,24 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
     // MARK: - API 通信
 
     /// 构建标准 API 请求
+    ///
+    /// 路径参数是相对于 apiBaseURL 的路径，例如 "business/nodes/root"
     private func makeRequest(
         path: String,
         method: String = "GET",
         body: Data? = nil,
         contentType: String = "application/json"
     ) -> URLRequest {
-        guard let url = URL(string: "\(apiBaseURL)\(path)") else {
-            fatalError("无效的 API URL: \(apiBaseURL)\(path)")
+        let fullPath = apiBaseURL + path
+        guard let url = URL(string: fullPath) else {
+            logger.error("无效的 API URL: \(fullPath, privacy: .public)")
+            return URLRequest(url: URL(string: "http://localhost/invalid")!)
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token = authToken {
+        if let token = authToken, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.setValue("macOS-FileProvider/1.0", forHTTPHeaderField: "X-Client-Type")
@@ -467,6 +491,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
     }
 
     /// 通用 API 调用（泛型）
+    ///
+    /// 统一使用 .convertFromSnakeCase 解码，模型中不需要手动 CodingKeys
     private func apiCall<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await urlSession.data(for: request)
 
@@ -506,8 +532,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
             throw NSFileProviderError(.serverUnreachable)
         }
 
-        guard let result = apiResponse.data, apiResponse.code == 0 || apiResponse.code == 200 else {
-            logger.error("API 业务错误: code=\(apiResponse.code), message=\(apiResponse.message, privacy: .public)")
+        guard let result = apiResponse.data, apiResponse.code == 200 else {
+            logger.error("API 业务错误: code=\(apiResponse.code), message=\(apiResponse.message ?? "nil", privacy: .public)")
             throw NSFileProviderError(.serverUnreachable)
         }
 
@@ -516,24 +542,37 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
 
     // MARK: - 服务器操作
 
-    /// 获取文件列表
-    private func fetchFileList(parentId: String?) async throws -> [FileNode] {
-        let body: [String: Any] = [
-            "parent_id": parentId as Any,
-            "page": 1,
-            "page_size": 1000,
-            "sort_by": "name",
-            "sort_order": "asc"
-        ]
-        let bodyData = try JSONSerialization.data(withJSONObject: body)
-        let request = makeRequest(path: "/api/files/list", method: "POST", body: bodyData)
+    /// 获取根节点
+    private func fetchRootNode() async throws -> FolderNode {
+        let request = makeRequest(path: "business/nodes/root")
         return try await apiCall(request)
+    }
+
+    /// 获取节点的子节点列表
+    private func fetchChildren(nodeId: String) async throws -> [FileNode] {
+        let request = makeRequest(path: "business/nodes/\(nodeId)/children")
+        return try await apiCall(request)
+    }
+
+    /// 获取文件列表（兼容旧调用，内部使用 fetchChildren）
+    private func fetchFileList(parentId: String?) async throws -> [FileNode] {
+        if let parentId = parentId {
+            return try await fetchChildren(nodeId: parentId)
+        } else {
+            // 根目录：先获取根节点，再获取子节点
+            let rootNode: FolderNode = try await fetchRootNode()
+            cachedRootNodeId = rootNode.nodeId
+            return try await fetchChildren(nodeId: rootNode.nodeId)
+        }
     }
 
     /// 获取单个文件元数据
     private func fetchItemFromServer(itemIdentifier: NSFileProviderItemIdentifier) async throws -> FileProviderItem {
-        let request = makeRequest(path: "/api/files/\(itemIdentifier.rawValue)")
-        let node: FileNode = try await apiCall(request)
+        // 使用节点路径接口获取节点信息
+        let request = makeRequest(path: "business/nodes/\(itemIdentifier.rawValue)/path")
+        let pathInfo: PathInfo = try await apiCall(request)
+        let node = pathInfo.node
+
         let parentId = node.parentId ?? NSFileProviderItemIdentifier.rootContainer.rawValue
         let item = FileProviderItem(from: node, parentIdentifier: NSFileProviderItemIdentifier(rawValue: parentId))
 
@@ -557,9 +596,10 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
             item = try await fetchItemFromServer(itemIdentifier: itemIdentifier)
         }
 
-        // 获取下载 URL（使用 Opaque Token 方式）
-        let dlRequest = makeRequest(path: "/api/files/\(itemIdentifier.rawValue)/download")
-        let downloadInfo: DownloadInfo = try await apiCall(dlRequest)
+        // 创建下载授权令牌
+        let grantBody = try JSONSerialization.data(withJSONObject: ["file_id": itemIdentifier.rawValue])
+        let grantRequest = makeRequest(path: "files/download-grants", method: "POST", body: grantBody)
+        let downloadInfo: DownloadInfo = try await apiCall(grantRequest)
 
         guard let downloadURL = URL(string: downloadInfo.downloadUrl) else {
             logger.error("下载 URL 无效: \(downloadInfo.downloadUrl, privacy: .private)")
@@ -567,7 +607,14 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
         }
 
         // 使用 download task 下载（支持断点续传）
-        let (tempURL, response) = try await urlSession.download(from: downloadURL)
+        var downloadRequest = URLRequest(url: downloadURL)
+        downloadRequest.httpMethod = "GET"
+        if let token = authToken, !token.isEmpty {
+            downloadRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        downloadRequest.setValue(downloadInfo.downloadGrant, forHTTPHeaderField: "X-Download-Grant")
+
+        let (tempURL, response) = try await urlSession.download(for: downloadRequest)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
@@ -610,21 +657,43 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
         parentIdentifier: NSFileProviderItemIdentifier
     ) async throws -> FileProviderItem {
         let parentId: String? = parentIdentifier == .rootContainer ? nil : parentIdentifier.rawValue
+
         let body: [String: Any] = [
-            "name": name,
-            "parent_id": parentId as Any,
-            "is_folder": true
+            "node_id": parentId as Any,
+            "folder_name": name
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: body)
-        let request = makeRequest(path: "/api/files/create", method: "POST", body: bodyData)
-        let node: FileNode = try await apiCall(request)
 
-        let item = FileProviderItem(from: node, parentIdentifier: parentIdentifier)
-        cacheLock.lock()
-        itemCache[item.itemIdentifier] = item
-        cacheLock.unlock()
+        // 创建文件夹接口返回空响应，不需要解析
+        let request = makeRequest(path: "business/nodes/", method: "POST", body: bodyData)
+        let _: EmptyResponse = try await apiCall(request)
 
-        logger.info("文件夹创建成功: \(name, privacy: .public)")
+        // 创建后重新枚举父目录找到新文件夹
+        let children: [FileNode] = try await fetchChildren(nodeId: parentIdentifier == .rootContainer ? (cachedRootNodeId ?? "") : parentIdentifier.rawValue)
+
+        // 查找刚创建的文件夹
+        if let newNode = children.first(where: { $0.nodeName == name }) {
+            let item = FileProviderItem(from: newNode, parentIdentifier: parentIdentifier)
+            cacheLock.lock()
+            itemCache[item.itemIdentifier] = item
+            cacheLock.unlock()
+            logger.info("文件夹创建成功: \(name, privacy: .public)")
+            return item
+        }
+
+        // 如果没找到（可能服务器延迟），创建一个临时 item
+        let tempNode = FileNode(
+            nodeId: UUID().uuidString,
+            nodeType: "FOLDER",
+            nodeName: name,
+            nodeSize: nil,
+            parentId: parentId,
+            createTime: nil,
+            updateTime: nil,
+            children: nil
+        )
+        let item = FileProviderItem(from: tempNode, parentIdentifier: parentIdentifier)
+        logger.info("文件夹创建成功（临时）: \(name, privacy: .public)")
         return item
     }
 
@@ -672,7 +741,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
         let fileData = try Data(contentsOf: localURL)
         let boundary = UUID().uuidString
 
-        var request = makeRequest(path: "/api/files/upload", method: "POST")
+        var request = makeRequest(path: "files/upload", method: "POST")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 120
 
@@ -727,7 +796,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
             "chunk_size": chunkSize
         ]
         let initBodyData = try JSONSerialization.data(withJSONObject: initBody)
-        let initRequest = makeRequest(path: "/api/files/upload/init", method: "POST", body: initBodyData)
+        let initRequest = makeRequest(path: "files/upload/init", method: "POST", body: initBodyData)
         let uploadInit: UploadInitResponse = try await apiCall(initRequest)
 
         logger.info("分块上传初始化: uploadId=\(uploadInit.uploadId, privacy: .public), 总块数=\(uploadInit.totalChunks)")
@@ -748,7 +817,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
             let chunk = fileData.subdata(in: start..<end)
 
             var chunkRequest = makeRequest(
-                path: "/api/files/upload/\(uploadInit.uploadId)/chunk/\(chunkIndex)",
+                path: "files/upload/\(uploadInit.uploadId)/chunk/\(chunkIndex)",
                 method: "POST",
                 body: chunk,
                 contentType: "application/octet-stream"
@@ -786,7 +855,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
 
         // 3. 完成上传
         let completeRequest = makeRequest(
-            path: "/api/files/upload/\(uploadInit.uploadId)/complete",
+            path: "files/upload/\(uploadInit.uploadId)/complete",
             method: "POST"
         )
         let node: FileNode = try await apiCall(completeRequest)
@@ -803,7 +872,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
     /// 取消上传会话
     private func cancelUpload(uploadId: String) async throws {
         let request = makeRequest(
-            path: "/api/files/upload/\(uploadId)/cancel",
+            path: "files/upload/\(uploadId)/cancel",
             method: "POST"
         )
         let _: EmptyResponse = try await apiCall(request)
@@ -815,14 +884,19 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
         itemIdentifier: NSFileProviderItemIdentifier,
         newName: String
     ) async throws -> FileProviderItem {
-        let body = ["name": newName]
+        let body = ["new_node_name": newName]
         let bodyData = try JSONSerialization.data(withJSONObject: body)
         let request = makeRequest(
-            path: "/api/files/\(itemIdentifier.rawValue)/rename",
-            method: "PUT",
+            path: "business/nodes/\(itemIdentifier.rawValue)/name",
+            method: "PATCH",
             body: bodyData
         )
-        let node: FileNode = try await apiCall(request)
+        let _: EmptyResponse = try await apiCall(request)
+
+        // 重新获取节点信息
+        let pathRequest = makeRequest(path: "business/nodes/\(itemIdentifier.rawValue)/path")
+        let pathInfo: PathInfo = try await apiCall(pathRequest)
+        let node = pathInfo.node
         let parentId = node.parentId ?? NSFileProviderItemIdentifier.rootContainer.rawValue
         let item = FileProviderItem(from: node, parentIdentifier: NSFileProviderItemIdentifier(rawValue: parentId))
 
@@ -841,11 +915,14 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
     ) async throws -> FileProviderItem {
         let targetParentId: String? = newParentIdentifier == .rootContainer ? nil : newParentIdentifier.rawValue
         let body: [String: Any] = [
-            "target_parent_id": targetParentId as Any,
-            "node_ids": [itemIdentifier.rawValue]
+            "target_position": targetParentId as Any
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: body)
-        let request = makeRequest(path: "/api/files/move", method: "POST", body: bodyData)
+        let request = makeRequest(
+            path: "business/nodes/\(itemIdentifier.rawValue)/position",
+            method: "PATCH",
+            body: bodyData
+        )
         let _: EmptyResponse = try await apiCall(request)
 
         // 重新获取移动后的状态
@@ -860,11 +937,12 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
         let cachedItem = getCachedItem(itemIdentifier)
         let parentIdentifier = cachedItem?.parentItemIdentifier ?? .rootContainer
 
-        // 删除旧版本
-        let deleteBody = ["node_ids": [itemIdentifier.rawValue]]
-        let deleteBodyData = try JSONSerialization.data(withJSONObject: deleteBody)
-        let deleteRequest = makeRequest(path: "/api/files/delete", method: "POST", body: deleteBodyData)
-        let _: EmptyResponse = try await apiCall(deleteRequest)
+        // 删除旧版本（移到回收站）
+        let request = makeRequest(
+            path: "business/nodes/\(itemIdentifier.rawValue)",
+            method: "DELETE"
+        )
+        let _: EmptyResponse = try await apiCall(request)
 
         // 上传新版本
         return try await uploadFile(
@@ -874,26 +952,10 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension, 
         )
     }
 
-    /// 切换收藏状态
-    private func toggleFavorite(
-        itemIdentifier: NSFileProviderItemIdentifier,
-        isFavorite: Bool
-    ) async throws -> FileProviderItem {
-        let body = ["is_favorite": isFavorite]
-        let bodyData = try JSONSerialization.data(withJSONObject: body)
-        let request = makeRequest(
-            path: "/api/files/\(itemIdentifier.rawValue)/favorite",
-            method: "PUT",
-            body: bodyData
-        )
-        let _: EmptyResponse = try await apiCall(request)
-        return try await fetchItemFromServer(itemIdentifier: itemIdentifier)
-    }
-
     /// 删除服务端文件
     private func deleteItemOnServer(itemIdentifier: NSFileProviderItemIdentifier) async throws {
         let request = makeRequest(
-            path: "/api/files/\(itemIdentifier.rawValue)",
+            path: "business/nodes/\(itemIdentifier.rawValue)",
             method: "DELETE"
         )
         let _: EmptyResponse = try await apiCall(request)
@@ -963,34 +1025,34 @@ private enum AppGroup {
 
 // MARK: - API 响应模型
 
+/// 统一 API 响应（与后端 ApiResponse 对齐）
+///
+/// 使用 .convertFromSnakeCase 自动解码，无需手动 CodingKeys
 struct ApiResponse<T: Decodable>: Decodable {
     let code: Int
-    let message: String
+    let message: String?
     let data: T?
 }
 
 struct EmptyResponse: Decodable {}
 
+/// 下载授权信息（与后端对齐，使用 .convertFromSnakeCase）
 struct DownloadInfo: Decodable {
     let downloadUrl: String
+    let downloadGrant: String
     let nodeId: String?
-
-    enum CodingKeys: String, CodingKey {
-        case downloadUrl = "download_url"
-        case nodeId = "node_id"
-    }
 }
 
+/// 上传初始化响应（与后端对齐，使用 .convertFromSnakeCase）
 struct UploadInitResponse: Decodable {
     let uploadId: String
     let chunkSize: Int
     let totalChunks: Int
     let uploadedChunks: [Int]?
+}
 
-    enum CodingKeys: String, CodingKey {
-        case uploadId = "upload_id"
-        case chunkSize = "chunk_size"
-        case totalChunks = "total_chunks"
-        case uploadedChunks = "uploaded_chunks"
-    }
+/// 节点路径信息（与后端 PathChildrenVO 对齐）
+struct PathInfo: Decodable {
+    let node: FileNode
+    let children: [FileNode]?
 }

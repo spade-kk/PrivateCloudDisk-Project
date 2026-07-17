@@ -506,6 +506,27 @@ class RabbitMQService:
                 "dlq": settings.file_enhance_index_dlq,
                 "dlq_rk": settings.file_enhance_index_dlq_routing_key,
             },
+            # Office 文件转 PDF 增强阶段
+            {
+                "queue": settings.file_enhance_office_to_pdf_queue,
+                "rk": settings.file_enhance_office_to_pdf_routing_key,
+                "dlq": settings.file_enhance_office_to_pdf_dlq,
+                "dlq_rk": settings.file_enhance_office_to_pdf_dlq_routing_key,
+            },
+            # 压缩包目录结构解析增强阶段
+            {
+                "queue": settings.file_enhance_archive_parse_queue,
+                "rk": settings.file_enhance_archive_parse_routing_key,
+                "dlq": settings.file_enhance_archive_parse_dlq,
+                "dlq_rk": settings.file_enhance_archive_parse_dlq_routing_key,
+            },
+            # Markdown 文件转 HTML 增强阶段
+            {
+                "queue": settings.file_enhance_markdown_to_html_queue,
+                "rk": settings.file_enhance_markdown_to_html_routing_key,
+                "dlq": settings.file_enhance_markdown_to_html_dlq,
+                "dlq_rk": settings.file_enhance_markdown_to_html_dlq_routing_key,
+            },
         ]
 
         # 主交换机

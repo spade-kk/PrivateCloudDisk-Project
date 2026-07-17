@@ -47,6 +47,15 @@ final class ContentViewModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var toastType: ToastType = .info
 
+    // MARK: - 设备自动注册状态
+
+    /// 设备注册状态
+    @Published var deviceRegistrationStatus: DeviceIdentityManager.RegistrationStatus = .unregistered
+    /// 是否正在注册
+    @Published var isDeviceRegistering = false
+    /// 注册进度消息
+    @Published var deviceRegistrationProgress: String = ""
+
     private var cancellables = Set<AnyCancellable>()
 
     init() {
@@ -57,6 +66,18 @@ final class ContentViewModel: ObservableObject {
         AuthService.shared.$isAuthenticated
             .receive(on: DispatchQueue.main)
             .assign(to: &$isAuthenticated)
+
+        // 观察设备自动注册状态
+        let regManager = DeviceIdentityManager.shared
+        regManager.$autoRegStatus
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$deviceRegistrationStatus)
+        regManager.$isAutoRegistering
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isDeviceRegistering)
+        regManager.$autoRegProgressMessage
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$deviceRegistrationProgress)
     }
 
     // MARK: - Toast 通知

@@ -1,0 +1,187 @@
+/* ============================================================
+   私有云盘 - 企业级设计系统
+   参考：霸王茶几、古茗等餐饮行业优秀小程序设计
+   版本：v2.0
+   ============================================================ */
+
+/* ==================== 品牌色彩系统 ==================== */
+// 主色 - 深邃蓝紫
+$color-primary:        #1a73e8;
+$color-primary-light:  #7B93FA;
+$color-primary-lighter:#E8ECFF;
+$color-primary-dark:   #3B54D4;
+$color-primary-gradient: linear-gradient(135deg, #1a73e8 0%, #6C5CE7 100%);
+
+// 功能色
+$color-success:        #34C759;
+$color-success-light:  #E8F8ED;
+$color-warning:        #FFB347;
+$color-warning-light:  #FFF3E0;
+$color-danger:         #FF4757;
+$color-danger-light:   #FFE8EA;
+$color-info:           #909399;
+
+// 中性色
+$color-text-primary:   #1A1A2E;
+$color-text-regular:   #3D3D56;
+$color-text-secondary: #8E8EA0;
+$color-text-placeholder:#C0C0D0;
+$color-text-disabled:  #D0D0DD;
+$color-text-inverse:   #FFFFFF;
+
+// 背景色
+$color-bg-page:        #F5F6FA;
+$color-bg-card:        #FFFFFF;
+$color-bg-hover:       #F8F9FF;
+$color-bg-divider:     #F0F0F5;
+
+// 边框色
+$color-border:         #E8E8F0;
+$color-border-light:   #F2F2F8;
+
+/* ==================== 排版系统 ==================== */
+$font-family-base: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+  'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+
+$font-family-number: 'SF Pro Display', 'DIN', -apple-system, sans-serif;
+
+// 字号层级
+$font-size-caption:  22rpx;
+$font-size-body-sm:  24rpx;
+$font-size-body:     28rpx;
+$font-size-body-lg:  30rpx;
+$font-size-subtitle: 32rpx;
+$font-size-title:    36rpx;
+$font-size-headline: 40rpx;
+$font-size-display:  48rpx;
+
+// 字重
+$font-weight-regular: 400;
+$font-weight-medium:  500;
+$font-weight-semibold:600;
+$font-weight-bold:    700;
+
+// 行高
+$line-height-tight:   1.2;
+$line-height-normal:  1.5;
+$line-height-loose:   1.8;
+
+/* ==================== 间距系统 ==================== */
+$spacing-xs:  8rpx;
+$spacing-sm:  12rpx;
+$spacing-md:  16rpx;
+$spacing-lg:  24rpx;
+$spacing-xl:  32rpx;
+$spacing-xxl: 48rpx;
+
+/* ==================== 圆角系统 ==================== */
+$radius-sm:   8rpx;
+$radius-md:   12rpx;
+$radius-lg:   16rpx;
+$radius-xl:   24rpx;
+$radius-full: 9999rpx;
+
+/* ==================== 卡片系统 ==================== */
+$card-radius:  $radius-lg;
+$card-padding: $spacing-lg;
+$card-shadow:  0 2rpx 16rpx rgba(0, 0, 0, 0.04);
+
+/* ==================== 阴影层级 ==================== */
+$shadow-sm: 0 1rpx 4rpx rgba(0, 0, 0, 0.04);
+$shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.08);
+$shadow-xl: 0 16rpx 48rpx rgba(0, 0, 0, 0.12);
+
+/* ==================== 动画过渡 ==================== */
+$transition-fast:   0.15s ease;
+$transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+$transition-slow:   0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+/* ==================== 组件级变量 ==================== */
+// 按钮
+$btn-height-sm:     56rpx;
+$btn-height-md:     80rpx;
+$btn-height-lg:     96rpx;
+$btn-radius:        $radius-lg;
+$btn-font-size:     $font-size-body-lg;
+
+// 输入框
+$input-height:      88rpx;
+$input-radius:      $radius-md;
+$input-bg:          #F8F9FC;
+$input-font-size:   $font-size-body;
+
+// 导航栏
+$navbar-height:     88rpx;
+$navbar-bg:         $color-primary;
+
+// TabBar
+$tabbar-height:     100rpx;
+$tabbar-bg:         rgba(255, 255, 255, 0.92);
+$tabbar-icon-size:  44rpx;
+$tabbar-font-size:  20rpx;
+
+/* ==================== 渐变预设 ==================== */
+$gradient-primary:  linear-gradient(135deg, #1a73e8 0%, #6C5CE7 100%);
+$gradient-warm:     linear-gradient(135deg, #FFB347 0%, #FF6B6B 100%);
+$gradient-cool:     linear-gradient(135deg, #1a73e8 0%, #2ED573 100%);
+$gradient-card:     linear-gradient(180deg, #FFFFFF 0%, #F8F9FF 100%);
+
+/* ==================== Mixins ==================== */
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin text-ellipsis-multi($lines: 2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+}
+
+@mixin card-base {
+  background: $color-bg-card;
+  border-radius: $card-radius;
+  padding: $card-padding;
+  box-shadow: $card-shadow;
+}
+
+@mixin glass-effect {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20rpx);
+  -webkit-backdrop-filter: blur(20rpx);
+}
+
+@mixin hairline-bottom($color: $color-bg-divider) {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1rpx;
+    background: $color;
+    transform: scaleY(0.5);
+  }
+}
+
+@mixin safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}

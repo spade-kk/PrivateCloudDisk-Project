@@ -1,0 +1,42 @@
+# ============================================
+# PrivateCloudDisk 客户端注册微服务配置
+# ============================================
+
+server:
+  port: 8089
+  read_timeout: 30s
+  write_timeout: 30s
+  mode: debug  # debug | release | test
+
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: 20070315mwz
+  database: private_cloud_disk
+  max_open_conns: 20
+  max_idle_conns: 10
+  conn_max_lifetime: 5m
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+  pool_size: 20
+
+security:
+  # 挑战值有效期（客户端需在此时间内完成注册）
+  challenge_ttl: 5m
+  # 证明时间戳有效窗口
+  attestation_timestamp_window: 5m
+  # 公钥 Redis 缓存有效期
+  public_key_cache_ttl: 24h
+  # 允许的应用 Bundle ID 白名单
+  allowed_app_ids:
+    - "com.spadek.PrivateCloudDisk-macos"
+
+apple:
+  # 苹果根证书文件路径（可选，为空则使用内置证书）
+  root_ca_path: ""
+  # 是否启用证明在线验证
+  enable_attestation_verification: true

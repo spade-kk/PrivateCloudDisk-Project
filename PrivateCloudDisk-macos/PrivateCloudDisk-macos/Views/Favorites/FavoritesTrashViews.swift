@@ -3,12 +3,6 @@ import SwiftUI
 // MARK: - 收藏 + 回收站视图（企业级设计）
 
 /// 收藏文件列表页
-///
-/// 参考百度网盘 macOS 客户端设计：
-/// - 毛玻璃工具栏
-/// - 现代文件行设计
-/// - 优雅的空状态
-/// - 品牌色点缀
 struct FavoritesView: View {
     @EnvironmentObject var viewModel: FavoritesTrashViewModel
 
@@ -30,6 +24,7 @@ struct FavoritesView: View {
                     }
                     Text("收藏")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
                 }
 
                 Spacer()
@@ -53,10 +48,10 @@ struct FavoritesView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.regularMaterial)
+            .background(AppColors.surface)
 
             Divider()
-                .opacity(0.4)
+                .foregroundColor(AppColors.divider)
 
             if viewModel.isLoading {
                 LoadingStateView(message: "加载收藏中...")
@@ -70,6 +65,7 @@ struct FavoritesView: View {
                 favoritesList
             }
         }
+        .background(AppColors.background)
         .onAppear {
             Task { await viewModel.loadFavorites() }
         }
@@ -82,12 +78,12 @@ struct FavoritesView: View {
                     // 图标
                     ZStack {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(node.isFolder ? brandBlue.opacity(0.1) : Color.secondary.opacity(0.1))
+                            .fill((node.isFolder ? brandBlue : node.category.color).opacity(0.1))
                             .frame(width: 34, height: 34)
 
                         Image(systemName: node.isFolder ? "folder.fill" : node.category.sfSymbolName)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(node.isFolder ? brandBlue : .secondary)
+                            .foregroundColor(node.isFolder ? brandBlue : node.category.color)
                     }
 
                     // 信息
@@ -95,6 +91,7 @@ struct FavoritesView: View {
                         HStack(spacing: 6) {
                             Text(node.name)
                                 .font(.system(size: 13, design: .rounded))
+                                .foregroundColor(AppColors.textPrimary)
                                 .lineLimit(1)
 
                             Image(systemName: "star.fill")
@@ -104,7 +101,7 @@ struct FavoritesView: View {
 
                         Text(node.formattedDate)
                             .font(.system(size: 11, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(AppColors.textSecondary)
                     }
 
                     Spacer()
@@ -114,7 +111,7 @@ struct FavoritesView: View {
                     }) {
                         Image(systemName: "star.slash")
                             .font(.system(size: 13))
-                            .foregroundColor(.secondary.opacity(0.5))
+                            .foregroundColor(AppColors.textTertiary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -130,12 +127,12 @@ struct FavoritesView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .background(AppColors.surface)
     }
 }
 
 // MARK: - 回收站视图
 
-/// 回收站页面 —— 企业级设计
 struct TrashView: View {
     @EnvironmentObject var viewModel: FavoritesTrashViewModel
     @State private var showEmptyTrashAlert = false
@@ -159,6 +156,7 @@ struct TrashView: View {
                     }
                     Text("回收站")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
                 }
 
                 Spacer()
@@ -211,10 +209,10 @@ struct TrashView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(.regularMaterial)
+            .background(AppColors.surface)
 
             Divider()
-                .opacity(0.4)
+                .foregroundColor(AppColors.divider)
 
             if viewModel.isLoading {
                 LoadingStateView(message: "加载回收站中...")
@@ -228,6 +226,7 @@ struct TrashView: View {
                 trashList
             }
         }
+        .background(AppColors.background)
         .onAppear {
             Task { await viewModel.loadTrash() }
         }
@@ -258,18 +257,19 @@ struct TrashView: View {
                     // 图标
                     ZStack {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(node.isFolder ? brandBlue.opacity(0.1) : Color.secondary.opacity(0.1))
+                            .fill((node.isFolder ? brandBlue : node.category.color).opacity(0.1))
                             .frame(width: 34, height: 34)
 
                         Image(systemName: node.isFolder ? "folder.fill" : node.category.sfSymbolName)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(node.isFolder ? brandBlue : .secondary)
+                            .foregroundColor(node.isFolder ? brandBlue : node.category.color)
                     }
 
                     // 信息
                     VStack(alignment: .leading, spacing: 3) {
                         Text(node.name)
                             .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
                             .lineLimit(1)
 
                         HStack(spacing: 8) {
@@ -280,7 +280,7 @@ struct TrashView: View {
                             Text("删除于 \(node.formattedDate)")
                                 .font(.system(size: 11, design: .rounded))
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundColor(AppColors.textSecondary)
                     }
 
                     Spacer()
@@ -319,6 +319,7 @@ struct TrashView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .background(AppColors.surface)
     }
 }
 

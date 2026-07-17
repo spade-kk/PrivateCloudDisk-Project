@@ -3,7 +3,7 @@
  *
  * 后端: UserController -> /business/users
  */
-import { get, post, patch, del, uploadFile } from '@/utils/request'
+import { get, post, patch, del, upload } from '@/utils/request'
 
 const BASE = '/business/users'
 
@@ -39,14 +39,25 @@ export function deleteAccount() {
 
 /** 上传头像 */
 export function uploadAvatar(filePath) {
-  return uploadFile({
-    url: `${BASE}/me/avatar`,
-    filePath,
-    name: 'avator_file'
-  })
+  return upload(`${BASE}/me/avatar`, filePath, 'avator_file')
 }
 
 /** 查询在线设备列表 */
 export function getOnlineDevices() {
   return get(`${BASE}/me/online-devices`)
+}
+
+/** 发送验证码 */
+export function sendVerificationCode(data) {
+  return post('/business/verification-code/send', data)
+}
+
+/** 确认换绑邮箱 */
+export function confirmChangeEmail(newEmail, code) {
+  return post(`${BASE}/me/email`, { new_email: newEmail, code })
+}
+
+/** 确认换绑手机号 */
+export function confirmChangePhone(newPhone, code) {
+  return post(`${BASE}/me/phone`, { new_phone_number: newPhone, code })
 }

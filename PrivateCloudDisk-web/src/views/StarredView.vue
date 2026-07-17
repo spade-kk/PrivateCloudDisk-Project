@@ -37,6 +37,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useStarredStore } from '@/stores/starred'
 import { useToastStore } from '@/stores/toastStore'
 import { useRouter } from 'vue-router'
+import { isVideo } from '@/utils/previewHelper'
 
 const starredStore = useStarredStore()
 const toastStore = useToastStore()
@@ -68,9 +69,22 @@ const loadStarred = async () => {
 const onNodeClick = (node: any) => {
   if (node.node_type === 'FOLDER') {
     router.push(`/?folder=${node.node_id}`)
-  } else {
-    router.push(`/preview/${node.node_id}`)
+    return
   }
+
+  const fileName = node.node_name || node.name || ''
+
+  // 视频文件：跳转至专属流媒体播放页面，携带 fileId 参数
+  if (isVideo(fileName)) {
+    router.push({
+      name: 'VideoPlayer',
+      params: { fileId: node.node_id },
+      query: { name: encodeURIComponent(fileName) }
+    })
+    return
+  }
+
+  router.push(`/preview/${node.node_id}`)
 }
 
 /** 点击星标按钮 → 取消收藏 */

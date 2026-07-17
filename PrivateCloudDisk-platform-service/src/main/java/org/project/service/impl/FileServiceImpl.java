@@ -170,7 +170,7 @@ public class FileServiceImpl implements FileService {
         }
 
         if(!fileData.getStatus().equals(deleted)) {
-            throw new FileStatusException("complete delete file status is not deleted");
+            throw new FileStatusException("完全删除文件记录 文件状态异常 非deleted");
         }
 
         Integer rows = fileMapper.deleteUserFileById(file_id, user_id);

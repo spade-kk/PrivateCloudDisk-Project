@@ -2,15 +2,6 @@ import SwiftUI
 
 // MARK: - 文件列表主页（企业级 v4 — 与 Web 前端 FileListView/FileGridView 统一）
 
-/// 文件列表主页
-///
-/// 与 Web 前端完全统一：
-/// - 工具栏（文件计数、搜索、视图切换、操作按钮）
-/// - 面包屑导航已移至 console-header（MainView）
-/// - 列表/网格视图切换
-/// - 多选操作工具栏
-/// - 卡片式白色背景（bg-white + shadow-card）
-/// - 参考百度网盘 macOS 客户端设计
 struct HomeView: View {
     @EnvironmentObject var fileListVM: FileListViewModel
     @EnvironmentObject var uploadVM: UploadViewModel
@@ -23,6 +14,17 @@ struct HomeView: View {
     @State private var showCreateFolder = false
     @State private var newFolderName = ""
 
+    // 重命名
+    @State private var showRenameSheet = false
+    @State private var renameNodeId = ""
+    @State private var renameNodeName = ""
+    @State private var newRenameName = ""
+
+    // 移动
+    @State private var showMoveSheet = false
+    @State private var moveNodeIds: [String] = []
+    @State private var moveTargetParentId = ""
+
     private let brandBlue = AppColors.primary
 
     enum SortField: String, CaseIterable {
@@ -31,10 +33,8 @@ struct HomeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── 工具栏 ──
             toolbarView
 
-            // ── 文件内容 ──
             if fileListVM.isLoading {
                 SkeletonLoading(count: 8)
                     .padding(16)
@@ -56,6 +56,8 @@ struct HomeView: View {
         }
         .background(AppColors.background)
         .sheet(isPresented: $showCreateFolder) { createFolderSheet }
+        .sheet(isPresented: $showRenameSheet) { renameSheet }
+        .sheet(isPresented: $showMoveSheet) { moveSheet }
         .onChange(of: searchText) { newValue in
             fileListVM.searchQuery = newValue
             if !newValue.isEmpty {
@@ -66,7 +68,12 @@ struct HomeView: View {
         }
         .onChange(of: localSortField) { _ in applySorting() }
         .onChange(of: sortAscending) { _ in applySorting() }
+        .onAppear {
+            Task { await fileListVM.loadFiles(parentId: fileListVM.currentParentId) }
+        }
     }
+
+    // MARK: - 上传
 
     private func showUploadPicker() {
         let panel = NSOpenPanel()
@@ -79,6 +86,20 @@ struct HomeView: View {
             }
         }
     }
+
+    private func showUploadPickerForFolder(parentId: String) {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.begin { response in
+            if response == .OK {
+                uploadVM.uploadFiles(urls: panel.urls)
+            }
+        }
+    }
+
+    // MARK: - 排序
 
     private func applySorting() {
         switch localSortField {
@@ -96,21 +117,15 @@ struct HomeView: View {
     private var toolbarView: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                // 文件计数
                 fileCountBadge
-
                 Spacer()
 
-                // 多选操作
                 if !selectedFileIds.isEmpty {
                     multiSelectToolbar
                         .transition(.scale(scale: 0.95).combined(with: .opacity))
                 }
 
-                // 搜索框
                 searchBar
-
-                // 操作按钮 + 视图切换
                 actionButtons
             }
             .padding(.horizontal, 20)
@@ -122,18 +137,14 @@ struct HomeView: View {
         .animation(AppAnimation.default, value: selectedFileIds.isEmpty)
     }
 
-    // MARK: - 文件计数
-
     private var fileCountBadge: some View {
         HStack(spacing: 8) {
             Image(systemName: "folder.fill")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(brandBlue)
-
             Text("全部文件")
                 .font(.system(size: 13, weight: .semibold, design: .default))
                 .foregroundColor(AppColors.textPrimary)
-
             Text("\(fileListVM.files.count)")
                 .font(.system(size: 11, weight: .semibold, design: .default))
                 .foregroundColor(AppColors.textSecondary)
@@ -142,8 +153,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - 多选工具栏
-
     private var multiSelectToolbar: some View {
         HStack(spacing: 4) {
             Text("已选 \(selectedFileIds.count) 项")
@@ -151,12 +160,21 @@ struct HomeView: View {
                 .foregroundColor(AppColors.textSecondary)
 
             HStack(spacing: 2) {
-                toolbarButton(icon: "arrow.down.to.line", color: brandBlue, action: {})
-                toolbarButton(icon: "square.and.arrow.up", color: AppColors.textSecondary, action: {})
+                toolbarButton(icon: "arrow.down.to.line", color: brandBlue, action: {
+                    Task {
+                        for id in selectedFileIds {
+                            _ = try? await DownloadManager.shared.downloadFile(nodeId: id, filename: "")
+                        }
+                    }
+                })
+                toolbarButton(icon: "arrow.right.to.line", color: AppColors.textSecondary, action: {
+                    moveNodeIds = Array(selectedFileIds)
+                    moveTargetParentId = ""
+                    showMoveSheet = true
+                })
                 toolbarButton(icon: "trash", color: AppColors.danger, isDanger: true) {
                     Task { await fileListVM.deleteNodes(Array(selectedFileIds)) }
                 }
-                toolbarButton(icon: "ellipsis", color: AppColors.textSecondary, action: {})
             }
         }
     }
@@ -171,18 +189,14 @@ struct HomeView: View {
         .foregroundColor(color)
     }
 
-    // MARK: - 搜索栏
-
     private var searchBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(AppColors.textTertiary)
-
             TextField("搜索文件...", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, design: .default))
-
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
@@ -197,21 +211,25 @@ struct HomeView: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(AppColors.background))
     }
 
-    // MARK: - 操作按钮
-
     private var actionButtons: some View {
         HStack(spacing: 2) {
             Button(action: { showCreateFolder = true }) {
-                Image(systemName: "folder.badge.plus").font(.system(size: 13, weight: .medium))
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(brandBlue)
             }
             .buttonStyle(.plain).padding(6)
-            .background(RoundedRectangle(cornerRadius: 6).fill(AppColors.background))
+            .background(RoundedRectangle(cornerRadius: 6).fill(brandBlue.opacity(0.1)))
+            .help("新建文件夹")
 
             Button(action: { showUploadPicker() }) {
-                Image(systemName: "arrow.up.to.line").font(.system(size: 13, weight: .medium))
+                Image(systemName: "arrow.up.to.line")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(brandBlue)
             }
             .buttonStyle(.plain).padding(6)
-            .background(RoundedRectangle(cornerRadius: 6).fill(AppColors.background))
+            .background(RoundedRectangle(cornerRadius: 6).fill(brandBlue.opacity(0.1)))
+            .help("上传文件")
 
             Divider().frame(height: 16).padding(.horizontal, 4)
 
@@ -220,6 +238,7 @@ struct HomeView: View {
             }) {
                 Image(systemName: isGridView ? "list.bullet" : "square.grid.2x2")
                     .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(AppColors.textSecondary)
             }
             .buttonStyle(.plain).padding(6)
             .background(RoundedRectangle(cornerRadius: 6).fill(AppColors.background))
@@ -259,8 +278,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - 文件网格
-
     private var fileGridView: some View {
         ScrollView {
             LazyVGrid(
@@ -287,7 +304,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - 右键菜单
+    // MARK: - 右键菜单（列表）
 
     @ViewBuilder
     private func fileContextMenu(for node: FileNode) -> some View {
@@ -295,15 +312,31 @@ struct HomeView: View {
             Button("打开") {
                 Task { await fileListVM.loadFiles(parentId: node.id) }
             }
+            Divider()
+            Button("上传文件到此处") {
+                showUploadPickerForFolder(parentId: node.id)
+            }
+            Button("在此创建文件夹") {
+                newFolderName = ""
+                showCreateFolder = true
+            }
         } else {
             Button("下载") {
                 Task { _ = try? await DownloadManager.shared.downloadFile(nodeId: node.id, filename: node.name) }
             }
         }
         Divider()
-        Button("重命名") {}
-        Button("移动...") {}
-        Button("复制") {}
+        Button("重命名") {
+            renameNodeId = node.id
+            renameNodeName = node.name
+            newRenameName = node.name
+            showRenameSheet = true
+        }
+        Button("移动...") {
+            moveNodeIds = [node.id]
+            moveTargetParentId = ""
+            showMoveSheet = true
+        }
         Divider()
         if node.isStarred == true {
             Button("取消收藏") { Task { await fileListVM.toggleStar(nodeId: node.id, starred: false) } }
@@ -316,15 +349,44 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - 右键菜单（网格）
+
     @ViewBuilder
     private func fileGridContextMenu(for node: FileNode) -> some View {
         if node.isFolder {
             Button("打开") { Task { await fileListVM.loadFiles(parentId: node.id) } }
+            Divider()
+            Button("上传文件到此处") {
+                showUploadPickerForFolder(parentId: node.id)
+            }
+            Button("在此创建文件夹") {
+                newFolderName = ""
+                showCreateFolder = true
+            }
         } else {
-            Button("下载") {}
+            Button("下载") {
+                Task { _ = try? await DownloadManager.shared.downloadFile(nodeId: node.id, filename: node.name) }
+            }
         }
         Divider()
-        Button("重命名") {}
+        Button("重命名") {
+            renameNodeId = node.id
+            renameNodeName = node.name
+            newRenameName = node.name
+            showRenameSheet = true
+        }
+        Button("移动...") {
+            moveNodeIds = [node.id]
+            moveTargetParentId = ""
+            showMoveSheet = true
+        }
+        Divider()
+        if node.isStarred == true {
+            Button("取消收藏") { Task { await fileListVM.toggleStar(nodeId: node.id, starred: false) } }
+        } else {
+            Button("添加到收藏") { Task { await fileListVM.toggleStar(nodeId: node.id, starred: true) } }
+        }
+        Divider()
         Button("移到回收站", role: .destructive) {
             Task { await fileListVM.deleteNodes([node.id]) }
         }
@@ -335,6 +397,7 @@ struct HomeView: View {
     private var createFolderSheet: some View {
         VStack(spacing: 20) {
             Text("新建文件夹").font(AppTypography.title3)
+                .foregroundColor(AppColors.textPrimary)
             HStack(spacing: 10) {
                 Image(systemName: "folder.fill").foregroundColor(brandBlue)
                 TextField("文件夹名称", text: $newFolderName)
@@ -359,6 +422,99 @@ struct HomeView: View {
             }
         }
         .padding(24).frame(width: 320, height: 180)
+    }
+
+    // MARK: - 重命名 Sheet
+
+    private var renameSheet: some View {
+        VStack(spacing: 20) {
+            Text("重命名").font(AppTypography.title3)
+                .foregroundColor(AppColors.textPrimary)
+
+            Text("当前名称: \(renameNodeName)")
+                .font(.system(size: 12, design: .default))
+                .foregroundColor(AppColors.textSecondary)
+
+            HStack(spacing: 10) {
+                Image(systemName: "pencil").foregroundColor(brandBlue)
+                TextField("新名称", text: $newRenameName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, design: .default))
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(AppColors.background))
+
+            HStack(spacing: 12) {
+                Button("取消") { showRenameSheet = false }
+                    .buttonStyle(.plain).foregroundColor(AppColors.textSecondary)
+                Button("确认") {
+                    if !newRenameName.isEmpty && newRenameName != renameNodeName {
+                        Task { await fileListVM.renameNode(nodeId: renameNodeId, newName: newRenameName) }
+                    }
+                    showRenameSheet = false
+                }
+                .buttonStyle(.borderedProminent).tint(brandBlue)
+                .disabled(newRenameName.isEmpty)
+            }
+        }
+        .padding(24).frame(width: 360, height: 200)
+    }
+
+    // MARK: - 移动 Sheet
+
+    private var moveSheet: some View {
+        VStack(spacing: 20) {
+            Text("移动到...").font(AppTypography.title3)
+                .foregroundColor(AppColors.textPrimary)
+
+            Text("已选择 \(moveNodeIds.count) 个项目")
+                .font(.system(size: 12, design: .default))
+                .foregroundColor(AppColors.textSecondary)
+
+            HStack(spacing: 10) {
+                Image(systemName: "folder.fill").foregroundColor(brandBlue)
+                TextField("目标文件夹 ID（留空则移至根目录）", text: $moveTargetParentId)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, design: .default))
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(AppColors.background))
+
+            HStack(spacing: 8) {
+                Button("选择文件夹...") {
+                    let panel = NSOpenPanel()
+                    panel.canChooseDirectories = true
+                    panel.canChooseFiles = false
+                    panel.allowsMultipleSelection = false
+                    panel.begin { response in
+                        if response == .OK, let url = panel.url {
+                            // 从路径中提取 nodeId（简化处理）
+                            moveTargetParentId = url.lastPathComponent
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, design: .default))
+                .foregroundColor(brandBlue)
+            }
+
+            HStack(spacing: 12) {
+                Button("取消") { showMoveSheet = false }
+                    .buttonStyle(.plain).foregroundColor(AppColors.textSecondary)
+                Button("移动") {
+                    if !moveNodeIds.isEmpty {
+                        Task {
+                            await fileListVM.moveNodes(moveNodeIds, to: moveTargetParentId.isEmpty ? "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5" : moveTargetParentId)
+                        }
+                    }
+                    moveNodeIds = []
+                    moveTargetParentId = ""
+                    showMoveSheet = false
+                }
+                .buttonStyle(.borderedProminent).tint(brandBlue)
+            }
+        }
+        .padding(24).frame(width: 400, height: 260)
     }
 
     // MARK: - Helpers
@@ -390,7 +546,6 @@ struct FileRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // 文件图标
             ZStack {
                 RoundedRectangle(cornerRadius: 6)
                     .fill((node.isFolder ? brandBlue : fileColor).opacity(0.1))
@@ -401,7 +556,6 @@ struct FileRowView: View {
                     .foregroundColor(node.isFolder ? brandBlue : fileColor)
             }
 
-            // 文件名称
             Text(node.name)
                 .font(.system(size: 13, weight: .medium, design: .default))
                 .foregroundColor(AppColors.textPrimary)
@@ -409,25 +563,21 @@ struct FileRowView: View {
 
             Spacer()
 
-            // 类型
             Text(node.isFolder ? "文件夹" : fileExtension)
                 .font(.system(size: 12, design: .default))
                 .foregroundColor(AppColors.textSecondary)
                 .frame(width: 100, alignment: .leading)
 
-            // 大小
             Text(node.isFolder ? "--" : node.formattedSize)
                 .font(.system(size: 12, design: .default))
                 .foregroundColor(AppColors.textSecondary)
                 .frame(width: 90, alignment: .leading)
 
-            // 修改时间
             Text(node.formattedDate)
                 .font(.system(size: 12, design: .default))
                 .foregroundColor(AppColors.textSecondary)
                 .frame(width: 140, alignment: .leading)
 
-            // 操作按钮
             HStack(spacing: 4) {
                 if node.isStarred == true {
                     Image(systemName: "star.fill")
@@ -436,20 +586,15 @@ struct FileRowView: View {
                 }
 
                 if !node.isFolder {
-                    Button(action: {}) {
+                    Button(action: {
+                        Task { _ = try? await DownloadManager.shared.downloadFile(nodeId: node.id, filename: node.name) }
+                    }) {
                         Image(systemName: "arrow.down.circle")
                             .font(.system(size: 14))
                             .foregroundColor(brandBlue)
                     }
                     .buttonStyle(.plain)
                 }
-
-                Button(action: {}) {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(AppColors.textTertiary)
-                }
-                .buttonStyle(.plain)
             }
             .frame(width: 80, alignment: .trailing)
             .opacity(isHovered ? 1 : 0)
@@ -466,15 +611,7 @@ struct FileRowView: View {
     }
 
     private var fileColor: Color {
-        switch node.category {
-        case .document: return brandBlue
-        case .image: return AppColors.fileImage
-        case .video: return AppColors.fileVideo
-        case .audio: return AppColors.fileAudio
-        case .archive: return AppColors.fileArchive
-        case .code: return AppColors.fileCode
-        case .other: return AppColors.textTertiary
-        }
+        node.category.color
     }
 
     private var fileExtension: String {
@@ -495,7 +632,6 @@ struct FileGridCell: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack(alignment: .topLeading) {
-                // 图标
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
                         .fill((node.isFolder ? brandBlue : fileColor).opacity(0.08))
@@ -506,7 +642,6 @@ struct FileGridCell: View {
                         .foregroundColor(node.isFolder ? brandBlue : fileColor)
                 }
 
-                // 选中标记
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 18))
@@ -516,7 +651,6 @@ struct FileGridCell: View {
                 }
             }
 
-            // 文件名
             Text(node.name)
                 .font(.system(size: 12, weight: .medium, design: .default))
                 .lineLimit(2)
@@ -524,7 +658,6 @@ struct FileGridCell: View {
                 .foregroundColor(AppColors.textPrimary)
                 .frame(width: 100)
 
-            // 元信息
             Text(node.isFolder ? "文件夹" : node.formattedSize)
                 .font(.system(size: 10, design: .default))
                 .foregroundColor(AppColors.textTertiary)
@@ -541,14 +674,6 @@ struct FileGridCell: View {
     }
 
     private var fileColor: Color {
-        switch node.category {
-        case .document: return brandBlue
-        case .image: return AppColors.fileImage
-        case .video: return AppColors.fileVideo
-        case .audio: return AppColors.fileAudio
-        case .archive: return AppColors.fileArchive
-        case .code: return AppColors.fileCode
-        case .other: return AppColors.textTertiary
-        }
+        node.category.color
     }
 }

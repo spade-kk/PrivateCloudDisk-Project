@@ -9,7 +9,7 @@
         </view>
         <view class="menu-item">
           <text class="menu-text">自动播放</text>
-          <u-switch v-model="autoPlay" activeColor="#1a73e8" />
+          <u-switch v-model="autoPlay" activeColor="#4F6EF7" />
         </view>
       </view>
     </view>
@@ -57,7 +57,7 @@
 </template>
 
 <script>
-import { changePassword } from '@/api/auth'
+import { useUserStore } from '@/store/user'
 
 export default {
   data() {
@@ -98,18 +98,34 @@ export default {
       this.pwdForm = { oldPassword: '', newPassword: '', confirmPassword: '' }
       this.pwdModalShow = true
     },
+    /**
+     * 确认修改密码 - 企业级安全流程
+     *
+     * 使用 Pinia Store doChangePassword：
+     * - 内部完成密码哈希（新旧密码均在客户端预哈希）
+     * - 密码明文永不离开客户端
+     */
     async confirmChangePassword() {
       if (!this.pwdForm.oldPassword || !this.pwdForm.newPassword) {
         return uni.showToast({ title: '请填写完整', icon: 'none' })
+      }
+      if (this.pwdForm.newPassword.length < 8) {
+        return uni.showToast({ title: '新密码至少8位', icon: 'none' })
       }
       if (this.pwdForm.newPassword !== this.pwdForm.confirmPassword) {
         return uni.showToast({ title: '两次密码不一致', icon: 'none' })
       }
       try {
-        await changePassword(this.pwdForm.oldPassword, this.pwdForm.newPassword)
+        const userStore = useUserStore()
+        await userStore.doChangePassword({
+          old_password: this.pwdForm.oldPassword,
+          new_password: this.pwdForm.newPassword,
+        })
         uni.showToast({ title: '修改成功', icon: 'success' })
         this.pwdModalShow = false
-      } catch (e) { /* 已处理 */ }
+      } catch (e) {
+        console.error('[Settings] 修改密码失败:', e)
+      }
     },
     handleFeedback() {
       uni.showToast({ title: '意见反馈功能开发中', icon: 'none' })

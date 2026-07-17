@@ -21,21 +21,21 @@
 
           <!-- 预览内容 -->
           <div class="p-3 sm:p-4">
+            <!-- 视频文件：不再内嵌预览，直接跳转至专属流媒体播放页面 -->
+            <div v-if="isVideo" class="text-center py-12">
+              <i class="fa fa-film text-6xl text-primary/30 mb-4 block"></i>
+              <p class="text-neutral-600 mb-2">视频文件</p>
+              <p class="text-neutral-400 text-sm mb-6">正在跳转至专属播放器...</p>
+              <button @click="openVideoPlayer" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition">
+                <i class="fa fa-play-circle mr-2"></i>打开播放器
+              </button>
+            </div>
+
             <!-- 图片预览 -->
             <ImagePreview
-              v-if="isImage"
+              v-else-if="isImage"
               :file-url="fileUrl"
               :file-name="node?.node_name || ''"
-              :loading="loading"
-            />
-
-            <!-- 视频预览 -->
-            <VideoPreview
-              v-else-if="isVideo"
-              :file-url="fileUrl"
-              :file-name="node?.node_name || ''"
-              :file-size="node?.file_size || ''"
-              :file-id="node?.node_id || ''"
               :loading="loading"
             />
 
@@ -47,21 +47,25 @@
               :loading="loading"
             />
 
-            <!-- PDF预览 -->
-            <PdfPreview
-              v-else-if="isPdf"
-              :file-url="fileUrl"
-              :file-name="node?.node_name || ''"
-              :loading="loading"
-            />
+            <!-- PDF 预览 — 已跳转至独立预览页面，此处仅作兜底 -->
+            <div v-else-if="isPdf" class="text-center py-12">
+              <i class="fa fa-file-pdf-o text-6xl text-primary/30 mb-4 block"></i>
+              <p class="text-neutral-600 mb-2">PDF 文档</p>
+              <p class="text-neutral-400 text-sm mb-6">正在跳转至专属预览页面...</p>
+              <button @click="openPdfPreview" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition">
+                <i class="fa fa-file-pdf-o mr-2"></i>打开 PDF 预览
+              </button>
+            </div>
 
-            <!-- Office文档预览 -->
-            <OfficePreview
-              v-else-if="isOffice"
-              :file-url="fileUrl"
-              :file-name="node?.node_name || ''"
-              :loading="loading"
-            />
+            <!-- Office文档预览 — 已跳转至独立预览页面，此处仅作兜底 -->
+            <div v-else-if="isOffice" class="text-center py-12">
+              <i :class="officeIcon" class="text-6xl text-primary/30 mb-4 block"></i>
+              <p class="text-neutral-600 mb-2">{{ officeLabel }}</p>
+              <p class="text-neutral-400 text-sm mb-6">正在跳转至专属预览页面...</p>
+              <button @click="openOfficePreview" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition">
+                <i class="fa fa-external-link mr-2"></i>打开 {{ officeLabel }} 预览
+              </button>
+            </div>
 
             <!-- 代码预览 -->
             <CodePreview
@@ -96,16 +100,15 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { getFilePreviewTokenApi, getFileContentApi } from '@/api'
 import { getFileExtension } from '@/utils/helpers'
-import { getVideoStreamInfoApi, requestVideoTokenApi, buildHlsStreamUrl } from '@/api/modules/video'
 import ImagePreview from '@/components/preview/ImagePreview.vue'
-import VideoPreview from '@/components/preview/VideoPreview.vue'
 import AudioPreview from '@/components/preview/AudioPreview.vue'
-import PdfPreview from '@/components/preview/PdfPreview.vue'
-import OfficePreview from '@/components/preview/OfficePreview.vue'
 import CodePreview from '@/components/preview/CodePreview.vue'
 import TextPreview from '@/components/preview/TextPreview.vue'
+
+const router = useRouter()
 
 const props = defineProps({
   visible: Boolean,
@@ -126,8 +129,27 @@ const isPdf = computed(() => ext.value === 'pdf')
 const isVideo = computed(() => ['mp4','webm','ogg','mov','avi','mkv'].includes(ext.value))
 const isAudio = computed(() => ['mp3','wav','ogg','flac','m4a'].includes(ext.value))
 const isOffice = computed(() => ['doc','docx','xls','xlsx','ppt','pptx','pptm'].includes(ext.value))
+const isWord = computed(() => ['doc','docx'].includes(ext.value))
+const isExcel = computed(() => ['xls','xlsx'].includes(ext.value))
+const isPPT = computed(() => ['ppt','pptx','pptm'].includes(ext.value))
 const isCode = computed(() => ['js','ts','html','css','json','xml','py','java','cpp','c','cs','go','rb','php','sql','sh'].includes(ext.value))
 const isText = computed(() => ['txt','md','log'].includes(ext.value))
+
+/** Office 文档类型图标 */
+const officeIcon = computed(() => {
+  if (isWord.value) return 'fa fa-file-word-o'
+  if (isExcel.value) return 'fa fa-file-excel-o'
+  if (isPPT.value) return 'fa fa-file-powerpoint-o'
+  return 'fa fa-file-o'
+})
+
+/** Office 文档类型标签 */
+const officeLabel = computed(() => {
+  if (isWord.value) return 'Word 文档'
+  if (isExcel.value) return 'Excel 表格'
+  if (isPPT.value) return 'PPT 演示文稿'
+  return 'Office 文档'
+})
 
 // 文件类型图标
 const fileTypeIcon = computed(() => {
@@ -141,36 +163,72 @@ const fileTypeIcon = computed(() => {
   return 'fa fa-file'
 })
 
+// 跳转至专属流媒体播放页面，携带 fileId 参数
+const openVideoPlayer = () => {
+  if (!props.node?.node_id) return
+  router.push({
+    name: 'VideoPlayer',
+    params: { fileId: props.node.node_id },
+    query: { name: encodeURIComponent(props.node?.node_name || '') }
+  })
+}
+
+/** 跳转至 PDF 独立预览页面 */
+const openPdfPreview = () => {
+  if (!props.node?.node_id) return
+  router.push({
+    name: 'PDFPreview',
+    params: { fileId: props.node.node_id },
+    query: { name: encodeURIComponent(props.node?.node_name || '') }
+  })
+}
+
+/** 跳转至 Office 独立预览页面（根据文件类型路由到不同页面） */
+const openOfficePreview = () => {
+  if (!props.node?.node_id) return
+  const routeName = isWord.value ? 'WordPreview'
+    : isExcel.value ? 'ExcelPreview'
+    : isPPT.value ? 'PPTPreview'
+    : 'PDFPreview' // 兜底
+  router.push({
+    name: routeName,
+    params: { fileId: props.node.node_id },
+    query: { name: encodeURIComponent(props.node?.node_name || '') }
+  })
+}
+
+/** 自动跳转至 Office 独立预览页面 */
+const autoOpenOfficePreview = () => {
+  if (!props.node?.node_id) return
+  if (isPdf.value) {
+    openPdfPreview()
+  } else if (isOffice.value) {
+    openOfficePreview()
+  }
+}
+
 // 加载预览
 const loadPreview = async () => {
   if (!props.node || props.node.node_type === 'FOLDER') return
 
   loading.value = true
   try {
-    if (isImage.value || isVideo.value || isAudio.value || isPdf.value || isOffice.value) {
-      // 媒体文件和PDF：获取预览URL
+    // 视频文件：已在模板中跳转至专属播放器，无需加载预览
+    if (isVideo.value) {
+      return
+    }
+
+    // PDF 和 Office 文件：自动跳转至独立预览页面
+    if (isPdf.value || isOffice.value) {
+      autoOpenOfficePreview()
+      return
+    }
+
+    if (isImage.value || isAudio.value) {
+      // 媒体文件：获取预览URL
       const res = await getFilePreviewTokenApi(props.node.node_id)
       if (res.code === 200 && res.data?.url) {
         fileUrl.value = res.data.url
-      }
-
-      // 视频文件：检查 HLS 可用性，如果可用则使用 HLS 流
-      if (isVideo.value && props.node.node_id) {
-        try {
-          const streamRes = await getVideoStreamInfoApi(props.node.node_id)
-          if (streamRes.code === 200 && streamRes.data?.has_hls) {
-            const tokenRes = await requestVideoTokenApi(props.node.node_id, {
-              resolution: 'auto'
-            })
-            if (tokenRes.code === 200 && tokenRes.data?.token) {
-              const hlsUrl = buildHlsStreamUrl(props.node.node_id, tokenRes.data.token)
-              fileUrl.value = hlsUrl
-            }
-          }
-        } catch {
-          // HLS 不可用，使用原始 URL
-          console.log('HLS not available, using direct video URL')
-        }
       }
     } else if (isCode.value || isText.value) {
       // 文本和代码：获取文本内容

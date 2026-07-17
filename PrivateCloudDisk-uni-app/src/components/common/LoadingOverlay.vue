@@ -1,6 +1,6 @@
 <template>
   <view class="loading-overlay" v-if="visible">
-    <u-loading-icon size="36" color="#1a73e8" :text="text" textSize="28" />
+    <u-loading-icon size="36" color="#4F6EF7" :text="text" textSize="28" />
   </view>
 </template>
 

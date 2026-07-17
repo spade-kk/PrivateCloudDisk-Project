@@ -1,12 +1,16 @@
 /**
- * utils/validator.js - 表单校验规则
+ * utils/validator.js - 表单校验规则（企业级）
  *
- * 与后端 DTO 校验注解保持一致
+ * 与后端 DTO 校验注解保持一致，支持跨平台一致的表单验证。
+ * 密码策略：8-128 位，允许字母、数字和特殊字符（与后端 PasswordPolicy 对齐）。
  */
 const PHONE_REGEX = /^1[3-9]\d{9}$/
-const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,15}$/
+/** 密码：8-128 位，必须包含字母和数字，允许特殊字符 */
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,128}$/
 const ACCOUNT_REGEX = /^[a-zA-Z0-9_]{4,16}$/
 const NAME_REGEX = /^[a-zA-Z0-9\u4e00-\u9fa5]{2,10}$/
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
 export function validatePhone(phone) {
   if (!phone) return '手机号不能为空'
@@ -16,7 +20,9 @@ export function validatePhone(phone) {
 
 export function validatePassword(password) {
   if (!password) return '密码不能为空'
-  if (!PASSWORD_REGEX.test(password)) return '密码需8-15位，包含字母和数字'
+  if (password.length < 8) return '密码至少8位'
+  if (password.length > 128) return '密码不能超过128位'
+  if (!PASSWORD_REGEX.test(password)) return '密码需包含字母和数字'
   return ''
 }
 
@@ -34,12 +40,10 @@ export function validateName(name) {
 
 export function validateEmail(email) {
   if (!email) return ''
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!regex.test(email)) return '邮箱格式不正确'
+  if (!EMAIL_REGEX.test(email)) return '邮箱格式不正确'
   return ''
 }
 
 export function validateUUID(id) {
-  const regex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-  return regex.test(id)
+  return UUID_REGEX.test(id)
 }

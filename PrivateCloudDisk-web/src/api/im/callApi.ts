@@ -18,7 +18,7 @@ export function getCallHistoryApi(
   page: number = 1,
   size: number = 20,
 ): Promise<Result<CallRecordDTO[]>> {
-  return get(`${CALL_BASE}/api/v1/calls/history`, {
+  return get(`${CALL_BASE}/calls/history`, {
     userId,
     page,
     size,
@@ -27,10 +27,10 @@ export function getCallHistoryApi(
 
 /** 查询通话记录详情 */
 export function getCallDetailApi(callId: string): Promise<Result<CallRecordDTO>> {
-  return get(`${CALL_BASE}/api/v1/calls/${callId}`, {}, { silent: true })
+  return get(`${CALL_BASE}/calls/${callId}`, {}, { silent: true })
 }
 
 /** 批量删除通话记录 */
 export function deleteCallRecordsApi(ids: number[]): Promise<Result<void>> {
-  return del(`${CALL_BASE}/api/v1/calls/batch`, { data: ids, silent: true })
+  return del(`${CALL_BASE}/calls/batch`, { data: ids, silent: true })
 }

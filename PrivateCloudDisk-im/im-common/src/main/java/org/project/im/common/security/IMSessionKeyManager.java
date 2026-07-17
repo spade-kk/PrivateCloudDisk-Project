@@ -2,6 +2,8 @@ package org.project.im.common.security;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Bean;
+import org.springframework.stereotype.Component;
 
 import java.security.KeyPair;
 import java.security.interfaces.ECPublicKey;
@@ -43,7 +45,7 @@ public class IMSessionKeyManager {
     /** 服务端 RSA 密钥对（用于签名） */
     private volatile KeyPair serverRSAKeyPair;
 
-    public IMSessionKeyManager() {
+    private IMSessionKeyManager() {
         try {
             this.serverKeyPair = IMSessionKeys.generateECKeyPair();
             this.serverRSAKeyPair = IMCryptoCodec.generateRSAKeyPair();
@@ -51,6 +53,10 @@ public class IMSessionKeyManager {
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize key pairs", e);
         }
+    }
+
+    public static IMSessionKeyManager createIMSessionKeyManager() {
+        return new IMSessionKeyManager();
     }
 
     /**

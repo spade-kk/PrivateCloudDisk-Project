@@ -2,12 +2,14 @@
  * composables/useFileBrowser.js - 文件浏览器组合式函数
  *
  * 封装文件浏览核心逻辑：目录导航、节点加载、面包屑管理
- * 支持 node_id 查询和路径查询两种模式
+ *
+ * 对标 Vue3 Web 项目：使用非分页 getChildren 端点，
+ * 一次性加载当前目录所有子节点。
+ * 分页查询（getChildrenPaged）保留供后续按需使用。
  */
 import { reactive, computed } from 'vue'
-import { getRootNode, getChildrenPaged as apiGetChildren } from '@/api/node'
+import { getRootNode, getChildren as apiGetChildren } from '@/api/node'
 import { getMyQuota } from '@/api/quota'
-import { PAGE_SIZE } from '@/utils/const'
 
 export function useFileBrowser() {
   const state = reactive({
@@ -15,9 +17,6 @@ export function useFileBrowser() {
     nodeStack: [],       // [{ node_id, node_name }, ...]
     children: [],
     loading: false,
-    loadingMore: false,
-    page: 1,
-    hasMore: false,
     quota: null,
     error: null
   })
@@ -55,65 +54,45 @@ export function useFileBrowser() {
     }
   }
 
-  // ========== 节点加载 ==========
-  async function loadChildren(page = 1) {
+  // ========== 节点加载（非分页，对标 Vue3 getNodeChildrenApi） ==========
+  async function loadChildren() {
     const nodeId = currentNodeId.value
     if (!nodeId) return
 
-    if (page === 1) {
-      state.loading = true
-      state.error = null
-    }
+    state.loading = true
+    state.error = null
     try {
-      const res = await apiGetChildren(nodeId, {
-        page,
-        pageSize: PAGE_SIZE,
-        sortBy: 'name',
-        sortOrder: 'asc'
-      })
-      const items = res.data?.items || []
-      if (page === 1) {
-        state.children = items
-      } else {
-        state.children.push(...items)
-      }
-      state.hasMore = items.length >= PAGE_SIZE
-      state.page = page
+      const res = await apiGetChildren(nodeId)
+      // 对标 Vue3: getNodeChildrenApi 返回 data 为子节点数组
+      state.children = Array.isArray(res.data) ? res.data : (res.data?.items || [])
     } catch (e) {
       console.error('[useFileBrowser] loadChildren error:', e)
-      if (page === 1) state.error = '加载失败'
+      state.error = '加载失败'
     } finally {
       state.loading = false
-      state.loadingMore = false
     }
-  }
-
-  async function loadMore() {
-    if (state.loadingMore || !state.hasMore) return
-    state.loadingMore = true
-    await loadChildren(state.page + 1)
   }
 
   // ========== 导航 ==========
   function navigateTo(node) {
     state.nodeStack.push({ node_id: node.node_id, node_name: node.node_name })
-    loadChildren(1)
+    loadChildren()
   }
 
   function goBack() {
     if (state.nodeStack.length > 0) {
       state.nodeStack.pop()
-      loadChildren(1)
+      loadChildren()
     }
   }
 
   function goHome() {
     state.nodeStack = []
-    loadChildren(1)
+    loadChildren()
   }
 
   function refresh() {
-    loadChildren(1)
+    loadChildren()
   }
 
   return {
@@ -124,7 +103,6 @@ export function useFileBrowser() {
     usagePercent,
     init,
     loadChildren,
-    loadMore,
     navigateTo,
     goBack,
     goHome,

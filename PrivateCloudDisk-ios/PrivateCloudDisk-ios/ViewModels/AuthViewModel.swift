@@ -27,7 +27,7 @@ class AuthViewModel: ObservableObject {
     @Published var resendToken = ""
 
     // 服务器地址
-    @Published var serverURL = "https://api.cloud.example.com"
+    @Published var serverURL = "https://localhost:8080/api/v1"
 
     private let authService = AuthService.shared
 

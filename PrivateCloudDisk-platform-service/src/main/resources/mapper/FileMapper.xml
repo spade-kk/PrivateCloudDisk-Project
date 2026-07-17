@@ -112,15 +112,15 @@
         GROUP BY f.file_id, f.file_status
     </select>
 
-    <update id="updateUserFileNameById" parameterType="java.util.UUID">
+    <update id="updateUserFileNameById">
         update pcd_file_info_table set file_name = #{file_new_name} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
-    <update id="updateUserFileParentNodeIdById" parameterType="java.util.UUID">
+    <update id="updateUserFileParentNodeIdById">
         update pcd_file_info_table set file_node_id = #{target_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 
-    <update id="updateUserFileStatusById" parameterType="java.util.UUID">
+    <update id="updateUserFileStatusById">
         update pcd_file_info_table set file_status = #{status} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </update>
 

@@ -53,7 +53,7 @@ final class CryptoService {
     /// 密码哈希（用于传输前加密）
     ///
     /// 与 Web 端 hashPasswordForTransport 完全对齐的算法：
-    /// 1. PBKDF2-SHA256(password, pepper, 100000, 256bit)
+    /// 1. PBKDF2-SHA256(password, pepper, 600000, 256bit)
     /// 2. 输出 hex 字符串
     static func hashPasswordForTransport(_ password: String) -> String {
         let pepper = assemblePepper()
@@ -70,7 +70,7 @@ final class CryptoService {
                         pepperBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         pepper.count,
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        100000,
+                        600000,
                         derivedBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         32
                     )
@@ -112,7 +112,7 @@ final class CryptoService {
                         saltBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         combinedSalt.count,
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        100000,
+                        600000,
                         derivedBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
                         32
                     )

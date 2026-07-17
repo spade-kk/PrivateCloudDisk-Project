@@ -32,7 +32,11 @@ export function getFileCategory(fileName) {
 }
 
 /**
- * 根据文件名获取对应图标
+ * 根据文件名获取对应图标（uView Plus 内置图标名）
+ *
+ * uView Plus 图标集以 uicon- 为前缀，查找时只传 name 部分。
+ * 可用图标见: node_modules/uview-plus/components/u-icon/icons.js
+ *
  * @param {string} fileName
  * @returns {string} uView 图标名称
  */
@@ -41,12 +45,12 @@ export function getFileIcon(fileName) {
   const map = {
     [FILE_CATEGORY.IMAGE]: 'photo',
     [FILE_CATEGORY.VIDEO]: 'play-circle',
-    [FILE_CATEGORY.AUDIO]: 'music',
+    [FILE_CATEGORY.AUDIO]: 'volume',        // uView 无 music 图标，用 volume 替代
     [FILE_CATEGORY.DOCUMENT]: 'file-text',
-    [FILE_CATEGORY.ARCHIVE]: 'file-zip',
-    [FILE_CATEGORY.OTHER]: 'file'
+    [FILE_CATEGORY.ARCHIVE]: 'file-text',   // uView 无 file-zip 图标，用 file-text 替代
+    [FILE_CATEGORY.OTHER]: 'file-text'      // uView 无 file 图标，用 file-text 替代
   }
-  return map[category] || 'file'
+  return map[category] || 'file-text'
 }
 
 /**
@@ -60,7 +64,7 @@ export function getFileIconColor(fileName) {
     [FILE_CATEGORY.IMAGE]: '#34a853',
     [FILE_CATEGORY.VIDEO]: '#ea4335',
     [FILE_CATEGORY.AUDIO]: '#fbbc04',
-    [FILE_CATEGORY.DOCUMENT]: '#1a73e8',
+    [FILE_CATEGORY.DOCUMENT]: '#4F6EF7',
     [FILE_CATEGORY.ARCHIVE]: '#ff9800',
     [FILE_CATEGORY.OTHER]: '#9aa0a6'
   }

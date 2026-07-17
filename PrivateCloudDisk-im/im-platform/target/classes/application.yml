@@ -3,8 +3,6 @@
 # ============================================================
 server:
   port: ${IM_PLATFORM_PORT:8088}
-  servlet:
-    context-path: /im
 
 spring:
   application:
@@ -12,7 +10,7 @@ spring:
 
   # ==================== 数据源配置 ====================
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/private_cloud_disk?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8mb4
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/private_cloud_disk
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:20070315mwz}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -76,8 +74,6 @@ logging:
     org.project.im: DEBUG
     org.springframework.amqp: WARN
     com.zaxxer.hikari: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 # ==================== SpringDoc 配置 ====================
 springdoc:

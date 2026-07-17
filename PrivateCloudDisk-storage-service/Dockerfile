@@ -26,7 +26,10 @@ RUN apk add --no-cache \
     clamav-daemon \
     tesseract-ocr \
     tesseract-ocr-data-eng \
-    tesseract-ocr-data-chi_sim
+    tesseract-ocr-data-chi_sim \
+    libarchive \
+    libarchive-dev \
+    libreoffice
 
 # =============================================================================
 # 配置 ClamAV

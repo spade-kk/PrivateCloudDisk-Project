@@ -21,18 +21,20 @@ import type {
 } from './types'
 
 // ---- 基础路径 ----
+// 注意：IM 路径前缀为 im，通过网关 /api/v1/im/** 路由。
+// 网关会剥离 /api/v1/ 前缀，下游 IM Platform 收到 /im/xxx/xxx。
 const IM_BASE = 'im'
 
 // ==================== 消息 API ====================
 
 /** 发送消息 */
 export function sendMessageApi(message: Partial<MessageDTO>): Promise<Result<MessageDTO>> {
-  return post(`${IM_BASE}/api/v1/messages/send`, message, { silent: true })
+  return post(`${IM_BASE}/messages/send`, message, { silent: true })
 }
 
 /** 撤回消息 */
 export function recallMessageApi(messageId: string, userId: string): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/messages/recall`, null, {
+  return post(`${IM_BASE}/messages/recall`, null, {
     params: { messageId, userId },
     silent: true,
   })
@@ -40,7 +42,7 @@ export function recallMessageApi(messageId: string, userId: string): Promise<Res
 
 /** 标记消息已读 */
 export function markMessageReadApi(conversationId: string, userId: string): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/messages/read`, null, {
+  return post(`${IM_BASE}/messages/read`, null, {
     params: { conversationId, userId },
     silent: true,
   })
@@ -53,7 +55,7 @@ export function getMessageHistoryApi(
   page: number = 1,
   size: number = 20,
 ): Promise<Result<MessageDTO[]>> {
-  return get(`${IM_BASE}/api/v1/messages/history`, {
+  return get(`${IM_BASE}/messages/history`, {
     conversationId,
     userId,
     page,
@@ -68,7 +70,7 @@ export function syncMessagesApi(
   serverSeq: number,
   limit: number = 50,
 ): Promise<Result<MessageDTO[]>> {
-  return get(`${IM_BASE}/api/v1/messages/sync`, {
+  return get(`${IM_BASE}/messages/sync`, {
     conversationId,
     userId,
     serverSeq,
@@ -78,7 +80,7 @@ export function syncMessagesApi(
 
 /** 根据消息 ID 查询 */
 export function getMessageByIdApi(messageId: string): Promise<Result<MessageDTO>> {
-  return get(`${IM_BASE}/api/v1/messages/${messageId}`, {}, { silent: true })
+  return get(`${IM_BASE}/messages/${messageId}`, {}, { silent: true })
 }
 
 // ==================== 会话 API ====================
@@ -89,7 +91,7 @@ export function createConversationApi(
   targetId: string,
   conversationType: number,
 ): Promise<Result<ConversationDTO>> {
-  return post(`${IM_BASE}/api/v1/conversations/create`, null, {
+  return post(`${IM_BASE}/conversations/create`, null, {
     params: { userId, targetId, conversationType },
     silent: true,
   })
@@ -97,17 +99,17 @@ export function createConversationApi(
 
 /** 获取会话列表 */
 export function getConversationsApi(userId: string): Promise<Result<ConversationDTO[]>> {
-  return get(`${IM_BASE}/api/v1/conversations/list`, { userId }, { silent: true })
+  return get(`${IM_BASE}/conversations/list`, { userId }, { silent: true })
 }
 
 /** 获取会话详情 */
 export function getConversationDetailApi(conversationId: string): Promise<Result<ConversationDTO>> {
-  return get(`${IM_BASE}/api/v1/conversations/${conversationId}`, {}, { silent: true })
+  return get(`${IM_BASE}/conversations/${conversationId}`, {}, { silent: true })
 }
 
 /** 删除会话 */
 export function deleteConversationApi(conversationId: string, userId: string): Promise<Result<void>> {
-  return del(`${IM_BASE}/api/v1/conversations/${conversationId}`, {
+  return del(`${IM_BASE}/conversations/${conversationId}`, {
     params: { userId },
     silent: true,
   })
@@ -119,7 +121,7 @@ export function toggleConversationTopApi(
   userId: string,
   isTop: boolean,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/api/v1/conversations/${conversationId}/top`, null, {
+  return patch(`${IM_BASE}/conversations/${conversationId}/top`, null, {
     params: { userId, isTop },
     silent: true,
   })
@@ -131,7 +133,7 @@ export function toggleConversationMuteApi(
   userId: string,
   isMuted: boolean,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/api/v1/conversations/${conversationId}/mute`, null, {
+  return patch(`${IM_BASE}/conversations/${conversationId}/mute`, null, {
     params: { userId, isMuted },
     silent: true,
   })
@@ -139,7 +141,7 @@ export function toggleConversationMuteApi(
 
 /** 获取总未读数 */
 export function getTotalUnreadCountApi(userId: string): Promise<Result<number>> {
-  return get(`${IM_BASE}/api/v1/conversations/unread/count`, { userId }, { silent: true })
+  return get(`${IM_BASE}/conversations/unread/count`, { userId }, { silent: true })
 }
 
 // ==================== 群组 API ====================
@@ -150,7 +152,7 @@ export function createGroupApi(
   groupName: string,
   avatar?: string,
 ): Promise<Result<GroupDTO>> {
-  return post(`${IM_BASE}/api/v1/groups/create`, null, {
+  return post(`${IM_BASE}/groups/create`, null, {
     params: { ownerId, groupName, avatar },
     silent: true,
   })
@@ -158,17 +160,17 @@ export function createGroupApi(
 
 /** 获取群组详情 */
 export function getGroupDetailApi(groupId: string): Promise<Result<GroupDTO>> {
-  return get(`${IM_BASE}/api/v1/groups/${groupId}`, {}, { silent: true })
+  return get(`${IM_BASE}/groups/${groupId}`, {}, { silent: true })
 }
 
 /** 获取用户群组列表 */
 export function getUserGroupsApi(userId: string): Promise<Result<GroupDTO[]>> {
-  return get(`${IM_BASE}/api/v1/groups/user/${userId}`, {}, { silent: true })
+  return get(`${IM_BASE}/groups/user/${userId}`, {}, { silent: true })
 }
 
 /** 加入群组 */
 export function joinGroupApi(groupId: string, userId: string): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/groups/${groupId}/join`, null, {
+  return post(`${IM_BASE}/groups/${groupId}/join`, null, {
     params: { userId },
     silent: true,
   })
@@ -176,7 +178,7 @@ export function joinGroupApi(groupId: string, userId: string): Promise<Result<vo
 
 /** 退出群组 */
 export function leaveGroupApi(groupId: string, userId: string): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/groups/${groupId}/leave`, null, {
+  return post(`${IM_BASE}/groups/${groupId}/leave`, null, {
     params: { userId },
     silent: true,
   })
@@ -188,7 +190,7 @@ export function kickMemberApi(
   operatorId: string,
   targetUid: string,
 ): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/groups/${groupId}/kick`, null, {
+  return post(`${IM_BASE}/groups/${groupId}/kick`, null, {
     params: { operatorId, targetUid },
     silent: true,
   })
@@ -201,7 +203,7 @@ export function muteMemberApi(
   targetUid: string,
   durationMinutes: number,
 ): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/groups/${groupId}/mute`, null, {
+  return post(`${IM_BASE}/groups/${groupId}/mute`, null, {
     params: { operatorId, targetUid, durationMinutes },
     silent: true,
   })
@@ -213,7 +215,7 @@ export function unmuteMemberApi(
   operatorId: string,
   targetUid: string,
 ): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/groups/${groupId}/unmute`, null, {
+  return post(`${IM_BASE}/groups/${groupId}/unmute`, null, {
     params: { operatorId, targetUid },
     silent: true,
   })
@@ -225,7 +227,7 @@ export function toggleMuteAllApi(
   operatorId: string,
   isAllMuted: boolean,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/api/v1/groups/${groupId}/mute-all`, null, {
+  return patch(`${IM_BASE}/groups/${groupId}/mute-all`, null, {
     params: { operatorId, isAllMuted },
     silent: true,
   })
@@ -233,7 +235,7 @@ export function toggleMuteAllApi(
 
 /** 解散群组 */
 export function dissolveGroupApi(groupId: string, ownerId: string): Promise<Result<void>> {
-  return del(`${IM_BASE}/api/v1/groups/${groupId}/dissolve`, {
+  return del(`${IM_BASE}/groups/${groupId}/dissolve`, {
     params: { ownerId },
     silent: true,
   })
@@ -241,7 +243,7 @@ export function dissolveGroupApi(groupId: string, ownerId: string): Promise<Resu
 
 /** 获取群成员列表 */
 export function getGroupMembersApi(groupId: string): Promise<Result<GroupMemberDTO[]>> {
-  return get(`${IM_BASE}/api/v1/groups/${groupId}/members`, {}, { silent: true })
+  return get(`${IM_BASE}/groups/${groupId}/members`, {}, { silent: true })
 }
 
 /** 更新群公告 */
@@ -250,7 +252,7 @@ export function updateGroupAnnouncementApi(
   operatorId: string,
   announcement: string,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/api/v1/groups/${groupId}/announcement`, null, {
+  return patch(`${IM_BASE}/groups/${groupId}/announcement`, null, {
     params: { operatorId, announcement },
     silent: true,
   })
@@ -260,7 +262,7 @@ export function updateGroupAnnouncementApi(
 
 /** 搜索用户 */
 export function searchUsersApi(keyword: string): Promise<Result<unknown[]>> {
-  return get(`${IM_BASE}/api/v1/users/search`, { keyword }, { silent: true })
+  return get(`${IM_BASE}/users/search`, { keyword }, { silent: true })
 }
 
 /** 发送好友申请 */
@@ -268,37 +270,37 @@ export function sendFriendRequestApi(
   account: string,
   remark: string = '',
 ): Promise<Result<void>> {
-  return post(`${IM_BASE}/api/v1/friend-requests`, { account, remark }, { silent: true })
+  return post(`${IM_BASE}/friend-requests`, { account, remark }, { silent: true })
 }
 
 /** 获取好友列表 */
 export function getFriendsApi(): Promise<Result<unknown[]>> {
-  return get(`${IM_BASE}/api/v1/friends`, {}, { silent: true })
+  return get(`${IM_BASE}/friends`, {}, { silent: true })
 }
 
 /** 删除好友 */
 export function removeFriendApi(friendId: string): Promise<Result<void>> {
-  return del(`${IM_BASE}/api/v1/friends/${friendId}`, {}, { silent: true })
+  return del(`${IM_BASE}/friends/${friendId}`, {}, { silent: true })
 }
 
 /** 获取通知列表 */
 export function getNotificationsApi(): Promise<Result<unknown[]>> {
-  return get(`${IM_BASE}/api/v1/notifications`, {}, { silent: true })
+  return get(`${IM_BASE}/notifications`, {}, { silent: true })
 }
 
 /** 标记通知已读 */
 export function markNotificationReadApi(id: string): Promise<Result<void>> {
-  return patch(`${IM_BASE}/api/v1/notifications/${id}/read`, {}, { silent: true })
+  return patch(`${IM_BASE}/notifications/${id}/read`, {}, { silent: true })
 }
 
 /** 全部标记已读 */
 export function markAllNotificationsReadApi(): Promise<Result<void>> {
-  return patch(`${IM_BASE}/api/v1/notifications/read-all`, {}, { silent: true })
+  return patch(`${IM_BASE}/notifications/read-all`, {}, { silent: true })
 }
 
 // ==================== 健康检查 ====================
 
 /** 健康检查 */
 export function imHealthCheckApi(): Promise<Result<string>> {
-  return get(`${IM_BASE}/api/v1/health`, {}, { silent: true })
+  return get(`${IM_BASE}/health`, {}, { silent: true })
 }

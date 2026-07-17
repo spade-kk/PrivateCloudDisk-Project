@@ -63,13 +63,13 @@ final class DownloadManager: NSObject, ObservableObject {
         let task = DownloadTask(
             nodeId: nodeId,
             filename: filename,
-            remotePath: remotePath ?? "/api/files/\(nodeId)/download",
+            remotePath: remotePath ?? "files/\(nodeId)/download",
             localPath: destURL.path,
             totalBytes: 0
         )
 
         // 获取文件大小
-        let fileNode: FileNode = try await api.get("/api/files/\(nodeId)")
+        let fileNode: FileNode = try await api.get("files/\(nodeId)")
         let totalBytes = fileNode.size
 
         var updatedTask = task

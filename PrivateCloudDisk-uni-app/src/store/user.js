@@ -53,8 +53,8 @@ export const useUserStore = defineStore('user', {
      */
     async doLogin(params) {
       // 客户端密码预哈希 — 密码明文永不离开客户端
-      const salt = params.account || params.phone_number || ''
-      const hashedPassword = await hashPasswordForTransport(params.password, salt)
+      // pepper 由 crypto 模块内部组装，与 Web 端 / Python 脚本输出一致
+      const hashedPassword = await hashPasswordForTransport(params.password)
       const hashedParams = { ...params, password: hashedPassword }
 
       const res = await login(hashedParams)
@@ -75,8 +75,7 @@ export const useUserStore = defineStore('user', {
      */
     async doRegister(params) {
       // 客户端密码预哈希
-      const salt = params.phone_number || ''
-      const hashedPassword = await hashPasswordForTransport(params.password, salt)
+      const hashedPassword = await hashPasswordForTransport(params.password)
       const hashedParams = { ...params, password: hashedPassword }
 
       const res = await register(hashedParams)
@@ -110,11 +109,10 @@ export const useUserStore = defineStore('user', {
     /** 修改密码 */
     async doChangePassword(params) {
       // 客户端密码预哈希 - 新旧密码都哈希
-      const account = this.profile?.account || ''
       const hashedParams = {
         ...params,
-        old_password: await hashPasswordForTransport(params.old_password, account),
-        new_password: await hashPasswordForTransport(params.new_password, account),
+        old_password: await hashPasswordForTransport(params.old_password),
+        new_password: await hashPasswordForTransport(params.new_password),
       }
       await changePassword(hashedParams)
     },

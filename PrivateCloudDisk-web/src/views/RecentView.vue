@@ -120,6 +120,7 @@ import { useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useRecentStore } from '@/stores/recentStore'
 import { getFileIconClass } from '@/utils/fileIcon'
+import { isVideo } from '@/utils/previewHelper'
 import type { RecentAccessVO, AccessType } from '@/api/modules/recent'
 
 const recentStore = useRecentStore()
@@ -182,9 +183,22 @@ const formatTime = (iso: string): string => {
 const openItem = (item: RecentAccessVO) => {
   if (item.target_type === 'folder') {
     router.push(`/app?folder=${item.target_id}`)
-  } else {
-    router.push(`/app/preview/${item.target_id}`)
+    return
   }
+
+  const fileName = item.target_name || ''
+
+  // 视频文件：跳转至专属流媒体播放页面，携带 fileId 参数
+  if (isVideo(fileName)) {
+    router.push({
+      name: 'VideoPlayer',
+      params: { fileId: item.target_id },
+      query: { name: encodeURIComponent(fileName) }
+    })
+    return
+  }
+
+  router.push(`/app/preview/${item.target_id}`)
 }
 
 // ============================================================

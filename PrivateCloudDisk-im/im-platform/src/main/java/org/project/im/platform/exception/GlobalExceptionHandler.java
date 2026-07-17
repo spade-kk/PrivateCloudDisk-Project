@@ -1,5 +1,7 @@
 package org.project.im.platform.exception;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.project.im.common.dto.Result;
 import org.project.im.common.enums.ResponseCode;
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     /**
-     * 处理参数校验异常
+     * 处理 @RequestBody 参数校验异常（@Valid @RequestBody 触发）
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -41,13 +43,29 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理 @RequestParam / @PathVariable 参数校验异常（@Validated + @Pattern 等触发）
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleConstraintViolationException(ConstraintViolationException ex) {
+        String message = ex.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.joining("; "));
+        log.warn("参数约束校验失败: {}", message);
+        return Result.error(ResponseCode.BAD_REQUEST.getCode(), message);
+    }
+
+    /**
      * 处理绑定异常
      */
     @ExceptionHandler(BindException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleBindException(BindException ex) {
-        log.warn("参数绑定失败: {}", ex.getMessage());
-        return Result.error(ResponseCode.BAD_REQUEST.getCode(), "请求参数错误");
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .collect(Collectors.joining("; "));
+        log.warn("参数绑定失败: {}", message);
+        return Result.error(ResponseCode.BAD_REQUEST.getCode(), message);
     }
 
     /**
@@ -73,10 +91,10 @@ public class GlobalExceptionHandler {
     /**
      * 处理其他未知异常
      */
-    @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public Result<Void> handleException(Exception ex) {
-        log.error("系统异常: ", ex);
-        return Result.error(ResponseCode.INTERNAL_ERROR.getCode(), "服务器内部错误");
-    }
+//    @ExceptionHandler(Exception.class)
+//    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+//    public Result<Void> handleException(Exception ex) {
+//        log.error("系统异常: ", ex);
+//        return Result.error(ResponseCode.INTERNAL_ERROR.getCode(), "服务器内部错误");
+//    }
 }

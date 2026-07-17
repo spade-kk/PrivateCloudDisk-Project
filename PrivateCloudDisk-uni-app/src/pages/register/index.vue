@@ -51,7 +51,7 @@
           text="注 册"
           :loading="loading"
           @click="handleRegister"
-          customStyle="height: 88rpx; font-size: 32rpx; background: #1a73e8; border-radius: 16rpx;"
+          customStyle="height: 88rpx; font-size: 32rpx; background: #4F6EF7; border-radius: 16rpx;"
         />
 
         <view class="form-footer">
@@ -63,13 +63,24 @@
 </template>
 
 <script>
-import { register } from '@/api/auth'
+import { useUserStore } from '@/store/user'
+import { evaluatePasswordStrength, PASSWORD_MIN_LENGTH } from '@/utils/crypto'
 
 export default {
   data() {
     return {
       form: { username: '', email: '', password: '', confirmPassword: '' },
-      loading: false
+      loading: false,
+      passwordStrength: null
+    }
+  },
+  watch: {
+    'form.password'(val) {
+      if (val && val.length >= PASSWORD_MIN_LENGTH) {
+        this.passwordStrength = evaluatePasswordStrength(val)
+      } else {
+        this.passwordStrength = null
+      }
     }
   },
   methods: {
@@ -82,8 +93,8 @@ export default {
         uni.showToast({ title: '请输入邮箱', icon: 'none' })
         return false
       }
-      if (this.form.password.length < 6) {
-        uni.showToast({ title: '密码至少6位', icon: 'none' })
+      if (this.form.password.length < PASSWORD_MIN_LENGTH) {
+        uni.showToast({ title: `密码至少${PASSWORD_MIN_LENGTH}位`, icon: 'none' })
         return false
       }
       if (this.form.password !== this.form.confirmPassword) {
@@ -92,11 +103,20 @@ export default {
       }
       return true
     },
+    /**
+     * 注册处理 - 企业级注册流程
+     *
+     * 流程:
+     * 1. 前端表单校验（含密码强度评估）
+     * 2. 调用 Pinia Store doRegister（内部完成密码哈希 + API 调用）
+     * 3. 密码明文永不离开客户端
+     */
     async handleRegister() {
       if (!this.validate()) return
       this.loading = true
       try {
-        await register({
+        const userStore = useUserStore()
+        await userStore.doRegister({
           username: this.form.username.trim(),
           email: this.form.email.trim(),
           password: this.form.password
@@ -106,7 +126,8 @@ export default {
           uni.navigateBack()
         }, 2000)
       } catch (e) {
-        // 错误由 request.js 处理
+        // 错误由 request.js 拦截器统一处理
+        console.error('[Register] 注册失败:', e)
       } finally {
         this.loading = false
       }
@@ -124,7 +145,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #1a73e8 0%, #4a90d9 40%, #f5f5f5 40%);
+  background: linear-gradient(180deg, #4F6EF7 0%, #6C5CE7 40%, #f5f5f5 40%);
 }
 .register-card {
   width: 86%;
@@ -143,5 +164,5 @@ export default {
 .form-section { padding: 0 40rpx 48rpx; }
 .form-item { margin-bottom: 28rpx; }
 .form-footer { margin-top: 32rpx; text-align: center; }
-.link-text { font-size: 26rpx; color: #1a73e8; }
+.link-text { font-size: 26rpx; color: #4F6EF7; }
 </style>

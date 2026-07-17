@@ -140,28 +140,31 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
     }
 
     /// 从 FileNode 网络模型构造 FileProviderItem
+    ///
+    /// FileNode 与后端 NodeVO 对齐，字段经 .convertFromSnakeCase 自动解码：
+    /// node_id → nodeId, node_type → nodeType, node_name → nodeName, node_size → nodeSize
     convenience init(from node: FileNode, parentIdentifier: NSFileProviderItemIdentifier) {
-        let itemId = NSFileProviderItemIdentifier(rawValue: node.id)
+        let itemId = NSFileProviderItemIdentifier(rawValue: node.nodeId)
 
         // 根据文件扩展名确定 UTType
         let contentType: UTType = if node.isFolder {
             .folder
         } else {
-            UTType(filenameExtension: (node.name as NSString).pathExtension) ?? .data
+            UTType(filenameExtension: (node.nodeName as NSString).pathExtension) ?? .data
         }
 
         // 解析 ISO 8601 日期
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let created = node.createdAt.flatMap { dateFormatter.date(from: $0) }
-        let modified = node.updatedAt.flatMap { dateFormatter.date(from: $0) }
+        let created = node.createTime.flatMap { dateFormatter.date(from: $0) }
+        let modified = node.updateTime.flatMap { dateFormatter.date(from: $0) }
 
         self.init(
             itemIdentifier: itemId,
             parentItemIdentifier: parentIdentifier,
-            filename: node.name,
+            filename: node.nodeName,
             contentType: contentType,
-            documentSize: NSNumber(value: node.size),
+            documentSize: node.nodeSize.map { NSNumber(value: $0) },
             creationDate: created,
             contentModificationDate: modified,
             isUploaded: true,
@@ -211,28 +214,47 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
     }
 }
 
-// MARK: - FileNode（网络文件节点模型）
+// MARK: - FileNode（网络文件节点模型，与后端 NodeVO 完全对齐）
 
 /// 从服务端 API 返回的文件/文件夹节点
+///
+/// 与后端 org.project.model.vo.NodeVO 对齐。
+/// 使用 .convertFromSnakeCase 自动解码，无需手动 CodingKeys。
 struct FileNode: Codable {
-    let id: String
-    let name: String
+    /// 节点 ID
+    let nodeId: String
+    /// 节点类型：FOLDER 或 FILE
+    let nodeType: String
+    /// 节点名称
+    let nodeName: String
+    /// 节点大小（文件夹为 nil）
+    let nodeSize: Int64?
+    /// 父节点 ID（根节点为 nil）
     let parentId: String?
-    let isFolder: Bool
-    let size: Int64
-    let mimeType: String?
-    let createdAt: String?
-    let updatedAt: String?
-    let isDeleted: Bool?
+    /// 创建时间
+    let createTime: String?
+    /// 更新时间
+    let updateTime: String?
+    /// 子节点（仅文件夹有）
     let children: [FileNode]?
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, size, children
-        case parentId = "parent_id"
-        case isFolder = "is_folder"
-        case mimeType = "mime_type"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case isDeleted = "is_deleted"
+    /// 是否为文件夹
+    var isFolder: Bool {
+        nodeType == "FOLDER" || nodeType == "folder"
     }
+
+    /// 文件扩展名（用于判断类型）
+    var fileExtension: String {
+        (nodeName as NSString).pathExtension.lowercased()
+    }
+}
+
+// MARK: - 根目录节点模型（与后端 FolderNodeVO 对齐）
+
+/// 与后端 org.project.model.vo.FolderNodeVO 对齐
+struct FolderNode: Codable {
+    let nodeId: String
+    let parentId: String?
+    let name: String
+    let createTime: String
 }

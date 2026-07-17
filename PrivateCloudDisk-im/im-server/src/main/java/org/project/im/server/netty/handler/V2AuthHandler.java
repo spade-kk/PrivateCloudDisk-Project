@@ -16,9 +16,11 @@ import org.project.im.common.security.IMCryptoCodec;
 import org.project.im.common.security.IMSessionKeyManager;
 import org.project.im.common.security.IMSessionKeys;
 import org.project.im.server.netty.SessionManager;
+import org.project.im.server.security.JwtTokenVerifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -46,9 +48,10 @@ import java.util.concurrent.TimeUnit;
 public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
 
     private final SessionManager sessionManager;
-    private final IMSessionKeyManager keyManager;
+    private final IMSessionKeyManager keyManager = IMSessionKeyManager.createIMSessionKeyManager();
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final JwtTokenVerifier jwtTokenVerifier;
 
     /** 标记属性名 */
     private static final String AUTH_ATTR = "v2:authenticated";
@@ -57,9 +60,9 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete handshake) {
-            String uri = handshake.requestUri();
-            String token = extractToken(uri);
+        if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+            // 从 Channel 属性中提取 token（由 HttpRequestInterceptor 保存）
+            String token = extractTokenFromChannel(ctx);
 
             if (token == null) {
                 log.warn("V2 WebSocket 连接缺少 token: {}", ctx.channel().remoteAddress());
@@ -68,7 +71,8 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 return;
             }
 
-            String userId = validateToken(token);
+            // 使用 JWT 验证 Token（RSA 公钥验证签名，提取 subject 中的 userId）
+            String userId = jwtTokenVerifier.verifyToken(token);
             if (userId == null) {
                 log.warn("V2 Token 验证失败: {}", ctx.channel().remoteAddress());
                 sendError(ctx, ResponseCode.TOKEN_INVALID.getCode(), "Token 无效或已过期");
@@ -242,24 +246,49 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
                 io.netty.util.AttributeKey.valueOf(USER_ID)).get();
     }
 
-    private String extractToken(String uri) {
-        if (uri == null) return null;
-        if (uri.contains("?")) {
-            String query = uri.substring(uri.indexOf("?") + 1);
-            for (String param : query.split("&")) {
-                String[] kv = param.split("=", 2);
-                if (kv.length == 2 && "token".equals(kv[0])) {
-                    return kv[1];
-                }
+    private String extractTokenFromChannel(ChannelHandlerContext ctx) {
+        // 从 HttpRequestInterceptor 保存的 Channel 属性中获取原始 URI
+        String originalUri = (String) ctx.channel()
+                .attr(io.netty.util.AttributeKey.valueOf(HttpRequestInterceptor.ORIGINAL_URI_ATTR))
+                .get();
+
+        if (originalUri != null) {
+            String token = extractTokenFromUri(originalUri);
+            if (token != null) {
+                return token;
             }
         }
+
+        log.warn("V2 Channel 属性中未找到原始 URI");
         return null;
     }
 
-    private String validateToken(String token) {
-        if (token == null || token.isEmpty()) return null;
-        // TODO: 集成 JWT 解析
-        return "user_" + token.hashCode();
+    private String extractTokenFromUri(String uri) {
+        if (uri == null || uri.isEmpty()) return null;
+
+        try {
+            String query;
+            if (uri.startsWith("ws://") || uri.startsWith("wss://") || uri.startsWith("http://") || uri.startsWith("https://")) {
+                URI fullUri = URI.create(uri);
+                query = fullUri.getRawQuery();
+            } else {
+                int queryIndex = uri.indexOf('?');
+                query = queryIndex >= 0 ? uri.substring(queryIndex + 1) : null;
+            }
+
+            if (query == null || query.isEmpty()) return null;
+
+            for (String param : query.split("&")) {
+                String[] kv = param.split("=", 2);
+                if (kv.length == 2 && "token".equals(kv[0])) {
+                    return java.net.URLDecoder.decode(kv[1], java.nio.charset.StandardCharsets.UTF_8);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("V2 从 URI 提取 token 失败: uri={}, error={}", uri, e.getMessage());
+        }
+
+        return null;
     }
 
     private void sendError(ChannelHandlerContext ctx, int code, String message) {

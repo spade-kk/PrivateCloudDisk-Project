@@ -9,8 +9,8 @@
 /** 环境配置 - 根据编译平台自动切换 */
 const ENV_MAP = {
   development: {
-    platformBaseURL: 'http://localhost:8081',
-    fileBaseURL: 'http://localhost:8000'
+    platformBaseURL: 'http://localhost:8080/api/v1',
+    fileBaseURL: 'http://localhost:8080/api/v1'
   },
   production: {
     platformBaseURL: 'https://api.privateclouddisk.com',
@@ -30,17 +30,17 @@ export const API_PREFIX = {
   file: `${FILE_BASE_URL}`
 }
 
-/** ========== 文件类型图标映射 ========== */
+/** ========== 文件类型图标映射（uView Plus 内置图标名） ========== */
 export const FILE_TYPE_ICONS = {
   image: 'photo',
   video: 'play-circle',
-  audio: 'music',
+  audio: 'volume',        // uView 无 music 图标
   document: 'file-text',
-  pdf: 'file-pdf',
-  zip: 'file-zip',
-  code: 'file-code',
+  pdf: 'file-text',       // uView 无 file-pdf 图标
+  zip: 'file-text',       // uView 无 file-zip 图标
+  code: 'file-text',      // uView 无 file-code 图标
   folder: 'folder',
-  default: 'file'
+  default: 'file-text'    // uView 无 file 图标
 }
 
 /** ========== 文件类型分类 ========== */

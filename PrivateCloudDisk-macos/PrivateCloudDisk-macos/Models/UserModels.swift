@@ -1,135 +1,82 @@
 import Foundation
 
-// MARK: - 用户模型
+// MARK: - 用户模型（与后端 UserProfileVO 完全对齐）
 
-/// 用户信息
 struct UserModel: Codable, Identifiable, Equatable {
     let id: String
-    let username: String
-    let email: String
-    let avatar: String?
-    let phone: String?
-    let nickname: String?
-    let createdAt: String?
-    let updatedAt: String?
+    let account: String?
+    let phoneNumber: String?
+    let email: String?
+    let name: String?
+    let imagePath: String?
 
-    enum CodingKeys: String, CodingKey {
-        case id, username, email, avatar, phone, nickname
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
+    var avatar: String? { imagePath }
+    var nickname: String? { name }
+    var phone: String? { phoneNumber }
+    var username: String { account ?? name ?? id }
 
     static func == (lhs: UserModel, rhs: UserModel) -> Bool {
         lhs.id == rhs.id
     }
 }
 
-/// 登录请求
+// MARK: - 登录请求（与后端 LoginRequest 完全对齐）
+
 struct LoginRequest: Codable {
-    let username: String
-    let passwordHash: String
-    let turnstileToken: String?
-    let deviceInfo: DeviceInfo
+    let account: String?
+    let phoneNumber: String?
+    let password: String
+    let captchaToken: String?
+    let captchaAction: String?
 
-    enum CodingKeys: String, CodingKey {
-        case username
-        case passwordHash = "password_hash"
-        case turnstileToken = "turnstile_token"
-        case deviceInfo = "device_info"
+    init(phoneNumber: String, password: String, captchaToken: String, captchaAction: String) {
+        self.account = nil
+        self.phoneNumber = phoneNumber
+        self.password = password
+        self.captchaToken = captchaToken
+        self.captchaAction = captchaAction
+    }
+
+    init(account: String, password: String, captchaToken: String, captchaAction: String) {
+        self.account = account
+        self.phoneNumber = nil
+        self.password = password
+        self.captchaToken = captchaToken
+        self.captchaAction = captchaAction
     }
 }
 
-/// 注册请求
+// MARK: - 注册请求（与后端 RegisterUserRequest 对齐）
+
 struct RegisterRequest: Codable {
-    let username: String
-    let email: String
-    let passwordHash: String
-    let turnstileToken: String?
-    let deviceInfo: DeviceInfo
-
-    enum CodingKeys: String, CodingKey {
-        case username, email
-        case passwordHash = "password_hash"
-        case turnstileToken = "turnstile_token"
-        case deviceInfo = "device_info"
-    }
+    let phoneNumber: String
+    let password: String
+    let code: String
+    let name: String
+    let captchaToken: String?
+    let captchaAction: String?
 }
 
-/// 设备信息
-struct DeviceInfo: Codable {
-    let deviceName: String
-    let deviceModel: String
-    let osVersion: String
-    let appVersion: String
-    let platform: String
+// MARK: - Token 刷新请求
 
-    enum CodingKeys: String, CodingKey {
-        case deviceName = "device_name"
-        case deviceModel = "device_model"
-        case osVersion = "os_version"
-        case appVersion = "app_version"
-        case platform
-    }
-
-    static func current() -> DeviceInfo {
-        let processInfo = ProcessInfo.processInfo
-        return DeviceInfo(
-            deviceName: Host.current().localizedName ?? "Mac",
-            deviceModel: DeviceInfo.macModelIdentifier(),
-            osVersion: processInfo.operatingSystemVersionString,
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0",
-            platform: "macOS"
-        )
-    }
-
-    private static func macModelIdentifier() -> String {
-        var size = 0
-        sysctlbyname("hw.model", nil, &size, nil, 0)
-        var model = [CChar](repeating: 0, count: size)
-        sysctlbyname("hw.model", &model, &size, nil, 0)
-        return String(cString: model)
-    }
-}
-
-/// 登录/注册响应
-struct AuthResponse: Codable {
-    let token: String
-    let refreshToken: String?
-    let user: UserModel
-    let expiresIn: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case token
-        case refreshToken = "refresh_token"
-        case user
-        case expiresIn = "expires_in"
-    }
-}
-
-/// Token 刷新请求
 struct RefreshTokenRequest: Codable {
     let refreshToken: String
-
-    enum CodingKeys: String, CodingKey {
-        case refreshToken = "refresh_token"
-    }
 }
 
-/// 配额信息
+// MARK: - 配额信息（与后端 QuotaVO 完全对齐）
+
 struct QuotaInfo: Codable {
-    let totalBytes: Int64
-    let usedBytes: Int64
+    let userId: String
+    let totalCapacity: Int64
+    let usedCapacity: Int64
     let fileCount: Int
+    let version: Int
+    let createdAt: String
+    let updatedAt: String
 
-    enum CodingKeys: String, CodingKey {
-        case totalBytes = "total_bytes"
-        case usedBytes = "used_bytes"
-        case fileCount = "file_count"
-    }
-
-    var availableBytes: Int64 { totalBytes - usedBytes }
+    var availableBytes: Int64 { totalCapacity - usedCapacity }
     var usagePercentage: Double {
-        guard totalBytes > 0 else { return 0 }
-        return Double(usedBytes) / Double(totalBytes)
+        guard totalCapacity > 0 else { return 0 }
+        return Double(usedCapacity) / Double(totalCapacity)
     }
 }

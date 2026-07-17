@@ -52,6 +52,20 @@ export const useAppStore = defineStore('app', {
   },
 
   actions: {
+    /** 初始化网络状态 */
+    initNetworkStatus() {
+      uni.getNetworkType({
+        success: (res) => {
+          this.networkConnected = res.networkType !== 'none'
+        }
+      })
+    },
+
+    /** 设置网络状态 */
+    setNetworkConnected(connected) {
+      this.networkConnected = connected
+    },
+
     /** 导航进入子目录 */
     pushNode(node) {
       this.nodeStack.push({ node_id: node.node_id, name: node.node_name || node.name })

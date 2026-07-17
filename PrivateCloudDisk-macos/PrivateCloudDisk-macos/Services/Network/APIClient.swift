@@ -6,6 +6,7 @@ import Foundation
 ///
 /// 核心功能：
 /// - 自动 Token 注入与刷新
+/// - 设备身份签名（ECDSA-P256-SHA256，防重放保护）← 新增
 /// - 请求重试与指数退避
 /// - 网络状态监测
 /// - 请求/响应日志
@@ -17,7 +18,7 @@ final class APIClient: @unchecked Sendable {
     // MARK: - 配置
 
     private var baseURL: String {
-        UserDefaults.standard.string(forKey: "api_base_url") ?? "http://localhost:8080"
+        "http://localhost:8080/api/v1/"
     }
 
     private var token: String? {
@@ -75,6 +76,11 @@ final class APIClient: @unchecked Sendable {
         return try await request(method: "PUT", path: path, params: nil, body: body)
     }
 
+    /// 发送 PATCH 请求
+    func patch<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        return try await request(method: "PATCH", path: path, params: nil, body: body)
+    }
+
     /// 发送 DELETE 请求
     func delete<T: Decodable>(_ path: String, params: [String: String]? = nil) async throws -> T {
         return try await request(method: "DELETE", path: path, params: params, body: nil as EmptyBody?)
@@ -92,7 +98,7 @@ final class APIClient: @unchecked Sendable {
         let url = try buildURL(path: path, params: nil)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        addCommonHeaders(to: &request)
+        await addCommonHeaders(to: &request)
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -128,7 +134,7 @@ final class APIClient: @unchecked Sendable {
         let url = try buildURL(path: path, params: nil)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        addCommonHeaders(to: &request)
+        await addCommonHeaders(to: &request)
 
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
@@ -150,36 +156,45 @@ final class APIClient: @unchecked Sendable {
                 let url = try buildURL(path: path, params: params)
                 var request = URLRequest(url: url)
                 request.httpMethod = method
-                addCommonHeaders(to: &request)
 
                 if let body = body, !(body is EmptyBody) {
                     request.httpBody = try jsonEncoder.encode(body)
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    print(request.httpBody)
                 }
+                //等body注入完成的时候才能添加安全请求头 因为接口签名需要签名httpBody 否则与后端服务的签名荷载不一致
+                await addCommonHeaders(to: &request)
 
                 let (data, response) = try await session.data(for: request)
                 try validateResponse(response, data: data)
-
+                
                 // 解码响应
                 if T.self == EmptyBody.self {
                     return EmptyBody() as! T
                 }
-
+                // 在请求回调中
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print("服务器返回 原始响应体json数据: \(jsonString)")
+                }
+                print(T.self)
                 let decoded = try jsonDecoder.decode(ApiResponse<T>.self, from: data)
                 guard decoded.isSuccess, let result = decoded.data else {
-                    throw ApiError.serverError(decoded.code, decoded.message)
+                    throw ApiError.serverError(decoded.code, decoded.message!)
                 }
+                print("====================json解码提取API标准响应体ApiResponse中data业务数据====================", result, "========================================")
                 return result
 
             } catch let error as ApiError {
                 if error == .unauthorized, attempt == 0 {
-                    // 尝试刷新 Token
                     if let newToken = try? await refreshTokenAndRetry() {
-                        // 更新 Token 后重试
                         continue
+                    } else {
+                        Task {
+                            await AuthService.shared.forceLogout()
+                        }
+                        throw error
                     }
                 }
-                // 4xx 错误不重试
                 if case .serverError(let code, _) = error, (400...499).contains(code) {
                     throw error
                 }
@@ -192,6 +207,8 @@ final class APIClient: @unchecked Sendable {
                 }
             }
         }
+        
+        print(lastError)
 
         throw lastError ?? ApiError.networkError("请求失败")
     }
@@ -200,6 +217,7 @@ final class APIClient: @unchecked Sendable {
 
     private func buildURL(path: String, params: [String: String]?) throws -> URL {
         var components = URLComponents(string: "\(baseURL)\(path)")
+        print("\(baseURL)\(path)")
         if let params = params, !params.isEmpty {
             components?.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
         }
@@ -209,15 +227,26 @@ final class APIClient: @unchecked Sendable {
         return url
     }
 
-    private func addCommonHeaders(to request: inout URLRequest) {
+    private func addCommonHeaders(to request: inout URLRequest) async {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("PrivateCloudDisk-macOS/\(appVersion)", forHTTPHeaderField: "User-Agent")
         if let token = token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        // 防重放攻击
-        request.setValue(String(Date().timeIntervalSince1970), forHTTPHeaderField: "X-Request-Timestamp")
-        request.setValue(UUID().uuidString, forHTTPHeaderField: "X-Request-Id")
+
+        // 设备身份签名（防重放 + ECDSA 签名）
+        // 如果客户端已注册，自动添加签名头；未注册时静默跳过
+        let method = request.httpMethod ?? "GET"
+        let path = request.url?.path ?? "/"
+        if let securityHeaders = await RequestSigningService.shared.signRequest(
+            method: method,
+            path: path,
+            body: request.httpBody
+        ) {
+            for (key, value) in securityHeaders.httpHeaders {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
     }
 
     private func validateResponse(_ response: URLResponse, data: Data) throws {
@@ -229,6 +258,16 @@ final class APIClient: @unchecked Sendable {
         case 200, 201, 204:
             return
         case 401:
+            throw ApiError.unauthorized
+        case 403:
+            // 检查是否为客户端身份被吊销
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let code = json["code"] as? String,
+               code == "CLIENT_REVOKED" {
+                print("[APIClient] 客户端身份已被吊销")
+                DeviceIdentityManager.shared.refreshCache()
+                throw ApiError.serverError(403, "客户端身份已被吊销，请重新注册")
+            }
             throw ApiError.unauthorized
         case 400...499:
             let message = (try? JSONDecoder().decode(ApiResponse<EmptyBody>.self, from: data).message) ?? "请求错误"
@@ -246,7 +285,7 @@ final class APIClient: @unchecked Sendable {
         }
 
         let body = RefreshTokenRequest(refreshToken: refreshToken)
-        let url = try buildURL(path: "/api/auth/refresh", params: nil)
+        let url = try buildURL(path: "auth/oauth2/token/refresh", params: nil)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -256,25 +295,21 @@ final class APIClient: @unchecked Sendable {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
 
-        let authResponse = try jsonDecoder.decode(ApiResponse<AuthResponse>.self, from: data)
-        guard let auth = authResponse.data else { return nil }
+        let authResponse = try jsonDecoder.decode(ApiResponse<String>.self, from: data)
+        guard let token = authResponse.data else { return nil }
 
         KeychainManager.shared.updateTokens(
-            accessToken: auth.token,
-            refreshToken: auth.refreshToken,
-            userId: auth.user.id
+            accessToken: token,
+            refreshToken: refreshToken,
+            userId: nil
         )
-        return auth.token
+        return token
     }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 }
-
-// MARK: - 空请求体
-
-struct EmptyBody: Codable {}
 
 // MARK: - 文件上传/下载专用扩展
 
@@ -297,7 +332,7 @@ extension APIClient {
         let url = try buildURL(path: path, params: nil)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        addCommonHeaders(to: &request)
+        await addCommonHeaders(to: &request)
 
         let boundary = "Chunk-Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

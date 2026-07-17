@@ -22,8 +22,8 @@ public class CorsConfig {
 
         config.addAllowedOriginPattern("https://www.hellomyservice.xyz");
         config.addAllowedOriginPattern("https://tests.hellomyservice.xyz");
-        config.addAllowedOriginPattern("http://172.20.10.4:*");
-        config.addAllowedOriginPattern("http://192.168.1.12:*");
+        config.addAllowedOriginPattern("http://172.20.10.8:*");
+        config.addAllowedOriginPattern("http://192.168.1.11:*");
         
         // 允许所有请求方法（GET、POST、PUT等）
         config.addAllowedMethod("*");

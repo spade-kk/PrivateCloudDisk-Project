@@ -21,7 +21,7 @@ actor AuthService {
     }
 
     func login(phoneNumber: String, password: String, captchaToken: String = "") async throws -> LoginResult {
-        let hashedPwd = PasswordHasher.hashForTransport(password)
+        let hashedPwd = PasswordHasher.hashPasswordForTransport(password)
 
         struct LoginBody: Encodable {
             let phoneNumber: String; let password: String
@@ -50,7 +50,7 @@ actor AuthService {
     // MARK: - 注册
 
     func register(phoneNumber: String, password: String, code: String, username: String, captchaToken: String = "") async throws {
-        let hashedPwd = PasswordHasher.hashForTransport(password)
+        let hashedPwd = PasswordHasher.hashPasswordForTransport(password)
 
         struct RegisterBody: Encodable {
             let phoneNumber: String; let password: String

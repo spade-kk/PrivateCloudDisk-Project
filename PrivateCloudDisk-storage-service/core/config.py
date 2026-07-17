@@ -117,6 +117,33 @@ class Settings(BaseSettings):
     file_enhance_index_dlq_routing_key: str = "file.enhance.index.dlq"
     file_enhance_index_max_retries: int = 3
 
+    # --- office_to_pdf Office 文件转 PDF ---
+    # 将 Office 文档（Word/Excel/PPT）转换为 PDF 格式，生成统一的预览资源
+    # PDF 文件本身也需要生成缩略图等预览资源，走此增强阶段
+    file_enhance_office_to_pdf_queue: str = "pcd.file.enhance.office_to_pdf.queue"
+    file_enhance_office_to_pdf_routing_key: str = "file.enhance.office_to_pdf"
+    file_enhance_office_to_pdf_dlq: str = "pcd.file.enhance.office_to_pdf.dlq"
+    file_enhance_office_to_pdf_dlq_routing_key: str = "file.enhance.office_to_pdf.dlq"
+    file_enhance_office_to_pdf_max_retries: int = 3
+
+    # --- markdown_to_html Markdown 文件转 HTML ---
+    # 将 Markdown 文件转换为 HTML 格式，生成统一的预览资源
+    # 包含代码高亮、表格渲染、图表支持
+    file_enhance_markdown_to_html_queue: str = "pcd.file.enhance.markdown_to_html.queue"
+    file_enhance_markdown_to_html_routing_key: str = "file.enhance.markdown_to_html"
+    file_enhance_markdown_to_html_dlq: str = "pcd.file.enhance.markdown_to_html.dlq"
+    file_enhance_markdown_to_html_dlq_routing_key: str = "file.enhance.markdown_to_html.dlq"
+    file_enhance_markdown_to_html_max_retries: int = 3
+
+    # --- archive_parse 压缩包目录解析 ---
+    # 解析压缩包文件（ZIP/RAR/7Z/ISO/TAR/GZ/BZ2等），提取目录结构信息
+    # 生成 JSON 格式目录树供前端预览，不进行完整解压
+    file_enhance_archive_parse_queue: str = "pcd.file.enhance.archive_parse.queue"
+    file_enhance_archive_parse_routing_key: str = "file.enhance.archive_parse"
+    file_enhance_archive_parse_dlq: str = "pcd.file.enhance.archive_parse.dlq"
+    file_enhance_archive_parse_dlq_routing_key: str = "file.enhance.archive_parse.dlq"
+    file_enhance_archive_parse_max_retries: int = 3
+
     # --- 文件删除主交换机 & 队列 ---
     file_delete_exchange: str = "pcd.file.delete.exchange"
     file_delete_queue: str = "pcd.file.delete.queue"
@@ -223,7 +250,10 @@ class TaskTypes:
     VIDEO_TRANSCODE = "video_transcode"
     HLS_TRANSCODE = "hls_transcode"          # HLS 流媒体转码 (多码率 + 切片)
     MARK_ACTIVE = "mark_active"
-    CONTENT_INDEX = "content_index"  # 文件内容索引 (OpenSearch)
+    CONTENT_INDEX = "content_index"          # 文件内容索引 (OpenSearch)
+    OFFICE_TO_PDF = "office_to_pdf"          # Office 文件转 PDF 预览资源 (增强事件)
+    ARCHIVE_PARSE = "archive_parse"          # 压缩包目录结构解析 (增强事件)
+    MARKDOWN_TO_HTML = "markdown_to_html"   # Markdown 文件转 HTML (增强事件)
 
 
 # ========== 任务状态常量 ==========
@@ -254,6 +284,9 @@ class FailureReason:
     NOTIFY_BS_ERROR = "NOTIFY_BS_ERROR"
     CONTENT_EXTRACT_ERROR = "CONTENT_EXTRACT_ERROR"
     CONTENT_INDEX_ERROR = "CONTENT_INDEX_ERROR"
+    OFFICE_TO_PDF_ERROR = "OFFICE_TO_PDF_ERROR"  # Office 文件转 PDF 失败
+    MARKDOWN_TO_HTML_ERROR = "MARKDOWN_TO_HTML_ERROR"  # Markdown 转 HTML 失败
+    ARCHIVE_PARSE_ERROR = "ARCHIVE_PARSE_ERROR"  # 压缩包目录结构解析失败
     UPLOADS_DELETE_IO_ERROR = "UPLOADS_DELETE_IO_ERROR"
     UPLOADS_SESSION_NOTIFY_BS_ERROR = "UPLOADS_SESSION_NOTIFY_BS_ERROR"
     UNKNOWN = "UNKNOWN"
@@ -269,6 +302,57 @@ class FailureReason:
 # ========== 文件类型常量 ==========
 IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml"})
 VIDEO_TYPES = frozenset({"video/mp4", "video/mpeg", "video/quicktime", "video/webm", "video/x-msvideo", "video/x-matroska"})
+
+# Office 文档类型 — Word / Excel / PowerPoint
+# 这些文件需要转换为 PDF 才能在前端统一预览
+OFFICE_TYPES = frozenset({
+    "application/msword",                                                          # .doc
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",     # .docx
+    "application/vnd.ms-excel",                                                    # .xls
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",           # .xlsx
+    "application/vnd.ms-powerpoint",                                               # .ppt
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",   # .pptx
+})
+
+# PDF 类型 — 本身已是 PDF 格式，跳过转换但需要生成缩略图等预览资源
+PDF_TYPES = frozenset({"application/pdf"})
+
+# Markdown 类型 — 需要转换为 HTML 以在前端渲染预览
+MARKDOWN_TYPES = frozenset({"text/markdown", "text/x-markdown"})
+
+# 压缩包文件类型 — 需要解析目录结构以在前端预览
+# 支持 ZIP、RAR、7Z、ISO、TAR、GZIP、BZIP2、CAB 等主流压缩/归档格式
+ARCHIVE_TYPES = frozenset({
+    "application/zip",                                                              # .zip
+    "application/x-zip-compressed",                                                 # .zip (旧版 MIME)
+    "application/x-rar-compressed",                                                 # .rar
+    "application/x-rar",                                                            # .rar
+    "application/x-7z-compressed",                                                  # .7z
+    "application/x-iso9660-image",                                                  # .iso
+    "application/x-tar",                                                            # .tar
+    "application/gzip",                                                             # .gz
+    "application/x-gzip",                                                           # .gz
+    "application/x-bzip2",                                                          # .bz2
+    "application/x-bzip",                                                           # .bz
+    "application/x-xz",                                                             # .xz
+    "application/x-lzip",                                                           # .lz
+    "application/x-lzma",                                                           # .lzma
+    "application/vnd.ms-cab-compressed",                                            # .cab
+    "application/x-compress",                                                       # .Z
+    "application/x-cpio",                                                           # .cpio
+    "application/x-ar",                                                             # .ar
+    "application/x-archive",                                                        # .a
+    "application/x-lha",                                                            # .lha
+    "application/x-lzh",                                                            # .lzh
+    "application/x-ace",                                                            # .ace
+    "application/x-zoo",                                                            # .zoo
+    "application/x-alz",                                                            # .alz
+    "application/x-arj",                                                            # .arj
+    "application/x-arc",                                                            # .arc
+    "application/x-wim",                                                            # .wim
+    "application/x-apple-diskimage",                                                # .dmg
+    "application/x-raw-disk-image",                                                 # .img
+})
 
 REDIS_BACKEND_MASTER_KEY = "backend:task:{backend_task_id}:master"
 REDIS_BACKEND_EVENT_KEY = "backend:task:{backend_task_id}:{stage}"
@@ -306,6 +390,9 @@ ENHANCE_PIPELINE = [
     TaskTypes.VIDEO_TRANSCODE,
     TaskTypes.HLS_TRANSCODE,
     TaskTypes.CONTENT_INDEX,
+    TaskTypes.OFFICE_TO_PDF,       # Office 文件转 PDF 预览资源
+    TaskTypes.ARCHIVE_PARSE,       # 压缩包目录结构解析
+    TaskTypes.MARKDOWN_TO_HTML,    # Markdown 文件转 HTML 预览资源
 ]
 
 # 后台处理阶段 → 下一阶段的映射
@@ -330,6 +417,9 @@ ENHANCE_STAGE_ROUTING_KEY = {
     TaskTypes.VIDEO_TRANSCODE: "file.enhance.transcode",
     TaskTypes.HLS_TRANSCODE: "file.enhance.hls",
     TaskTypes.CONTENT_INDEX: "file.enhance.index",
+    TaskTypes.OFFICE_TO_PDF: "file.enhance.office_to_pdf",
+    TaskTypes.ARCHIVE_PARSE: "file.enhance.archive_parse",
+    TaskTypes.MARKDOWN_TO_HTML: "file.enhance.markdown_to_html",
 }
 
 # 根据文件类型判断需要触发的增强阶段
@@ -341,9 +431,26 @@ def get_enhance_stages(file_type: str) -> list[str]:
         stages.append(TaskTypes.THUMBNAIL)
         stages.append(TaskTypes.VIDEO_TRANSCODE)
         stages.append(TaskTypes.HLS_TRANSCODE)
+    # Office 文件 → 触发 PDF 转换增强阶段
+    # 将 Word/Excel/PPT 转换为 PDF 格式，生成统一的预览资源
+    if file_type in OFFICE_TYPES:
+        stages.append(TaskTypes.OFFICE_TO_PDF)
+    # PDF 文件 → 生成缩略图等预览资源（PDF 本身不需要转换，但需要缩略图）
+    # 注意：PDF 文件的缩略图由 ThumbnailPipeline 处理（支持 PDF 第一页截图）
+    # 此处仅触发 OFFICE_TO_PDF 阶段，PDF 文件无需转换，走缩略图 + 索引
+    if file_type in PDF_TYPES:
+        stages.append(TaskTypes.THUMBNAIL)
     # 文本类文件可索引
     if file_type.startswith(("text/", "application/pdf", "application/msword",
                               "application/vnd.openxmlformats", "application/vnd.ms-",
                               "application/json", "application/xml")):
         stages.append(TaskTypes.CONTENT_INDEX)
+    # Markdown 文件 → 触发 HTML 转换增强阶段
+    # 将 Markdown 转换为 HTML 格式，生成统一的预览资源
+    if file_type in MARKDOWN_TYPES:
+        stages.append(TaskTypes.MARKDOWN_TO_HTML)
+    # 压缩包文件 → 触发目录结构解析增强阶段
+    # 解析 ZIP/RAR/7Z/ISO 等压缩包格式，提取目录结构 JSON 供前端预览
+    if file_type in ARCHIVE_TYPES:
+        stages.append(TaskTypes.ARCHIVE_PARSE)
     return stages

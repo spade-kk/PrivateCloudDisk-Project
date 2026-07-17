@@ -138,6 +138,7 @@ import { useDownloaderStore } from '@/stores/downloaderStore'
 import { useStorageStore } from '@/stores/storageStore'
 import { useToastStore } from '@/stores/toastStore'
 import { useStarredStore } from '@/stores/starred'
+import { isVideo } from '@/utils/previewHelper'
 import PathNavigator from '@/components/file/PathNavigator.vue'
 import StorageInfo from '@/components/file/StorageInfo.vue'
 import FileGridView from '@/components/file/FileGridView.vue'
@@ -242,19 +243,33 @@ function navigateTo(node: any) {
 //   }
 // }
 
-// 单击节点：文件夹导航，文件则显示详情或预览
+// 单击节点：文件夹导航，视频文件跳转专属播放器，其他文件按类型预览或显示详情
 const onNodeClick = (node) => {
-  if (node.node_type === 'FOLDER') navigateTo(node)
-  else {
-    // 根据文件类型决定预览或仅显示详情
-    const ext = node.node_name.split('.').pop()?.toLowerCase()
-    if (['jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'md', 'html', 'css', 'js'].includes(ext)) {
-      previewNode.value = node
-      previewVisible.value = true
-    } else {
-      detailNode.value = node
-      detailVisible.value = true
-    }
+  if (node.node_type === 'FOLDER') {
+    navigateTo(node)
+    return
+  }
+
+  const fileName = node.node_name || node.name || ''
+
+  // 视频文件：直接跳转至流媒体播放页面，携带 fileId 参数
+  if (isVideo(fileName)) {
+    router.push({
+      name: 'VideoPlayer',
+      params: { fileId: node.node_id },
+      query: { name: encodeURIComponent(fileName) }
+    })
+    return
+  }
+
+  // 图片/PDF/文本/代码等：显示预览
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf', 'txt', 'md', 'html', 'css', 'js', 'ts', 'json', 'xml'].includes(ext)) {
+    previewNode.value = node
+    previewVisible.value = true
+  } else {
+    detailNode.value = node
+    detailVisible.value = true
   }
 }
 

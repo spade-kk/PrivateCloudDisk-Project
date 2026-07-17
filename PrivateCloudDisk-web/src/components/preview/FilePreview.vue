@@ -37,17 +37,18 @@
 
           <!-- 预览内容 -->
           <div class="preview-body">
-            <!-- 视频预览 -->
-            <VideoPreview
-              v-if="previewStore.isVideo"
-              :file-url="previewStore.previewUrl"
-              :file-name="previewStore.currentFile?.node_name || ''"
-              :file-size="previewStore.fileSizeFormatted"
-              :file-extension="previewStore.fileExtension"
-              :file-id="previewStore.currentFile?.node_id || ''"
-              :loading="previewStore.loading"
-              @retry="handleRetry"
-            />
+            <!-- 视频文件：不再内嵌预览，自动跳转至专属流媒体播放页面 -->
+            <div v-if="previewStore.isVideo" class="video-redirect-preview">
+              <div class="video-redirect-icon">
+                <i class="fa fa-film"></i>
+              </div>
+              <h3>视频文件</h3>
+              <p>正在跳转至专属播放器，享受更流畅的播放体验</p>
+              <button @click="openVideoPlayer" class="open-player-btn">
+                <i class="fa fa-play-circle"></i>
+                打开播放器
+              </button>
+            </div>
 
             <!-- 音频预览 -->
             <AudioPreview
@@ -60,7 +61,7 @@
               @retry="handleRetry"
             />
 
-            <!-- PDF预览 -->
+            <!-- PDF预览 需要改动 对接新独立预览页面 -->
             <PdfPreview
               v-else-if="previewStore.isPdf"
               :file-url="previewStore.previewUrl"
@@ -71,7 +72,7 @@
               @retry="handleRetry"
             />
 
-            <!-- Office文档预览 -->
+            <!-- Office文档预览 需要改动 对接新独立预览页面 -->
             <OfficePreview
               v-else-if="previewStore.isOffice"
               :file-url="previewStore.previewUrl"
@@ -103,6 +104,17 @@
               :file-size="previewStore.fileSizeFormatted"
               :file-extension="previewStore.fileExtension"
               :loading="previewStore.loading"
+              @retry="handleRetry"
+            />
+
+            <!-- Markdown 预览 -->
+            <MarkdownPreview
+              v-else-if="previewStore.isMarkdown"
+              :markdown-content="previewStore.previewContent"
+              :file-name="previewStore.currentFile?.node_name || ''"
+              :file-size="previewStore.fileSizeFormatted"
+              :loading="previewStore.loading"
+              :error-message="previewStore.error?.message || ''"
               @retry="handleRetry"
             />
 
@@ -141,15 +153,18 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePreviewStore } from '@/stores/previewStore'
 import { useToastStore } from '@/stores/toastStore'
 import ImageLightbox from './ImageLightbox.vue'
-import VideoPreview from './VideoPreview.vue'
 import AudioPreview from './AudioPreview.vue'
 import PdfPreview from './PdfPreview.vue'
 import OfficePreview from './OfficePreview.vue'
 import CodePreview from './CodePreview.vue'
 import TextPreview from './TextPreview.vue'
+import MarkdownPreview from './MarkdownPreview.vue'
+
+const router = useRouter()
 
 const props = defineProps({
   visible: {
@@ -192,6 +207,19 @@ const openPreview = async () => {
 const handleClose = () => {
   previewStore.closePreview()
   emit('close')
+}
+
+// 跳转至专属流媒体播放页面，携带 fileId 参数
+const openVideoPlayer = () => {
+  const file = previewStore.currentFile
+  if (!file?.node_id) return
+  previewStore.closePreview()
+  emit('close')
+  router.push({
+    name: 'VideoPlayer',
+    params: { fileId: file.node_id },
+    query: { name: encodeURIComponent(file.node_name || '') }
+  })
 }
 
 // 上一张 / 下一张（预留）
@@ -512,5 +540,67 @@ onUnmounted(() => {
   .unsupported-actions {
     flex-direction: column;
   }
+}
+
+/* ==================== 视频重定向预览 ==================== */
+.video-redirect-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  height: 100%;
+  min-height: 300px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 0.75rem;
+}
+
+.video-redirect-icon {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  background: rgba(75, 108, 183, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.video-redirect-icon i {
+  font-size: 2.5rem;
+  color: #4b6cb7;
+}
+
+.video-redirect-preview h3 {
+  color: #fff;
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.video-redirect-preview p {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem;
+}
+
+.open-player-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #165dff, #4080ff);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.open-player-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22, 93, 255, 0.4);
 }
 </style>

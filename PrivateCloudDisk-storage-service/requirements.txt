@@ -23,3 +23,8 @@ ffmpeg-python
 
 # SkyWalking APM — 分布式链路追踪
 apache-skywalking
+
+libarchive-c
+fitz
+python-markdown
+pygments
