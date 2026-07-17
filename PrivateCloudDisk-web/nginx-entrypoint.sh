@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
-set -euo pipefail
+set -eu
 
 # ---------- 日志函数 ----------
 log_info() {
@@ -25,7 +25,7 @@ log_info "Monitor interval: ${MONITOR_INTERVAL}s"
 
 # ---------- 证书初始化 ----------
 ensure_certificate() {
-    if [[ -f "${CERT_FILE}" && -f "${KEY_FILE}" ]]; then
+    if [ -f "${CERT_FILE}" ] && [ -f "${KEY_FILE}" ]; then
         log_info "Existing certificate found, using it."
         return 0
     fi
@@ -38,7 +38,7 @@ ensure_certificate() {
         -out "${CERT_FILE}" \
         -subj "/CN=${DOMAIN}" 2>/dev/null
 
-    if [[ $? -eq 0 ]]; then
+    if [ $? -eq 0 ]; then
         log_info "Temporary certificate generated successfully."
     else
         log_error "Failed to generate temporary certificate. Nginx may not start."
@@ -50,20 +50,20 @@ ensure_certificate() {
 start_nginx() {
     log_info "Starting Nginx in daemon mode..."
     nginx -g "daemon on;"
-    if [[ $? -ne 0 ]]; then
+    if [ $? -ne 0 ]; then
         log_error "Nginx failed to start. Exiting."
         exit 1
     fi
 
     local retry=0
     local max_retry=10
-    until [[ -f "${NGINX_PID_FILE}" ]] && kill -0 "$(cat "${NGINX_PID_FILE}")" 2>/dev/null; do
-        if [[ $retry -ge $max_retry ]]; then
+    until [ -f "${NGINX_PID_FILE}" ] && kill -0 "$(cat "${NGINX_PID_FILE}")" 2>/dev/null; do
+        if [ $retry -ge $max_retry ]; then
             log_error "Nginx did not start within timeout."
             exit 1
         fi
         sleep 1
-        ((retry++))
+        retry=$((retry + 1))
     done
     log_info "Nginx started successfully (PID: $(cat "${NGINX_PID_FILE}"))."
 }
@@ -71,7 +71,7 @@ start_nginx() {
 # ---------- 证书监控循环 ----------
 monitor_certificates() {
     local old_mtime=0
-    if [[ -f "${CERT_FILE}" ]]; then
+    if [ -f "${CERT_FILE}" ]; then
         old_mtime=$(stat -c %Y "${CERT_FILE}" 2>/dev/null || echo 0)
     fi
 
@@ -79,9 +79,9 @@ monitor_certificates() {
 
     while true; do
         sleep "${MONITOR_INTERVAL}"
-
+        
         # ★★★ 增强：检查 Nginx 进程是否还活着 ★★★
-        if [[ -f "${NGINX_PID_FILE}" ]]; then
+        if [ -f "${NGINX_PID_FILE}" ]; then
             local pid
             pid=$(cat "${NGINX_PID_FILE}")
             if ! kill -0 "${pid}" 2>/dev/null; then
@@ -93,17 +93,17 @@ monitor_certificates() {
             exit 1
         fi
 
-        if [[ ! -f "${CERT_FILE}" ]]; then
+        if [ ! -f "${CERT_FILE}" ]; then
             log_error "Certificate file disappeared! Skipping reload."
             continue
         fi
 
         local new_mtime
         new_mtime=$(stat -c %Y "${CERT_FILE}" 2>/dev/null || echo 0)
-        if [[ "${new_mtime}" -ne "${old_mtime}" ]]; then
+        if [ "${new_mtime}" -ne "${old_mtime}" ]; then
             log_info "Certificate file changed, reloading Nginx..."
             nginx -s reload
-            if [[ $? -eq 0 ]]; then
+            if [ $? -eq 0 ]; then
                 log_info "Nginx reloaded successfully."
                 old_mtime="${new_mtime}"
             else
@@ -117,7 +117,7 @@ monitor_certificates() {
 cleanup() {
     log_info "Received shutdown signal, stopping Nginx gracefully..."
     nginx -s quit 2>/dev/null || true
-    if [[ -f "${NGINX_PID_FILE}" ]]; then
+    if [ -f "${NGINX_PID_FILE}" ]; then
         local pid
         pid=$(cat "${NGINX_PID_FILE}")
         while kill -0 "${pid}" 2>/dev/null; do
