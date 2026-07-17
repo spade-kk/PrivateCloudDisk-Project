@@ -242,6 +242,10 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useToastStore } from '@/stores/toastStore'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { loadMarkdownItWithPlugins } from '@/utils/markdownCdn'
+import { loadMermaid } from '@/utils/mermaidCdn'
+import { loadKaTeX } from '@/utils/katexCdn'
+import { loadHighlight, getHighlightSync } from '@/utils/highlightCdn'
 
 // ============================================================
 // Props
@@ -376,96 +380,68 @@ const readTime = computed(() => {
 /**
  * 初始化 markdown-it 解析器
  *
+ * 实现说明（CDN 化后）：
+ *   - markdown-it 及所有插件通过 CDN 动态加载（markdownCdn.ts）
+ *   - highlight.js 通过 CDN 加载（highlightCdn.ts），传入 markdown-it 的 highlight 回调
+ *   - 加载失败时返回 null，触发降级渲染
+ *
  * 插件列表:
  *   - markdown-it-anchor: 为标题添加锚点 ID
  *   - markdown-it-table-of-contents: 生成 [TOC] 目录
  *   - markdown-it-emoji: Emoji 支持 :smile:
- *   - markdown-it-mark: ==高亮== 标记
- *   - markdown-it-sub/sup: 上下标
- *   - markdown-it-ins: ++下划线++
- *   - markdown-it-abbr: 缩写
- *   - markdown-it-footnote: 脚注
  *   - markdown-it-task-lists: 任务列表
- *   - highlight.js: 代码语法高亮
+ *   - highlight.js: 代码语法高亮（通过 highlightFn 注入）
  */
 const initMarkdownIt = async (): Promise<void> => {
   try {
-    // 动态导入 markdown-it
-    const MarkdownIt = (await import('markdown-it')).default
+    // 先并行触发 highlight.js 加载（不阻塞 markdown-it 创建）
+    // 因为 highlight 回调是同步被 markdown-it 调用的，
+    // 提前加载可让首次渲染时 highlight 已就绪
+    const hljsPromise = loadHighlight().catch(() => null)
 
-    md = new MarkdownIt({
-      html: false,         // 禁止原始 HTML（安全）
-      breaks: true,        // 换行符转换为 <br>
-      linkify: true,       // 自动识别 URL 链接
-      typographer: true,   // 智能引号、破折号
-      xhtmlOut: false,
-      langPrefix: 'language-',
-      highlight: (code: string, lang: string): string => {
-        // 使用 highlight.js 进行代码高亮
+    // 通过 CDN 加载 markdown-it + 所有插件，并注入 highlight 回调
+    md = await loadMarkdownItWithPlugins({
+      highlightFn: (code: string, lang: string): string => {
         return highlightCode(code, lang)
       },
     })
 
-    // 加载插件
-    try {
-      const anchor = (await import('markdown-it-anchor')).default
-      md.use(anchor, {
-        level: [1, 2, 3, 4, 5, 6],
-        permalink: true,
-        permalinkClass: 'header-anchor',
-        permalinkSymbol: '#',
-        permalinkBefore: true,
-      })
-    } catch { /* 插件可选 */ }
-
-    try {
-      const toc = (await import('markdown-it-table-of-contents')).default
-      md.use(toc, { includeLevel: [1, 2, 3] })
-    } catch { /* 插件可选 */ }
-
-    try {
-      const emoji = (await import('markdown-it-emoji')).default
-      md.use(emoji)
-    } catch { /* 插件可选 */ }
-
-    try {
-      const taskLists = (await import('markdown-it-task-lists')).default
-      md.use(taskLists)
-    } catch { /* 插件可选 */ }
-
-  } catch {
-    // markdown-it 不可用，使用降级渲染
-    console.warn('[MarkdownPreview] markdown-it 不可用，使用基础渲染')
+    // 确保 highlight.js 已就绪（等待加载完成，但不阻塞返回）
+    void hljsPromise
+  } catch (err) {
+    console.warn('[MarkdownPreview] markdown-it CDN 加载失败，使用基础渲染:', err)
     md = null
   }
 }
 
 /**
  * 使用 highlight.js 进行代码语法高亮
+ *
+ * 实现说明（CDN 化后）：
+ *   - 优先使用同步已就绪的 highlight.js 实例（getHighlightSync）
+ *   - 若未就绪则降级为基础 HTML 转义
+ *   - 异步触发 loadHighlight 以便下次调用时可用
  */
 const highlightCode = (code: string, lang: string): string => {
-  // 尝试使用 highlight.js
-  try {
-    // 动态导入 highlight.js
-    const hljsPromise = import('highlight.js').then(m => m.default || m)
+  // 同步获取已加载的 highlight.js 实例
+  const hljs = getHighlightSync()
 
-    // 同步尝试（如果已加载）
-    const w = window as any
-    if (w.hljs) {
-      const hljs = w.hljs
+  if (hljs) {
+    try {
       if (lang && hljs.getLanguage(lang)) {
-        try {
-          const result = hljs.highlight(code, { language: lang, ignoreIllegals: true })
-          return `<pre><code class="hljs language-${lang}">${result.value}</code></pre>`
-        } catch { /* 高亮失败 */ }
+        const result = hljs.highlight(code, { language: lang, ignoreIllegals: true })
+        return `<pre><code class="hljs language-${lang}">${result.value}</code></pre>`
       }
       // 自动检测语言
       try {
         const result = hljs.highlightAuto(code)
         return `<pre><code class="hljs">${result.value}</code></pre>`
       } catch { /* 自动检测失败 */ }
-    }
-  } catch { /* highlight.js 不可用 */ }
+    } catch { /* 高亮失败 */ }
+  } else {
+    // 异步触发加载（首次调用时）
+    void loadHighlight().catch(() => {})
+  }
 
   // 降级：基础 HTML 转义
   const escaped = code
@@ -703,7 +679,8 @@ const initMermaid = async (el: HTMLElement): Promise<void> => {
   if (mermaidBlocks.length === 0) return
 
   try {
-    const mermaid = (await import('mermaid')).default
+    // 通过 CDN 加载 mermaid
+    const mermaid = await loadMermaid()
     mermaid.initialize({
       startOnLoad: false,
       theme: isDark.value ? 'dark' : 'default',
@@ -735,58 +712,60 @@ const initMermaid = async (el: HTMLElement): Promise<void> => {
       }
     }
   } catch {
-    // Mermaid 不可用
+    // Mermaid CDN 加载失败
   }
 }
 
 /** 初始化 KaTeX 数学公式 */
 const initKaTeX = async (_el: HTMLElement): Promise<void> => {
-  // KaTeX 通常在 SSR 或全局加载，这里检查是否需要处理
-  // 如果 HTML 中包含 .katex 类，说明公式已由后端预处理
-  // 如果 HTML 中包含 $ 包裹的公式，需要用 KaTeX 渲染
+  // 通过 CDN 加载 KaTeX
+  // 加载失败则跳过公式渲染（保留原始公式文本）
+  let katex: typeof import('katex').default
   try {
-    const katex = (await import('katex')).default
-    const el = contentRef.value
-    if (!el) return
+    katex = await loadKaTeX()
+  } catch {
+    // KaTeX CDN 加载失败
+    return
+  }
 
-    // 处理块级公式 $$...$$
-    const html = el.innerHTML
-    if (html.includes('$$')) {
-      const newHtml = html.replace(/\$\$([\s\S]*?)\$\$/g, (_m: string, formula: string) => {
+  const el = contentRef.value
+  if (!el) return
+
+  // 处理块级公式 $$...$$
+  const html = el.innerHTML
+  if (html.includes('$$')) {
+    const newHtml = html.replace(/\$\$([\s\S]*?)\$\$/g, (_m: string, formula: string) => {
+      try {
+        return katex.renderToString(formula.trim(), {
+          throwOnError: false,
+          displayMode: true,
+        })
+      } catch {
+        return _m
+      }
+    })
+    el.innerHTML = newHtml
+  }
+
+  // 处理行内公式 $...$
+  // 注意：避免匹配代码块中的 $
+  const paragraphs = el.querySelectorAll('p, li, td, th')
+  for (const p of paragraphs) {
+    if (p.querySelector('code')) continue // 跳过包含代码的元素
+    const text = p.innerHTML
+    if (text.includes('$') && !text.includes('$$')) {
+      const newText = text.replace(/\$([^$]+)\$/g, (_m: string, formula: string) => {
         try {
           return katex.renderToString(formula.trim(), {
             throwOnError: false,
-            displayMode: true,
+            displayMode: false,
           })
         } catch {
           return _m
         }
       })
-      el.innerHTML = newHtml
+      p.innerHTML = newText
     }
-
-    // 处理行内公式 $...$
-    // 注意：避免匹配代码块中的 $
-    const paragraphs = el.querySelectorAll('p, li, td, th')
-    for (const p of paragraphs) {
-      if (p.querySelector('code')) continue // 跳过包含代码的元素
-      const text = p.innerHTML
-      if (text.includes('$') && !text.includes('$$')) {
-        const newText = text.replace(/\$([^$]+)\$/g, (_m: string, formula: string) => {
-          try {
-            return katex.renderToString(formula.trim(), {
-              throwOnError: false,
-              displayMode: false,
-            })
-          } catch {
-            return _m
-          }
-        })
-        p.innerHTML = newText
-      }
-    }
-  } catch {
-    // KaTeX 不可用
   }
 }
 

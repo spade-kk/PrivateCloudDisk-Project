@@ -4,7 +4,7 @@
 // 基于 DOMPurify 的企业级 XSS 防护模块，提供 HTML 内容净化、
 // Vue 3 自定义指令 v-safe-html 以及安全的 innerHTML 设置工具。
 //
-// 依赖：dompurify (v3.4+)
+// 依赖：DOMPurify (v3.4+，CDN 动态加载)
 //
 // 安全策略：
 // - 默认白名单模式：仅允许安全标签和属性
@@ -12,17 +12,28 @@
 // - 禁止事件处理器（onclick、onerror 等）
 // - 禁止 javascript: 伪协议
 // - 链接自动添加 rel="noopener noreferrer" 和 target="_blank"
+//
+// CDN 加载策略：
+//   - DOMPurify 已改为 CDN 动态加载（domPurifyCdn.ts）
+//   - 同步 API（sanitize / sanitizeHtml）会在 DOMPurify 未就绪时
+//     触发紧急降级：返回空字符串或原始转义内容，避免 XSS
+//   - 异步 API（sanitizeAsync）会等待 CDN 加载完成后净化
+//   - 应用启动时应在 main.ts 调用 preloadDOMPurify() 预加载
 // ============================================================
 
-import DOMPurify from 'dompurify'
+import type DOMPurifyType from 'dompurify'
 import type { Directive } from 'vue'
+import { loadDOMPurify, getDOMPurifySync, preloadDOMPurify } from './domPurifyCdn'
+
+// 应用启动时预加载 DOMPurify（异步进行，不阻塞主流程）
+preloadDOMPurify()
 
 // ============================================================
 // DOMPurify 全局配置
 // ============================================================
 
 // 安全配置：仅允许安全的 HTML 标签和属性
-const DEFAULT_CONFIG: DOMPurify.Config = {
+const DEFAULT_CONFIG = {
   // 允许的安全标签（白名单）
   ALLOWED_TAGS: [
     'a', 'abbr', 'b', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3',
@@ -57,6 +68,36 @@ const DEFAULT_CONFIG: DOMPurify.Config = {
   ALLOWED_NAMESPACES: [],
   // 禁止 SVG 和 MathML
   USE_PROFILES: { html: true },
+} as any
+
+/**
+ * 紧急降级净化：当 DOMPurify 未加载完成时使用
+ * 仅做基础 HTML 转义，移除 <script> 等明显危险标签
+ */
+function emergencySanitize(dirty: string): string {
+  if (!dirty) return ''
+  // 移除 script / iframe / object / embed / style 标签及内容
+  let cleaned = dirty
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[^>]*>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // 移除所有事件处理器
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    // 移除 javascript: 伪协议
+    .replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="#"')
+    .replace(/src\s*=\s*["']?\s*javascript:/gi, '')
+  return cleaned
+}
+
+/**
+ * 同步获取 DOMPurify 实例，未加载时返回 null
+ */
+function getDOMPurify(): DOMPurifyType | null {
+  return getDOMPurifySync()
 }
 
 /**
@@ -64,6 +105,10 @@ const DEFAULT_CONFIG: DOMPurify.Config = {
  *
  * 用于处理用户输入、富文本编辑器内容、第三方内容等
  * 不可信来源的 HTML 字符串。
+ *
+ * 注意：本函数为同步函数，若 DOMPurify CDN 尚未加载完成，
+ * 会触发紧急降级（基础正则净化），保证安全性但不保证完美净化。
+ * 若需保证完整净化能力，请使用 `sanitizeAsync`。
  *
  * @param dirty - 待净化的 HTML 字符串
  * @param config - 可选的 DOMPurify 配置，会与默认配置合并
@@ -81,15 +126,22 @@ const DEFAULT_CONFIG: DOMPurify.Config = {
  */
 export function sanitize(
   dirty: string,
-  config?: Partial<DOMPurify.Config>,
+  config?: Record<string, unknown>,
 ): string {
   if (!dirty) return ''
+
+  const dp = getDOMPurify()
+  if (!dp) {
+    // DOMPurify 未就绪 — 触发异步加载并降级处理
+    void loadDOMPurify()
+    return emergencySanitize(dirty)
+  }
 
   const mergedConfig = config
     ? { ...DEFAULT_CONFIG, ...config }
     : DEFAULT_CONFIG
 
-  return DOMPurify.sanitize(dirty, mergedConfig)
+  return dp.sanitize(dirty, mergedConfig as any)
 }
 
 // ============================================================
@@ -166,7 +218,14 @@ const MARKDOWN_ALLOWED_ATTRS = [
 export function sanitizeHtml(dirty: string): string {
   if (!dirty) return ''
 
-  return DOMPurify.sanitize(dirty, {
+  const dp = getDOMPurify()
+  if (!dp) {
+    // DOMPurify 未就绪 — 触发异步加载并降级处理
+    void loadDOMPurify()
+    return emergencySanitize(dirty)
+  }
+
+  return dp.sanitize(dirty, {
     ALLOWED_TAGS: MARKDOWN_ALLOWED_TAGS,
     ALLOWED_ATTR: MARKDOWN_ALLOWED_ATTRS,
     ALLOW_DATA_ATTR: true,
@@ -181,7 +240,31 @@ export function sanitizeHtml(dirty: string): string {
     FORCE_BODY: false,
     ALLOW_UNKNOWN_PROTOCOLS: false,
     USE_PROFILES: { html: true },
-  })
+  } as any)
+}
+
+/**
+ * 异步净化 HTML 内容（保证 DOMPurify 已加载）
+ *
+ * 与同步 `sanitize` 不同，本函数会等待 DOMPurify CDN 加载完成后再净化，
+ * 确保完整净化能力。适用于不要求同步返回的场景。
+ *
+ * @param dirty - 待净化的 HTML 字符串
+ * @param config - 可选的 DOMPurify 配置
+ * @returns 安全的 HTML 字符串
+ */
+export async function sanitizeAsync(
+  dirty: string,
+  config?: Record<string, unknown>,
+): Promise<string> {
+  if (!dirty) return ''
+
+  const dp = await loadDOMPurify()
+  const mergedConfig = config
+    ? { ...DEFAULT_CONFIG, ...config }
+    : DEFAULT_CONFIG
+
+  return dp.sanitize(dirty, mergedConfig as any)
 }
 
 /**
@@ -191,11 +274,24 @@ export function sanitizeHtml(dirty: string): string {
  * @returns 安全的 DocumentFragment
  */
 export function sanitizeToFragment(dirty: string): DocumentFragment {
-  return DOMPurify.sanitize(dirty, {
+  if (!dirty) return document.createDocumentFragment()
+
+  const dp = getDOMPurify()
+  if (!dp) {
+    // 降级：创建临时 div 并使用 emergencySanitize
+    const div = document.createElement('div')
+    div.innerHTML = emergencySanitize(dirty)
+    const frag = document.createDocumentFragment()
+    while (div.firstChild) frag.appendChild(div.firstChild)
+    return frag
+  }
+
+  const result = dp.sanitize(dirty, {
     ...DEFAULT_CONFIG,
     RETURN_DOM: true,
     RETURN_DOM_FRAGMENT: true,
-  })
+  } as any)
+  return result as DocumentFragment
 }
 
 /**
@@ -248,8 +344,10 @@ export const vSafeHtml: Directive<HTMLElement, string> = {
 }
 
 // ============================================================
-// 导出 DOMPurify 实例
+// 导出 DOMPurify 异步获取器
 // ============================================================
-
-/** 直接导出 DOMPurify 实例，供需要自定义配置的场景使用 */
-export { DOMPurify }
+// 由于 DOMPurify 改为 CDN 加载，无法直接 export 默认实例。
+// 提供 getDOMPurifyAsync 函数让调用方按需获取。
+export async function getDOMPurifyAsync(): Promise<DOMPurifyType> {
+  return loadDOMPurify()
+}

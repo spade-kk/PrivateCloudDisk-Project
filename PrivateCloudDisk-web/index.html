@@ -9,7 +9,7 @@
   <!-- ============================================================ -->
   <!-- CDN 预连接 — 提前完成 DNS/TCP/TLS 握手，加速资源加载 -->
   <!-- ============================================================ -->
-  <!-- jsDelivr CDN：font-awesome + Monaco Editor -->
+  <!-- jsDelivr CDN：font-awesome + Monaco Editor + markdown-it + mermaid + katex + highlight.js + dompurify -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 
@@ -23,9 +23,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!--
-    Monaco Editor 由 monacoLoader.ts 在路由进入代码预览页时动态从 CDN 加载，
-    此处不预加载以避免首屏白屏（按需加载策略）。
-    CDN 地址：https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs/loader.js
+    以下库已改为 CDN 动态加载（按需加载策略，避免首屏白屏）：
+    - Monaco Editor   (代码预览页时加载)   https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs/loader.js
+    - markdown-it     (Markdown 预览页时)  https://cdn.jsdelivr.net/npm/markdown-it@14.3.0/dist/markdown-it.min.js
+    - mermaid         (含 Mermaid 图表时)  https://cdn.jsdelivr.net/npm/mermaid@11.16.0/dist/mermaid.min.js
+    - katex           (含数学公式时)       https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js
+    - highlight.js    (代码高亮时)         https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js
+    - dompurify       (应用启动时预加载)    https://cdn.jsdelivr.net/npm/dompurify@3.4.11/dist/purify.min.js
   -->
 </head>
 <body>
