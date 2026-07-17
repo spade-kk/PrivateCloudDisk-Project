@@ -1,13 +1,13 @@
 # ============================================================
 # IM Platform — Docker 多阶段构建（含 SkyWalking Agent）
 # ============================================================
-# 阶段 1：Maven 编译（JDK 18 + Maven 3.9）
+# 阶段 1：Maven 编译（JDK 18 + Maven 4.0）
 # 阶段 2：下载 SkyWalking Java Agent
 # 阶段 3：JRE 运行时（精简镜像）
 # ============================================================
 
 # ---- 阶段 1：构建 ----
-FROM maven:3.9-eclipse-temurin-18 AS builder
+FROM maven:4.0-eclipse-temurin-18 AS builder
 
 WORKDIR /build
 
