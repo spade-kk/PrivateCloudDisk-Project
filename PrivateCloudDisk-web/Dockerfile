@@ -68,6 +68,7 @@ RUN apk add --no-cache --virtual .build-deps \
     gcc \
     libc-dev \
     make \
+    openssl \
     openssl-dev \
     pcre-dev \
     zlib-dev \
