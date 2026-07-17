@@ -68,7 +68,6 @@ RUN apk add --no-cache --virtual .build-deps \
     gcc \
     libc-dev \
     make \
-    openssl \
     openssl-dev \
     pcre-dev \
     zlib-dev \
@@ -117,7 +116,8 @@ RUN apk add --no-cache \
     logrotate \
     tini \
     curl \
-    tzdata
+    tzdata \
+    openssl
 
 # 设置时区
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
