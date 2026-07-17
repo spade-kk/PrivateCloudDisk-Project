@@ -678,10 +678,10 @@ services:
       - ./downloads/binaries:/usr/share/nginx/html/downloads/binaries:ro
       # 方式 B（纯 Docker）：命名卷，通过 uploader 服务上传
       # - downloads-binaries:/usr/share/nginx/html/downloads/binaries:ro
-    depends_on:
-      gateway-service-backend:
-        condition: service_started
     restart: always
+    environment:
+      - DOMAIN=hellomyservice.xyz          # 必填！替换为你的真实域名
+      - MONITOR_INTERVAL=300            # 可选，默认 300 秒
     # 资源限制（防止内存泄漏导致宿主机 OOM）
     deploy:
       resources:
@@ -719,13 +719,17 @@ services:
 
   # -------------------- Let's Encrypt 证书自动续期 --------------------
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/dns-cloudflare:latest
     container_name: private-cloud-certbot
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
+      - ./cloudflare.ini:/etc/cloudflare.ini:ro   # 挂载 API 凭证
+    environment:
+      - CLOUDFLARE_EMAIL=
+      - CLOUDFLARE_API_KEY= # 或使用令牌
     networks:
       - app-networks
     # 每 12 小时检查一次证书续期
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook \"nginx -s reload\"; sleep 12h & wait $${!}; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook \"echo reload\"; sleep 12h & wait $${!}; done;'"
     restart: always

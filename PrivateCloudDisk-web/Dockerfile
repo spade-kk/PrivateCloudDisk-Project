@@ -10,7 +10,7 @@
 #   输出：ngx_http_brotli_filter_module.so / ngx_http_brotli_static_module.so
 #
 # 阶段 3：最终运行镜像
-#   合并前端静态文件 + Nginx + Brotli 模块
+#   合并前端静态文件 + Nginx + Brotli 模块 + 企业级入口脚本
 #   以非 root 用户运行，遵循最小权限原则
 # ============================================================
 
@@ -60,6 +60,9 @@ RUN NGINX_VERSION=$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') && \
     echo "Detected nginx version: ${NGINX_VERSION}" && \
     echo "NGINX_VERSION=${NGINX_VERSION}" > /tmp/nginx-version.env
 
+# 更换为阿里云镜像源，加速构建
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 # 安装编译依赖
 RUN apk add --no-cache --virtual .build-deps \
     gcc \
@@ -103,6 +106,11 @@ RUN ./configure \
 # ============================================================
 FROM nginx:1.27-alpine
 
+# --- 添加：设置默认环境变量（可被运行时覆盖） ---
+ENV DOMAIN=hellomyservice.xyz \
+    MONITOR_INTERVAL=300 \
+    TZ=Asia/Shanghai
+
 # 安装运行时依赖（logrotate 用于日志轮转，tini 用于优雅退出）
 RUN apk add --no-cache \
     logrotate \
@@ -111,8 +119,15 @@ RUN apk add --no-cache \
     tzdata
 
 # 设置时区
-ENV TZ=Asia/Shanghai
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+# ============================================================
+# ★★★ 核心新增：复制企业级入口脚本 ★★★
+# ============================================================
+COPY nginx-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    # 确保脚本使用 LF 换行符（防止 Windows 下的 CRLF 导致诡异报错）
+    sed -i 's/\r$//' /entrypoint.sh
 
 # 从编译阶段复制 Brotli 模块
 COPY --from=brotli-builder /tmp/nginx-src/objs/ngx_http_brotli_filter_module.so \
@@ -167,6 +182,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 EXPOSE 80
 EXPOSE 443
 
-# 使用 tini 作为 init 进程，确保信号正确转发和僵尸进程回收
+# ============================================================
+# ★★★ 修改启动命令：用 tini 运行入口脚本 ★★★
+# ============================================================
+# tini 作为 init 进程，确保信号正确转发和僵尸进程回收
+# 入口脚本会负责生成临时证书、启动 Nginx、监控证书变化
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/entrypoint.sh"]
