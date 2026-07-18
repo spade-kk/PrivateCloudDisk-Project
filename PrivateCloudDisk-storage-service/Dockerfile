@@ -1,9 +1,12 @@
-FROM python:3.11-alpine
+FROM python:3.11-alpine3.19
 
 WORKDIR /backend_file_service
 
 # 更换为阿里云镜像源，加速构建
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+# 先获取 Alpine 版本号，然后写入完整的阿里云源
+RUN ALPINE_VERSION=$(cat /etc/alpine-release | cut -d. -f1,2) && \
+    echo "https://mirrors.aliyun.com/alpine/v${ALPINE_VERSION}/main" > /etc/apk/repositories && \
+    echo "https://mirrors.aliyun.com/alpine/v${ALPINE_VERSION}/community" >> /etc/apk/repositories
 
 # =============================================================================
 # 安装系统依赖
@@ -13,7 +16,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 # - vips: 图片处理
 # - tesseract-ocr: 图片 OCR 文字提取
 # =============================================================================
-RUN apk add --no-cache \
+RUN apk update && apk add --no-cache \
     # 编译工具（pyvips 需要）
     build-base \
     pkgconfig \
