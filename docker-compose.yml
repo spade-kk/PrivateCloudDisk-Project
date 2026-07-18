@@ -725,7 +725,7 @@ services:
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt
-      - ./cloudflare.ini:/etc/cloudflare.ini:ro   # 挂载 API 凭证
+      - ./cloudflare.ini:/etc/cloudflare.ini:ro   # 注意是文件挂载
     environment:
       - CLOUDFLARE_EMAIL=
       - CLOUDFLARE_API_KEY= # 或使用令牌
