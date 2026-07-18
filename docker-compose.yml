@@ -705,6 +705,7 @@ services:
       - /var/cache/nginx:rw,noexec,nosuid,size=64m
       - /var/run:rw,noexec,nosuid,size=8m
       - /tmp:rw,noexec,nosuid,size=16m
+      - /var/log/nginx:rw,noexec,nosuid,size=128m   # 新增此行
     # 健康检查（通过 HTTP 端点验证 Nginx 是否正常运行）
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]

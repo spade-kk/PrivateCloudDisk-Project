@@ -133,6 +133,7 @@ trap cleanup SIGTERM SIGINT SIGQUIT
 # ---------- 主流程 ----------
 main() {
     ensure_certificate
+    mkdir -p /var/log/nginx
     start_nginx
     monitor_certificates
 }
