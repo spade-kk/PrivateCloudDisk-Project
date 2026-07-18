@@ -7,7 +7,7 @@
 # ============================================================
 
 # ---- 阶段 1：构建 ----
-FROM maven:3.9.9-eclipse-temurin-18 AS builder
+FROM maven:3.8-eclipse-temurin-18 AS builder
 
 WORKDIR /build
 
