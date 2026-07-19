@@ -205,8 +205,8 @@ services:
     container_name: backend-gateway-service
     networks:
       - app-networks
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       - platform-service-backend
       - file-service-backend
@@ -229,8 +229,8 @@ services:
     container_name: backend-platform-service
     networks:
       - app-networks
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     depends_on:
       mysql:
         condition: service_healthy
@@ -268,8 +268,8 @@ services:
     container_name: backend-billing-service
     networks:
       - app-networks
-    ports:
-      - "8083:8083"
+    expose:
+      - "8083"
     depends_on:
       mysql:
         condition: service_healthy
@@ -525,9 +525,6 @@ services:
       - app-networks
     expose:
       - "9090"
-    ports:
-      # WebSocket 端口需要对外暴露（前端直接连接）
-      - "9090:9090"
     depends_on:
       redis:
         condition: service_healthy
@@ -657,7 +654,8 @@ services:
       context: ./PrivateCloudDisk-web
       args:
         # Vite 构建环境变量
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.hellomyservice.xyz/api/v1}
+        VITE_IM_WS_URL: ${VITE_IM_WS_URL:-wss:ws.hellomyservice.xyz}
         VITE_TURNSTILE_SITE_KEY: ${VITE_TURNSTILE_SITE_KEY:-0x4AAAAAADf7Z44g-izJGKIB}
         VITE_CHUNK_SIZE: ${VITE_CHUNK_SIZE:-5242880}
         VITE_MAX_CONCURRENT_UPLOADS: ${VITE_MAX_CONCURRENT_UPLOADS:-3}

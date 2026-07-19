@@ -192,68 +192,68 @@ export default defineConfig(({ command, mode }) => {
     // ============================================================
     // CSS 处理
     // ============================================================
-    css: {
-      // 生产环境启用 cssnano 深度优化
-      postcss: isProduction
-        ? {
-            plugins: [
-              cssnano({
-                preset: [
-                  'default',
-                  {
-                    // 去除所有 CSS 注释（包括 /*! 重要注释 */）
-                    discardComments: { removeAll: true },
-                    // 合并相邻的 @ 规则
-                    mergeRules: true,
-                    // 合并长时间运行的选择器
-                    mergeLonghand: true,
-                    // 规范化属性值（如颜色值统一为最短形式）
-                    colormin: true,
-                    // 简化 calc() 表达式
-                    calc: true,
-                    // 去除空的 @ 规则
-                    discardEmpty: true,
-                    // 规范化 z-index 值
-                    zindex: true,
-                    // 压缩字体权重表示
-                    minifyFontValues: true,
-                    // 压缩渐变表示
-                    minifyGradients: true,
-                    // 规范化选择器
-                    normalizeWhitespace: true,
-                    // 排序 CSS 声明以提升 gzip 压缩率
-                    cssDeclarationSorter: { order: 'alphabetical' },
-                    // 合并 @font-face 中相同字体族的规则
-                    mergeFontFace: true,
-                    // 转换颜色函数为更短形式
-                    convertColors: true,
-                    // 去除不必要的转义字符
-                    normalizeCharset: true,
-                    // 去除重复的 @charset 规则
-                    discardDuplicates: true,
-                    // 去除被覆盖的 @keyframes
-                    discardOverridden: true,
-                    // 规范化显示值
-                    normalizeDisplayValues: true,
-                    // 简化位置值
-                    normalizePositions: true,
-                    // 规范化重复值
-                    normalizeRepeatStyle: true,
-                    // 简化时间值
-                    normalizeTimingFunctions: true,
-                    // 规范化 Unicode 表示
-                    normalizeUnicode: true,
-                    // 排序值以提升压缩率
-                    orderedValues: true,
-                    // 合并唯一的键帧选择器
-                    uniqueSelectors: true,
-                  },
-                ],
-              }),
-            ],
-          }
-        : undefined,
-    },
+    // css: {
+    //   // 生产环境启用 cssnano 深度优化
+    //   postcss: isProduction
+    //     ? {
+    //         plugins: [
+    //           cssnano({
+    //             preset: [
+    //               'default',
+    //               {
+    //                 // 去除所有 CSS 注释（包括 /*! 重要注释 */）
+    //                 discardComments: { removeAll: true },
+    //                 // 合并相邻的 @ 规则
+    //                 mergeRules: true,
+    //                 // 合并长时间运行的选择器
+    //                 mergeLonghand: true,
+    //                 // 规范化属性值（如颜色值统一为最短形式）
+    //                 colormin: true,
+    //                 // 简化 calc() 表达式
+    //                 calc: true,
+    //                 // 去除空的 @ 规则
+    //                 discardEmpty: true,
+    //                 // 规范化 z-index 值
+    //                 zindex: true,
+    //                 // 压缩字体权重表示
+    //                 minifyFontValues: true,
+    //                 // 压缩渐变表示
+    //                 minifyGradients: true,
+    //                 // 规范化选择器
+    //                 normalizeWhitespace: true,
+    //                 // 排序 CSS 声明以提升 gzip 压缩率
+    //                 cssDeclarationSorter: { order: 'alphabetical' },
+    //                 // 合并 @font-face 中相同字体族的规则
+    //                 mergeFontFace: true,
+    //                 // 转换颜色函数为更短形式
+    //                 convertColors: true,
+    //                 // 去除不必要的转义字符
+    //                 normalizeCharset: true,
+    //                 // 去除重复的 @charset 规则
+    //                 discardDuplicates: true,
+    //                 // 去除被覆盖的 @keyframes
+    //                 discardOverridden: true,
+    //                 // 规范化显示值
+    //                 normalizeDisplayValues: true,
+    //                 // 简化位置值
+    //                 normalizePositions: true,
+    //                 // 规范化重复值
+    //                 normalizeRepeatStyle: true,
+    //                 // 简化时间值
+    //                 normalizeTimingFunctions: true,
+    //                 // 规范化 Unicode 表示
+    //                 normalizeUnicode: true,
+    //                 // 排序值以提升压缩率
+    //                 orderedValues: true,
+    //                 // 合并唯一的键帧选择器
+    //                 uniqueSelectors: true,
+    //               },
+    //             ],
+    //           }),
+    //         ],
+    //       }
+    //     : undefined,
+    // },
 
     // ============================================================
     // 构建配置
