@@ -22,6 +22,8 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import viteCompression from 'vite-plugin-compression'
 import JavaScriptObfuscator from 'javascript-obfuscator'
 import cssnano from 'cssnano'
+import fs from 'node:fs'
+import path from 'node:path'
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -156,6 +158,188 @@ export default defineConfig(({ command, mode }) => {
                 console.error('Failed to obfuscate crypto.ts:', e)
                 return null // 混淆失败时回退到原始代码
               }
+            },
+          }
+        })(),
+
+      // === index.html 压缩（生产环境） ===
+      // Vite 默认只注入 script/link 标签，不压缩 HTML 本身。
+      // 通过 transformIndexHtml 钩子对最终输出的 index.html 进行压缩：
+      //   1. 移除所有 HTML 注释（包括结构说明、CDN 预连接注释等）
+      //   2. 移除标签间的空白字符（> < 之间的换行和缩进）
+      //   3. 合并连续空白为单个空格
+      //   4. 移除每行首尾空白
+      // 压缩后 index.html 将从多行可读格式变为单行紧凑格式，
+      // 体积减少约 30-50%，且不暴露任何注释中的架构信息。
+      isProduction &&
+        (function vitePluginMinifyHtml() {
+          // HTML 压缩函数：移除注释 + 压缩空白
+          const minifyHtml = (html: string): string => {
+            return html
+              // 移除 HTML 注释（<!-- ... -->），支持多行注释
+              .replace(/<!--[\s\S]*?-->/g, '')
+              // 移除标签间的空白（> 和 < 之间的换行/缩进）
+              .replace(/>\s+</g, '><')
+              // 合并连续空白字符（空格/制表符/换行）为单个空格
+              .replace(/\s{2,}/g, ' ')
+              // 移除每行首尾空白
+              .replace(/^\s+|\s+$/gm, '')
+              // 移除多余空行
+              .replace(/\n\s*\n/g, '\n')
+              .trim()
+          }
+
+          return {
+            name: 'vite-plugin-minify-html',
+            apply: 'build' as const,
+            // transformIndexHub 在 Vite 注入 script/link 标签后调用
+            // 此时 HTML 已包含所有资源引用，是最终产物
+            transformIndexHtml(html: string) {
+              return minifyHtml(html)
+            },
+          }
+        })(),
+
+      // === public/ 目录静态资源压缩（生产环境） ===
+      // Vite 对 public/ 目录下的文件采用"原样复制"策略，不做任何处理。
+      // 这意味着 public/ 中的 HTML 注释、CSS 注释、JS 注释等都会原封不动
+      // 地部署到生产环境，造成信息泄露和体积浪费。
+      //
+      // ★★★ 企业级实现：精确区分 Vite 构建产物与 public/ 静态资源 ★★★
+      //
+      //   Vite 输出目录结构（dist/）：
+      //   ├── index.html          ← Vite 生成（已由 vite-plugin-minify-html 处理）
+      //   ├── assets/             ← Vite 构建产物（JS/CSS 已由 Terser/esbuild 深度压缩）
+      //   │   ├── index-abc123.js   ★ 已压缩，正则二次处理会截断/损坏！
+      //   │   └── index-def456.css  ★ 已压缩，正则二次处理会截断/损坏！
+      //   ├── *.gz, *.br          ← vite-plugin-compression 生成的预压缩文件
+      //   ├── favicon.ico         ← public/ 原样复制 → 需要处理
+      //   ├── robots.txt          ← public/ 原样复制 → 需要处理
+      //   └── subdir/             ← public/subdir/ 原样复制 → 需要处理
+      //
+      //   本插件策略：
+      //     1. 通过 configResolved 钩子获取 Vite 的 assetsDir 配置（默认 "assets"）
+      //     2. 在 closeBundle 中遍历 dist/ 时，精确跳过 Vite 构建产物目录
+      //     3. 跳过 .gz / .br 预压缩文件
+      //     4. 跳过 index.html（已由 vite-plugin-minify-html 处理）
+      //     5. 仅处理 public/ 复制过来的原始静态资源
+      isProduction &&
+        (function vitePluginMinifyPublic() {
+          // Vite 构建产物目录名（默认 "assets"，可通过 build.assetsDir 配置）
+          let viteAssetsDir = 'assets'
+
+          // CSS 压缩：移除注释 + 压缩空白
+          const minifyCss = (content: string): string => {
+            return content
+              // 移除 CSS 注释（/* ... */），支持多行
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              // 移除空白
+              .replace(/\s{2,}/g, ' ')
+              .replace(/\s*([{}:;,])\s*/g, '$1')
+              .replace(/;\s*}/g, '}')
+              .trim()
+          }
+
+          // JS 压缩：移除注释 + 压缩空白
+          const minifyJs = (content: string): string => {
+            return content
+              // 移除单行注释（但保留 URL 中的 //，如 https://）
+              .replace(/\/\/(?!\s*[a-zA-Z]+:\/\/)[^\n]*/g, '')
+              // 移除多行注释
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              // 压缩空白
+              .replace(/\s{2,}/g, ' ')
+              .replace(/\s*([{}();,:[\]])\s*/g, '$1')
+              .trim()
+          }
+
+          // HTML 压缩（与 index.html 压缩逻辑一致）
+          const minifyHtml = (content: string): string => {
+            return content
+              .replace(/<!--[\s\S]*?-->/g, '')
+              .replace(/>\s+</g, '><')
+              .replace(/\s{2,}/g, ' ')
+              .replace(/^\s+|\s+$/gm, '')
+              .replace(/\n\s*\n/g, '\n')
+              .trim()
+          }
+
+          return {
+            name: 'vite-plugin-minify-public',
+            apply: 'build' as const,
+
+            // ★ configResolved：在 Vite 解析完所有配置后调用，获取最终的 assetsDir
+            configResolved(config) {
+              viteAssetsDir = config.build.assetsDir
+            },
+
+            // closeBundle 在打包完成、所有文件写入磁盘后调用
+            closeBundle() {
+              const distDir = path.resolve(process.cwd(), 'dist')
+              if (!fs.existsSync(distDir)) return
+
+              // 文件扩展名 → 压缩函数 映射表
+              const minifierMap: Record<string, (content: string) => string> = {
+                '.html': minifyHtml,
+                '.css': minifyCss,
+                '.js': minifyJs,
+              }
+
+              // ★ 需要跳过的文件/目录集合
+              const skipFiles = new Set(['index.html']) // 已由 vite-plugin-minify-html 处理
+              const skipExtensions = new Set(['.gz', '.br']) // 预压缩文件，由 vite-plugin-compression 生成
+
+              // 递归遍历 dist/ 目录，仅处理 public/ 来源的静态资源
+              const walkDir = (dir: string, relativePath: string) => {
+                const entries = fs.readdirSync(dir, { withFileTypes: true })
+                for (const entry of entries) {
+                  const fullPath = path.join(dir, entry.name)
+                  const relPath = path.join(relativePath, entry.name)
+
+                  if (entry.isDirectory()) {
+                    // ★★★ 核心修复：跳过 Vite 构建产物目录（assets/）★★★
+                    // 该目录下的 JS/CSS 已由 Terser/esbuild 深度压缩，
+                    // 正则二次处理会破坏变量名、截断代码、引入语法错误
+                    if (entry.name === viteAssetsDir) {
+                      console.log(`  ⊘ skipped: ${relPath}/ (Vite build output, already minified by Terser/esbuild)`)
+                      continue
+                    }
+                    walkDir(fullPath, relPath)
+                  } else if (entry.isFile()) {
+                    // 跳过已处理的文件（如 index.html）
+                    if (skipFiles.has(entry.name)) continue
+
+                    const ext = path.extname(entry.name).toLowerCase()
+                    // 跳过预压缩文件（.gz / .br）
+                    if (skipExtensions.has(ext)) continue
+
+                    // 只处理有对应压缩函数的文件类型
+                    const minifier = minifierMap[ext]
+                    if (!minifier) continue
+
+                    try {
+                      const content = fs.readFileSync(fullPath, 'utf-8')
+                      const minified = minifier(content)
+
+                      if (minified !== content) {
+                        fs.writeFileSync(fullPath, minified, 'utf-8')
+                        const originalSize = Buffer.byteLength(content, 'utf-8')
+                        const minifiedSize = Buffer.byteLength(minified, 'utf-8')
+                        const saved = originalSize - minifiedSize
+                        const pct = ((saved / originalSize) * 100).toFixed(1)
+                        console.log(`  ✓ minified: ${relPath} (${originalSize} → ${minifiedSize} bytes, -${pct}%)`)
+                      }
+                    } catch {
+                      // 跳过无法读取的文件（如二进制文件）
+                    }
+                  }
+                }
+              }
+
+              console.log('\n📦 [vite-plugin-minify-public] Processing public/ static resources...')
+              console.log(`  (excluding Vite build output: ${viteAssetsDir}/, .gz, .br, index.html)`)
+              walkDir(distDir, '')
+              console.log('✅ Public static resources minification complete.\n')
             },
           }
         })(),

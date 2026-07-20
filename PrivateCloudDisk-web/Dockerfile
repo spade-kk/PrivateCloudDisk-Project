@@ -52,10 +52,10 @@ COPY . .
 RUN npm run build
 
 # ============================================================
-# 阶段 2：编译 Nginx Brotli 模块
+# 阶段 2：编译 Nginx 第三方动态模块（Brotli + Headers-More）
 # 使用与最终镜像相同版本的 Nginx 源码编译，确保 ABI 兼容
 # ============================================================
-FROM nginx:1.27-alpine AS brotli-builder
+FROM nginx:1.27-alpine AS module-builder
 
 # 动态获取 Nginx 版本（确保与基础镜像 nginx 二进制版本完全一致）
 RUN NGINX_VERSION=$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') && \
@@ -87,6 +87,11 @@ RUN . /tmp/nginx-version.env && \
 # 克隆 ngx_brotli Nginx 模块（含 Brotli 子模块）
 RUN git clone --depth=1 --recurse-submodules https://github.com/google/ngx_brotli.git /tmp/ngx_brotli
 
+# 克隆 headers-more-nginx-module（用于清除 Server 头等敏感响应头）
+# 该模块提供 more_set_headers / more_clear_headers 指令，
+# 可以精确控制响应头，是隐藏 Nginx 身份信息的关键组件
+RUN git clone --depth=1 https://github.com/openresty/headers-more-nginx-module.git /tmp/headers-more-nginx-module
+
 # 编译 Brotli C 静态库（ngx_brotli 模块依赖）
 RUN mkdir -p /tmp/ngx_brotli/deps/brotli/out && \
     cd /tmp/ngx_brotli/deps/brotli/out && \
@@ -96,11 +101,12 @@ RUN mkdir -p /tmp/ngx_brotli/deps/brotli/out && \
           .. && \
     cmake --build . --config Release --target brotlienc brotlicommon
 
-# 编译 Brotli Nginx 动态模块
+# 编译 Brotli + Headers-More 两个 Nginx 动态模块
 WORKDIR /tmp/nginx-src
 RUN ./configure \
     --with-compat \
     --add-dynamic-module=/tmp/ngx_brotli \
+    --add-dynamic-module=/tmp/headers-more-nginx-module \
     && make modules
 
 # ============================================================
@@ -133,10 +139,14 @@ RUN chmod +x /entrypoint.sh && \
     sed -i 's/\r$//' /entrypoint.sh
 
 # 从编译阶段复制 Brotli 模块
-COPY --from=brotli-builder /tmp/nginx-src/objs/ngx_http_brotli_filter_module.so \
+COPY --from=module-builder /tmp/nginx-src/objs/ngx_http_brotli_filter_module.so \
                           /etc/nginx/modules/ngx_http_brotli_filter_module.so
-COPY --from=brotli-builder /tmp/nginx-src/objs/ngx_http_brotli_static_module.so \
+COPY --from=module-builder /tmp/nginx-src/objs/ngx_http_brotli_static_module.so \
                           /etc/nginx/modules/ngx_http_brotli_static_module.so
+
+# 从编译阶段复制 Headers-More 模块（用于隐藏 Server 头等敏感信息）
+COPY --from=module-builder /tmp/nginx-src/objs/ngx_http_headers_more_filter_module.so \
+                          /etc/nginx/modules/ngx_http_headers_more_filter_module.so
 
 # 使用自定义主配置文件（含 Brotli 模块加载、worker 优化、events 优化）
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
@@ -178,8 +188,11 @@ RUN echo '/var/log/nginx/*.log {' > /etc/logrotate.d/nginx && \
 RUN echo '<!DOCTYPE html><html><head><title>Server Error</title></head><body><h1>500 - Internal Server Error</h1><p>Please try again later.</p></body></html>' > /usr/share/nginx/html/50x.html
 
 # 健康检查
+# ★ 使用 api 子域名的 /health 端点，避免命中 default_server 的 444 响应
+#    -H "Host: api.hellomyservice.xyz" 确保请求路由到正确的 server 块
+#    -k 跳过 TLS 证书验证（容器内部使用 localhost，证书域名不匹配）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+    CMD curl -fk -H "Host: api.hellomyservice.xyz" https://127.0.0.1/health || exit 1
 
 # 暴露端口
 EXPOSE 80
