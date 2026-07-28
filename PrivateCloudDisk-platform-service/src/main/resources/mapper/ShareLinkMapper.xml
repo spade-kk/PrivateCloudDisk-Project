@@ -8,10 +8,8 @@
         <id column="share_id" property="share_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="share_token" property="share_token"/>
         <result column="share_owner_id" property="share_owner_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
-        <result column="share_target_type" property="share_target_type"/>
-        <result column="share_file_id" property="share_file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
-        <result column="share_node_id" property="share_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="share_name" property="share_name"/>
+        <result column="share_description" property="share_description"/>
         <result column="share_password" property="share_password"/>
         <result column="share_has_password" property="share_has_password"/>
         <result column="share_expires_at" property="share_expires_at"/>
@@ -20,28 +18,67 @@
         <result column="share_created_at" property="share_created_at"/>
         <result column="share_updated_at" property="share_updated_at"/>
         <!-- 关联查询字段 -->
-        <result column="target_name" property="target_name"/>
-        <result column="target_size" property="target_size"/>
-        <result column="file_type" property="file_type"/>
         <result column="owner_name" property="owner_name"/>
+        <result column="resource_count" property="resource_count"/>
     </resultMap>
+
+    <!--
+        AUDIT FIX [3.1] 与文件服务“实际状态 + 逻辑继承状态”保持一致的分享资源可见性判定。
+        片段使用关联别名 r；回收站/软删除只影响列表与公开访问，不破坏底层分享关系。
+    -->
+    <sql id="ValidResourcePredicate">
+        (
+            r.resource_type = 'file'
+            AND EXISTS (
+                SELECT 1
+                FROM pcd_file_info_table f
+                WHERE f.file_id = r.file_id
+                  AND f.file_status = 'active'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pcd_directory_closure_table c
+                      INNER JOIN pcd_directory_tree_table ancestor_node
+                          ON ancestor_node.node_id = c.ancestor_id
+                      WHERE c.descendant_id = f.file_node_id
+                        AND c.user_id = f.file_author_id
+                        AND ancestor_node.node_status IN ('trashed', 'deleted')
+                  )
+            )
+        )
+        OR
+        (
+            r.resource_type = 'folder'
+            AND EXISTS (
+                SELECT 1
+                FROM pcd_directory_tree_table d
+                WHERE d.node_id = r.node_id
+                  AND d.node_status NOT IN ('trashed', 'deleted')
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pcd_directory_closure_table c
+                      INNER JOIN pcd_directory_tree_table ancestor_node
+                          ON ancestor_node.node_id = c.ancestor_id
+                      WHERE c.descendant_id = d.node_id
+                        AND c.user_id = d.node_user_id
+                        AND ancestor_node.node_status IN ('trashed', 'deleted')
+                  )
+            )
+        )
+    </sql>
 
     <!-- ==================== 插入 ==================== -->
 
     <insert id="insertShare" parameterType="org.project.model.entity.ShareLinkEntity">
         INSERT INTO pcd_share_link_table (
             share_id, share_token, share_owner_id,
-            share_target_type, share_file_id, share_node_id,
-            share_name, share_password, share_has_password,
+            share_name, share_description, share_password, share_has_password,
             share_expires_at, share_status
         ) VALUES (
             #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{share_token},
             #{share_owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
-            #{share_target_type},
-            #{share_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
-            #{share_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{share_name},
+            #{share_description},
             #{share_password},
             #{share_has_password},
             #{share_expires_at},
@@ -52,8 +89,18 @@
     <!-- ==================== 查询 ==================== -->
 
     <select id="findById" resultMap="ShareLinkEntityMap">
-        SELECT * FROM pcd_share_link_table
-        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        SELECT
+            s.*,
+            u.user_name AS owner_name,
+            (
+                SELECT COUNT(*)
+                FROM pcd_share_resource_table r
+                WHERE r.share_id = s.share_id
+                  AND (<include refid="ValidResourcePredicate"/>)
+            ) AS resource_count
+        FROM pcd_share_link_table s
+        LEFT JOIN pcd_user_info_table u ON s.share_owner_id = u.user_id
+        WHERE s.share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </select>
 
     <select id="findByToken" resultMap="ShareLinkEntityMap">
@@ -61,10 +108,8 @@
             s.share_id,
             s.share_token,
             s.share_owner_id,
-            s.share_target_type,
-            s.share_file_id,
-            s.share_node_id,
             s.share_name,
+            s.share_description,
             s.share_password,
             s.share_has_password,
             s.share_expires_at,
@@ -72,18 +117,22 @@
             s.share_status,
             s.share_created_at,
             s.share_updated_at,
-            COALESCE(f.file_name, d.node_name) AS target_name,
-            COALESCE(f.file_size, 0) AS target_size,
-            f.file_type AS file_type,
-            u.user_name AS owner_name
+            u.user_name AS owner_name,
+            (
+                SELECT COUNT(*)
+                FROM pcd_share_resource_table r
+                WHERE r.share_id = s.share_id
+                  AND (<include refid="ValidResourcePredicate"/>)
+            ) AS resource_count
         FROM pcd_share_link_table s
-        LEFT JOIN pcd_file_info_table f
-            ON s.share_file_id = f.file_id AND s.share_target_type = 'file'
-        LEFT JOIN pcd_directory_tree_table d
-            ON s.share_node_id = d.node_id AND s.share_target_type = 'folder'
-        LEFT JOIN pcd_user_info_table u
-            ON s.share_owner_id = u.user_id
+        LEFT JOIN pcd_user_info_table u ON s.share_owner_id = u.user_id
         WHERE s.share_token = #{share_token}
+          AND EXISTS (
+              SELECT 1
+              FROM pcd_share_resource_table r
+              WHERE r.share_id = s.share_id
+                AND (<include refid="ValidResourcePredicate"/>)
+          )
     </select>
 
     <select id="findByOwnerId" resultMap="ShareLinkEntityMap">
@@ -91,10 +140,8 @@
             s.share_id,
             s.share_token,
             s.share_owner_id,
-            s.share_target_type,
-            s.share_file_id,
-            s.share_node_id,
             s.share_name,
+            s.share_description,
             s.share_password,
             s.share_has_password,
             s.share_expires_at,
@@ -102,15 +149,20 @@
             s.share_status,
             s.share_created_at,
             s.share_updated_at,
-            COALESCE(f.file_name, d.node_name) AS target_name,
-            COALESCE(f.file_size, 0) AS target_size,
-            f.file_type AS file_type
+            (
+                SELECT COUNT(*)
+                FROM pcd_share_resource_table r
+                WHERE r.share_id = s.share_id
+                  AND (<include refid="ValidResourcePredicate"/>)
+            ) AS resource_count
         FROM pcd_share_link_table s
-        LEFT JOIN pcd_file_info_table f
-            ON s.share_file_id = f.file_id AND s.share_target_type = 'file'
-        LEFT JOIN pcd_directory_tree_table d
-            ON s.share_node_id = d.node_id AND s.share_target_type = 'folder'
         WHERE s.share_owner_id = #{owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND EXISTS (
+              SELECT 1
+              FROM pcd_share_resource_table r
+              WHERE r.share_id = s.share_id
+                AND (<include refid="ValidResourcePredicate"/>)
+          )
         ORDER BY s.share_created_at DESC
     </select>
 
@@ -137,5 +189,29 @@
           AND share_expires_at IS NOT NULL
           AND share_expires_at &lt; NOW()
     </update>
+
+    <update id="updateShare" parameterType="org.project.model.entity.ShareLinkEntity">
+        UPDATE pcd_share_link_table
+        SET share_password = #{share_password},
+            share_has_password = #{share_has_password}
+        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <!--
+        AUDIT FIX [3.2] 删除永久清理后已无任何资源的分享。
+        多资源分享仍含其他资源时不会命中 NOT EXISTS，因此不会被误删。
+    -->
+    <delete id="deleteEmptySharesByIds">
+        DELETE FROM pcd_share_link_table
+        WHERE share_id IN
+        <foreach collection="share_ids" item="shareId" open="(" separator="," close=")">
+            #{shareId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        </foreach>
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pcd_share_resource_table r
+              WHERE r.share_id = pcd_share_link_table.share_id
+          )
+    </delete>
 
 </mapper>

@@ -90,10 +90,21 @@ export function loadScript(
         resolve()
         return
       }
-      existing.addEventListener('load', () => resolve(), { once: true })
+      const existingTimer = setTimeout(() => {
+        existing.remove()
+        reject(new Error(`Script load timeout (${timeout}ms): ${src}`))
+      }, timeout)
+      existing.addEventListener('load', () => {
+        clearTimeout(existingTimer)
+        resolve()
+      }, { once: true })
       existing.addEventListener(
         'error',
-        () => reject(new Error(`Failed to load script: ${src}`)),
+        () => {
+          clearTimeout(existingTimer)
+          existing.remove()
+          reject(new Error(`Failed to load script: ${src}`))
+        },
         { once: true },
       )
       return
@@ -101,12 +112,19 @@ export function loadScript(
 
     // 超时定时器
     const timer = setTimeout(() => {
+      // AUDIT FIX [2.3]（需求一-4/5）:
+      // 原行为超时后残留 script，晚到的 load 仍可能污染全局变量并让下次重试一直等待旧节点。
+      script.onload = null
+      script.onerror = null
+      script.remove()
       reject(new Error(`Script load timeout (${timeout}ms): ${src}`))
     }, timeout)
 
     const script = document.createElement('script')
     script.src = src
     script.async = true
+    script.crossOrigin = 'anonymous'
+    script.referrerPolicy = 'no-referrer'
     script.dataset.cdnSrc = src
     if (module) script.type = 'module'
     script.onload = () => {
@@ -136,7 +154,7 @@ export function loadScript(
  * @param href CSS 资源 URL
  * @returns 加载完成的 Promise
  */
-export function loadStyle(href: string): Promise<void> {
+export function loadStyle(href: string, timeout = DEFAULT_TIMEOUT): Promise<void> {
   const cached = loadedStyles.get(href)
   if (cached) return cached
 
@@ -149,24 +167,45 @@ export function loadStyle(href: string): Promise<void> {
         resolve()
         return
       }
-      existing.addEventListener('load', () => resolve(), { once: true })
+      const existingTimer = setTimeout(() => {
+        existing.remove()
+        reject(new Error(`Style load timeout (${timeout}ms): ${href}`))
+      }, timeout)
+      existing.addEventListener('load', () => {
+        clearTimeout(existingTimer)
+        resolve()
+      }, { once: true })
       existing.addEventListener(
         'error',
-        () => reject(new Error(`Failed to load style: ${href}`)),
+        () => {
+          clearTimeout(existingTimer)
+          existing.remove()
+          reject(new Error(`Failed to load style: ${href}`))
+        },
         { once: true },
       )
       return
     }
 
+    const timer = setTimeout(() => {
+      link.onload = null
+      link.onerror = null
+      link.remove()
+      reject(new Error(`Style load timeout (${timeout}ms): ${href}`))
+    }, timeout)
     const link = document.createElement('link')
     link.rel = 'stylesheet'
     link.href = href
+    link.crossOrigin = 'anonymous'
+    link.referrerPolicy = 'no-referrer'
     link.dataset.cdnHref = href
     link.onload = () => {
+      clearTimeout(timer)
       link.dataset.loaded = 'true'
       resolve()
     }
     link.onerror = () => {
+      clearTimeout(timer)
       link.remove()
       reject(new Error(`Failed to load style: ${href}`))
     }

@@ -18,7 +18,6 @@ from .enhancement import (
     on_enhance_index_message,
     on_enhance_office_to_pdf_message,
     on_enhance_archive_parse_message,
-    on_enhance_markdown_to_html_message,
 )
 # DLQ — Backend + Enhancement =====
 from .dlq.backend_dlq_consumer import on_backend_dlq_message
@@ -43,7 +42,6 @@ __all__ = [
     "on_enhance_index_message",
     "on_enhance_office_to_pdf_message",
     "on_enhance_archive_parse_message",
-    "on_enhance_markdown_to_html_message",
     # DLQ
     "on_backend_dlq_message",
     "on_enhance_dlq_message",

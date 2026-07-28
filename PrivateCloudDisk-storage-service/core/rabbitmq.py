@@ -520,13 +520,6 @@ class RabbitMQService:
                 "dlq": settings.file_enhance_archive_parse_dlq,
                 "dlq_rk": settings.file_enhance_archive_parse_dlq_routing_key,
             },
-            # Markdown 文件转 HTML 增强阶段
-            {
-                "queue": settings.file_enhance_markdown_to_html_queue,
-                "rk": settings.file_enhance_markdown_to_html_routing_key,
-                "dlq": settings.file_enhance_markdown_to_html_dlq,
-                "dlq_rk": settings.file_enhance_markdown_to_html_dlq_routing_key,
-            },
         ]
 
         # 主交换机
@@ -556,6 +549,18 @@ class RabbitMQService:
                 },
             )
             await q.bind(en_exchange, routing_key=stage["rk"])
+
+            # AUDIT FIX [7.4]（需求一-3）:
+            # 原实现通过 asyncio.sleep 占用消费者并发槽，再 ACK+发布；进程退出会丢失待重试消息。
+            # 新增每阶段持久化延迟队列：消息按 expiration 到期后由 RabbitMQ 原子死信回主路由。
+            retry_queue = await self._declare_queue_safe(
+                f"{stage['queue']}.retry",
+                arguments={
+                    "x-dead-letter-exchange": settings.file_enhance_exchange,
+                    "x-dead-letter-routing-key": stage["rk"],
+                },
+            )
+            await retry_queue.bind(en_exchange, routing_key=f"{stage['rk']}.retry")
 
             # 死信队列
             dlq = await self._declare_queue_safe(

@@ -312,6 +312,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOfficePreviewStore } from '@/stores/officePreviewStore'
+import { buildAuthenticatedPdfSource } from '@/utils/pdfPreviewAuth'
 import { useToastStore } from '@/stores/toastStore'
 import PreviewToolbar from '@/components/preview/shared/PreviewToolbar.vue'
 
@@ -419,7 +420,8 @@ async function loadPdfIntoCanvas(): Promise<void> {
     const pdfUrl = store.previewUrl
     if (!pdfUrl) throw new Error('预览 URL 不可用')
 
-    const loadingTask = pdfjsLib.getDocument(pdfUrl)
+    // AUDIT FIX [6.8]: PDF.js 独立网络请求显式携带凭证，避免有权限的文档仍返回 401。
+    const loadingTask = pdfjsLib.getDocument(buildAuthenticatedPdfSource(pdfUrl))
     pdfDoc.value = await loadingTask.promise
 
     await renderPage(store.config.currentPage)

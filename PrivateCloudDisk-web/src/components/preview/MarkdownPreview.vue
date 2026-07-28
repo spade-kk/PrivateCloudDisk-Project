@@ -132,7 +132,7 @@
       <!-- ==================================================== -->
       <div class="md-content-wrapper" ref="contentWrapperRef" @scroll="onContentScroll">
         <!-- 加载状态 -->
-        <div v-if="loading" class="md-loading">
+        <div v-if="isBusy" class="md-loading" aria-live="polite" aria-busy="true">
           <div class="md-loading-spinner">
             <div class="ring"></div>
           </div>
@@ -239,13 +239,14 @@
 //   - KaTeX 不可用 → 显示原始公式文本
 // ============================================================
 
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, render } from 'vue'
 import { useToastStore } from '@/stores/toastStore'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { loadMarkdownItWithPlugins } from '@/utils/markdownCdn'
 import { loadMermaid } from '@/utils/mermaidCdn'
 import { loadKaTeX } from '@/utils/katexCdn'
-import { loadHighlight, getHighlightSync } from '@/utils/highlightCdn'
+import { loadHighlight, getHighlightSync, injectHighlightTheme } from '@/utils/highlightCdn'
+import Loading from 'element-plus/es/components/loading/src/service.mjs'
 
 // ============================================================
 // Props
@@ -314,7 +315,8 @@ const searchInputRef = ref<HTMLInputElement | null>(null)
 // UI 状态
 const isDark = ref(props.darkMode)
 const isFullscreen = ref(false)
-const showOutline = ref(false)
+// 需求二-1：桌面端默认展示左侧目录；移动端保持按需打开，避免遮挡正文。
+const showOutline = ref(typeof window === 'undefined' ? true : window.innerWidth > 768)
 const showSearch = ref(false)
 const copyIcon = ref('fa fa-copy')
 const progressPercent = ref(0)
@@ -339,9 +341,13 @@ const lightboxCurrentIndex = ref(0)
 // 渲染状态
 const renderedHtml = ref('')
 const rendering = ref(false)
+const libraryLoading = ref(true)
 
 // markdown-it 实例
 let md: any = null
+
+/** 外部内容加载、CDN 初始化和当前渲染统一为一个可观测加载状态，避免弱网下出现空白正文。 */
+const isBusy = computed(() => props.loading || libraryLoading.value || rendering.value)
 
 // IntersectionObserver 用于目录高亮
 let headingObserver: IntersectionObserver | null = null
@@ -401,13 +407,18 @@ const initMarkdownIt = async (): Promise<void> => {
 
     // 通过 CDN 加载 markdown-it + 所有插件，并注入 highlight 回调
     md = await loadMarkdownItWithPlugins({
-      highlightFn: (code: string, lang: string): string => {
-        return highlightCode(code, lang)
-      },
+      /*
+       * 需求二-2：
+       * 原回调返回完整 <pre><code>，会与 markdown-it 的 fence 包装重复嵌套；
+       * 新行为让 markdown-it 先输出标准代码节点，再在 DOM 挂载后统一调用 highlightElement。
+       */
+      
     })
 
-    // 确保 highlight.js 已就绪（等待加载完成，但不阻塞返回）
-    void hljsPromise
+    // AUDIT FIX [2.3]（需求一-5）:
+    // 原行为没有等待高亮库，首次 render 永远走无高亮降级；新行为等待同一并行 Promise，
+    // 失败仍返回 null，不影响 Markdown 主渲染。
+    await hljsPromise
   } catch (err) {
     console.warn('[MarkdownPreview] markdown-it CDN 加载失败，使用基础渲染:', err)
     md = null
@@ -488,15 +499,17 @@ const renderMarkdown = async (): Promise<void> => {
     html = sanitizeHtml(html)
 
     renderedHtml.value = html
+    //提前关闭渲染中 因为md-content标签 用了else-if条件渲染 如果不停止 另外isBusy也要停止 那么contentRef永远为空
+    rendering.value = false
 
     // 等待 DOM 更新
     await nextTick()
 
+    // 需求二-1：先为标题生成稳定 ID，再初始化 IntersectionObserver。
+    extractOutline()
+
     // 后处理
     await postProcess()
-
-    // 提取目录
-    extractOutline()
 
     // 发送就绪事件
     emit('ready', {
@@ -514,12 +527,16 @@ const renderMarkdown = async (): Promise<void> => {
 
 /** 降级渲染（无 markdown-it 时） */
 const fallbackRender = (content: string): string => {
+  // AUDIT FIX [2.3]（需求一-5）:
+  // 降级渲染必须先整体转义用户输入；原行为在正则替换前保留原始 HTML，CDN 失败时会扩大 XSS 面。
   let html = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 
   // 代码块
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang: string, code: string) => {
-    const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    return `<pre><code class="language-${lang || ''}">${escaped}</code></pre>`
+    return `<pre><code class="language-${lang || ''}">${code}</code></pre>`
   })
 
   // 行内代码
@@ -538,12 +555,11 @@ const fallbackRender = (content: string): string => {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
 
-  // 链接
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-
   // 图片
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">')
 
+  // 链接（必须在图片之后处理，避免 ![alt](url) 被链接规则提前吞掉）
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
   // 段落
   html = html.replace(/\n\n+/g, '</p><p>')
   html = `<p>${html}</p>`
@@ -568,23 +584,47 @@ const postProcess = async (): Promise<void> => {
   const el = contentRef.value
   if (!el) return
 
-  // 1. 注入代码块复制按钮
+  // 1. 内容节点已挂载后逐块调用 highlight.js，避免首次渲染时序遗漏。
+  await highlightRenderedBlocks(el)
+
+  // 2. 注入代码块复制按钮
   injectCopyButtons(el)
 
-  // 2. 为表格添加横向滚动容器
+  // 3. 为表格添加横向滚动容器
   wrapTables(el)
 
-  // 3. 绑定图片点击事件
+  // 4. 绑定图片点击事件
   bindImageClick(el)
 
-  // 4. 初始化 Mermaid 图表
+  // 5. 初始化 Mermaid 图表
   await initMermaid(el)
 
-  // 5. 初始化 KaTeX 公式
+  // 6. 初始化 KaTeX 公式
   await initKaTeX(el)
 
-  // 6. 设置标题观察器
+  // 7. 设置标题观察器
   setupHeadingObserver(el)
+}
+
+/**
+ * 对最终 DOM 中的 fenced code 逐块执行 highlight.js。
+ *
+ * 需求二-2：只处理尚未高亮的节点；未知语言由 highlightAuto 降级，
+ * 单个代码块异常不会中断目录、Mermaid 或正文渲染。
+ */
+const highlightRenderedBlocks = async (el: HTMLElement): Promise<void> => {
+  const hljs = getHighlightSync() ?? await loadHighlight().catch(() => null)
+  if (!hljs) return
+
+  const codeBlocks = el.querySelectorAll<HTMLElement>('pre code')
+  codeBlocks.forEach((code) => {
+    if (code.dataset.highlighted === 'yes') return
+    try {
+      hljs.highlightElement(code)
+    } catch {
+      // 保留 markdown-it 已安全转义的原始代码文本。
+    }
+  })
 }
 
 /** 为代码块注入复制按钮 */
@@ -781,7 +821,8 @@ const extractOutline = (): void => {
   const headings = el.querySelectorAll('h1, h2, h3, h4')
   const items: { id: string; text: string; level: number }[] = []
 
-  headings.forEach((h) => {
+  const usedIds = new Set<string>()
+  headings.forEach((h, index) => {
     const level = parseInt(h.tagName.charAt(1), 10)
     const text = h.textContent?.replace(/#$/, '').trim() || ''
     // 确保标题有 ID
@@ -791,12 +832,20 @@ const extractOutline = (): void => {
         .toLowerCase()
         .replace(/[^\w\u4e00-\u9fff]+/g, '-')
         .replace(/^-+|-+$/g, '')
-      h.id = id
     }
+    const baseId = id || `heading-${index + 1}`
+    id = baseId
+    let duplicateIndex = 2
+    while (usedIds.has(id)) {
+      id = `${baseId}-${duplicateIndex++}`
+    }
+    usedIds.add(id)
+    h.id = id
     items.push({ id, text, level })
   })
 
   outlineItems.value = items
+  activeOutlineId.value = items[0]?.id || ''
 }
 
 /** 设置 IntersectionObserver 跟踪当前可见标题 */
@@ -855,7 +904,7 @@ const onSearchInput = (): void => {
 }
 
 /** 执行搜索 */
-const performSearch = (): void => {
+const performSearch = (requestedIndex = 0): void => {
   removeSearchHighlights()
 
   if (!searchQuery.value || !contentRef.value) {
@@ -894,10 +943,12 @@ const performSearch = (): void => {
   }
 
   searchMatchCount.value = matches.length
-  searchMatchIndex.value = 0
+  searchMatchIndex.value = matches.length
+    ? Math.min(Math.max(requestedIndex, 0), matches.length - 1)
+    : 0
 
   if (matches.length > 0) {
-    highlightSearchMatch(matches[0])
+    highlightSearchMatch(matches[searchMatchIndex.value])
   }
 }
 
@@ -930,18 +981,14 @@ const removeSearchHighlights = (): void => {
 /** 下一个搜索结果 */
 const searchNext = (): void => {
   if (searchMatchCount.value === 0) return
-  searchMatchIndex.value = (searchMatchIndex.value + 1) % searchMatchCount.value
-  performSearch()
-  for (let i = 0; i < searchMatchIndex.value; i++) {
-    // 跳过已遍历的匹配项（简化实现）
-  }
+  // AUDIT FIX [2.3]（需求一-6）: 原 performSearch 会把索引重新归零，上一项/下一项按钮永远停在首项。
+  performSearch((searchMatchIndex.value + 1) % searchMatchCount.value)
 }
 
 /** 上一个搜索结果 */
 const searchPrev = (): void => {
   if (searchMatchCount.value === 0) return
-  searchMatchIndex.value = (searchMatchIndex.value - 1 + searchMatchCount.value) % searchMatchCount.value
-  performSearch()
+  performSearch((searchMatchIndex.value - 1 + searchMatchCount.value) % searchMatchCount.value)
 }
 
 /** 切换目录 */
@@ -960,6 +1007,8 @@ const scrollToHeading = (id: string): void => {
 /** 切换暗色模式 */
 const toggleDarkMode = (): void => {
   isDark.value = !isDark.value
+  // 切换 Highlight 主题
+  injectHighlightTheme(isDark.value ? 'vs2015' : 'default')
 }
 
 /** 切换全屏 */
@@ -1089,9 +1138,18 @@ watch(
 )
 
 onMounted(async () => {
-  await initMarkdownIt()
-  if (props.markdownContent) {
-    await renderMarkdown()
+  libraryLoading.value = true
+  try {
+    await initMarkdownIt()
+    // 初始注入主题
+    injectHighlightTheme(isDark.value ? 'vs2015' : 'default')
+    //第三方库初始化完毕 提前停止libraryLoading 不然isBusy一直为True contentRef一直为null
+    libraryLoading.value = false
+    if (props.markdownContent) {
+      await renderMarkdown()
+    }
+  } finally {
+    libraryLoading.value = false
   }
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('fullscreenchange', onFullscreenChange)

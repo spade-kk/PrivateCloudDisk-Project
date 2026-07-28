@@ -53,6 +53,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     private static final List<ExcludedPath> EXCLUDED_PATHS = Arrays.asList(
             new ExcludedPath("/api/v1/business/users/login", "POST"),                  // 登录
             new ExcludedPath("/api/v1/business/users/", "POST"),                       // 注册
+            new ExcludedPath("/api/v1/business/public/shares/**", "*"),                 // 主业务服务公开分享相关接口
             new ExcludedPath("/api/v1/business/verification-code/register/send", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/business/verification-code/register/resend", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/client/register-challenge", "POST"),             // 客户端注册挑战值

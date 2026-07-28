@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any
 from core.config import TaskTypes, FailureReason
@@ -16,7 +17,6 @@ from core.pipeline.hls_transcode_pipeline import HlsTranscodePipeline, HlsTransc
 from core.pipeline.mark_active_pipeline import MarkActivePipeline, MarkActiveResult
 from core.pipeline.content_index_pipeline import ContentIndexPipeline, ContentIndexResult
 from core.pipeline.office_to_pdf_pipeline import OfficeToPdfPipeline, OfficeToPdfResult
-from core.pipeline.markdown_to_html_pipeline import MarkdownToHtmlPipeline, MarkdownToHtmlResult
 from core.pipeline.archive_parse_pipeline import ArchiveParsePipeline, ArchiveParseResult
 
 logger = logging.getLogger("file_processor")
@@ -81,8 +81,6 @@ class FileProcessor:
                     return await FileProcessor._do_content_index(event)
                 case TaskTypes.OFFICE_TO_PDF:
                     return await FileProcessor._do_office_to_pdf(event)
-                case TaskTypes.MARKDOWN_TO_HTML:
-                    return await FileProcessor._do_markdown_to_html(event)
                 case TaskTypes.ARCHIVE_PARSE:
                     return await FileProcessor._do_archive_parse(event)
                 case _:
@@ -195,10 +193,39 @@ class FileProcessor:
 
     @staticmethod
     async def _do_hls_transcode(event) -> ProcessResult:
+        async def persist_hover_preview(path: str, source_info: dict) -> None:
+            """
+            需求六-1：快速悬停预览使用独立数据库事务即时入库。
+
+            原行为由 BaseEnhanceConsumer 在整条 HLS 流水线结束后统一写入；新行为在 30 秒
+            MP4 生成后立即提交。最终统一持久化仍保留为幂等兜底，不影响 HLS/VTT 一致性。
+            """
+            from app.models.preview_resource import PreviewResource
+            from app.services.preview_resource_service import preview_resource_service
+
+            await preview_resource_service.upsert(PreviewResource(
+                file_id=event.file_id,
+                user_id=event.user_id,
+                resource_type="video_preview",
+                resource_variant="30s",
+                storage_path=path,
+                mime_type="video/mp4",
+                size_bytes=os.path.getsize(path) if os.path.isfile(path) else 0,
+                width=source_info.get("width"),
+                height=source_info.get("height"),
+                duration_seconds=min(float(source_info.get("duration") or 0), 30.0),
+                metadata={
+                    "purpose": "file_browser_hover",
+                    "max_duration_seconds": 30,
+                    "commit_scope": "independent_before_hls",
+                },
+            ))
+
         result: HlsTranscodeResult = await HlsTranscodePipeline.execute(
             file_id=event.file_id,
             storage_path=event.storage_path,
             file_type=event.file_type,
+            hover_preview_ready=persist_hover_preview,
         )
         return ProcessResult(
             success=result.success,
@@ -210,6 +237,12 @@ class FileProcessor:
                 "hls_master_playlist": result.hls_master_playlist,
                 "hls_resolutions": result.hls_resolutions,
                 "resolutions": result.resolutions,
+                "preview_paths": result.preview_paths,
+                "hover_preview_path": result.hover_preview_path,
+                "manifest_path": result.manifest_path,
+                "source_width": result.source_width,
+                "source_height": result.source_height,
+                "duration": result.duration,
                 "skipped": result.skipped,
             },
         )
@@ -280,38 +313,11 @@ class FileProcessor:
                 "pdf_path": result.pdf_path,
                 "pdf_size": result.pdf_size,
                 "preview_path": result.preview_path,
+                # AUDIT FIX [5.2]（需求五）：向持久化层传递四档预览图及真实尺寸，旧字段继续保留兼容。
+                "preview_paths": result.preview_paths,
+                "preview_metadata": result.preview_metadata,
+                "page_count": result.page_count,
                 "source_type": result.source_type,
-                "skipped": result.skipped,
-            },
-        )
-
-    @staticmethod
-    async def _do_markdown_to_html(event) -> ProcessResult:
-        """
-        执行 Markdown 文件转 HTML 增强处理
-
-        将 Markdown 文件转换为 HTML 格式，包含代码高亮、表格等。
-        生成的 HTML 文件存储在 previews/ 目录下，供前端直接渲染。
-
-        Args:
-            event: FileEnhanceEvent 增强事件
-
-        Returns:
-            ProcessResult: 统一处理结果
-        """
-        result: MarkdownToHtmlResult = await MarkdownToHtmlPipeline.execute(
-            file_id=event.file_id,
-            storage_path=event.storage_path,
-            file_type=event.file_type,
-        )
-        return ProcessResult(
-            success=result.success,
-            task_type=TaskTypes.MARKDOWN_TO_HTML,
-            failure_reason=result.failure_reason,
-            error=result.error,
-            data={
-                "html_path": result.html_path,
-                "html_size": result.html_size,
                 "skipped": result.skipped,
             },
         )

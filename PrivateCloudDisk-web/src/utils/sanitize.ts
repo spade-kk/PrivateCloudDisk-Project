@@ -64,8 +64,9 @@ const DEFAULT_CONFIG = {
   RETURN_DOM_IMPORT: false,
   // 移除所有不在白名单中的内容（静默删除）
   SANITIZE_DOM: true,
-  // 保留注释
-  ALLOWED_NAMESPACES: [],
+  // DOMPurify 需要显式保留 HTML 命名空间；空数组会把
+  // 合法的富文本节点一并清空，导致已净化的分享说明无法显示。
+  ALLOWED_NAMESPACES: ['http://www.w3.org/1999/xhtml'],
   // 禁止 SVG 和 MathML
   USE_PROFILES: { html: true },
 } as any
@@ -173,7 +174,8 @@ const MARKDOWN_ALLOWED_TAGS = [
   // 交互元素
   'input', 'details', 'summary', 'label',
   // 媒体
-  'video', 'audio', 'source', 'iframe',
+  // AUDIT FIX [6.3]（需求一-6）: Markdown 预览不需要第三方 iframe；移除同源钓鱼和外部脚本承载面。
+  'video', 'audio', 'source',
 ]
 
 const MARKDOWN_ALLOWED_ATTRS = [
@@ -229,7 +231,8 @@ export function sanitizeHtml(dirty: string): string {
     ALLOWED_TAGS: MARKDOWN_ALLOWED_TAGS,
     ALLOWED_ATTR: MARKDOWN_ALLOWED_ATTRS,
     ALLOW_DATA_ATTR: true,
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|ftps?|mailto|tel|data):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
+    // AUDIT FIX [6.3]（需求一-6）: 不允许用户 Markdown 通过 data: 内嵌主动内容。
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|ftps?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i,
     ADD_TAGS: [],
     ADD_ATTR: ['target', 'rel'],
     SANITIZE_DOM: true,

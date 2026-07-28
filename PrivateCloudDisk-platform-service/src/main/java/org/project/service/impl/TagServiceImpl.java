@@ -3,6 +3,8 @@ package org.project.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.mapper.TagMapper;
+import org.project.mapper.FileMapper;
+import org.project.mapper.FolderNodeMapper;
 import org.project.model.entity.TagEntity;
 import org.project.model.entity.FileTagEntity;
 import org.project.model.vo.TagVO;
@@ -15,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,6 +31,8 @@ import java.util.stream.Collectors;
 public class TagServiceImpl implements TagService {
 
     private final TagMapper tagMapper;
+    private final FileMapper fileMapper;
+    private final FolderNodeMapper folderNodeMapper;
 
     // ==================== 标签 CRUD ====================
 
@@ -100,7 +106,20 @@ public class TagServiceImpl implements TagService {
         UUID targetUuid = UUID.fromString(target_id);
         boolean isFile = "file".equals(target_type);
 
+        // AUDIT FIX [6.8]: 标签写入前校验目标确属当前用户，阻断猜测 UUID 后的越权关联。
+        boolean targetOwned = isFile
+                ? fileMapper.findUserFileById(targetUuid, user_id) != null
+                : folderNodeMapper.findFolderNodeByIdAndUserId(targetUuid, user_id) != null;
+        if (!targetOwned) {
+            throw new InsertException("文件或目录不存在，或无权管理其标签");
+        }
+
         for (Long tag_id : tag_ids) {
+            // AUDIT FIX [6.8]: 防止用户把其他账号的标签 ID 关联到自己的文件或目录。
+            TagEntity ownedTag = tagMapper.findTagById(tag_id);
+            if (ownedTag == null || !user_id.equals(ownedTag.getTag_user_id())) {
+                throw new InsertException("标签不存在或无权使用");
+            }
             // 检查是否已打标签
             FileTagEntity existing = isFile
                     ? tagMapper.findFileTagByTagAndFile(tag_id, user_id, targetUuid)
@@ -160,6 +179,25 @@ public class TagServiceImpl implements TagService {
     public List<FileTagEntity> getFolderTagsBatch(UUID user_id, List<UUID> node_ids) {
         if (node_ids == null || node_ids.isEmpty()) return new ArrayList<>();
         return tagMapper.findTagsByNodeIds(user_id, node_ids);
+    }
+
+    @Override
+    public Map<String, List<TagVO>> getTagsBatch(UUID user_id, List<UUID> file_ids, List<UUID> folder_ids) {
+        Map<String, List<TagVO>> grouped = new LinkedHashMap<>();
+        List<FileTagEntity> relations = new ArrayList<>();
+        relations.addAll(getFileTagsBatch(user_id, file_ids));
+        relations.addAll(getFolderTagsBatch(user_id, folder_ids));
+        for (FileTagEntity relation : relations) {
+            UUID targetId = "file".equals(relation.getFt_target_type())
+                    ? relation.getFt_file_id() : relation.getFt_node_id();
+            if (targetId == null) continue;
+            TagVO tag = new TagVO();
+            tag.setTag_id(relation.getFt_tag_id());
+            tag.setTag_name(relation.getTag_name());
+            tag.setTag_color(relation.getTag_color());
+            grouped.computeIfAbsent(targetId.toString(), ignored -> new ArrayList<>()).add(tag);
+        }
+        return grouped;
     }
 
     // ==================== 按标签查询 ====================

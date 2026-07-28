@@ -1,0 +1,17 @@
+{
+  "name": "PrivateCloudDisk",
+  "short_name": "PrivateCloudDisk",
+  "description": "安全、私密的个人云存储",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F7FB",
+  "theme_color": "#165DFF",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

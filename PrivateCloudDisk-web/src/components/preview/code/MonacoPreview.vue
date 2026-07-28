@@ -42,7 +42,7 @@
     <!-- ======================================================== -->
     <!-- 初始化失败状态 -->
     <!-- ======================================================== -->
-    <div v-else-if="initError" class="monaco-error-overlay">
+    <div v-if="!loading && initError" class="monaco-error-overlay">
       <div class="monaco-error-content">
         <div class="monaco-error-icon">
           <i class="fa fa-exclamation-triangle"></i>
@@ -58,7 +58,12 @@
     <!-- ======================================================== -->
     <!-- 正常状态 — 编辑器已就绪 -->
     <!-- ======================================================== -->
-    <template v-else>
+    <!--
+      需求一-1：编辑器挂载容器必须在 loading 阶段存在。
+      原行为将正常区域放在 v-else 中，初始化时 ref 尚未挂载，页面因此永久停留在加载状态；
+      新行为始终挂载工作区，仅用遮罩覆盖初始化阶段。
+    -->
+    <div class="monaco-workspace" :class="{ 'is-initializing': loading || !!initError }">
       <!-- ---- 工具栏 ---- -->
       <div class="monaco-toolbar">
         <!-- 左侧：文件信息 -->
@@ -302,7 +307,7 @@
           </span>
         </div>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -842,6 +847,8 @@ const parseGenericLine = (line: string, lineNum: number, symbols: CodeSymbols): 
 const initMonacoEditor = async (): Promise<void> => {
   if (!editorContainerRef.value) {
     initError.value = '无法找到编辑器容器元素'
+    loading.value = false
+    emit('error', new Error(initError.value))
     return
   }
 
@@ -1214,9 +1221,11 @@ const toggleFullscreen = (): void => {
  * 重新初始化编辑器
  */
 const retryInit = (): void => {
+  disposeEditor()
+  disposed.value = false
   initError.value = null
   loading.value = true
-  initMonacoEditor()
+  void nextTick().then(initMonacoEditor)
 }
 
 // ============================================================
@@ -1408,6 +1417,18 @@ watch(isFullscreen, () => {
   background-color: #1e1e1e;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 需求一-1：工作区始终参与布局，初始化遮罩不会再移除 Monaco 的挂载节点。 */
+.monaco-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.monaco-workspace.is-initializing {
+  pointer-events: none;
 }
 
 /* ---- 加载状态覆盖层 ---- */

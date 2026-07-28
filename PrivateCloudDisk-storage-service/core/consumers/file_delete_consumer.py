@@ -10,9 +10,8 @@
 from __future__ import annotations
 import json
 import logging
-import os
 import asyncio
-from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from core.config import settings, FailureReason
@@ -63,7 +62,9 @@ class FileDeleteConsumer:
             await message.ack()
         except Exception as e:
             logger.error(f"删除消息处理异常: {e}", exc_info=True)
-            await message.ack()
+            # 【需求七】原行为对未知异常直接 ACK，会造成文件或关联数据永久残留；
+            # 新行为拒绝消息并交由队列 DLQ 策略处置，保留可审计的失败证据。
+            await message.nack(requeue=False)
 
     async def _delete_files(self, event: FileDeleteEvent) -> dict:
         """
@@ -74,13 +75,26 @@ class FileDeleteConsumer:
         """
         deleted = []
         errors = []
+        storage_root = Path(settings.file_upload_dir).resolve()
+
+        def safe_path(raw_path: str) -> Path | None:
+            """只允许永久删除配置上传根目录内的实体，防止异常消息构造越界路径。"""
+            if not raw_path:
+                return None
+            candidate = Path(raw_path).resolve()
+            try:
+                candidate.relative_to(storage_root)
+            except ValueError as exc:
+                raise OSError(f"拒绝删除上传目录之外的路径: {candidate}") from exc
+            return candidate
 
         # 删除主文件
         try:
-            if event.storage_path and os.path.exists(event.storage_path):
-                os.remove(event.storage_path)
-                deleted.append(event.storage_path)
-                logger.debug(f"已删除主文件: {event.storage_path}")
+            main_path = safe_path(event.storage_path)
+            if main_path and main_path.exists():
+                main_path.unlink()
+                deleted.append(str(main_path))
+                logger.debug(f"已删除主文件: {main_path}")
             else:
                 logger.debug(f"主文件不存在或已删除: {event.storage_path}")
         except OSError as e:
@@ -95,27 +109,38 @@ class FileDeleteConsumer:
 
         # 删除缩略图
         for thumb_path in event.thumbnail_paths:
-            path = thumb_path if isinstance(thumb_path, str) else thumb_path.get("path", "")
+            raw_path = thumb_path if isinstance(thumb_path, str) else thumb_path.get("path", "")
             try:
-                if path and os.path.exists(path):
-                    os.remove(path)
-                    deleted.append(path)
+                path = safe_path(raw_path)
+                if path and path.exists():
+                    path.unlink()
+                    deleted.append(str(path))
                     logger.debug(f"已删除缩略图: {path}")
             except OSError as e:
-                errors.append(f"缩略图删除失败: {path}, {e}")
-                logger.warning(f"缩略图删除失败: {path}, {e}")
+                errors.append(f"缩略图删除失败: {raw_path}, {e}")
+                logger.warning(f"缩略图删除失败: {raw_path}, {e}")
 
         # 删除转码文件
         for trans_path in event.transcoded_paths:
-            path = trans_path if isinstance(trans_path, str) else trans_path.get("path", "")
+            raw_path = trans_path if isinstance(trans_path, str) else trans_path.get("path", "")
             try:
-                if path and os.path.exists(path):
-                    os.remove(path)
-                    deleted.append(path)
+                path = safe_path(raw_path)
+                if path and path.exists():
+                    path.unlink()
+                    deleted.append(str(path))
                     logger.debug(f"已删除转码文件: {path}")
             except OSError as e:
-                errors.append(f"转码文件删除失败: {path}, {e}")
-                logger.warning(f"转码文件删除失败: {path}, {e}")
+                errors.append(f"转码文件删除失败: {raw_path}, {e}")
+                logger.warning(f"转码文件删除失败: {raw_path}, {e}")
+
+        # AUDIT FIX [7.4]: 永久删除文件时按数据库资源清单清除 HLS、文档、压缩包等全部派生产物。
+        try:
+            from app.services.preview_resource_service import preview_resource_service
+            preview_deleted = await preview_resource_service.delete_file_resources(event.file_id, event.user_id)
+            deleted.extend(preview_deleted)
+        except Exception as e:
+            errors.append(f"预览资源清理失败: {e}")
+            logger.error("预览资源清理失败: %s", e)
 
         # 判断结果
         if errors:
@@ -135,10 +160,7 @@ class FileDeleteConsumer:
             }
 
     async def _on_success(self, message: Any, event: FileDeleteEvent, result: dict):
-        """删除成功 → ACK + 通知业务服务"""
-        await message.ack()
-        logger.info(f"文件删除完成: file_id={event.file_id}, deleted={len(result['deleted'])}个文件")
-
+        """删除成功 → 通知业务事务完成 → ACK"""
         try:
             await NotificationService.notify_file_delete_complete(
                 file_id=event.file_id,
@@ -147,6 +169,18 @@ class FileDeleteConsumer:
             )
         except Exception as e:
             logger.error(f"通知业务服务删除完成失败: {e}")
+            # 需求七-2：原行为先 ACK 后通知，通知失败会永久留下业务元数据；
+            # 新行为保留消息并进入已有指数退避流程，物理删除本身为幂等操作。
+            await self._on_failure(message, event, {
+                "success": False,
+                "deleted": result["deleted"],
+                "errors": [f"业务服务删除事务通知失败: {e}"],
+                "failure_reason": FailureReason.NOTIFY_BS_ERROR,
+            })
+            return
+
+        await message.ack()
+        logger.info(f"文件删除完成: file_id={event.file_id}, deleted={len(result['deleted'])}个文件")
 
     async def _on_failure(self, message: Any, event: FileDeleteEvent, result: dict):
         """删除失败 → 判断重试或进 DLQ"""
@@ -174,18 +208,21 @@ class FileDeleteConsumer:
             f"errors={result['errors']}"
         )
 
-        await message.ack()
         await asyncio.sleep(delay)
-
         retry_event = event.with_retry_increment()
         retry_dict = retry_event.to_dict()
         retry_dict["failure_reason"] = failure_reason
-
-        await rabbitmq_service.publish_message(
-            settings.file_delete_exchange,
-            settings.file_delete_routing_key,
-            retry_dict,
-        )
+        try:
+            # 【需求七】先确认重试消息发布成功再 ACK 原消息，避免发布失败时出现消息丢失窗口。
+            await rabbitmq_service.publish_message(
+                settings.file_delete_exchange,
+                settings.file_delete_routing_key,
+                retry_dict,
+            )
+            await message.ack()
+        except Exception:
+            logger.exception("文件删除重试消息发布失败，原消息重新入队: file_id=%s", event.file_id)
+            await message.nack(requeue=True)
 
 
 # 入口工厂函数

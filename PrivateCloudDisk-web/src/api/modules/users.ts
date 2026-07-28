@@ -22,25 +22,42 @@ import { get, post, patch, put, del } from '@/utils/request'
  * 密码在调用前已由 authStore 通过 hashPasswordForTransport() 预哈希处理，
  * 确保密码明文永不离浏览器内存。后端应进行二次 bcrypt/scrypt 哈希验证。
  *
- * @param phone_number - 用户手机号
+ * @param identifier - 用户输入的统一登录标识，支持 PCD 账号、手机号和邮箱
  * @param password - 已预哈希的密码（PBKDF2-SHA256 格式）
  * @param captchaToken - 人机验证码 Token（Turnstile/CAPTCHA）
  * @param captchaAction - 验证动作标识，用于区分登录/注册等场景
  * @returns Promise<{ token: string, user: object }> 登录成功返回 Token 和用户信息
  */
 export function loginApi(
-  phone_number: string,
+  identifier: string,
   password: string,
   captchaToken: string = '',
   captchaAction: string = 'login',
 ): Promise<any> {
+  /*
+   * 【需求九改动说明】
+   * 原行为：登录请求固定发送 phone_number，账号和邮箱无法复用密码登录入口。
+   * 新行为：仅在本地识别标识类型并动态生成单一字段，避免向后端同时发送多个身份字段。
+   * 影响范围：只影响密码登录请求体；注册、验证码登录及密码传输哈希流程保持不变。
+   */
+  const identifierType = detectLoginIdentifierType(identifier)
   const data = {
-    phone_number,
+    [identifierType]: identifier.trim(),
     password,
     captcha_token: captchaToken,
     captcha_action: captchaAction,
   }
   return post('business/users/login', data)
+}
+
+export type LoginIdentifierField = 'account' | 'phone_number' | 'email'
+
+/** 按后端 DTO 的格式约定识别统一账号输入框，不对用户输入做破坏性改写。 */
+export function detectLoginIdentifierType(identifier: string): LoginIdentifierField {
+  const value = identifier.trim()
+  if (/^1[3-9]\d{9}$/.test(value)) return 'phone_number'
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'email'
+  return 'account'
 }
 
 /**

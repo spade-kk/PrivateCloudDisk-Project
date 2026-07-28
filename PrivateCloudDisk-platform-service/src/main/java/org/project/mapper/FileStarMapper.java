@@ -31,6 +31,14 @@ public interface FileStarMapper {
     int deleteFolderStar(@Param("user_id") UUID user_id, @Param("node_id") UUID node_id);
 
     /**
+     * 永久删除文件时清理该文件的全部收藏关系。
+     *
+     * <p>需求三-2：原行为依赖部分环境中的外键级联，新行为在业务事务中显式清理，
+     * 避免不同数据库初始化脚本约束不一致时残留孤儿数据。影响范围仅限目标文件。</p>
+     */
+    int deleteAllByFileId(@Param("file_id") UUID file_id);
+
+    /**
      * 查询用户是否收藏了文件
      */
     FileStarEntity findFileStarByUserIdAndFileId(@Param("user_id") UUID user_id, @Param("file_id") UUID file_id);

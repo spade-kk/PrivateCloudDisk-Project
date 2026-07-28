@@ -1,6 +1,7 @@
 <template>
   <div class="responsive-panel p-4">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <!-- 左侧：分享信息 -->
       <div class="min-w-0 flex-1">
         <div class="flex min-w-0 items-center gap-3">
           <div
@@ -12,28 +13,33 @@
           <div class="min-w-0">
             <h3 class="truncate font-medium text-neutral-700">{{ share.share_name }}</h3>
             <p class="mt-0.5 text-xs text-neutral-500">
-              <span class="mr-2">
-                <i :class="share.share_target_type === 'folder' ? 'fa fa-folder' : 'fa fa-file'" class="mr-1"></i>
-                {{ share.target_name || (share.share_target_type === 'folder' ? '文件夹' : '文件') }}
-              </span>
               <span
                 class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                :style="{ color: getShareStatusColor(share.share_status), backgroundColor: getShareStatusColor(share.share_status) + '15' }"
+                :style="{ color: statusColor, backgroundColor: statusColor + '15' }"
               >
-                {{ getShareStatusText(share.share_status) }}
+                {{ statusText }}
               </span>
+              <span class="ml-2">{{ share.resource_count || 0 }} 项资源</span>
             </p>
           </div>
         </div>
+
+        <!-- 元信息 -->
         <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-neutral-500">
           <span><i class="fa fa-clock-o mr-1"></i>{{ expiresText }}</span>
           <span><i class="fa fa-eye mr-1"></i>{{ share.share_view_count || 0 }} 次访问</span>
           <span v-if="share.share_has_password"><i class="fa fa-lock mr-1"></i>有密码</span>
-          <span v-if="share.file_type"><i class="fa fa-file-o mr-1"></i>{{ share.file_type }}</span>
-          <span v-if="share.target_size"><i class="fa fa-database mr-1"></i>{{ formatSize(share.target_size) }}</span>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+
+      <!-- 右侧：操作按钮 -->
+      <div class="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+        <button
+          @click="handleViewDetail"
+          class="touch-button rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+        >
+          <i class="fa fa-info-circle mr-1"></i>详情
+        </button>
         <button
           @click="copyLink"
           class="touch-button rounded-lg border border-primary px-3 py-2 text-sm text-primary hover:bg-primary/10"
@@ -60,9 +66,13 @@ import type { ShareLinkItem } from '@/api/modules/shares'
 const props = defineProps<{
   share: ShareLinkItem
 }>()
-defineEmits<{
+const emit = defineEmits<{
   revoke: [share_id: string]
+  'view-detail': [share_id: string]
 }>()
+
+const statusText = computed(() => getShareStatusText(props.share.share_status))
+const statusColor = computed(() => getShareStatusColor(props.share.share_status))
 
 const statusIcon = computed(() => {
   if (props.share.share_status === 'revoked') return 'fa fa-ban'
@@ -85,7 +95,9 @@ const expiresText = computed(() => {
   return `有效期至 ${d.toLocaleDateString('zh-CN')}`
 })
 
-const formatSize = (bytes: number) => formatFileSize(bytes)
+const handleViewDetail = () => {
+  emit('view-detail', props.share.share_id)
+}
 
 const copyLink = async () => {
   try {

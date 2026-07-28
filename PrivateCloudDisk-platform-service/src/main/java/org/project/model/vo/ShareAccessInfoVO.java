@@ -5,7 +5,10 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 分享公开信息 VO（访问分享链接时返回，不含敏感信息）
+ * 分享公开信息 VO（访问分享链接时返回，不含资源列表，不含密码，v2）
+ *
+ * <p>安全设计：此接口仅返回分享链接的基本信息（名称、创建者、是否需要密码等），
+ * 不返回资源列表。资源列表需要通过提取码验证后获取访问令牌才能查看。
  */
 @Data
 public class ShareAccessInfoVO {
@@ -15,17 +18,8 @@ public class ShareAccessInfoVO {
     /** 分享名称 */
     private String share_name;
 
-    /** 分享目标类型 */
-    private String share_target_type;
-
-    /** 目标名称 */
-    private String target_name;
-
-    /** 目标大小 */
-    private Long target_size;
-
-    /** 文件类型 */
-    private String file_type;
+    /** 分享说明（公开展示，客户端需净化富文本） */
+    private String share_description;
 
     /** 分享者名称 */
     private String owner_name;
@@ -44,4 +38,7 @@ public class ShareAccessInfoVO {
 
     /** 创建时间 */
     private LocalDateTime created_at;
+
+    /** 资源数量 */
+    private Integer resource_count;
 }

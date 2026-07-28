@@ -55,7 +55,7 @@
 
     <!-- ===== 步骤 1：输入新手机号 + 发送验证码 ===== -->
     <div v-if="currentStep === 0" class="responsive-panel p-5 sm:p-6">
-      <form @submit.prevent="sendVerificationCode" class="space-y-5">
+      <form @focusin="ensureTurnstile" @submit.prevent="sendVerificationCode" class="space-y-5">
         <!-- 当前手机号 -->
         <div class="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
           <i class="fa fa-mobile text-neutral-400"></i>
@@ -117,16 +117,15 @@
             </span>
           </div>
 
-          <div class="flex items-center justify-center rounded-lg border border-neutral-200 bg-white px-2 py-3">
-            <div
-              ref="turnstileContainer"
-              class="turnstile-widget"
-              :class="{ hidden: !turnstileSiteKey }"
-            ></div>
-            <div v-if="!turnstileSiteKey" class="text-sm text-red-500">未配置 Turnstile Site Key</div>
-            <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-neutral-500">
-              <i class="fa fa-spinner fa-spin"></i>正在加载验证组件
-            </div>
+          <!-- 【需求十】Turnstile 去除额外边框容器并改为首次输入时渲染。 -->
+          <div
+            ref="turnstileContainer"
+            class="turnstile-widget"
+            :class="{ hidden: !turnstileSiteKey }"
+          ></div>
+          <div v-if="!turnstileSiteKey" class="text-sm text-red-500">未配置 Turnstile Site Key</div>
+          <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-neutral-500">
+            <i class="fa fa-spinner fa-spin"></i>正在加载验证组件
           </div>
           <p v-if="captchaError" class="mt-2 text-xs text-red-500">{{ captchaError }}</p>
         </div>
@@ -293,7 +292,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue'
 import { useToastStore } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useUserStore } from '@/stores/userStore'
@@ -419,7 +418,9 @@ async function initTurnstile(): Promise<void> {
       sitekey: turnstileSiteKey,
       action: 'change_phone',
       theme: 'light',
-      size: 'normal',
+      size: 'flexible',
+      execution: 'execute',
+      appearance: 'interaction-only',
       callback: (token: string) => {
         captchaToken.value = token
         captchaError.value = ''
@@ -438,6 +439,15 @@ async function initTurnstile(): Promise<void> {
   } finally {
     captchaLoading.value = false
   }
+  if (window.turnstile && turnstileWidgetId.value !== null) {
+    window.turnstile.execute(turnstileWidgetId.value)
+  }
+}
+
+async function ensureTurnstile(): Promise<void> {
+  if (captchaToken.value || captchaLoading.value || turnstileWidgetId.value !== null) return
+  // 【需求十】原 mounted 自动加载改为表单交互时加载，失败后仍调用 reset。
+  await initTurnstile()
 }
 
 function resetTurnstile(): void {
@@ -564,10 +574,6 @@ function goBackToStep0() {
   resendToken.value = ''
   resetTurnstile()
 }
-
-onMounted(() => {
-  initTurnstile()
-})
 
 onBeforeUnmount(() => {
   if (resendTimer) clearInterval(resendTimer)

@@ -5,6 +5,18 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     file_upload_dir: str = "../Uploads"
 
+    # AUDIT FIX [7.4]: 预览资源以 MySQL 为事实源，Redis 仅承担查询加速与热点缓存。
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_user: str = "root"
+    mysql_password: str = "20070315mwz"
+    mysql_database: str = "private_cloud_disk"
+    mysql_pool_min_size: int = 2
+    mysql_pool_max_size: int = 10
+    mysql_connect_retries: int = 10
+    mysql_connect_retry_delay_seconds: float = 2.0
+    preview_resource_cache_ttl: int = 600
+
     # ========== 文件存储类型配置 ==========
     # 存储类型: localstorage（本地磁盘）/ minio（MinIO 对象存储）
     storage_type: str = "localstorage"
@@ -24,6 +36,16 @@ class Settings(BaseSettings):
     max_requests_per_operation_token: int = 300
     rate_per_sec: int = 10
     max_range_bytes: int = 100 * 1024 * 1024
+    # 需求三-2/3/4：原始内容预览授权比下载授权更短、更严格，且仅允许白名单源文件。
+    preview_grant_ttl_seconds: int = 120
+    preview_grant_user_max_active: int = 6
+    preview_grant_user_ip_max_active: int = 3
+    preview_grant_max_requests: int = 24
+    preview_grant_rate_per_sec: int = 6
+    preview_grant_max_concurrent: int = 2
+    preview_text_max_bytes: int = 10 * 1024 * 1024
+    preview_image_max_bytes: int = 25 * 1024 * 1024
+    preview_max_range_bytes: int = 8 * 1024 * 1024
     thumbnail_ttl: int = 3600
     operation_token_issue_file_limit: int = 10
     operation_token_issue_file_window_seconds: int = 60
@@ -126,15 +148,6 @@ class Settings(BaseSettings):
     file_enhance_office_to_pdf_dlq_routing_key: str = "file.enhance.office_to_pdf.dlq"
     file_enhance_office_to_pdf_max_retries: int = 3
 
-    # --- markdown_to_html Markdown 文件转 HTML ---
-    # 将 Markdown 文件转换为 HTML 格式，生成统一的预览资源
-    # 包含代码高亮、表格渲染、图表支持
-    file_enhance_markdown_to_html_queue: str = "pcd.file.enhance.markdown_to_html.queue"
-    file_enhance_markdown_to_html_routing_key: str = "file.enhance.markdown_to_html"
-    file_enhance_markdown_to_html_dlq: str = "pcd.file.enhance.markdown_to_html.dlq"
-    file_enhance_markdown_to_html_dlq_routing_key: str = "file.enhance.markdown_to_html.dlq"
-    file_enhance_markdown_to_html_max_retries: int = 3
-
     # --- archive_parse 压缩包目录解析 ---
     # 解析压缩包文件（ZIP/RAR/7Z/ISO/TAR/GZ/BZ2等），提取目录结构信息
     # 生成 JSON 格式目录树供前端预览，不进行完整解压
@@ -162,9 +175,14 @@ class Settings(BaseSettings):
     retry_max_attempts: int = 3
     retry_base_delay_seconds: int = 5  # 指数退避基数
     retry_max_delay_seconds: int = 300  # 最大延迟 5 分钟
+    # AUDIT FIX [7.4]（需求一-3）: DLQ 自动恢复独立计数，避免与阶段内重试相互叠加造成无限循环。
+    enhance_dlq_recovery_max_attempts: int = 2
+    enhance_processing_lease_seconds: int = 1800
+    # 需求一-3：可选运维告警 Webhook；为空时仅保留 critical 日志和数据库台账。
+    ops_alert_webhook_url: str = ""
 
     # --- 病毒扫描 ---
-    virus_scan_enabled: bool = True
+    virus_scan_enabled: bool = False
     virus_scan_fail_open: bool = False  # True=扫描器不可用时放行, False=拒绝
     quarantine_dir: str = "../Uploads/quarantine"  # 隔离区目录
 
@@ -253,7 +271,6 @@ class TaskTypes:
     CONTENT_INDEX = "content_index"          # 文件内容索引 (OpenSearch)
     OFFICE_TO_PDF = "office_to_pdf"          # Office 文件转 PDF 预览资源 (增强事件)
     ARCHIVE_PARSE = "archive_parse"          # 压缩包目录结构解析 (增强事件)
-    MARKDOWN_TO_HTML = "markdown_to_html"   # Markdown 文件转 HTML (增强事件)
 
 
 # ========== 任务状态常量 ==========
@@ -285,7 +302,6 @@ class FailureReason:
     CONTENT_EXTRACT_ERROR = "CONTENT_EXTRACT_ERROR"
     CONTENT_INDEX_ERROR = "CONTENT_INDEX_ERROR"
     OFFICE_TO_PDF_ERROR = "OFFICE_TO_PDF_ERROR"  # Office 文件转 PDF 失败
-    MARKDOWN_TO_HTML_ERROR = "MARKDOWN_TO_HTML_ERROR"  # Markdown 转 HTML 失败
     ARCHIVE_PARSE_ERROR = "ARCHIVE_PARSE_ERROR"  # 压缩包目录结构解析失败
     UPLOADS_DELETE_IO_ERROR = "UPLOADS_DELETE_IO_ERROR"
     UPLOADS_SESSION_NOTIFY_BS_ERROR = "UPLOADS_SESSION_NOTIFY_BS_ERROR"
@@ -316,9 +332,6 @@ OFFICE_TYPES = frozenset({
 
 # PDF 类型 — 本身已是 PDF 格式，跳过转换但需要生成缩略图等预览资源
 PDF_TYPES = frozenset({"application/pdf"})
-
-# Markdown 类型 — 需要转换为 HTML 以在前端渲染预览
-MARKDOWN_TYPES = frozenset({"text/markdown", "text/x-markdown"})
 
 # 压缩包文件类型 — 需要解析目录结构以在前端预览
 # 支持 ZIP、RAR、7Z、ISO、TAR、GZIP、BZIP2、CAB 等主流压缩/归档格式
@@ -392,7 +405,6 @@ ENHANCE_PIPELINE = [
     TaskTypes.CONTENT_INDEX,
     TaskTypes.OFFICE_TO_PDF,       # Office 文件转 PDF 预览资源
     TaskTypes.ARCHIVE_PARSE,       # 压缩包目录结构解析
-    TaskTypes.MARKDOWN_TO_HTML,    # Markdown 文件转 HTML 预览资源
 ]
 
 # 后台处理阶段 → 下一阶段的映射
@@ -419,7 +431,6 @@ ENHANCE_STAGE_ROUTING_KEY = {
     TaskTypes.CONTENT_INDEX: "file.enhance.index",
     TaskTypes.OFFICE_TO_PDF: "file.enhance.office_to_pdf",
     TaskTypes.ARCHIVE_PARSE: "file.enhance.archive_parse",
-    TaskTypes.MARKDOWN_TO_HTML: "file.enhance.markdown_to_html",
 }
 
 # 根据文件类型判断需要触发的增强阶段
@@ -445,10 +456,6 @@ def get_enhance_stages(file_type: str) -> list[str]:
                               "application/vnd.openxmlformats", "application/vnd.ms-",
                               "application/json", "application/xml")):
         stages.append(TaskTypes.CONTENT_INDEX)
-    # Markdown 文件 → 触发 HTML 转换增强阶段
-    # 将 Markdown 转换为 HTML 格式，生成统一的预览资源
-    if file_type in MARKDOWN_TYPES:
-        stages.append(TaskTypes.MARKDOWN_TO_HTML)
     # 压缩包文件 → 触发目录结构解析增强阶段
     # 解析 ZIP/RAR/7Z/ISO 等压缩包格式，提取目录结构 JSON 供前端预览
     if file_type in ARCHIVE_TYPES:

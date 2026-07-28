@@ -42,7 +42,7 @@
         <button
           type="button"
           class="rounded-lg bg-primary px-4 py-1.5 text-sm font-extrabold text-white transition hover:bg-[#0e4fe0]"
-          @click="isTestMode ? handleTestQR() : refreshQRCode()"
+          @click="showUnavailableNotice"
         >
           点击刷新
         </button>
@@ -70,7 +70,7 @@
         <button
           type="button"
           class="rounded-lg bg-primary px-4 py-1.5 text-sm font-extrabold text-white transition hover:bg-[#0e4fe0]"
-          @click="isTestMode ? handleTestQR() : refreshQRCode()"
+          @click="showUnavailableNotice"
         >
           重新加载
         </button>
@@ -113,7 +113,7 @@
         type="button"
         class="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 transition hover:text-primary"
         :disabled="qrStatus === 'loading'"
-        @click="isTestMode ? handleTestQR() : refreshQRCode()"
+        @click="showUnavailableNotice"
       >
         <i class="fa fa-refresh" :class="{ 'fa-spin': qrStatus === 'loading' }"></i>
         刷新二维码
@@ -123,7 +123,7 @@
         type="button"
         class="inline-flex items-center gap-1.5 text-sm font-bold transition"
         :class="isTestMode ? 'text-amber-600 hover:text-amber-700' : 'text-slate-400 hover:text-slate-600'"
-        @click="toggleTestMode"
+        @click="showUnavailableNotice"
       >
         <i class="fa fa-flask"></i>
         {{ isTestMode ? '退出测试' : '测试二维码' }}
@@ -133,15 +133,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useQRCode } from '@/composables/useQRCode'
-import { useAuthStore } from '@/stores/authStore'
+import { useToastStore } from '@/stores/toastStore'
 
 const emit = defineEmits<{
   loginSuccess: []
 }>()
 
-const authStore = useAuthStore()
+const toastStore = useToastStore()
 const qrCanvasRef = ref<HTMLCanvasElement | null>(null)
 
 const {
@@ -150,9 +150,6 @@ const {
   qrCountdown,
   qrError,
   renderQRToCanvas,
-  startQRCodeAuth,
-  refreshQRCode,
-  generateTestQRCode,
   destroy,
 } = useQRCode()
 
@@ -227,26 +224,15 @@ watch(qrCodeUrl, async (url) => {
 // 测试模式
 // ============================================================
 
-function toggleTestMode() {
-  isTestMode.value = !isTestMode.value
-  if (isTestMode.value) {
-    handleTestQR()
-  } else {
-    // 切换回正常模式，重新从后端获取授权二维码
-    startQRCodeAuth((token) => {
-      authStore.saveDeviceToken(token)
-      emit('loginSuccess')
-    })
-  }
-}
-
-/** 生成测试二维码 */
-async function handleTestQR() {
-  try {
-    await generateTestQRCode()
-  } catch {
-    // 错误已在 composable 中处理
-  }
+function showUnavailableNotice() {
+  /*
+   * 【需求十一改动说明】
+   * 原行为：组件 mounted 后立即请求设备授权并轮询状态。
+   * 新行为：未开放期间不创建授权会话、不轮询；保留 Canvas 与 composable 接入点供后续实现。
+   */
+  qrStatus.value = 'error'
+  qrError.value = '扫码登录正在开发中，敬请期待'
+  toastStore.showToast(qrError.value, 'info')
 }
 
 // 监听成功状态
@@ -254,14 +240,6 @@ watch(qrStatus, (status) => {
   if (status === 'confirmed') {
     setTimeout(() => emit('loginSuccess'), 800)
   }
-})
-
-// 启动二维码授权
-onMounted(async () => {
-  await startQRCodeAuth((token) => {
-    authStore.saveDeviceToken(token)
-    emit('loginSuccess')
-  })
 })
 
 onBeforeUnmount(() => {

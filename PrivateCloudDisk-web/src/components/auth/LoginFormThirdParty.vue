@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getThirdPartyAuthUrlApi } from '@/api/modules/auth'
+import { useToastStore } from '@/stores/toastStore'
 
 const emit = defineEmits<{
   loginSuccess: []
@@ -66,6 +66,7 @@ const emit = defineEmits<{
 
 const error = ref('')
 const loadingProvider = ref('')
+const toastStore = useToastStore()
 
 /** 是否为 Safari 浏览器 */
 const isSafari = computed(() => {
@@ -100,49 +101,21 @@ const enabledProviders = providers
 
 /** 发起第三方登录 */
 async function handleThirdPartyLogin(providerId: string) {
-  error.value = ''
-  loadingProvider.value = providerId
-
-  try {
-    const state = crypto.randomUUID()
-    const res = await getThirdPartyAuthUrlApi(providerId, state)
-
-    if (res.code === 200 && res.data?.authorizationUrl) {
-      // 保存 state 到 sessionStorage 用于回调验证
-      sessionStorage.setItem(`oauth_state_${providerId}`, state)
-      // 跳转到第三方授权页面
-      window.location.href = res.data.authorizationUrl
-    } else {
-      error.value = res.message || '获取授权链接失败'
-    }
-  } catch (e: any) {
-    error.value = e?.message || '获取授权链接失败'
-  } finally {
-    loadingProvider.value = ''
-  }
+  const provider = providers.find(item => item.id === providerId)
+  /*
+   * 【需求十一改动说明】
+   * 原行为：按钮点击后请求尚未落地的 OAuth 授权地址。
+   * 新行为：仅保留入口、提供商配置与函数定位，待后端完成 state/回调校验后在此恢复接入。
+   */
+  const message = `${provider?.label || '第三方登录'}正在开发中，敬请期待`
+  error.value = message
+  toastStore.showToast(message, 'info')
 }
 
 /** Apple ID 登录 */
 async function handleAppleLogin() {
-  error.value = ''
-  loadingProvider.value = 'apple'
-
-  try {
-    // Apple Sign In 使用 Web Authentication API 或 Sign in with Apple JS
-    // 这里提供标准 Redirect 模式
-    const state = crypto.randomUUID()
-    const res = await getThirdPartyAuthUrlApi('apple', state)
-
-    if (res.code === 200 && res.data?.authorizationUrl) {
-      sessionStorage.setItem('oauth_state_apple', state)
-      window.location.href = res.data.authorizationUrl
-    } else {
-      error.value = res.message || '获取 Apple 授权链接失败'
-    }
-  } catch (e: any) {
-    error.value = e?.message || '获取 Apple 授权链接失败'
-  } finally {
-    loadingProvider.value = ''
-  }
+  const message = 'Apple 登录正在开发中，敬请期待'
+  error.value = message
+  toastStore.showToast(message, 'info')
 }
 </script>

@@ -24,7 +24,6 @@
   WORKER_PREFETCH_EN_INDEX     - 增强索引队列 prefetch 数 (默认 2)
   WORKER_PREFETCH_EN_OFFICE_PDF - 增强 Office 转 PDF 队列 prefetch 数 (默认 2)
   WORKER_PREFETCH_EN_ARCHIVE_PARSE - 增强归档解析队列 prefetch 数 (默认 2)
-  WORKER_PREFETCH_EN_MARKDOWN_HTML - 增强 Markdown 转 HTML 队列 prefetch 数 (默认 2)
   WORKER_PREFETCH_DLQ_BE       - 后台 DLQ prefetch 数 (默认 1)
   WORKER_PREFETCH_DLQ_EN       - 增强 DLQ prefetch 数 (默认 1)
   WORKER_LOG_LEVEL             - 日志级别 (默认 INFO)
@@ -74,7 +73,6 @@ from core.consumers import (
     on_enhance_index_message,
     on_enhance_office_to_pdf_message,
     on_enhance_archive_parse_message,
-    on_enhance_markdown_to_html_message,
     # DLQ — Backend + Enhancement
     on_backend_dlq_message,
     on_enhance_dlq_message,
@@ -189,12 +187,6 @@ CONFIG = {
         "prefetch": int(os.getenv("WORKER_PREFETCH_EN_OFFICE_PDF", "2")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_OFFICE_PDF", "4")),
     },
-    "enhance_markdown_to_html": {
-        "queue": settings.file_enhance_markdown_to_html_queue,
-        "callback": on_enhance_markdown_to_html_message,
-        "prefetch": int(os.getenv("WORKER_PREFETCH_EN_MARKDOWN_HTML", "2")),
-        "concurrency": int(os.getenv("WORKER_CONCURRENCY_EN_MARKDOWN_HTML", "4")),
-    },
     "enhance_archive_parse": {
         "queue": settings.file_enhance_archive_parse_queue,
         "callback": on_enhance_archive_parse_message,
@@ -262,12 +254,6 @@ CONFIG = {
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_EN", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_EN", "2")),
     },
-    "dlq_enhance_markdown_to_html" : {
-        "queue": settings.file_enhance_markdown_to_html_dlq,
-        "callback": on_enhance_dlq_message,
-        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ_EN", "1")),
-        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ_EN", "2")),
-    }
 }
 
 
@@ -325,6 +311,10 @@ class Worker:
 
         self._running = True
         self._shutdown_event = asyncio.Event()
+
+        # AUDIT FIX [7.4]: Worker 与 HTTP 进程分别维护连接池，保证增强流水线和 DLQ 可持久化。
+        from app.db.database import init_database
+        await init_database()
 
         # ---- 打印配置汇总 ----
         logger.info("--- Worker 配置汇总 ---")
@@ -409,6 +399,13 @@ class Worker:
             await redis_client.close()
         except Exception as e:
             logger.error(f"关闭 Redis 失败: {e}")
+
+        # 关闭 MySQL 连接池
+        try:
+            from app.db.database import close_database
+            await close_database()
+        except Exception as e:
+            logger.error(f"关闭 MySQL 失败: {e}")
 
         if self._shutdown_event:
             self._shutdown_event.set()

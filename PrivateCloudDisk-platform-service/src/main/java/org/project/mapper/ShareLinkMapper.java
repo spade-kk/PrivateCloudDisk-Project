@@ -47,4 +47,17 @@ public interface ShareLinkMapper {
      * 将过期的分享标记为 expired
      */
     int expireOutdatedShares();
+
+    /**
+     * 更新分享链接（用于修改密码等）
+     */
+    int updateShare(ShareLinkEntity share);
+
+    /**
+     * 删除指定候选集合中已不包含任何资源的分享链接。
+     *
+     * <p>需求三-2：多资源分享只移除被永久删除的文件，保留仍有效的其他资源；
+     * 仅在分享已为空时删除链接，避免误删同一分享中的有效资源。</p>
+     */
+    int deleteEmptySharesByIds(@Param("share_ids") List<UUID> shareIds);
 }

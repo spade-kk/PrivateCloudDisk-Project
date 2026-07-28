@@ -16,6 +16,7 @@ from app.core.redis_client import redis_client
 from app.core.logging_config import setup_logging, get_logger
 from core.rabbitmq import rabbitmq_service
 from core.config import settings
+from app.db.database import close_database, init_database
 
 
 # 配置日志系统
@@ -122,6 +123,8 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
 
     try:
+        # AUDIT FIX [7.4]: HTTP 进程启动时建立预览资源数据库连接池。
+        await init_database()
         # 连接 RabbitMQ（仅用于发布消息，消费者由 Worker 处理）
         await rabbitmq_service.connect()
         logger.info("RabbitMQ 连接成功 (发布模式)")
@@ -144,6 +147,10 @@ async def lifespan(app: FastAPI):
     logger.info("关闭 Redis 连接...")
     await redis_client.close()
     logger.info("Redis 连接已关闭")
+
+    logger.info("关闭 MySQL 连接池...")
+    await close_database()
+    logger.info("MySQL 连接池已关闭")
 
     logger.info("关闭 OpenSearch 连接...")
     try:

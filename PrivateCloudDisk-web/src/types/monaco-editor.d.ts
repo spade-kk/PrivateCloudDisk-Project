@@ -29,7 +29,7 @@ declare module 'monaco-editor' {
       // 内容
       getValue(): string
       // 配置
-      updateOptions(opts: IEditorOptions & { [key: string]: unknown }): void
+      updateOptions(opts: Partial<IStandaloneEditorConstructionOptions> & { [key: string]: unknown }): void
       getOptions(): IEditorOptions
       // 视图
       layout(): void
@@ -176,9 +176,6 @@ declare module 'monaco-editor' {
       fixedOverflowWidgets?: boolean
     }
   }
-
-  // ---- 顶层导出（保持与 `import * as monaco` 一致） ----
-  export { editor }
 }
 
 // ============================================================
@@ -192,16 +189,12 @@ interface AMDRequire {
   (deps: string[], callback: (...args: unknown[]) => void, errback?: (err: Error) => void): void
 }
 
-declare global {
-  interface Window {
-    monaco?: typeof import('monaco-editor')
-    require?: AMDRequire
-    MonacoEnvironment?: {
-      getWorkerUrl?(workerId: string, label: string): string
-      getWorker?(workerId: string, label: string): Worker
-      [key: string]: unknown
-    }
+interface Window {
+  monaco?: typeof import('monaco-editor')
+  require?: AMDRequire
+  MonacoEnvironment?: {
+    getWorkerUrl?(workerId: string, label: string): string
+    getWorker?(workerId: string, label: string): Worker
+    [key: string]: unknown
   }
 }
-
-export {}

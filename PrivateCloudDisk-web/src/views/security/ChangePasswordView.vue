@@ -26,7 +26,7 @@
 
     <!-- ===== 密码修改表单 ===== -->
     <div class="responsive-panel p-5 sm:p-6">
-      <form @submit.prevent="handleChangePassword" class="space-y-5">
+      <form @focusin="ensureTurnstile" @submit.prevent="handleChangePassword" class="space-y-5">
         <!-- 原密码 -->
         <div>
           <label class="mb-1.5 block text-sm font-bold text-neutral-700">
@@ -173,18 +173,17 @@
             </span>
           </div>
 
-          <div class="flex items-center justify-center rounded-lg border border-neutral-200 bg-white px-2 py-3">
-            <div
-              ref="turnstileContainer"
-              class="turnstile-widget"
-              :class="{ hidden: !turnstileSiteKey }"
-            ></div>
-            <div v-if="!turnstileSiteKey" class="text-sm text-red-500">
-              未配置 Turnstile Site Key
-            </div>
-            <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-neutral-500">
-              <i class="fa fa-spinner fa-spin"></i>正在加载验证组件
-            </div>
+          <!-- 【需求十】移除 Turnstile 的额外边框包装，并改为表单交互后按需渲染。 -->
+          <div
+            ref="turnstileContainer"
+            class="turnstile-widget"
+            :class="{ hidden: !turnstileSiteKey }"
+          ></div>
+          <div v-if="!turnstileSiteKey" class="text-sm text-red-500">
+            未配置 Turnstile Site Key
+          </div>
+          <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-neutral-500">
+            <i class="fa fa-spinner fa-spin"></i>正在加载验证组件
           </div>
           <p v-if="captchaError" class="mt-2 text-xs text-red-500">{{ captchaError }}</p>
         </div>
@@ -240,7 +239,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToastStore } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -376,7 +375,9 @@ async function initTurnstile(): Promise<void> {
       sitekey: turnstileSiteKey,
       action: 'change_password',
       theme: 'light',
-      size: 'normal',
+      size: 'flexible',
+      execution: 'execute',
+      appearance: 'interaction-only',
       callback: (token: string) => {
         captchaToken.value = token
         captchaError.value = ''
@@ -395,6 +396,15 @@ async function initTurnstile(): Promise<void> {
   } finally {
     captchaLoading.value = false
   }
+  if (window.turnstile && turnstileWidgetId.value !== null) {
+    window.turnstile.execute(turnstileWidgetId.value)
+  }
+}
+
+async function ensureTurnstile(): Promise<void> {
+  if (captchaToken.value || captchaLoading.value || turnstileWidgetId.value !== null) return
+  // 【需求十】原 mounted 自动加载改为首次表单交互加载；失败路径仍统一 reset。
+  await initTurnstile()
 }
 
 function resetTurnstile(): void {
@@ -464,10 +474,6 @@ async function handleChangePassword(): Promise<void> {
     submitting.value = false
   }
 }
-
-onMounted(() => {
-  initTurnstile()
-})
 
 onBeforeUnmount(() => {
   if (window.turnstile && turnstileWidgetId.value !== null) {

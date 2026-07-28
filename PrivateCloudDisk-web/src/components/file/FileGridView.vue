@@ -6,6 +6,8 @@
       class="finder-item group"
       :class="{ 'is-selected': isSelected(node.node_id) }"
       @click="$emit('itemClick', node)"
+      @mouseenter="hoveredId = node.node_id"
+      @mouseleave="hoveredId = null"
       @contextmenu.prevent.stop="$emit('contextmenu', $event, node)"
     >
       <!-- 复选框 -->
@@ -43,12 +45,22 @@
         </div>
         <h3 class="finder-name text-ellipsis-2">{{ node.node_name }}</h3>
         <p class="finder-meta">{{ node.node_type === 'FOLDER' ? '文件夹' : getFileExtension(node.node_name) }}</p>
+        <div v-if="tagsFor(node).length" class="finder-tags" @click.stop>
+          <FileTagBubble :tags="tagsFor(node)" compact :max-rows="2" />
+        </div>
       </div>
+      <FileHoverPreview
+        v-if="node.node_type === 'FILE'"
+        :file-id="node.node_id"
+        :file-name="node.node_name"
+        :armed="hoveredId === node.node_id"
+      />
       <!-- 操作菜单（悬浮显示） -->
       <div class="finder-actions" @click.stop>
         <div class="flex items-center gap-0.5 rounded-full border border-neutral-200/80 bg-white/95 p-1 shadow-card backdrop-blur">
           <button @click="$emit('action', node, 'download')" class="finder-action-btn text-primary" title="下载"><i class="fa fa-download"></i></button>
           <button @click="$emit('action', node, 'rename')" class="finder-action-btn text-neutral-500" title="重命名"><i class="fa fa-pencil"></i></button>
+          <button @click="$emit('action', node, 'tags')" class="finder-action-btn text-neutral-500" title="管理标签"><i class="fa fa-tags"></i></button>
           <button @click="$emit('action', node, 'delete')" class="finder-action-btn text-danger" title="删除"><i class="fa fa-trash"></i></button>
           <button @click="$emit('action', node, 'detail')" class="finder-action-btn text-neutral-500" title="详情"><i class="fa fa-info-circle"></i></button>
         </div>
@@ -58,26 +70,41 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { getFileExtension } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'
-import { isImage, isVideo } from '@/utils/previewHelper'
+import { isImage, isOffice, isPdf, isVideo } from '@/utils/previewHelper'
 import ThumbnailImage from './ThumbnailImage.vue'
+import FileHoverPreview from './FileHoverPreview.vue'
+import FileTagBubble from '@/components/tag/FileTagBubble.vue'
+import type { TagVO } from '@/api/modules/tags'
 
-const props = defineProps({
-  nodes: { type: Array, required: true },
-  selectedIds: { type: Set, default: () => new Set() },
-  starredIds: { type: Set, default: () => new Set() },
+interface FileNode { node_id: string; node_name: string; node_type: string; node_size?: number }
+
+const props = withDefaults(defineProps<{
+  nodes: FileNode[]
+  selectedIds?: Set<string>
+  starredIds?: Set<string>
+  tagsByTarget?: Record<string, TagVO[]>
+}>(), {
+  selectedIds: () => new Set<string>(),
+  starredIds: () => new Set<string>(),
+  tagsByTarget: () => ({}),
 })
 
 const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star', 'contextmenu'])
 
-const iconClass = (node) => getFileIconClass(node.node_name)
-const isSelected = (id) => props.selectedIds.has(id)
-const isStarred = (id) => props.starredIds.has(id)
+const iconClass = (node: FileNode) => getFileIconClass(node.node_name)
+const isSelected = (id: string) => props.selectedIds.has(id)
+const isStarred = (id: string) => props.starredIds.has(id)
 const isImageFile = (fileName: string) => isImage(fileName)
 const isVideoFile = (fileName: string) => isVideo(fileName)
-const isThumbnailable = (fileName: string) => isImage(fileName) || isVideo(fileName)
-const toggleSelect = (id, type) => emit('selection-change', id, type)
+// AUDIT FIX [2.3/5.6]：仅将已有图片产物的图片、视频、PDF、Office 纳入缩略图和悬停预览。
+const isThumbnailable = (fileName: string) =>
+  isImage(fileName) || isVideo(fileName) || isPdf(fileName) || isOffice(fileName)
+const toggleSelect = (id: string, type: string) => emit('selection-change', id, type)
+const tagsFor = (node: FileNode) => props.tagsByTarget[node.node_id] || []
+const hoveredId = ref<string | null>(null)
 </script>
 
 <style scoped>
@@ -153,6 +180,7 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
 }
 
 .finder-item:hover {
+  z-index: 30;
   transform: translateY(-1px);
   outline-color: rgba(22, 93, 255, 0.08);
 }
@@ -234,6 +262,8 @@ const toggleSelect = (id, type) => emit('selection-change', id, type)
   font-size: 12px;
   line-height: 16px;
 }
+
+.finder-tags { display: flex; width: 100%; max-width: 100%; align-items: center; justify-content: center; margin-top: 4px; }
 
 @media (max-width: 639px) {
   .finder-meta {

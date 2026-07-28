@@ -94,6 +94,9 @@ public class ApiAbuseProtectionService {
         if (StringUtils.hasText(request.getAccount())) {
             return "account:" + request.getAccount();
         }
+        if (StringUtils.hasText(request.getEmail())) {
+            return "email:" + request.getEmail().trim().toLowerCase();
+        }
         return "phone:" + request.getPhone_number();
     }
 

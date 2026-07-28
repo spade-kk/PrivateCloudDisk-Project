@@ -52,6 +52,13 @@ public interface TagMapper {
                                    @Param("user_id") UUID user_id,
                                    @Param("node_id") UUID node_id);
 
+    /**
+     * 永久删除文件时清理该文件的全部标签关联。
+     *
+     * <p>需求三-2：软删除及回收站流程不会调用本方法，从而保证恢复后标签立即可见。</p>
+     */
+    int deleteAllByFileId(@Param("file_id") UUID file_id);
+
     /** 获取文件的所有标签 */
     List<TagEntity> findTagsByFileId(@Param("user_id") UUID user_id, @Param("file_id") UUID file_id);
 

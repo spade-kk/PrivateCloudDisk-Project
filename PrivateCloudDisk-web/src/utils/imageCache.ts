@@ -10,7 +10,9 @@
 //   6. 自动重试（指数退避）
 // ============================================================
 
-import { getThumbnailUrl, getVideoThumbnailUrl } from '@/api/modules/preview'
+import { getDocumentThumbnailUrl, getThumbnailUrl } from '@/api/modules/preview'
+import { getVideoThumbnailUrl } from '@/api/modules/video'
+import { fetchPreviewContentBlob } from '@/api/modules/previewContent'
 // 依赖 axios 封装的 get 方法，自动附带 Token 不需要使用统一封装的axios实例，不使用统一的请求拦截器 响应拦截器实现无感加载
 import axios from 'axios'
 import { cookie } from '@/utils/cookie'
@@ -78,6 +80,39 @@ class ImageCacheManager {
   async loadVideo(fileId: string, size: ThumbnailSize = 'small'): Promise<string> {
     const url = this.buildVideoUrl(fileId, size)
     return this._loadByUrl(url)
+  }
+
+  /** 加载 Office/PDF 首页预览图，复用图片 LRU 与请求去重能力。 */
+  async loadDocument(fileId: string, size: ThumbnailSize = 'small'): Promise<string> {
+    return this._loadByUrl(getDocumentThumbnailUrl(fileId, size))
+  }
+
+  /** 加载原始图片内容，用于大图灯箱；不会把有损缩略图冒充原图。 */
+  async loadOriginal(fileId: string): Promise<string> {
+    const cacheKey = this.buildOriginalKey(fileId)
+    const cached = this.cache.get(cacheKey)
+    if (cached) {
+      cached.lastAccess = Date.now()
+      this.touchLRU(cacheKey)
+      return cached.objectUrl
+    }
+    const pending = this.pending.get(cacheKey)
+    if (pending) {
+      pending.subscribers++
+      return pending.promise
+    }
+
+    /*
+     * 需求三-1/2、四-2：原图首次加载与重试均申请独立 Preview Token。
+     * 原行为直接访问无 Preview Token 的 URL，首次进入页面会失败，重试路径却可能因缓存时序不同而成功。
+     */
+    const promise = this.fetchOriginalWithRetry(fileId, cacheKey, 0)
+    this.pending.set(cacheKey, { promise, subscribers: 1 })
+    try {
+      return await promise
+    } finally {
+      this.pending.delete(cacheKey)
+    }
   }
 
   /**
@@ -152,6 +187,10 @@ class ImageCacheManager {
     this.removeEntry(url)
   }
 
+  evictOriginal(fileId: string): void {
+    this.removeEntry(this.buildOriginalKey(fileId))
+  }
+
   /**
    * 清空全部缓存
    */
@@ -186,6 +225,26 @@ class ImageCacheManager {
 
   private buildVideoUrl(fileId: string, size: ThumbnailSize): string {
     return getVideoThumbnailUrl(fileId, size)
+  }
+
+  private buildOriginalKey(fileId: string): string {
+    return `preview-source:${fileId}`
+  }
+
+  private async fetchOriginalWithRetry(fileId: string, cacheKey: string, attempt: number): Promise<string> {
+    try {
+      const blob = await fetchPreviewContentBlob(fileId)
+      const objectUrl = URL.createObjectURL(blob)
+      this.addToCache(cacheKey, objectUrl, blob)
+      return objectUrl
+    } catch (error) {
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_BASE_DELAY * Math.pow(2, attempt)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        return this.fetchOriginalWithRetry(fileId, cacheKey, attempt + 1)
+      }
+      throw error
+    }
   }
 
   /**
@@ -300,6 +359,43 @@ export function loadVideoThumbnail(
   size: ThumbnailSize = 'small',
 ): Promise<string> {
   return imageCache.loadVideo(fileId, size)
+}
+
+/**
+ * AUDIT FIX [5.2]（需求五-6）：加载 Office/PDF 首页预览图。
+ */
+export function loadDocumentThumbnail(
+  fileId: string,
+  size: ThumbnailSize = 'small',
+): Promise<string> {
+  return imageCache.loadDocument(fileId, size)
+}
+
+/**
+ * 加载需要鉴权的短媒体 Blob。返回的 URL 由调用组件负责 revoke，避免 30 秒视频长期占用 LRU 内存。
+ */
+export async function loadAuthenticatedMedia(
+  fullUrl: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const relativeUrl = fullUrl.startsWith(BASE_URL) ? fullUrl.slice(BASE_URL.length) : fullUrl
+  const token = cookie.get(TOKEN_COOKIE_KEY)
+  const response = await axios.get(`${BASE_URL}${relativeUrl}`, {
+    responseType: 'blob',
+    timeout: 30000,
+    signal,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  return URL.createObjectURL(response.data as Blob)
+}
+
+/**
+ * AUDIT FIX [3.1]: 大图预览直接获取原文件 Blob，确保缩放时保持原始清晰度。
+ */
+export function loadOriginalImage(fileId: string): Promise<string> {
+  return imageCache.loadOriginal(fileId)
 }
 
 /**

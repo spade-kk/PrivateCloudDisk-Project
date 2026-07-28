@@ -6,7 +6,7 @@
     :title="tag.tag_name"
   >
     <i class="fa fa-tag text-[8px]"></i>
-    {{ tag.tag_name }}
+    <span class="max-w-[88px] overflow-hidden text-ellipsis whitespace-nowrap">{{ tag.tag_name }}</span>
   </span>
 </template>
 

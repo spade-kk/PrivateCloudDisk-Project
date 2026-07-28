@@ -16,7 +16,7 @@ import org.project.validation.ValidPassword;
  * 前端使用 PBKDF2-SHA256（60 万次迭代）预哈希后传输，后端接收后进行 BCrypt 二次哈希验证。
  * 通过 {@link ValidPassword} 自定义校验器同时支持两种格式。
  */
-@AtLeastOneNotNull(fieldNames = {"phone_number", "account"}, message = "手机号和账号至少一个不能为空")
+@AtLeastOneNotNull(fieldNames = {"phone_number", "account", "email"}, message = "账号、手机号和邮箱至少一个不能为空")
 @Data
 public class LoginRequest {
 
@@ -27,6 +27,11 @@ public class LoginRequest {
     @Pattern(regexp = "^1[3-9]\\d{9}$",
             message = "手机号格式不正确")
     private String phone_number;
+
+    /** 需求九：密码登录支持标准邮箱地址，与账号、手机号共用同一输入框。 */
+    @Email(message = "邮箱格式不正确")
+    @Size(max = 254, message = "邮箱长度不能超过254个字符")
+    private String email;
 
     @NotBlank(message = "密码不能为空")
     @ValidPassword

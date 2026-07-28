@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.UserSettingMapper">
+
+    <!--
+        用户系统设置 ResultMap
+        user_id 使用 UUIDBinaryTypeHandler 映射 BINARY(16) 与 Java UUID 类型
+    -->
+    <resultMap id="UserSettingEntityMap" type="org.project.model.entity.UserSettingEntity">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="preferences" property="preferences"/>
+        <result column="notification_settings" property="notificationSettings"/>
+        <result column="appearance" property="appearance"/>
+        <result column="language" property="language"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- ==================== 查询 ==================== -->
+
+    <!--
+        根据用户ID查询系统设置
+        每个用户只有一条设置记录，通过 uk_user_id 唯一约束保证
+    -->
+    <select id="findByUserId" resultMap="UserSettingEntityMap">
+        SELECT
+            id,
+            user_id,
+            preferences,
+            notification_settings,
+            appearance,
+            language,
+            created_at,
+            updated_at
+        FROM pcd_user_settings_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <!-- ==================== 插入 ==================== -->
+
+    <!--
+        插入新用户的系统设置（首次初始化时调用）
+        使用 UUIDBinaryTypeHandler 将 Java UUID 转换为 BINARY(16) 存储
+    -->
+    <insert id="insert" parameterType="org.project.model.entity.UserSettingEntity">
+        INSERT INTO pcd_user_settings_table (
+            user_id,
+            preferences,
+            notification_settings,
+            appearance,
+            language,
+            created_at,
+            updated_at
+        ) VALUES (
+            #{entity.userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{entity.preferences},
+            #{entity.notificationSettings},
+            #{entity.appearance},
+            #{entity.language},
+            #{entity.createdAt},
+            #{entity.updatedAt}
+        )
+    </insert>
+
+    <!-- ==================== 更新（PATCH 部分更新） ==================== -->
+
+    <!--
+        更新偏好设置（JSON 字段）
+        仅更新 preferences 列，其他字段保持不变
+    -->
+    <update id="updatePreferences">
+        UPDATE pcd_user_settings_table
+        SET preferences = #{preferences},
+            updated_at = NOW()
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <!--
+        更新通知设置（JSON 字段）
+        仅更新 notification_settings 列，其他字段保持不变
+    -->
+    <update id="updateNotificationSettings">
+        UPDATE pcd_user_settings_table
+        SET notification_settings = #{notificationSettings},
+            updated_at = NOW()
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <!--
+        更新外观设置（JSON 字段）
+        仅更新 appearance 列，其他字段保持不变
+    -->
+    <update id="updateAppearance">
+        UPDATE pcd_user_settings_table
+        SET appearance = #{appearance},
+            updated_at = NOW()
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <!--
+        更新语言设置
+        仅更新 language 列，其他字段保持不变
+    -->
+    <update id="updateLanguage">
+        UPDATE pcd_user_settings_table
+        SET language = #{language},
+            updated_at = NOW()
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+</mapper>

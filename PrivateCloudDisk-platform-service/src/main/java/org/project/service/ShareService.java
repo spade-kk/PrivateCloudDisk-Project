@@ -3,94 +3,136 @@ package org.project.service;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.ShareLinkEntity;
+import org.project.model.entity.ShareResourceEntity;
 
 import java.util.List;
 
 /**
- * 分享链接服务接口
- *
- * <p><b>分层原则</b>：本接口不接收任何 Request DTO，不返回任何 VO。
- * 所有方法参数由接口层从 Request DTO 提取后传入，所有返回值均为 Entity，
- * Entity → VO 的转换由接口层通过 {@link org.project.model.vo.VoMapper} 完成。
+ * 分享链接服务接口（v2 — 多资源分享模型）
  */
 public interface ShareService {
 
-    /**
-     * 创建分享链接
-     * @param userId 用户ID
-     * @param shareName 分享名称
-     * @param targetType 目标类型（"file" 或 "folder"）
-     * @param fileId 文件ID（targetType=file 时必填）
-     * @param nodeId 文件夹节点ID（targetType=folder 时必填）
-     * @param password 密码（可选）
-     * @param expireDays 过期天数（可选）
-     * @return 创建的分享链接实体
-     */
-    ShareLinkEntity createShare(String userId, String shareName, String targetType,
-                              String fileId, String nodeId, String password, Integer expireDays);
+    // ==================== 管理端 ====================
 
     /**
-     * 获取用户的所有分享链接
+     * 创建分享链接（密码明文传入，服务端 AES 加密存储）
+     */
+    ShareLinkEntity createShare(String userId, String shareName, String shareDescription,
+                                List<ResourceItem> resources,
+                                String password, Integer expireDays);
+
+    /**
+     * 获取用户的所有分享链接（列表，不含资源列表）
      * @param user_id 用户ID
      * @return 分享链接列表
      */
-    List<ShareLinkEntity> getMyShares(String user_id);
+    List<ShareLinkEntity> getMyShares(String userId);
+
+    /**
+     * 获取单个分享链接的详细信息（含资源列表 + 解密后的提取码）
+     */
+    ShareLinkDetail getShareDetail(String userId, String shareId);
 
     /**
      * 撤销分享链接
      * @param user_id 用户ID
      * @param share_id 分享ID
      */
-    void revokeShare(String user_id, String share_id);
+    void revokeShare(String userId, String shareId);
+
+    // ==================== 公开访问端 ====================
 
     /**
-     * 获取分享公开信息（无需鉴权，用于展示分享页面）
+     * 获取分享公开信息（不含资源列表）
      * @param share_token 分享令牌
      * @return 分享公开信息
      */
     ShareLinkEntity getShareAccessInfo(String shareToken);
 
     /**
-     * 验证分享密码并返回短期访问令牌
+     * 验证提取码并返回短期访问令牌
      * @param share_token 分享令牌
-     * @param password 用户输入的密码
+     * @param password 明文提取码
      * @return 短期访问令牌（JWT，15分钟有效）
      */
-    String verifyPasswordAndGetToken(String share_token, String password);
+    String verifyPasswordAndGetToken(String shareToken, String password);
 
     /**
-     * 通过访问令牌验证并获取分享内容
+     * 通过访问令牌获取分享内容（含资源列表）
      * @param access_token 访问令牌
      * @return 分享实体
      */
-    ShareLinkEntity getShareByAccessToken(String access_token);
+    ShareLinkEntity getShareByAccessToken(String accessToken);
 
     /**
-     * 获取分享的文件实体（用于文件下载）
+     * 获取分享资源列表
      * @param share_token 分享令牌
-     * @param file_id 文件ID
-     * @return 文件实体
      */
-    org.project.model.entity.FileEntity getSharedFile(String share_token, String file_id);
+    List<ShareResourceEntity> getShareResources(String shareToken);
 
     /**
-     * 获取分享文件夹的子内容（文件和子文件夹实体列表）
-     * <p>仅支持文件夹分享，且 node_id 必须在分享范围内
+     * 通过分享资源ID浏览文件夹子内容
+     * <p>安全：通过 share_resource_id 校验资源是否在分享范围内，不暴露内部 node_id</p>
      * @param share_token 分享令牌
-     * @param node_id 要浏览的节点ID（null 或 分享的根节点ID 表示浏览分享根目录）
-     * @return 子内容列表（含文件和文件夹）
      */
-    List<SharedItem> getSharedFolderContents(String shareToken, String nodeId);
+    List<SharedItem> getShareResourceChildren(String shareToken, String shareResourceId);
+
+    /**
+     * 通过分享资源ID下载文件（支持真实和虚拟 share_resource_id）
+     * <p>安全：通过 share_resource_id 校验资源是否在分享范围内</p>
+     * @param share_token 分享令牌
+     */
+    FileEntity getSharedFileByResourceId(String shareToken, String shareResourceId);
+
+    /**
+     * 修改分享链接提取码
+     * @param newPassword 新提取码明文，传 null 或空字符串表示移除密码
+     */
+    void updateSharePassword(String userId, String shareId, String newPassword);
+
+    /**
+     * 生成虚拟 share_resource_id（AES 加密内部 ID）
+     * <p>用于子节点浏览，不暴露原始 file_id/node_id</p>
+     */
+    String encodeVirtualResourceId(String shareToken, String type, String internalId);
+
+    /**
+     * 解析虚拟 share_resource_id（AES 解密）
+     * @return [shareToken, type, internalId]，解密失败返回 null
+     */
+    String[] decodeVirtualResourceId(String virtualId);
+
+    /**
+     * 通过虚拟 share_resource_id 浏览文件夹子内容
+     * <p>先尝试解析为真实 share_resource_id，再尝试解析为虚拟 ID</p>
+     */
+    List<SharedItem> getShareResourceChildrenByVirtualId(String shareToken, String virtualResourceId);
+
+    // ==================== 内部类型 ====================
+
+    record ResourceItem(String type, String id) {
+        public static ResourceItem of(String type, String id) {
+            return new ResourceItem(type, id);
+        }
+    }
 
     /**
      * 分享文件夹内容项 —— 统一封装文件和文件夹实体
      */
+
     record SharedItem(String itemType, FileEntity file, FolderNodeEntity folder) {
         public static SharedItem ofFile(FileEntity file) {
             return new SharedItem("file", file, null);
         }
+
         public static SharedItem ofFolder(FolderNodeEntity folder) {
             return new SharedItem("folder", null, folder);
         }
+    }
+
+    /**
+     * 分享链接详情（含资源列表 + 解密后的提取码）
+     */
+    record ShareLinkDetail(ShareLinkEntity share, String decryptedPassword) {
     }
 }

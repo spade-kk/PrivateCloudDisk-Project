@@ -1,424 +1,275 @@
 <template>
-  <div class="video-player-view">
-    <!-- ============================================================
-         加载状态
-         ============================================================ -->
-    <div v-if="store.loading" class="player-loading-overlay">
-      <div class="loading-content">
-        <div class="loading-spinner-ring">
-          <div class="ring"></div>
-        </div>
-        <p class="loading-text">正在加载视频...</p>
-        <p class="loading-subtext">{{ store.currentFile?.node_name || '' }}</p>
-      </div>
-    </div>
-
-    <!-- ============================================================
-         错误状态
-         ============================================================ -->
-    <div v-else-if="store.error" class="player-error-overlay">
-      <div class="error-content">
-        <div class="error-icon">
-          <i class="fa fa-exclamation-triangle"></i>
-        </div>
-        <h2 class="error-title">{{ store.error.title || '播放错误' }}</h2>
-        <p class="error-message">{{ store.error.message }}</p>
-        <div class="error-actions">
-          <button @click="handleRetry" class="error-btn error-btn-primary">
-            <i class="fa fa-refresh"></i> 重新加载
-          </button>
-          <button @click="handleGoBack" class="error-btn error-btn-secondary">
-            <i class="fa fa-arrow-left"></i> 返回
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================================
-         视频播放器主体 - 企业级核心组件
-         ============================================================ -->
-    <div v-else class="player-wrapper" :class="{ 'is-fullscreen': store.isFullscreen }">
-      <VideoPlayerCore
-        ref="playerRef"
-        :stream-info="store.streamInfo"
-        :sprite-info="store.spriteInfo"
-        :subtitles="store.subtitles"
-        :active-subtitle="store.activeSubtitle"
-        :stream-token="store.streamToken"
-        :initial-resolution="store.currentResolution"
-        :initial-playback-rate="store.playbackRate"
-        :initial-volume="store.volume"
-        :saved-progress="store.savedProgress?.current_time || 0"
-        :is-hls="store.isHls"
-        :hls-source-url="store.isHls ? store.videoSourceUrl : ''"
-        :video-source-url="store.isMp4 ? store.videoSourceUrl : ''"
-        :poster-url="store.previewThumbnailUrl"
-        :file-id="store.currentFile?.node_id"
-        @timeupdate="onTimeUpdate"
-        @progress-report="onProgressReport"
-        @resolution-change="onResolutionChange"
-        @speed-change="onSpeedChange"
-        @volume-change="onVolumeChange"
-        @fullscreen-change="onFullscreenChange"
-        @error="onPlayerError"
-        @retry="handleRetry"
-      />
-
-      <!-- 左上角返回按钮 -->
-      <button
-        v-if="showTopBar"
-        class="top-left-back-btn"
-        @click="handleGoBack"
-        title="返回"
-      >
-        <i class="fa fa-arrow-left"></i>
+  <div class="video-page">
+    <header class="video-header">
+      <button class="back-button" type="button" @click="handleGoBack">
+        <i class="fa fa-arrow-left" aria-hidden="true"></i>
+        <span>返回网盘</span>
       </button>
+      <div class="brand-mark"><i class="fa fa-cloud"></i><span>PrivateCloudDisk</span></div>
+    </header>
 
-      <!-- 视频标题 -->
-      <div v-if="showTopBar" class="top-center-title">
-        <span class="title-text">{{ store.currentFile?.node_name || '视频播放' }}</span>
-      </div>
-    </div>
+    <main class="video-layout">
+      <section class="video-primary" aria-label="视频播放区域">
+        <div class="player-shell" :class="{ 'is-fullscreen': store.isFullscreen }">
+          <div v-if="store.loading" class="state-overlay">
+            <div class="spinner"></div>
+            <strong>正在加载视频</strong>
+            <span>{{ store.currentFile?.node_name || '' }}</span>
+          </div>
+
+          <div v-else-if="store.error" class="state-overlay error-state">
+            <i class="fa fa-exclamation-circle"></i>
+            <strong>{{ store.error.title || '播放错误' }}</strong>
+            <span>{{ store.error.message }}</span>
+            <div class="state-actions">
+              <button type="button" @click="handleRetry"><i class="fa fa-refresh"></i>重新加载</button>
+              <button type="button" class="secondary" @click="handleGoBack">返回网盘</button>
+            </div>
+          </div>
+
+          <VideoPlayerCore
+            v-else
+            ref="playerRef"
+            :stream-info="store.streamInfo"
+            :sprite-info="store.spriteInfo"
+            :subtitles="store.subtitles"
+            :active-subtitle="store.activeSubtitle || undefined"
+            :stream-token="store.streamToken"
+            :initial-resolution="store.currentResolution"
+            :initial-playback-rate="store.playbackRate"
+            :initial-volume="store.volume"
+            :saved-progress="store.savedProgress?.current_time || 0"
+            :is-hls="store.isHls"
+            :hls-source-url="store.isHls ? store.videoSourceUrl : ''"
+            :video-source-url="store.isMp4 ? store.videoSourceUrl : ''"
+            :poster-url="store.previewThumbnailUrl"
+            :file-id="store.currentFile?.node_id"
+            @timeupdate="onTimeUpdate"
+            @progress-report="onProgressReport"
+            @resolution-change="store.setResolution"
+            @speed-change="store.setPlaybackRate"
+            @volume-change="store.setVolume"
+            @fullscreen-change="store.isFullscreen = $event"
+            @error="onPlayerError"
+            @retry="handleRetry"
+          />
+        </div>
+
+        <div class="video-meta">
+          <h1>{{ store.currentFile?.node_name || fileName }}</h1>
+          <div class="meta-row">
+            <span><i class="fa fa-play-circle"></i> HLS 自适应流媒体</span>
+            <span v-if="store.streamInfo?.duration">{{ formatDuration(store.streamInfo.duration) }}</span>
+            <span v-if="store.savedProgress?.current_time" class="resume-chip">已续播 {{ formatDuration(store.savedProgress.current_time) }}</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="history-panel" aria-label="播放历史">
+        <div class="statistics-card">
+          <div>
+            <span class="eyebrow">账号媒体库</span>
+            <strong>{{ store.playableVideoCount }}</strong>
+            <span>个视频可播放</span>
+          </div>
+          <i class="fa fa-film"></i>
+        </div>
+
+        <div class="history-heading">
+          <div><h2>播放历史</h2><span>最近 {{ store.historyTotal }} 条</span></div>
+          <button type="button" title="刷新播放历史" @click="store.loadSidebarData"><i class="fa fa-refresh"></i></button>
+        </div>
+
+        <div v-if="store.sidebarLoading" class="history-skeleton" aria-label="正在加载播放历史">
+          <div v-for="index in 4" :key="index" class="skeleton-row"><span></span><div><i></i><i></i></div></div>
+        </div>
+        <div v-else-if="store.watchHistory.length === 0" class="history-empty">
+          <i class="fa fa-history"></i><p>还没有播放记录</p><span>观看过的视频会显示在这里</span>
+        </div>
+        <div v-else class="history-list">
+          <button
+            v-for="item in store.watchHistory"
+            :key="item.file_id"
+            type="button"
+            class="history-item"
+            :class="{ active: item.file_id === store.currentFile?.node_id }"
+            @click="playHistoryItem(item)"
+          >
+            <span class="history-thumb">
+              <ThumbnailImage :file-id="item.file_id" :file-name="item.file_name || 'video.mp4'" size="medium" />
+              <small>{{ formatDuration(item.total_duration) }}</small>
+              <i v-if="item.file_id === store.currentFile?.node_id" class="fa fa-volume-up playing-icon"></i>
+            </span>
+            <span class="history-info">
+              <strong>{{ item.file_name || '未命名视频' }}</strong>
+              <span>{{ item.completed ? '已看完' : `看到 ${formatDuration(item.watched_duration)}` }}</span>
+              <progress :value="item.watched_duration" :max="item.total_duration || 1"></progress>
+            </span>
+          </button>
+        </div>
+      </aside>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+// AUDIT FIX [3.1]: 视频页改为顶级独立工作区，保留现有 HLS 核心组件并加入持久化历史与资源统计。
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useVideoPlayerStore } from '@/stores/videoPlayerStore'
 import VideoPlayerCore from '@/components/video/VideoPlayerCore.vue'
+import ThumbnailImage from '@/components/file/ThumbnailImage.vue'
+import { useVideoPlayerStore } from '@/stores/videoPlayerStore'
 
-// ============================================================
-// 路由 & Store
-// ============================================================
 const route = useRoute()
 const router = useRouter()
 const store = useVideoPlayerStore()
-
-// ============================================================
-// Refs
-// ============================================================
 const playerRef = ref<InstanceType<typeof VideoPlayerCore> | null>(null)
-const showTopBar = ref(true)
+const lastSavedSecond = ref(0)
+const fileName = computed(() => String(route.query.name || '视频播放'))
 
-// ============================================================
-// 视频初始化
-// ============================================================
 async function initVideo() {
-  const fileId = route.params.fileId as string
+  const fileId = String(route.params.fileId || '')
   if (!fileId) {
-    store.error = { title: '参数错误', message: '缺少文件ID参数' }
+    store.error = { title: '参数错误', message: '缺少文件 ID 参数' }
     return
   }
-
-  const fileInfo = {
+  await store.loadVideo({
     node_id: fileId,
-    node_name: decodeURIComponent((route.query.name as string) || '视频播放'),
-    file_size: parseInt((route.query.size as string) || '0'),
-    node_type: 'FILE'
+    node_name: fileName.value,
+    file_size: Number(route.query.size || 0),
+    node_type: 'FILE',
+  })
+  lastSavedSecond.value = Math.floor(store.savedProgress?.current_time || 0)
+  // 切换历史视频后立即刷新当前条目和可播放资源统计。
+  await store.loadSidebarData()
+}
+
+function onTimeUpdate(payload: { currentTime: number; duration: number }) {
+  // AUDIT FIX [7.4]: 核心组件的时间必须回写 Store，旧实现调用 saveProgress 时始终保存 0 秒。
+  store.currentTime = payload.currentTime
+  store.duration = payload.duration
+  const second = Math.floor(payload.currentTime)
+  if (second > 0 && second - lastSavedSecond.value >= 10) {
+    lastSavedSecond.value = second
+    void store.saveProgress()
   }
-
-  await store.loadVideo(fileInfo)
 }
 
-// ============================================================
-// 事件处理
-// ============================================================
-function onTimeUpdate({ currentTime, duration }: { currentTime: number; duration: number }) {
-  // 定期保存进度
-  if (Math.floor(currentTime) % 5 === 0 && Math.floor(currentTime) > 0) {
-    store.saveProgress()
-  }
+function onProgressReport(payload: { currentTime: number; duration: number }) {
+  store.currentTime = payload.currentTime
+  store.duration = payload.duration
+  void store.saveProgress()
 }
 
-function onProgressReport({ currentTime, duration }: { currentTime: number; duration: number }) {
-  store.saveProgress()
+function onPlayerError(message: string) {
+  store.error = { title: '播放错误', message }
 }
 
-function onResolutionChange(resolution: string) {
-  store.setResolution(resolution)
+async function playHistoryItem(item: any) {
+  if (item.file_id === store.currentFile?.node_id) return
+  await store.saveProgress()
+  await router.replace({
+    name: 'VideoPlayer',
+    params: { fileId: item.file_id },
+    query: { name: item.file_name || '视频播放', from: 'history' },
+  })
 }
 
-function onSpeedChange(rate: number) {
-  store.setPlaybackRate(rate)
-}
-
-function onVolumeChange(vol: number) {
-  store.setVolume(vol)
-}
-
-function onFullscreenChange(isFs: boolean) {
-  store.isFullscreen = isFs
-}
-
-function onPlayerError(msg: string) {
-  store.error = { title: '播放错误', message: msg }
-}
-
-// ============================================================
-// 导航
-// ============================================================
-function handleGoBack() {
+async function handleGoBack() {
+  await store.saveProgress()
   store.reset()
-  router.back()
+  if (window.history.length > 1) router.back()
+  else router.replace({ name: 'Dashboard' })
 }
 
 function handleRetry() {
   store.error = null
-  initVideo()
+  void initVideo()
 }
 
-// ============================================================
-// 键盘快捷键
-// ============================================================
-function handleKeydown(e: KeyboardEvent) {
-  const tag = document.activeElement?.tagName?.toLowerCase()
-  if (tag === 'input' || tag === 'textarea' || tag === 'select') return
-
-  if (e.key === 'Escape' && document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {})
-  }
+function formatDuration(value: number | string | undefined): string {
+  const total = Math.max(0, Math.floor(Number(value) || 0))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-// ============================================================
-// 全屏变化监听
-// ============================================================
-function onFullscreenChangeNative() {
-  store.isFullscreen = !!document.fullscreenElement
+function saveBeforePageHide() {
+  void store.saveProgress()
 }
 
-// ============================================================
-// 生命周期
-// ============================================================
-onMounted(async () => {
-  document.addEventListener('keydown', handleKeydown)
-  document.addEventListener('fullscreenchange', onFullscreenChangeNative)
-  document.addEventListener('webkitfullscreenchange', onFullscreenChangeNative)
-  await initVideo()
+watch(() => route.params.fileId, () => void initVideo(), { immediate: true })
+
+onMounted(() => {
+  window.addEventListener('pagehide', saveBeforePageHide)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  document.removeEventListener('fullscreenchange', onFullscreenChangeNative)
-  document.removeEventListener('webkitfullscreenchange', onFullscreenChangeNative)
+  window.removeEventListener('pagehide', saveBeforePageHide)
+  void store.saveProgress()
   store.reset()
 })
 </script>
 
 <style scoped>
-/* ============================================================
-   基础布局
-   ============================================================ */
-.video-player-view {
-  position: relative;
-  width: 100%;
-  height: calc(100vh - 140px);
-  min-height: 400px;
-  background: #000;
-  border-radius: 12px;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.player-wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.player-wrapper.is-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  width: 100vw;
-  height: 100vh;
-  border-radius: 0;
-}
-
-/* ============================================================
-   加载状态
-   ============================================================ */
-.player-loading-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.92);
-  z-index: 100;
-}
-
-.loading-content {
-  text-align: center;
-  color: #fff;
-}
-
-.loading-spinner-ring {
-  margin-bottom: 20px;
-}
-
-.ring {
-  width: 48px;
-  height: 48px;
-  border: 3px solid rgba(255, 255, 255, 0.15);
-  border-top-color: #1677ff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto;
-}
-
-.loading-text {
-  font-size: 15px;
-  font-weight: 500;
-  margin: 0 0 6px;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.loading-subtext {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+.video-page { min-height: 100vh; min-height: 100dvh; color: #111827; background: #f5f7fb; }
+.video-header { position: sticky; top: 0; z-index: 30; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(16px, 3vw, 42px); border-bottom: 1px solid #e5e7eb; background: rgba(255,255,255,.94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.back-button, .history-heading button { border: 0; background: transparent; cursor: pointer; }
+.back-button { display: inline-flex; align-items: center; gap: 10px; color: #374151; font-weight: 600; padding: 10px 12px; border-radius: 10px; }
+.back-button:hover { color: #1677ff; background: #eef5ff; }
+.brand-mark { display: flex; align-items: center; gap: 9px; color: #17233d; font-weight: 750; letter-spacing: -.02em; }
+.brand-mark i { color: #1677ff; font-size: 21px; }
+.video-layout { width: min(1680px, 100%); margin: 0 auto; padding: 28px clamp(16px, 3vw, 42px) 48px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
+.player-shell { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: calc(100vh - 180px); overflow: hidden; border-radius: 14px; background: #050505; box-shadow: 0 18px 48px rgba(15,23,42,.18); }
+.player-shell.is-fullscreen { position: fixed; inset: 0; z-index: 9999; width: 100vw; height: 100vh; max-height: none; border-radius: 0; }
+.state-overlay { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px; color: #f9fafb; text-align: center; background: #090b10; }
+.state-overlay > span { color: #9ca3af; max-width: 520px; overflow-wrap: anywhere; }
+.spinner { width: 44px; height: 44px; border: 3px solid #303642; border-top-color: #4b9cff; border-radius: 50%; animation: spin .8s linear infinite; }
+.error-state > i { font-size: 40px; color: #ff6b6b; }
+.state-actions { display: flex; gap: 10px; margin-top: 8px; }
+.state-actions button { border: 0; border-radius: 9px; padding: 10px 18px; color: #fff; background: #1677ff; cursor: pointer; }
+.state-actions .secondary { background: #2b303b; }
+.video-meta { padding: 20px 2px; }
+.video-meta h1 {
   margin: 0;
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* AUDIT FIX [2.4]（需求四-4）: 文件名降为播放器后的次级信息，避免与视频画面争夺视觉重心。 */
+  font-size: clamp(17px, 1.35vw, 22px);
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* ============================================================
-   错误状态
-   ============================================================ */
-.player-error-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.92);
-  z-index: 100;
-}
-
-.error-content {
-  text-align: center;
-  color: #fff;
-  max-width: 420px;
-  padding: 40px;
-}
-
-.error-icon {
-  font-size: 48px;
-  color: #f56c6c;
-  margin-bottom: 20px;
-  opacity: 0.9;
-}
-
-.error-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0 0 10px;
-  color: #fff;
-}
-
-.error-message {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
-  margin: 0 0 28px;
-  line-height: 1.5;
-}
-
-.error-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-}
-
-.error-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 22px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.error-btn-primary {
-  background: #1677ff;
-  color: #fff;
-}
-
-.error-btn-primary:hover {
-  background: #4096ff;
-}
-
-.error-btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.error-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-/* ============================================================
-   顶部按钮
-   ============================================================ */
-.top-left-back-btn {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 20;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.top-left-back-btn:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
-
-.top-center-title {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  transition: opacity 0.3s;
-}
-
-.title-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-  padding: 6px 16px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 20px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  max-width: 480px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
+.meta-row { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 12px; color: #6b7280; font-size: 13px; }
+.resume-chip { padding: 3px 9px; color: #1769cc; background: #e9f3ff; border-radius: 999px; }
+.history-panel { position: sticky; top: 88px; overflow: hidden; border: 1px solid #e4e8f0; border-radius: 16px; background: #fff; box-shadow: 0 10px 30px rgba(15,23,42,.06); }
+.statistics-card { display: flex; justify-content: space-between; align-items: center; margin: 16px; padding: 18px; border-radius: 13px; color: #fff; background: linear-gradient(135deg,#165dff,#6b8cff); }
+.statistics-card div { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; }
+.statistics-card .eyebrow { grid-column: 1 / -1; opacity: .78; font-size: 12px; }
+.statistics-card strong { font-size: 30px; }
+.statistics-card div > span:last-child { font-size: 13px; opacity: .9; }
+.statistics-card > i { font-size: 32px; opacity: .65; }
+.history-heading { display: flex; align-items: center; justify-content: space-between; padding: 2px 18px 12px; }
+.history-heading h2 { display: inline; margin: 0 8px 0 0; font-size: 17px; }
+.history-heading span { color: #9ca3af; font-size: 12px; }
+.history-heading button { color: #9ca3af; padding: 7px; }
+.history-list { max-height: calc(100vh - 282px); overflow: auto; padding: 0 10px 12px; scrollbar-width: thin; }
+.history-item { width: 100%; display: grid; grid-template-columns: 128px minmax(0,1fr); gap: 11px; padding: 9px; border: 0; border-radius: 11px; color: inherit; text-align: left; background: transparent; cursor: pointer; transition: background .18s, transform .18s; }
+.history-item:hover { background: #f3f7fc; transform: translateY(-1px); }
+.history-item.active { background: #eaf3ff; }
+.history-thumb { position: relative; height: 72px; overflow: hidden; border-radius: 8px; background: #111827; }
+.history-thumb :deep(.thumbnail-image-wrapper), .history-thumb :deep(.thumbnail-img) { max-width: none; max-height: none; width: 100%; height: 100%; border-radius: 0; }
+.history-thumb small { position: absolute; right: 5px; bottom: 5px; padding: 2px 5px; border-radius: 4px; color: #fff; background: rgba(0,0,0,.72); font-size: 11px; }
+.playing-icon { position: absolute; left: 7px; bottom: 7px; color: #58a6ff; }
+.history-info { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
+.history-info strong { display: -webkit-box; overflow: hidden; font-size: 13px; line-height: 1.4; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.history-info span { color: #8a93a2; font-size: 11px; }
+.history-info progress { width: 100%; height: 3px; border: 0; accent-color: #1677ff; }
+.history-empty { display: grid; place-items: center; padding: 54px 20px 66px; color: #9ca3af; }
+.history-empty i { font-size: 30px; }.history-empty p { margin: 12px 0 4px; color: #4b5563; }.history-empty span { font-size: 12px; }
+.history-skeleton { padding: 0 18px 20px; }.skeleton-row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; margin: 12px 0; }.skeleton-row > span { height: 62px; border-radius: 8px; background: #edf0f5; }.skeleton-row div i { display: block; height: 11px; margin: 8px 0; border-radius: 6px; background: #edf0f5; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 1100px) { .video-layout { grid-template-columns: 1fr; }.history-panel { position: static; }.history-list { max-height: 420px; }.history-item { grid-template-columns: 150px minmax(0,1fr); } }
+@media (max-width: 640px) { .video-header { height: 56px; }.brand-mark span { display: none; }.video-layout { padding: 14px 0 30px; gap: 14px; }.player-shell { border-radius: 0; box-shadow: none; }.video-meta { padding: 16px; }.history-panel { margin: 0 12px; }.history-item { grid-template-columns: 116px minmax(0,1fr); }.history-thumb { height: 66px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>

@@ -48,12 +48,14 @@ export interface VideoProgress {
   duration: number
   resolution: string
   playbackRate: number
+  fileName?: string
 }
 
 export interface VideoHistory {
   watchedDuration: number
   totalDuration: number
   completed: boolean
+  fileName?: string
 }
 
 export interface SubtitleInfo {
@@ -116,11 +118,21 @@ export function requestVideoTokenApi(
  */
 export function getVideoThumbnailUrl(
   fileId: string,
-  size: 'small' | 'medium' | 'large' = 'small',
+  size: 'small' | 'medium' | 'large' | 'poster' = 'small',
 ): string {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
   const params = new URLSearchParams({ size })
   return `${baseUrl}/files/video/stream/${encodeURIComponent(fileId)}/thumbnail?${params.toString()}`
+}
+
+/**
+ * 获取文件浏览器前 30 秒悬停预览素材 URL。
+ *
+ * 素材由 HLS 增强流水线预生成；调用方需通过带鉴权头的 Blob 请求加载。
+ */
+export function getVideoHoverPreviewUrl(fileId: string): string {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+  return `${baseUrl}/files/video/stream/${encodeURIComponent(fileId)}/hover-preview`
 }
 
 /**
@@ -169,6 +181,7 @@ export function saveVideoProgressApi(
     duration: progress.duration,
     resolution: progress.resolution,
     playback_rate: progress.playbackRate,
+    file_name: progress.fileName || '',
   })
 }
 
@@ -204,7 +217,26 @@ export function recordVideoHistoryApi(
     watched_duration: history.watchedDuration,
     total_duration: history.totalDuration,
     completed: history.completed,
+    file_name: history.fileName || '',
   })
+}
+
+export interface VideoHistoryItem {
+  file_id: string
+  file_name: string
+  watched_duration: number
+  total_duration: number
+  completed: boolean
+  updated_at: string
+  thumbnail_url: string
+}
+
+export function getVideoHistoryApi(limit = 20, offset = 0): Promise<{ code: number; data: { items: VideoHistoryItem[]; total: number } }> {
+  return get('files/video/history', { limit, offset })
+}
+
+export function getVideoStatisticsApi(): Promise<{ code: number; data: { playable_video_count: number } }> {
+  return get('files/video/history/statistics')
 }
 
 // ---- URL 构建工具函数 ----

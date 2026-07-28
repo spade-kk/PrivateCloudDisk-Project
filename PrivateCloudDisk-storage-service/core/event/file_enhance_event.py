@@ -39,15 +39,30 @@ class FileEnhanceEvent:
     backend_task_id: str = ""     # 关联的后台任务 ID（用于追溯）
     retry_count: int = 0          # 已重试次数
     failure_reason: str = ""      # 失败原因
+    failure_detail: str = ""      # 原始异常摘要（标准原因之外保留可排查信息）
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     accumulated: dict = field(default_factory=dict)  # 累积的上下文数据
 
     @classmethod
     def from_dict(cls, data: dict) -> "FileEnhanceEvent":
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        normalized = dict(data)
+        # AUDIT FIX [7.4]（需求一-2）:
+        # 原消息契约只有 stage，而 DLQ 公共消费者读取 task_type，导致增强死信被记录为 unknown。
+        # 新契约兼容生产者/消费者两端：任一字段存在都可恢复阶段，避免滚动升级期间旧消息失效。
+        normalized["stage"] = str(normalized.get("stage") or normalized.get("task_type") or "").strip()
+        normalized["failure_reason"] = str(normalized.get("failure_reason") or "").strip()
+        try:
+            normalized["retry_count"] = max(0, int(normalized.get("retry_count") or 0))
+        except (TypeError, ValueError):
+            # 非法历史消息按首次失败处理，避免 DLQ 消费者因计数字段损坏再次死循环。
+            normalized["retry_count"] = 0
+        return cls(**{k: v for k, v in normalized.items() if k in cls.__dataclass_fields__})
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        payload = asdict(self)
+        # AUDIT FIX [7.4]（需求一-2）: 同时输出标准 task_type 和历史 stage，兼容全部 DLQ/监控消费者。
+        payload["task_type"] = self.stage
+        return payload
 
     def with_retry_increment(self) -> "FileEnhanceEvent":
         d = self.to_dict()

@@ -35,6 +35,9 @@ class OfficeToPdfResult:
     pdf_path: str = ""                           # 生成的 PDF 文件路径
     pdf_size: int = 0                            # PDF 文件大小 (字节)
     preview_path: str = ""                       # PDF 首页缩略图路径
+    preview_paths: dict = field(default_factory=dict)  # original/large/medium/small 四档文档封面
+    preview_metadata: dict = field(default_factory=dict)  # 各档宽高与文件大小
+    page_count: int = 0                          # 转换后文档页数
     source_type: str = ""                        # 源文件类型 (office / pdf)
     error: str = ""
     failure_reason: str = ""
@@ -50,7 +53,16 @@ LIBREOFFICE_PATHS = [
 ]
 
 # PDF 转图片的默认 DPI
-PDF_PREVIEW_DPI = 150
+# AUDIT FIX [5.2]（需求五-2/4）：原 150 DPI 只适合列表缩略图；原图档提高到 220 DPI，
+# 再从同一高质量渲染结果派生其余规格，避免多次 PDF 光栅化产生视觉偏差。
+PDF_PREVIEW_DPI = 220
+
+# 文档封面图规格采用“边界盒”而非强制裁剪，完整保留 Word/PDF/Excel/PPT 首页比例。
+DOCUMENT_PREVIEW_VARIANTS = {
+    "large": (1600, 2000, 92),
+    "medium": (960, 1200, 88),
+    "small": (360, 450, 82),
+}
 
 # 转换超时时间（秒）
 CONVERSION_TIMEOUT = 300
@@ -167,10 +179,12 @@ class OfficeToPdfPipeline:
                     pdf_path = storage_path
                     pdf_size = os.path.getsize(pdf_path)
 
-            # 生成 PDF 首页缩略图
-            preview_path = await OfficeToPdfPipeline._generate_pdf_preview(
+            # 生成 PDF 首页四档预览图
+            preview_paths, preview_metadata, page_count = await OfficeToPdfPipeline._generate_pdf_previews(
                 pdf_path, file_id, thumbnail_dir,
             )
+            # 保留原 preview_path 字段供尚未升级的调用方兼容读取。
+            preview_path = preview_paths.get("medium") or preview_paths.get("original") or ""
 
             logger.info(
                 f"Office/PDF 处理完成: file_id={file_id}, "
@@ -183,7 +197,10 @@ class OfficeToPdfPipeline:
                 success=True,
                 pdf_path=pdf_path,
                 pdf_size=pdf_size,
-                preview_path=preview_path or "",
+                preview_path=preview_path,
+                preview_paths=preview_paths,
+                preview_metadata=preview_metadata,
+                page_count=page_count,
                 source_type=source_type,
             )
 
@@ -319,19 +336,31 @@ class OfficeToPdfPipeline:
                 f"LibreOffice 转换超时 ({CONVERSION_TIMEOUT}s): "
                 f"input={input_path}"
             )
+            # AUDIT FIX [7.5]（需求一-3）：原行为超时后仅返回失败，子进程仍可能持续占用 CPU/内存。
+            # 新行为先温和终止，5 秒内未退出则强制 kill，并等待回收进程句柄。
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
             return False
         except Exception as e:
             logger.error(f"LibreOffice 转换异常: {e}")
             return False
 
     @staticmethod
-    async def _generate_pdf_preview(
+    async def _generate_pdf_previews(
         pdf_path: str, file_id: str, output_dir: str,
-    ) -> str | None:
+    ) -> tuple[dict[str, str], dict[str, dict], int]:
         """
-        使用 PyMuPDF 生成 PDF 首页缩略图
+        使用 PyMuPDF 生成 PDF 首页四档预览图
 
-        将 PDF 第一页渲染为 JPEG 图片，作为预览缩略图。
+        AUDIT FIX [5.2]（需求五）：
+        原行为只输出单张 150 DPI JPEG，无法同时满足网格、悬停和全屏质量；
+        新行为一次高质量渲染后生成 original/large/medium/small 四档 JPEG，
+        全部保持首页原始宽高比，不裁剪、不拉伸。
 
         Args:
             pdf_path: PDF 文件路径
@@ -339,60 +368,64 @@ class OfficeToPdfPipeline:
             output_dir: 缩略图输出目录
 
         Returns:
-            str | None: 缩略图路径，失败返回 None
+            tuple: 预览路径、各档元数据、文档页数
         """
-        preview_path = os.path.join(output_dir, f"{file_id}_pdf_preview.jpg")
         os.makedirs(output_dir, exist_ok=True)
 
         try:
             # 尝试导入 PyMuPDF
             import fitz  # PyMuPDF
 
-            await asyncio.to_thread(
-                OfficeToPdfPipeline._render_pdf_page,
-                pdf_path, preview_path,
+            result = await asyncio.to_thread(
+                OfficeToPdfPipeline._render_pdf_page_variants,
+                pdf_path, file_id, output_dir,
             )
-
-            if os.path.exists(preview_path) and os.path.getsize(preview_path) > 0:
+            preview_paths, preview_metadata, page_count = result
+            if preview_paths:
                 logger.info(
-                    f"PDF 首页缩略图生成成功: file_id={file_id}, "
-                    f"path={preview_path}"
+                    f"PDF 首页四档预览图生成成功: file_id={file_id}, "
+                    f"variants={list(preview_paths.keys())}"
                 )
-                return preview_path
+                return preview_paths, preview_metadata, page_count
 
             logger.warning(f"PDF 首页缩略图生成后文件为空: file_id={file_id}")
-            return None
+            return {}, {}, page_count
 
         except ImportError:
             logger.warning(
                 "PyMuPDF (fitz) 未安装，跳过 PDF 缩略图生成。"
                 "安装: pip install PyMuPDF"
             )
-            return None
+            return {}, {}, 0
         except Exception as e:
             logger.warning(
                 f"PDF 首页缩略图生成失败: file_id={file_id}, error={e}"
             )
-            return None
+            return {}, {}, 0
 
     @staticmethod
-    def _render_pdf_page(pdf_path: str, output_path: str):
+    def _render_pdf_page_variants(
+        pdf_path: str, file_id: str, output_dir: str,
+    ) -> tuple[dict[str, str], dict[str, dict], int]:
         """
-        渲染 PDF 第一页为 JPEG 图片（同步方法，在线程池中执行）
+        渲染 PDF 第一页并派生四档 JPEG（同步方法，在线程池中执行）
 
-        使用 PyMuPDF 将 PDF 第一页渲染为指定 DPI 的 JPEG 图片。
+        使用 PyMuPDF 保证 Office 转换后的版式一致性，再用 Pillow 的 LANCZOS
+        做高质量等比缩放。所有文件在临时路径写完后原子替换，避免接口读到半张图片。
 
         Args:
             pdf_path: PDF 源文件路径
-            output_path: 输出 JPEG 图片路径
+            file_id: 文件 ID
+            output_dir: 输出目录
         """
         import fitz  # PyMuPDF
+        from PIL import Image
 
         doc = fitz.open(pdf_path)
         try:
             if len(doc) == 0:
                 logger.warning(f"PDF 文件无页面: {pdf_path}")
-                return
+                return {}, {}, 0
 
             # 渲染第一页
             page = doc[0]
@@ -401,13 +434,45 @@ class OfficeToPdfPipeline:
             zoom = PDF_PREVIEW_DPI / 72.0  # PDF 默认 72 DPI
             mat = fitz.Matrix(zoom, zoom)
 
-            pix = page.get_pixmap(matrix=mat)
-            pix.save(output_path)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+            paths: dict[str, str] = {}
+            metadata: dict[str, dict] = {}
+            variants = {"original": None, **DOCUMENT_PREVIEW_VARIANTS}
+            for variant, config in variants.items():
+                rendered = image.copy()
+                quality = 97
+                if config:
+                    max_width, max_height, quality = config
+                    rendered.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+
+                output_path = os.path.join(output_dir, f"{file_id}_office_{variant}.jpg")
+                temporary_path = f"{output_path}.tmp"
+                rendered.save(
+                    temporary_path,
+                    format="JPEG",
+                    quality=quality,
+                    optimize=True,
+                    progressive=True,
+                    subsampling=0 if variant == "original" else 2,
+                )
+                os.replace(temporary_path, output_path)
+                paths[variant] = output_path
+                metadata[variant] = {
+                    "width": rendered.width,
+                    "height": rendered.height,
+                    "size_bytes": os.path.getsize(output_path),
+                    "quality": quality,
+                }
+                rendered.close()
 
             logger.debug(
                 f"PDF 页面渲染完成: "
                 f"size={pix.width}x{pix.height}, "
                 f"dpi={PDF_PREVIEW_DPI}"
             )
+            image.close()
+            return paths, metadata, len(doc)
         finally:
             doc.close()

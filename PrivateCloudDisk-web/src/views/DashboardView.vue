@@ -76,6 +76,7 @@
         :nodes="filteredNodes"
         :selectedIds="selectionStore.selectedIds"
         :starredIds="starredStore.allStarredIds"
+        :tags-by-target="tagsByTarget"
         @itemClick="onNodeClick"
         @action="onNodeAction"
         @selection-change="toggleSelect"
@@ -87,6 +88,7 @@
         :nodes="filteredNodes"
         :selectedIds="selectionStore.selectedIds"
         :starredIds="starredStore.allStarredIds"
+        :tags-by-target="tagsByTarget"
         @itemClick="onNodeClick"
         @action="onNodeAction"
         @selection-change="toggleSelect"
@@ -101,8 +103,15 @@
     <DownloadConfirmModal :visible="downloadModalVisible" :fileName="pendingDownload?.node_name" @close="downloadModalVisible = false" @confirm="executeDownload" />
     <RenameDialog :visible="renameVisible" :currentName="renameTarget?.node_name" @close="renameVisible = false" @confirm="handleRename" />
     <MoveCopyDialog :visible="moveVisible" :mode="moveMode" @close="moveVisible = false" @confirm="handleMoveCopy" />
-    <FileDetailDrawer :visible="detailVisible" :node="detailNode" @close="detailVisible = false" />
-    <FilePreview :visible="previewVisible" :node="previewNode" @close="previewVisible = false" />
+    <FileDetailDrawer :visible="detailVisible" :node="detailNode || undefined" @close="detailVisible = false" />
+    <TagPickerDialog
+      :visible="tagPickerVisible"
+      :target-id="tagTarget?.node_id || ''"
+      :target-type="tagTarget?.node_type === 'FOLDER' ? 'folder' : 'file'"
+      :target-name="tagTarget?.node_name || ''"
+      @close="tagPickerVisible = false"
+      @updated="reloadVisibleTags"
+    />
     <FolderDownloadPanel />
     <!-- 右键菜单 -->
     <ContextMenu
@@ -138,7 +147,7 @@ import { useDownloaderStore } from '@/stores/downloaderStore'
 import { useStorageStore } from '@/stores/storageStore'
 import { useToastStore } from '@/stores/toastStore'
 import { useStarredStore } from '@/stores/starred'
-import { isVideo } from '@/utils/previewHelper'
+import { navigateToFilePreview } from '@/utils/previewRoute'
 import PathNavigator from '@/components/file/PathNavigator.vue'
 import StorageInfo from '@/components/file/StorageInfo.vue'
 import FileGridView from '@/components/file/FileGridView.vue'
@@ -156,13 +165,14 @@ import BatchActionsBar from '@/components/file/BatchActionsBar.vue'
 import RenameDialog from '@/components/file/RenameDialog.vue'
 import MoveCopyDialog from '@/components/file/MoveCopyDialog.vue'
 import FileDetailDrawer from '@/components/file/FileDetailDrawer.vue'
-import FilePreview from '@/components/file/FilePreview.vue'
 import FolderUploadPanel from '@/components/file/FolderUploadPanel.vue'
 import FolderDownloadPanel from '@/components/file/FolderDownloadPanel.vue'
 import WorkspaceOverview from '@/components/dashboard/WorkspaceOverview.vue'
 import SmartSearchBox from '@/components/search/SmartSearchBox.vue'
 import ContextMenu from '@/components/common/ContextMenu.vue'
 import type { ContextMenuItem } from '@/components/common/ContextMenu.vue'
+import TagPickerDialog from '@/components/tag/TagPickerDialog.vue'
+import { getTagsBatchApi, type TagVO } from '@/api/modules/tags'
 
 const router = useRouter()
 const route = useRoute()
@@ -177,22 +187,31 @@ const starredStore = useStarredStore()
 const folderUploaderStore = useFolderUploaderStore()
 const folderDownloaderStore = useFolderDownloaderStore()
 
+interface DashboardNode {
+  node_id: string
+  node_name: string
+  node_type: 'FILE' | 'FOLDER'
+  node_size?: number
+  [key: string]: any
+}
+
 const renameVisible = ref(false)
-const renameTarget = ref(null)
+const renameTarget = ref<DashboardNode | null>(null)
 const moveVisible = ref(false)
 const moveMode = ref('move') // 'move' or 'copy'
 const detailVisible = ref(false)
-const detailNode = ref(null)
-const previewVisible = ref(false)
-const previewNode = ref(null)
+const detailNode = ref<DashboardNode | null>(null)
 const viewMode = ref('grid')
 const showCreateModal = ref(false)
 const downloadModalVisible = ref(false)
 const uploadConfirmVisible = ref(false)
-const selectedFile = ref(null)
-const pendingDownload = ref(null)
-const fileInputRef = ref(null)
+const selectedFile = ref<File | null>(null)
+const pendingDownload = ref<DashboardNode | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const folderInputRef = ref<HTMLInputElement | null>(null)
+const tagPickerVisible = ref(false)
+const tagTarget = ref<DashboardNode | null>(null)
+const tagsByTarget = ref<Record<string, TagVO[]>>({})
 
 // ============================================================
 // 右键菜单状态
@@ -203,7 +222,31 @@ const contextMenuY = ref(0)
 const contextMenuItems = ref<ContextMenuItem[]>([])
 const contextMenuNode = ref<any>(null) // 右键命中的节点（文件/文件夹），null 表示空白区域
 
-const filteredNodes = computed(() => fileBrowserStore.filteredNodes)
+const filteredNodes = computed<DashboardNode[]>(() => fileBrowserStore.filteredNodes as DashboardNode[])
+
+async function reloadVisibleTags() {
+  const nodes = filteredNodes.value as any[]
+  const fileIds = nodes.filter(node => node.node_type === 'FILE').map(node => node.node_id)
+  const folderIds = nodes.filter(node => node.node_type === 'FOLDER').map(node => node.node_id)
+  if (fileIds.length === 0 && folderIds.length === 0) {
+    tagsByTarget.value = {}
+    return
+  }
+  try {
+    const response = await getTagsBatchApi(fileIds, folderIds)
+    if (response.code === 200) tagsByTarget.value = response.data || {}
+  } catch {
+    // 标签属于辅助信息，查询失败不阻断文件列表主流程。
+    tagsByTarget.value = {}
+  }
+}
+
+// AUDIT FIX [4.2]: 目录内容变化后仅发起一次批量查询，网格与列表共享结果。
+watch(
+  () => filteredNodes.value.map((node: any) => `${node.node_id}:${node.node_type}`).join(','),
+  () => void reloadVisibleTags(),
+  { immediate: true },
+)
 
 // 生命周期：登录后加载数据
 onMounted(async () => {
@@ -214,7 +257,7 @@ watch(() => authStore.isLoggedIn, async (loggedIn) => {
   if (loggedIn) {
     await fileBrowserStore.loadRoot()
     if (route.query.node) {
-      await fileBrowserStore.loadChildren(route.query.node)
+      await fileBrowserStore.loadChildren(String(route.query.node))
     }
     await storageStore.fetchStorageInfo()
   }
@@ -222,7 +265,7 @@ watch(() => authStore.isLoggedIn, async (loggedIn) => {
 
 watch(() => route.query.node, async (nodeId) => {
   if (authStore.isLoggedIn && nodeId) {
-    await fileBrowserStore.loadChildren(nodeId)
+    await fileBrowserStore.loadChildren(String(nodeId))
   }
 })
 
@@ -243,37 +286,21 @@ function navigateTo(node: any) {
 //   }
 // }
 
-// 单击节点：文件夹导航，视频文件跳转专属播放器，其他文件按类型预览或显示详情
-const onNodeClick = (node) => {
+// 单击节点：文件夹导航；可预览文件统一跳转到控制台外的独立预览工作区。
+const onNodeClick = (node: DashboardNode) => {
   if (node.node_type === 'FOLDER') {
     navigateTo(node)
     return
   }
 
-  const fileName = node.node_name || node.name || ''
-
-  // 视频文件：直接跳转至流媒体播放页面，携带 fileId 参数
-  if (isVideo(fileName)) {
-    router.push({
-      name: 'VideoPlayer',
-      params: { fileId: node.node_id },
-      query: { name: encodeURIComponent(fileName) }
-    })
-    return
-  }
-
-  // 图片/PDF/文本/代码等：显示预览
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf', 'txt', 'md', 'html', 'css', 'js', 'ts', 'json', 'xml'].includes(ext)) {
-    previewNode.value = node
-    previewVisible.value = true
-  } else {
+  // AUDIT FIX [2.2]: 网格和列表复用统一类型分发，完整覆盖图片、视频、Office、代码、Markdown 与压缩包。
+  if (!navigateToFilePreview(router, node)) {
     detailNode.value = node
     detailVisible.value = true
   }
 }
 
-async function onNodeAction(node, actionType) {
+async function onNodeAction(node: DashboardNode, actionType: string) {
   if (actionType === 'download') {
     if (node.node_type === 'FOLDER') {
       // 文件夹下载：获取所有文件并下载
@@ -298,24 +325,23 @@ async function onNodeAction(node, actionType) {
     if(result && result.success) toastStore.showToast('删除成功', 'success')
     
   } else if (actionType === 'detail') {
-    // 根据文件类型决定预览或仅显示详情
-    const ext = node.node_name.split('.').pop()?.toLowerCase()
-    if (['jpg', 'jpeg', 'png', 'gif', 'pdf', 'txt', 'md', 'html', 'css', 'js'].includes(ext)) {
-      previewNode.value = node
-      previewVisible.value = true
-    } else {
-      detailNode.value = node
-      detailVisible.value = true
-    }
+    detailNode.value = node
+    detailVisible.value = true
+  } else if (actionType === 'tags') {
+    tagTarget.value = node
+    tagPickerVisible.value = true
   }
 }
 
 // 右键菜单可触发重命名等（为简洁，本处通过操作按钮触发）
-const handleRename = async (newName) => {
+const handleRename = async (newName: string) => {
   // 调用API重命名
   // 刷新列表
-  const type = renameTarget.value.node_type
-  const id = renameTarget.value.node_id
+  // AUDIT FIX [2.4]: 弹窗关闭或节点刷新期间目标可能被清空，避免空引用中断页面交互。
+  const target = renameTarget.value
+  if (!target) return
+  const type = target.node_type
+  const id = target.node_id
   let result = null
   if (type === 'FILE') {
     result = await fileBrowserStore.renameFileNode(id, newName)
@@ -328,22 +354,22 @@ const handleRename = async (newName) => {
   renameVisible.value = false
 }
 
-async function handleCreateFolder(name) {
+async function handleCreateFolder(name: string) {
   const result = await fileBrowserStore.createFolder(name)
   if (result.success) {
     toastStore.showToast('文件夹创建成功', 'success')
   } else {
-    toastStore.showToast(result.message, 'error')
+    toastStore.showToast(result.message ?? '文件夹创建失败', 'error')
   }
   showCreateModal.value = false
 }
 
-function openMoveDialog(mode) {
+function openMoveDialog(mode: string) {
   moveMode.value = mode
   moveVisible.value = true
 }
 
-const handleMoveCopy = async (targetFolderId) => {
+const handleMoveCopy = async (targetFolderId: string) => {
   const ids = Array.from(selectionStore.selectedIds)
   const action = moveMode.value === 'move' ? 'move' : 'copy'
   try {
@@ -405,7 +431,7 @@ async function executeDownload() {
   downloadModalVisible.value = false
   const { node_id, node_name, node_size } = pendingDownload.value
   try {
-    const blob = await downloaderStore.downloadFile(node_id, node_size, node_name)
+    const blob = await downloaderStore.downloadFile(node_id, node_size ?? 0, node_name)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -423,12 +449,13 @@ function triggerFileSelect() {
   fileInputRef.value?.click()
 }
 
-function onFileSelected(e) {
-  if (e.target.files && e.target.files[0]) {
-    selectedFile.value = e.target.files[0]
+function onFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files && input.files[0]) {
+    selectedFile.value = input.files[0]
     uploadConfirmVisible.value = true
   }
-  e.target.value = ''
+  input.value = ''
 }
 
 function closeUploadConfirm() {
@@ -437,7 +464,7 @@ function closeUploadConfirm() {
 }
 
 // 批量操作
-const toggleSelect = (id, type) => selectionStore.toggleSelect(id, type)
+const toggleSelect = (id: string, type: string) => selectionStore.toggleSelect(id, type)
 const clearSelection = () => selectionStore.clearSelection()
 
 function startUploadConfirmed() {
@@ -455,9 +482,9 @@ function startUploadConfirmed() {
 async function onStarToggle(node: any) {
   try {
     const isNowStarred = await starredStore.toggleStar(node.node_id, node.node_type)
-    toastStore.showSuccess(isNowStarred ? '已收藏' : '已取消收藏')
+    toastStore.showToast(isNowStarred ? '已收藏' : '已取消收藏', 'success')
   } catch (err: any) {
-    toastStore.showError('操作失败')
+    toastStore.showToast('操作失败', 'error')
   }
 }
 
@@ -585,6 +612,11 @@ function onItemContextMenu(event: MouseEvent, node: any) {
         shortcut: 'F2',
       },
       {
+        label: '管理标签',
+        key: 'tags',
+        icon: 'fa fa-tags',
+      },
+      {
         type: 'separator',
         label: '',
       },
@@ -635,6 +667,11 @@ function onItemContextMenu(event: MouseEvent, node: any) {
         label: '收藏',
         key: 'star',
         icon: 'fa fa-star-o',
+      },
+      {
+        label: '管理标签',
+        key: 'tags',
+        icon: 'fa fa-tags',
       },
       {
         type: 'separator',
@@ -719,8 +756,9 @@ function onContextMenuAction(item: ContextMenuItem) {
       break
     case 'preview':
       if (node) {
-        previewNode.value = node
-        previewVisible.value = true
+        if (!navigateToFilePreview(router, node)) {
+          toastStore.showToast('该文件类型暂不支持在线预览', 'info')
+        }
       }
       break
     case 'share':
@@ -745,6 +783,12 @@ function onContextMenuAction(item: ContextMenuItem) {
       if (node) {
         renameTarget.value = node
         renameVisible.value = true
+      }
+      break
+    case 'tags':
+      if (node) {
+        tagTarget.value = node
+        tagPickerVisible.value = true
       }
       break
     case 'delete':

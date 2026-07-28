@@ -19,7 +19,7 @@
           :class="activeTab === tab.key
             ? 'bg-white text-primary shadow-sm'
             : 'text-neutral-500 hover:text-neutral-700'"
-          @click="activeTab = tab.key"
+          @click="selectModalTab(tab.key)"
         >
           {{ tab.label }}
         </button>
@@ -29,12 +29,13 @@
       <form v-if="activeTab === 'password'" @submit.prevent="handleSubmit">
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-neutral-600 mb-1">手机号</label>
+            <label class="block text-sm font-medium text-neutral-600 mb-1">账号 / 手机号 / 邮箱</label>
             <input
-              v-model="phone"
-              type="tel"
+              v-model="identifier"
+              type="text"
+              autocomplete="username"
               class="w-full px-4 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-              placeholder="请输入手机号"
+              placeholder="请输入账号、手机号或邮箱"
               required
             />
           </div>
@@ -135,8 +136,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
-import { sendVerificationCodeApi } from '@/api/modules/users'
-import { getThirdPartyAuthUrlApi } from '@/api/modules/auth'
 
 const props = defineProps({
   visible: {
@@ -162,7 +161,7 @@ const thirdPartyProviders = [
 ]
 
 // 密码登录
-const phone = ref('')
+const identifier = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -174,18 +173,26 @@ const codeLoading = ref(false)
 const codeCountdown = ref(0)
 
 async function handleSubmit() {
-  if (!phone.value.trim() || !password.value.trim()) return
+  if (!identifier.value.trim() || !password.value.trim()) return
   error.value = ''
 
   loading.value = true
-  const result = await authStore.login(phone.value, password.value, '')
+  const result = await authStore.login(identifier.value, password.value, '')
   loading.value = false
 
   if (result.success) {
     emit('login')
   } else {
-    error.value = result.message || '手机号或密码错误'
+    error.value = result.message || '账号或密码错误'
   }
+}
+
+function selectModalTab(tab: 'password' | 'code') {
+  if (tab === 'code') {
+    error.value = '验证码登录正在开发中，敬请期待'
+    return
+  }
+  activeTab.value = tab
 }
 
 async function sendModalCode() {
@@ -193,53 +200,18 @@ async function sendModalCode() {
     error.value = '请输入正确的手机号'
     return
   }
-  error.value = ''
-
-  try {
-    const res = await sendVerificationCodeApi(codePhone.value, '', 'code_login', 'login')
-    if (res.code === 200) {
-      codeCountdown.value = 60
-      const timer = setInterval(() => {
-        codeCountdown.value--
-        if (codeCountdown.value <= 0) clearInterval(timer)
-      }, 1000)
-    } else {
-      error.value = res.message || '发送失败'
-    }
-  } catch (e: any) {
-    error.value = e?.message || '发送失败'
-  }
+  // 【需求十一】后端开放验证码登录后在此恢复接口接入；当前禁止发送占位请求。
+  error.value = '验证码登录正在开发中，敬请期待'
 }
 
 async function handleCodeSubmit() {
   if (!/^1[3-9]\d{9}$/.test(codePhone.value) || smsCode.value.length !== 6) return
-  error.value = ''
-
-  codeLoading.value = true
-  const result = await authStore.codeLogin(codePhone.value, smsCode.value, 'phone')
-  codeLoading.value = false
-
-  if (result.success) {
-    emit('login')
-  } else {
-    error.value = result.message || '验证码登录失败'
-  }
+  error.value = '验证码登录正在开发中，敬请期待'
 }
 
 async function handleThirdParty(provider: string) {
-  error.value = ''
-  try {
-    const state = crypto.randomUUID()
-    const res = await getThirdPartyAuthUrlApi(provider, state)
-    if (res.code === 200 && res.data?.authorizationUrl) {
-      sessionStorage.setItem(`oauth_state_${provider}`, state)
-      window.location.href = res.data.authorizationUrl
-    } else {
-      error.value = res.message || '获取授权链接失败'
-    }
-  } catch (e: any) {
-    error.value = e?.message || '获取授权链接失败'
-  }
+  const label = thirdPartyProviders.find(item => item.id === provider)?.label || '第三方登录'
+  error.value = `${label}登录正在开发中，敬请期待`
 }
 </script>
 

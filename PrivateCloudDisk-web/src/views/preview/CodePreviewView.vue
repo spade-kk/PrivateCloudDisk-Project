@@ -112,6 +112,8 @@
 // 作为独立路由页面，负责：
 //   1. 从路由参数获取文件 ID 和文件名
 //   2. 通过下载授权 API 获取文件内容
+//      【需求三变更】上述为原有行为记录；现已替换为 Preview Token + preview-content，
+//      不再触发下载事件或最近访问记录。
 //   3. 管理各个状态（loading / error / not_found / completed）
 //   4. 将代码内容传递给 MonacoPreview 进行渲染
 //
@@ -119,10 +121,10 @@
 // 由 MonacoPreview 组件（基于 Microsoft Monaco Editor）提供。
 // ============================================================
 
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToastStore } from '@/stores/toastStore'
-import { createDownloadGrantApi, getFileContentApi, releaseDownloadGrantApi } from '@/api/modules/downloads'
+import { fetchPreviewContentBlob, getPreviewErrorMessage } from '@/api/modules/previewContent'
 import { getFileInfoApi } from '@/api/modules/files'
 import MonacoPreview from '@/components/preview/code/MonacoPreview.vue'
 
@@ -157,9 +159,6 @@ const errorState = ref<{ title: string; message: string; detail?: string } | nul
 
 /** 文件不存在状态 */
 const notFound = ref(false)
-
-/** 下载操作令牌（用于释放） */
-let downloadGrant = ''
 
 // ============================================================
 // 模板引用
@@ -207,6 +206,9 @@ const onEditorError = (err: Error): void => {
  *   3. 通过令牌获取文件内容（Blob）
  *   4. 将 Blob 转换为 UTF-8 文本
  *   5. 释放下载授权令牌
+ *
+ * 【需求三变更】保留以上原流程注释用于回溯；实现中的“下载授权令牌”现对应职责隔离的
+ * Preview Token，申请、读取、释放均由 previewContent.ts 统一编排。
  */
 const loadFileContent = async (): Promise<void> => {
   loading.value = true
@@ -222,17 +224,12 @@ const loadFileContent = async (): Promise<void> => {
       fileSizeBytes.value = fileInfo.file_size || 0
     }
 
-    // 2. 创建下载授权令牌
-    const grantRes = await createDownloadGrantApi(fileId.value)
-    downloadGrant = grantRes.data?.download_grant || grantRes.data?.operation_token || ''
-
-    if (!downloadGrant) {
-      throw new Error('无法获取下载授权令牌')
-    }
-
-    // 3. 获取文件内容（Blob 格式）
-    const contentRes = await getFileContentApi(fileId.value, downloadGrant)
-    const blob = contentRes.data || contentRes
+    /*
+     * 需求一-2 / 三-1/2：
+     * 原行为复用下载授权与下载接口，可能产生错误的下载审计；
+     * 新行为由共享工具完成 Preview Token 申请、源内容读取和释放。
+     */
+    const blob = await fetchPreviewContentBlob(fileId.value)
 
     // 4. 将 Blob 转换为文本
     const text = await blobToText(blob)
@@ -244,23 +241,9 @@ const loadFileContent = async (): Promise<void> => {
 
     codeContent.value = text
 
-    // 6. 释放下载授权令牌
-    if (downloadGrant) {
-      try {
-        await releaseDownloadGrantApi(downloadGrant)
-      } catch {
-        // 令牌释放失败不影响主流程
-      }
-    }
-
     loading.value = false
   } catch (err: any) {
     loading.value = false
-
-    // 尝试释放令牌
-    if (downloadGrant) {
-      try { await releaseDownloadGrantApi(downloadGrant) } catch { /* 忽略 */ }
-    }
 
     // 根据错误类型区分状态
     const status = err?.response?.status || err?.status
@@ -275,7 +258,7 @@ const loadFileContent = async (): Promise<void> => {
     } else {
       errorState.value = {
         title: '文件加载失败',
-        message: '无法加载代码文件内容，请稍后重试',
+        message: getPreviewErrorMessage(err),
         detail: err?.message || '',
       }
     }
@@ -338,12 +321,6 @@ onMounted(() => {
   loadFileContent()
 })
 
-onUnmounted(() => {
-  // 释放下载令牌（如果尚未释放）
-  if (downloadGrant) {
-    try { releaseDownloadGrantApi(downloadGrant) } catch { /* 忽略 */ }
-  }
-})
 </script>
 
 <style scoped>

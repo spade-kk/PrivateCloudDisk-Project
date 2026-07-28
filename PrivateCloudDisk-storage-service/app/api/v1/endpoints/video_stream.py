@@ -27,12 +27,15 @@ import subprocess
 import asyncio
 import base64
 import tempfile
+from pathlib import Path
 from fastapi import APIRouter, Header, Query, HTTPException, status, Request
 from fastapi.responses import StreamingResponse, Response, FileResponse
 from typing import Optional
 
 from core.config import settings
 from app.core.redis_client import redis_client
+from app.core.business_service_client import BusinessServiceError, business_service_client
+from app.services.preview_resource_service import preview_resource_service
 
 logger = logging.getLogger("video_stream")
 
@@ -125,6 +128,28 @@ def _base64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data)
 
 
+async def _get_hls_root(file_id: str, token: str) -> Path:
+    """根据令牌中的用户与数据库资源台账定位 HLS 根目录。"""
+    payload = _verify_hls_token(token, file_id)
+    resource = await preview_resource_service.get_ready(
+        file_id, str(payload["user_id"]), "hls", "master"
+    )
+    if not resource:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HLS 资源不存在或已失效")
+    return Path(resource["storage_path"]).resolve()
+
+
+def _resolve_hls_child(root: Path, *parts: str) -> Path:
+    """把播放清单中的相对路径限制在资源根目录内，阻断路径穿越。"""
+    target = root.joinpath(*parts).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        # AUDIT FIX [6.3]: 分辨率和分片名来自 URL，必须在访问磁盘前完成边界校验。
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法的 HLS 资源路径") from exc
+    return target
+
+
 # =============================================================================
 # API 端点
 # =============================================================================
@@ -144,10 +169,14 @@ async def get_video_stream_info(
     - hls_url: HLS 主播放列表 URL
     - 视频元数据: 时长、分辨率、编码等
     """
-    hls_dir = os.path.join(settings.file_upload_dir, "hls", file_id)
-    manifest_path = os.path.join(hls_dir, "manifest.json")
+    try:
+        await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
 
-    if not os.path.exists(manifest_path):
+    # AUDIT FIX [7.4]: HLS 是否可用由数据库资源状态决定，不再扫描当前实例的本地目录。
+    hls_resource = await preview_resource_service.get_ready(file_id, user_id, "hls", "master")
+    if not hls_resource:
         # HLS 尚未生成，返回基础信息
         return {
             "code": 200,
@@ -162,23 +191,7 @@ async def get_video_stream_info(
             },
         }
 
-    try:
-        with open(manifest_path, "r") as f:
-            manifest = json.load(f)
-    except Exception as e:
-        logger.error(f"读取 manifest 失败: {e}")
-        return {
-            "code": 200,
-            "data": {
-                "file_id": file_id,
-                "has_hls": False,
-                "has_dash": False,
-                "hls_url": None,
-                "dash_url": None,
-                "resolutions": [],
-                "message": "HLS 元数据读取失败",
-            },
-        }
+    manifest = hls_resource.get("metadata") or {}
 
     return {
         "code": 200,
@@ -189,10 +202,10 @@ async def get_video_stream_info(
             "hls_url": f"/api/v1/files/video/stream/{file_id}/master.m3u8",
             "dash_url": None,
             "resolutions": manifest.get("resolutions", []),
-            "duration": manifest.get("duration", 0),
-            "width": manifest.get("source_width", 0),
-            "height": manifest.get("source_height", 0),
-            "preview_url": manifest.get("preview_path"),
+            "duration": hls_resource.get("duration_seconds", 0),
+            "width": hls_resource.get("width", 0),
+            "height": hls_resource.get("height", 0),
+            "preview_url": f"/api/v1/files/video/stream/{file_id}/thumbnail?size=poster",
         },
     }
 
@@ -216,6 +229,14 @@ async def get_video_stream_token(
     """
     resolution = body.get("resolution", "auto")
     expires_in = body.get("expires_in", _HLS_TOKEN_EXPIRE_SECONDS)
+
+    try:
+        await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+    hls_resource = await preview_resource_service.get_ready(file_id, user_id, "hls", "master")
+    if not hls_resource:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="HLS 转码尚未完成")
 
     # 生成 Token
     token = _generate_hls_token(file_id, user_id, expires_in)
@@ -246,11 +267,8 @@ async def get_master_playlist(
     包含所有可用分辨率的流信息，播放器自动选择最佳码率。
     返回的 playlist 中每个 variant 的 URL 会携带 token 参数。
     """
-    _verify_hls_token(token, file_id)
-
-    master_path = os.path.join(
-        settings.file_upload_dir, "hls", file_id, "master.m3u8"
-    )
+    hls_root = await _get_hls_root(file_id, token)
+    master_path = _resolve_hls_child(hls_root, "master.m3u8")
 
     if not os.path.exists(master_path):
         raise HTTPException(
@@ -295,11 +313,8 @@ async def get_variant_playlist(
     包含该分辨率下所有 TS 分片的 URL 列表。
     返回的 playlist 中每个 segment URL 会携带 token 参数。
     """
-    _verify_hls_token(token, file_id)
-
-    playlist_path = os.path.join(
-        settings.file_upload_dir, "hls", file_id, resolution, "index.m3u8"
-    )
+    hls_root = await _get_hls_root(file_id, token)
+    playlist_path = _resolve_hls_child(hls_root, resolution, "index.m3u8")
 
     if not os.path.exists(playlist_path):
         raise HTTPException(
@@ -343,11 +358,8 @@ async def get_ts_segment(
 
     流式返回 TS 文件内容，支持 HTTP Range 请求以优化播放体验。
     """
-    _verify_hls_token(token, file_id)
-
-    segment_path = os.path.join(
-        settings.file_upload_dir, "hls", file_id, resolution, segment
-    )
+    hls_root = await _get_hls_root(file_id, token)
+    segment_path = _resolve_hls_child(hls_root, resolution, segment)
 
     if not os.path.exists(segment_path):
         raise HTTPException(
@@ -449,11 +461,8 @@ async def get_sprite_image(
 
     返回 JPEG 格式雪碧图，带有长期缓存头。
     """
-    _verify_hls_token(token, file_id)
-
-    sprite_path = os.path.join(
-        settings.file_upload_dir, "hls", file_id, "sprite.jpg"
-    )
+    hls_root = await _get_hls_root(file_id, token)
+    sprite_path = _resolve_hls_child(hls_root, "sprite.jpg")
 
     if not os.path.exists(sprite_path):
         raise HTTPException(
@@ -493,11 +502,8 @@ async def get_sprite_vtt(
     sprite.jpg#xywh=160,0,160,90
     ```
     """
-    _verify_hls_token(token, file_id)
-
-    vtt_path = os.path.join(
-        settings.file_upload_dir, "hls", file_id, "sprite.vtt"
-    )
+    hls_root = await _get_hls_root(file_id, token)
+    vtt_path = _resolve_hls_child(hls_root, "sprite.vtt")
 
     if not os.path.exists(vtt_path):
         raise HTTPException(
@@ -549,23 +555,29 @@ async def _extract_video_frame_async(
         JPEG 图片字节数据
     """
     try:
+        video_filter = []
+        if width > 0 and height > 0:
+            video_filter = [
+                "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                       f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black",
+            ]
+        ffmpeg_args = [
+            "ffmpeg",
+            "-y",
+            "-ss", "00:00:01", 
+            "-i", storage_path,
+            "-vframes", "1",          # 只取 1 帧
+            *video_filter,
+            "-q:v", "2" if not video_filter else "5",
+            "-f", "image2pipe",
+            "-vcodec", "mjpeg",
+            "pipe:1",
+        ]
         result = await asyncio.wait_for(
             asyncio.to_thread(
                 lambda: (
                     subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-y",
-                            "-ss", "5",              # 跳过前 5 秒（避免黑屏/片头）
-                            "-i", storage_path,
-                            "-vframes", "1",          # 只取 1 帧
-                            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black",
-                            "-q:v", "5",              # JPEG 质量 (2-31, 越小越好)
-                            "-f", "image2pipe",
-                            "-vcodec", "mjpeg",
-                            "pipe:1",
-                        ],
+                        ffmpeg_args,
                         capture_output=True,
                         timeout=30,
                         check=True,
@@ -583,11 +595,60 @@ async def _extract_video_frame_async(
         raise
 
 
+@router.get("/{file_id}/hover-preview", summary="获取文件浏览器 30 秒悬停视频")
+async def get_video_hover_preview(
+    file_id: str,
+    request: Request,
+    user_id: str = Header(default=None, alias="X-User-Id"),
+):
+    """
+    返回增强流水线预生成的前 30 秒 MP4。
+
+    AUDIT FIX [2.2/3.1]（需求二、三）：
+    原前端没有轻量悬停素材；新接口先校验文件归属，再通过预览资源数据库定位，
+    不扫描本机目录，从而支持存储服务横向扩容。FileResponse 支持浏览器 Range 请求。
+    """
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="缺少用户身份")
+    try:
+        await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+
+    resource = await preview_resource_service.get_ready(
+        file_id, user_id, "video_preview", "30s",
+    )
+    if not resource:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="视频悬停预览尚未生成")
+
+    path = Path(resource["storage_path"])
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="悬停预览记录存在但文件缺失")
+
+    etag = hashlib.sha256(
+        f"{resource.get('resource_id')}:{resource.get('source_version')}:{path.stat().st_mtime_ns}".encode()
+    ).hexdigest()
+    if request.headers.get("if-none-match", "").strip('"') == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": f'"{etag}"'})
+
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename=f"{file_id}-hover.mp4",
+        content_disposition_type="inline",
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "ETag": f'"{etag}"',
+            "X-Preview-Duration": "30",
+        },
+    )
+
+
 @router.get("/{file_id}/thumbnail", summary="获取视频缩略图（ffmpeg 首帧）")
 async def get_video_thumbnail(
     file_id: str,
     request: Request,
-    size: str = Query("small", description="缩略图尺寸: small(160×90), medium(400×225), large(800×450)"),
+    size: str = Query("small", description="缩略图尺寸: small/medium/large/poster"),
     user_id: str = Header(default=None, alias="X-User-Id"),
 ):
     """
@@ -615,9 +676,10 @@ async def get_video_thumbnail(
 
     # 1. 尺寸映射
     SIZE_MAP = {
-        "small": (160, 90),
-        "medium": (400, 225),
-        "large": (800, 450),
+        "small": (320, 180),
+        "medium": (640, 360),
+        "large": (1280, 720),
+        "poster": (0, 0),
     }
     if size not in SIZE_MAP:
         valid_sizes = ", ".join(SIZE_MAP.keys())
@@ -628,28 +690,21 @@ async def get_video_thumbnail(
 
     thumb_width, thumb_height = SIZE_MAP[size]
 
-    # 2. 构建文件路径
-    # 视频文件存储在 file_upload_dir 下，需要找到文件的实际路径
-    # 先尝试从 HLS 目录查找（HLS 转码后会生成首帧缩略图）
-    hls_thumb_dir = os.path.join(settings.file_upload_dir, "hls", file_id)
-    pre_generated_thumb = os.path.join(hls_thumb_dir, f"thumb_{size}.jpg")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="缺少用户身份")
+    try:
+        metadata_response = await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+    metadata = metadata_response.get("data") or {}
 
-    # 查找视频文件存储路径
-    # 尝试从 HLS manifest 获取
-    manifest_path = os.path.join(hls_thumb_dir, "manifest.json")
-    storage_path = None
-
-    if os.path.exists(manifest_path):
-        try:
-            async with aiofiles.open(manifest_path, "r") as f:
-                manifest = json.loads(await f.read())
-            # 从 manifest 获取原始视频路径
-            storage_path = manifest.get("source_path")
-        except Exception:
-            pass
+    # AUDIT FIX [7.4]: 预生成缩略图路径从持久化资源表读取，修复 pipeline 与 API 目录约定不一致导致的 404。
+    thumbnail_resource = await preview_resource_service.get_ready(file_id, user_id, "video_thumbnail", size)
+    pre_generated_thumb = thumbnail_resource.get("storage_path") if thumbnail_resource else None
+    storage_path = metadata.get("storage_path")
 
     # 3. 检查预生成缩略图
-    if os.path.exists(pre_generated_thumb):
+    if pre_generated_thumb and os.path.exists(pre_generated_thumb):
         try:
             mtime = os.path.getmtime(pre_generated_thumb)
             etag = hashlib.md5(f"{file_id}{size}{mtime}".encode()).hexdigest()
@@ -672,20 +727,6 @@ async def get_video_thumbnail(
             )
         except Exception as e:
             logger.warning(f"读取预生成视频缩略图失败: {e}")
-
-    # 4. 查找原始视频文件路径（如果从 manifest 没找到）
-    if not storage_path:
-        # 尝试从通用上传目录查找
-        possible_path = os.path.join(settings.file_upload_dir, file_id)
-        if os.path.exists(possible_path):
-            storage_path = possible_path
-        else:
-            # 尝试查找是否有扩展名的文件
-            for ext in [".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv"]:
-                test_path = os.path.join(settings.file_upload_dir, f"{file_id}{ext}")
-                if os.path.exists(test_path):
-                    storage_path = test_path
-                    break
 
     if not storage_path or not os.path.exists(storage_path):
         raise HTTPException(
@@ -722,9 +763,11 @@ async def get_video_thumbnail(
     # 6. 动态生成缩略图（ffmpeg 首帧）
     logger.info(f"动态生成视频缩略图: file_id={file_id}, size={size}")
     try:
-        img_bytes = await _extract_video_frame_async(
-            storage_path, thumb_width, thumb_height
-        )
+        if size == "poster":
+            # AUDIT FIX [4.5]: 播放器海报保留源画幅，不裁剪、不补黑边；列表缩略图仍使用固定画布。
+            img_bytes = await _extract_video_frame_async(storage_path, 0, 0)
+        else:
+            img_bytes = await _extract_video_frame_async(storage_path, thumb_width, thumb_height)
     except Exception as e:
         logger.error(f"视频缩略图生成失败: {e}")
         raise HTTPException(

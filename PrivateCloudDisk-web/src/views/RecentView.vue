@@ -2,112 +2,149 @@
   <div class="space-y-4 sm:space-y-6">
     <!-- 标题栏 -->
     <div class="flex items-center justify-between">
-      <h1 class="text-xl font-bold sm:text-2xl">
-        <i class="fa fa-clock-o text-primary"></i> 最近访问
+      <h1 class="flex items-center gap-2 text-xl font-bold text-neutral-700 sm:text-2xl">
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <i class="fa fa-clock-o text-primary"></i>
+        </span>
+        最近访问
       </h1>
     </div>
 
-    <!-- Tab 切换 -->
-    <div class="tabs tabs-box bg-base-200">
+    <!-- Tab 切换 — 纯 Tailwind 实现 -->
+    <div class="inline-flex rounded-xl bg-neutral-100 p-1">
       <button
-        class="tab"
-        :class="{ 'tab-active': recentStore.activeTab === 'upload' }"
-        @click="recentStore.switchTab('upload')"
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+        :class="recentStore.activeTab === tab.key
+          ? 'bg-white text-primary shadow-sm'
+          : 'text-neutral-500 hover:text-neutral-700'"
+        @click="recentStore.switchTab(tab.key as AccessType)"
       >
-        <i class="fa fa-cloud-upload mr-1"></i> 最近上传
-        <span class="badge badge-sm ml-1">{{ recentStore.uploadCount }}</span>
-      </button>
-      <button
-        class="tab"
-        :class="{ 'tab-active': recentStore.activeTab === 'download' }"
-        @click="recentStore.switchTab('download')"
-      >
-        <i class="fa fa-cloud-download mr-1"></i> 最近下载
-        <span class="badge badge-sm ml-1">{{ recentStore.downloadCount }}</span>
-      </button>
-      <button
-        class="tab"
-        :class="{ 'tab-active': recentStore.activeTab === 'open' }"
-        @click="recentStore.switchTab('open')"
-      >
-        <i class="fa fa-eye mr-1"></i> 最近打开
-        <span class="badge badge-sm ml-1">{{ recentStore.openCount }}</span>
+        <i :class="tab.icon" class="text-sm"></i>
+        <span>{{ tab.label }}</span>
+        <span
+          class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold"
+          :class="recentStore.activeTab === tab.key
+            ? 'bg-primary/10 text-primary'
+            : 'bg-neutral-200 text-neutral-500'"
+        >
+          {{ tab.count }}
+        </span>
       </button>
     </div>
 
     <!-- 加载中 -->
-    <div v-if="recentStore.loading"><LoadingSpinner /></div>
+    <div v-if="recentStore.loading" class="flex justify-center py-16">
+      <LoadingSpinner />
+    </div>
 
     <!-- 空状态 -->
-    <div v-else-if="recentStore.currentData.length === 0" class="responsive-panel p-8 text-center text-neutral-400 sm:p-10">
-      <i class="fa fa-inbox text-4xl mb-2"></i>
-      <p>暂无{{ tabLabel }}记录</p>
-      <p class="text-xs mt-1">{{ tabHint }}</p>
+    <div
+      v-else-if="recentStore.currentData.length === 0"
+      class="flex flex-col items-center rounded-xl bg-white py-16 text-center shadow-sm"
+    >
+      <div class="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-neutral-100">
+        <i class="fa fa-inbox text-4xl text-neutral-300"></i>
+      </div>
+      <p class="text-lg font-medium text-neutral-500">暂无{{ tabLabel }}记录</p>
+      <p class="mt-1 text-sm text-neutral-400">{{ tabHint }}</p>
     </div>
 
     <!-- 列表 -->
-    <div v-else class="responsive-panel">
+    <div v-else class="overflow-hidden rounded-xl bg-white shadow-sm">
       <!-- 桌面端表格 -->
       <div class="hidden overflow-x-auto sm:block">
-        <table class="table table-sm">
+        <table class="w-full">
           <thead>
-            <tr class="text-xs text-neutral-400">
-              <th>名称</th>
-              <th>类型</th>
-              <th>大小</th>
-              <th>时间</th>
+            <tr class="border-b border-neutral-100 bg-neutral-50/50 text-left text-xs font-medium text-neutral-400">
+              <th class="py-3 pl-5 pr-3">名称</th>
+              <th class="py-3 px-3">类型</th>
+              <th class="py-3 px-3">大小</th>
+              <th class="py-3 pl-3 pr-5">时间</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="item in recentStore.currentData"
               :key="item.ra_id"
-              class="hover cursor-pointer"
+              class="border-b border-neutral-50 transition-colors hover:bg-neutral-50/50 cursor-pointer"
               @click="openItem(item)"
             >
-              <td class="flex items-center gap-2">
-                <i
-                  :class="item.target_type === 'folder' ? 'fa fa-folder text-warning' : getFileIconClass(item.target_name)"
-                ></i>
-                <span class="text-sm truncate max-w-[200px]">{{ item.target_name }}</span>
+              <!-- 名称 -->
+              <td class="py-3 pl-5 pr-3">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                    :class="item.target_type === 'folder' ? 'bg-warning/10' : 'bg-primary/5'"
+                  >
+                    <i
+                      :class="[
+                        item.target_type === 'folder'
+                          ? 'fa fa-folder text-warning'
+                          : getIconForFile(item.target_name),
+                        'text-lg'
+                      ]"
+                    ></i>
+                  </div>
+                  <span class="max-w-[280px] truncate text-sm font-medium text-neutral-700">
+                    {{ item.target_name }}
+                  </span>
+                </div>
               </td>
-              <td>
-                <span class="badge badge-xs" :class="accessTypeBadge(item.access_type)">
+              <!-- 类型 — 图标 + 文字 -->
+              <td class="py-3 px-3">
+                <span class="inline-flex items-center gap-1.5 text-xs text-neutral-500">
+                  <i :class="accessTypeIcon(item.access_type)" class="text-xs"></i>
                   {{ accessTypeLabel(item.access_type) }}
                 </span>
               </td>
-              <td class="text-xs text-neutral-400">
-                {{ item.target_type === 'folder' ? '-' : formatSize(item.target_size) }}
+              <!-- 大小 -->
+              <td class="py-3 px-3 text-sm text-neutral-400">
+                {{ item.target_type === 'folder' ? '—' : formatSize(item.target_size) }}
               </td>
-              <td class="text-xs text-neutral-400">
+              <!-- 时间 -->
+              <td class="py-3 pl-3 pr-5 text-sm text-neutral-400">
                 {{ formatTime(item.accessed_at) }}
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
       <!-- 移动端卡片列表 -->
-      <div class="divide-y sm:hidden">
+      <div class="divide-y divide-neutral-50 sm:hidden">
         <div
           v-for="item in recentStore.currentData"
           :key="item.ra_id"
-          class="flex items-center gap-3 px-4 py-3 cursor-pointer"
+          class="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-neutral-50 cursor-pointer"
           @click="openItem(item)"
         >
-          <i
-            :class="item.target_type === 'folder' ? 'fa fa-folder text-warning' : getFileIconClass(item.target_name)"
-            class="text-lg text-neutral-500"
-          ></i>
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+            :class="item.target_type === 'folder' ? 'bg-warning/10' : 'bg-primary/5'"
+          >
+            <i
+              :class="[
+                item.target_type === 'folder'
+                  ? 'fa fa-folder text-warning'
+                  : getIconForFile(item.target_name),
+                'text-xl'
+              ]"
+            ></i>
+          </div>
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-neutral-700 truncate">{{ item.target_name }}</p>
-            <div class="mt-0.5 flex items-center gap-2 text-xs">
-              <span class="badge badge-xs" :class="accessTypeBadge(item.access_type)">
+            <p class="truncate text-sm font-medium text-neutral-700">{{ item.target_name }}</p>
+            <div class="mt-1 flex items-center gap-2 text-xs text-neutral-400">
+              <span class="inline-flex items-center gap-1">
+                <i :class="accessTypeIcon(item.access_type)" class="text-[10px]"></i>
                 {{ accessTypeLabel(item.access_type) }}
               </span>
-              <span v-if="item.target_type !== 'folder'" class="text-neutral-400">{{ formatSize(item.target_size) }}</span>
-              <span class="text-neutral-400">{{ formatTime(item.accessed_at) }}</span>
+              <span v-if="item.target_type !== 'folder'">· {{ formatSize(item.target_size) }}</span>
+              <span>· {{ formatTime(item.accessed_at) }}</span>
             </div>
           </div>
+          <i class="fa fa-chevron-right text-xs text-neutral-300"></i>
         </div>
       </div>
     </div>
@@ -127,18 +164,14 @@ const recentStore = useRecentStore()
 const router = useRouter()
 
 // ============================================================
-// Tab 标签
+// Tab 标签数据
 // ============================================================
 
-const accessTypeLabel = (type: AccessType): string => {
-  const map: Record<AccessType, string> = { upload: '上传', download: '下载', open: '打开' }
-  return map[type] || type
-}
-
-const accessTypeBadge = (type: AccessType): string => {
-  const map: Record<AccessType, string> = { upload: 'badge-primary', download: 'badge-success', open: 'badge-info' }
-  return map[type] || ''
-}
+const tabs = computed(() => [
+  { key: 'upload', label: '最近上传', icon: 'fa fa-cloud-upload', count: recentStore.uploadCount },
+  { key: 'download', label: '最近下载', icon: 'fa fa-cloud-download', count: recentStore.downloadCount },
+  { key: 'open', label: '最近打开', icon: 'fa fa-eye', count: recentStore.openCount },
+])
 
 const tabLabel = computed(() => {
   const map: Record<AccessType, string> = { upload: '最近上传', download: '最近下载', open: '最近打开' }
@@ -153,6 +186,37 @@ const tabHint = computed(() => {
   }
   return map[recentStore.activeTab] || ''
 })
+
+// ============================================================
+// 类型显示
+// ============================================================
+
+const accessTypeLabel = (type: AccessType): string => {
+  const map: Record<AccessType, string> = { upload: '上传', download: '下载', open: '打开' }
+  return map[type] || type
+}
+
+/** 访问类型图标 */
+const accessTypeIcon = (type: AccessType): string => {
+  const map: Record<AccessType, string> = {
+    upload: 'fa fa-cloud-upload text-primary',
+    download: 'fa fa-cloud-download text-success',
+    open: 'fa fa-eye text-secondary',
+  }
+  return map[type] || 'fa fa-circle'
+}
+
+// ============================================================
+// 文件图标（仅返回图标类，不包含颜色类，颜色由父容器控制）
+// ============================================================
+
+/** 获取文件图标（仅 FA 图标类名，不含颜色） */
+const getIconForFile = (fileName: string): string => {
+  const full = getFileIconClass(fileName)
+  // 提取纯图标类名（去掉颜色类如 text-danger/text-blue-600 等）
+  const iconClass = full.split(' ').find(c => c.startsWith('fa-'))
+  return iconClass || 'fa fa-file-o'
+}
 
 // ============================================================
 // 格式化

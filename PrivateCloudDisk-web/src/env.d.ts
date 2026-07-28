@@ -25,6 +25,7 @@ interface ImportMeta {
 // Cloudflare Turnstile 全局类型声明
 interface Turnstile {
   render(container: string | HTMLElement, options: TurnstileOptions): string
+  execute(widgetId: string): void
   reset(widgetId: string): void
   remove(widgetId: string): void
   getResponse(widgetId: string): string | undefined
@@ -34,7 +35,9 @@ interface TurnstileOptions {
   sitekey: string
   action?: string
   theme?: 'light' | 'dark' | 'auto'
-  size?: 'normal' | 'compact'
+  size?: 'normal' | 'compact' | 'flexible'
+  execution?: 'render' | 'execute'
+  appearance?: 'always' | 'execute' | 'interaction-only'
   tabindex?: number
   callback?: (token: string) => void
   'error-callback'?: () => void

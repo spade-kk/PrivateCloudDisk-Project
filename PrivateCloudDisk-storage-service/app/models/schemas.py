@@ -139,6 +139,25 @@ class DownloadGrantStatusResponse(BaseModel):
     max_parallel_chunks: int = 0
 
 
+# ============================
+# 原始内容预览授权模型
+# ============================
+
+class InitPreviewGrantRequest(BaseModel):
+    """
+    申请原始内容预览授权。
+
+    需求三-2：Preview Token 为 Redis 有状态 Opaque Token，不复用 JWT 或下载令牌，
+    避免一次预览授权被扩展成下载、HLS、Office 转换资源读取权限。
+    """
+    file_id: str = Field(..., min_length=1, max_length=64, description="待预览文件唯一标识符")
+
+
+class PreviewGrantReleaseRequest(BaseModel):
+    """释放原始内容预览授权请求。"""
+    preview_grant: str = Field(..., min_length=1, max_length=256, description="预览授权 Token")
+
+
 class FolderFileItem(BaseModel):
     """
     文件夹下载文件项模型

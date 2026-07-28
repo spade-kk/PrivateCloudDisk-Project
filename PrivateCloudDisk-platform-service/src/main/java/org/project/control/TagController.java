@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.project.control.result.JsonResult;
 import org.project.model.dto.FileTagRequest;
 import org.project.model.dto.TagCreateRequest;
+import org.project.model.dto.TagBatchRequest;
 import org.project.model.vo.TagVO;
 import org.project.model.vo.TaggedFileVO;
 import org.project.service.TagService;
@@ -13,6 +14,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -135,6 +137,19 @@ public class TagController extends BaseController {
             @RequestParam @Pattern(regexp = "^(file|folder)$") String target_type,
             @RequestHeader("X-User-Id") String user_id) {
         List<TagVO> tags = tagService.getFileTags(UUID.fromString(user_id), target_id, target_type);
+        return new JsonResult<>(OK, tags);
+    }
+
+    /**
+     * 文件列表批量查询标签，避免网格/列表渲染产生 N+1 请求。
+     */
+    @PostMapping("/files/batch")
+    public JsonResult<Map<String, List<TagVO>>> getTagsBatch(
+            @Valid @RequestBody TagBatchRequest request,
+            @RequestHeader("X-User-Id") String user_id) {
+        // AUDIT FIX [4.2]: 一个目录只需一次批量标签查询，结果按目标 ID 返回。
+        Map<String, List<TagVO>> tags = tagService.getTagsBatch(
+                UUID.fromString(user_id), request.getFile_ids(), request.getFolder_ids());
         return new JsonResult<>(OK, tags);
     }
 

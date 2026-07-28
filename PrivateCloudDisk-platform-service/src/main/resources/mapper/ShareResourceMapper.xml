@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.ShareResourceMapper">
+
+    <resultMap id="ShareResourceEntityMap" type="org.project.model.entity.ShareResourceEntity">
+        <id column="share_resource_id" property="share_resource_id"
+            typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="share_id" property="share_id"
+            typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="resource_type" property="resource_type"/>
+        <result column="file_id" property="file_id"
+            typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="node_id" property="node_id"
+            typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="created_at" property="created_at"/>
+        <!-- 关联查询字段 -->
+        <result column="resource_name" property="resource_name"/>
+        <result column="resource_size" property="resource_size"/>
+        <result column="file_type" property="file_type"/>
+    </resultMap>
+
+    <!--
+        AUDIT FIX [3.1] 分享资源查询统一采用文件节点的有效状态。
+        原行为会把回收站、软删除或位于已删除祖先目录下的资源暴露给公开分享；
+        新行为仅隐藏关联，不删除分享数据，恢复文件后无需重建分享。
+    -->
+    <sql id="VisibleShareResourcePredicate">
+        (
+            r.resource_type = 'file'
+            AND f.file_status = 'active'
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pcd_directory_closure_table c
+                INNER JOIN pcd_directory_tree_table ancestor_node
+                    ON ancestor_node.node_id = c.ancestor_id
+                WHERE c.descendant_id = f.file_node_id
+                  AND c.user_id = f.file_author_id
+                  AND ancestor_node.node_status IN ('trashed', 'deleted')
+            )
+        )
+        OR
+        (
+            r.resource_type = 'folder'
+            AND d.node_status NOT IN ('trashed', 'deleted')
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pcd_directory_closure_table c
+                INNER JOIN pcd_directory_tree_table ancestor_node
+                    ON ancestor_node.node_id = c.ancestor_id
+                WHERE c.descendant_id = d.node_id
+                  AND c.user_id = d.node_user_id
+                  AND ancestor_node.node_status IN ('trashed', 'deleted')
+            )
+        )
+    </sql>
+
+    <!-- ==================== 批量插入 ==================== -->
+
+    <insert id="insertBatch" parameterType="list">
+        INSERT INTO pcd_share_resource_table (
+            share_resource_id, share_id, resource_type, file_id, node_id
+        ) VALUES
+        <foreach collection="resources" item="item" separator=",">
+        (
+            #{item.share_resource_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{item.share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{item.resource_type},
+            #{item.file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{item.node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        )
+        </foreach>
+    </insert>
+
+    <!-- ==================== 查询 ==================== -->
+
+    <select id="findByShareId" resultMap="ShareResourceEntityMap">
+        SELECT
+            r.share_resource_id,
+            r.share_id,
+            r.resource_type,
+            r.file_id,
+            r.node_id,
+            r.created_at,
+            COALESCE(f.file_name, d.node_name) AS resource_name,
+            COALESCE(f.file_size, 0) AS resource_size,
+            f.file_type AS file_type
+        FROM pcd_share_resource_table r
+        LEFT JOIN pcd_file_info_table f
+            ON r.file_id = f.file_id AND r.resource_type = 'file'
+        LEFT JOIN pcd_directory_tree_table d
+            ON r.node_id = d.node_id AND r.resource_type = 'folder'
+        WHERE r.share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (<include refid="VisibleShareResourcePredicate"/>)
+        ORDER BY r.created_at ASC
+    </select>
+
+    <select id="findById" resultMap="ShareResourceEntityMap">
+        SELECT
+            r.share_resource_id,
+            r.share_id,
+            r.resource_type,
+            r.file_id,
+            r.node_id,
+            r.created_at,
+            COALESCE(f.file_name, d.node_name) AS resource_name,
+            COALESCE(f.file_size, 0) AS resource_size,
+            f.file_type AS file_type
+        FROM pcd_share_resource_table r
+        LEFT JOIN pcd_file_info_table f
+            ON r.file_id = f.file_id AND r.resource_type = 'file'
+        LEFT JOIN pcd_directory_tree_table d
+            ON r.node_id = d.node_id AND r.resource_type = 'folder'
+        WHERE r.share_resource_id = #{share_resource_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (<include refid="VisibleShareResourcePredicate"/>)
+    </select>
+
+    <!-- ==================== 删除 ==================== -->
+
+    <select id="findShareIdsByFileId" resultType="java.util.UUID">
+        SELECT DISTINCT share_id
+        FROM pcd_share_resource_table
+        WHERE file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND resource_type = 'file'
+    </select>
+
+    <!-- 需求三-2：永久删除文件时显式移除无文件外键约束的分享资源引用。 -->
+    <delete id="deleteByFileId">
+        DELETE FROM pcd_share_resource_table
+        WHERE file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND resource_type = 'file'
+    </delete>
+
+    <delete id="deleteByShareId">
+        DELETE FROM pcd_share_resource_table
+        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </delete>
+
+</mapper>

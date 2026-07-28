@@ -1,78 +1,102 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal modal-open">
-      <div class="modal-box max-w-sm">
-        <h3 class="text-lg font-bold mb-4">
-          <i class="fa fa-tags mr-2"></i> 标签管理
-          <span class="text-sm font-normal text-neutral-400 ml-2">— {{ targetName }}</span>
-        </h3>
-
-        <!-- 已打标签 -->
-        <div v-if="currentTags.length > 0" class="mb-3">
-          <label class="label text-xs text-neutral-400">已添加标签</label>
-          <div class="flex flex-wrap gap-1.5">
-            <span
-              v-for="tag in currentTags"
-              :key="tag.tag_id"
-              class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white cursor-pointer hover:opacity-80"
-              :style="{ backgroundColor: tag.tag_color }"
-              @click="removeTag(tag)"
-            >
-              {{ tag.tag_name }}
-              <i class="fa fa-times text-[10px]"></i>
-            </span>
+    <Transition name="modal-fade">
+      <div
+        v-if="visible"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <!-- 半透明遮罩 -->
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="close"></div>
+        <!-- 对话框卡片 -->
+        <div class="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-2xl">
+          <!-- 标题 -->
+          <div class="border-b border-neutral-100 px-5 py-4">
+            <h3 class="flex items-center text-lg font-bold text-neutral-700">
+              <i class="fa fa-tags mr-2 text-primary"></i> 标签管理
+              <span class="ml-2 truncate text-sm font-normal text-neutral-400">— {{ targetName }}</span>
+            </h3>
           </div>
-        </div>
 
-        <!-- 可选标签 -->
-        <div>
-          <label class="label text-xs text-neutral-400">
-            可选标签
-            <span class="cursor-pointer text-primary hover:underline" @click="showCreate = !showCreate">
-              <i class="fa fa-plus text-[10px]"></i> 新建
-            </span>
-          </label>
+          <!-- 内容 -->
+          <div class="space-y-4 px-5 py-4">
+            <!-- 已打标签 -->
+            <div v-if="currentTags.length > 0">
+              <label class="mb-1.5 block text-xs font-medium text-neutral-400">已添加标签</label>
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="tag in currentTags"
+                  :key="tag.tag_id"
+                  class="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-white transition hover:opacity-80"
+                  :style="{ backgroundColor: tag.tag_color }"
+                  @click="removeTag(tag)"
+                >
+                  {{ tag.tag_name }}
+                  <i class="fa fa-times text-[10px]"></i>
+                </span>
+              </div>
+            </div>
 
-          <!-- 新建标签 -->
-          <div v-if="showCreate" class="flex gap-2 mb-2">
-            <input
-              v-model="newTagName"
-              type="text"
-              class="input input-bordered input-sm flex-1"
-              placeholder="标签名"
-              maxlength="50"
-              @keyup.enter="createNewTag"
-            />
-            <button class="btn btn-primary btn-sm" :disabled="!newTagName" @click="createNewTag">
-              创建
+            <!-- 可选标签 -->
+            <div>
+              <div class="mb-1.5 flex items-center justify-between">
+                <label class="text-xs font-medium text-neutral-400">可选标签</label>
+                <span class="cursor-pointer text-xs text-primary hover:underline" @click="showCreate = !showCreate">
+                  <i class="fa fa-plus text-[10px]"></i> 新建
+                </span>
+              </div>
+
+              <!-- 新建标签 -->
+              <div v-if="showCreate" class="mb-2 flex gap-2">
+                <input
+                  v-model="newTagName"
+                  type="text"
+                  class="flex-1 rounded-lg border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 placeholder-neutral-300 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  placeholder="标签名"
+                  maxlength="50"
+                  @keyup.enter="createNewTag"
+                />
+                <button
+                  class="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!newTagName"
+                  @click="createNewTag"
+                >
+                  创建
+                </button>
+              </div>
+
+              <div v-if="allTags.length === 0" class="py-2 text-xs text-neutral-400">
+                暂无标签，请先创建标签
+              </div>
+              <div v-else class="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+                <span
+                  v-for="tag in availableTags"
+                  :key="tag.tag_id"
+                  class="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition hover:opacity-80"
+                  :style="{
+                    borderColor: tag.tag_color,
+                    color: tag.tag_color,
+                  }"
+                  @click="addTag(tag)"
+                >
+                  <i class="fa fa-plus text-[10px]"></i>
+                  {{ tag.tag_name }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部按钮 -->
+          <div class="flex justify-end border-t border-neutral-100 px-5 py-3">
+            <button
+              class="rounded-lg px-4 py-2 text-sm text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700"
+              @click="close"
+            >
+              关闭
             </button>
           </div>
-
-          <div v-if="allTags.length === 0" class="text-xs text-neutral-400 py-2">
-            暂无标签，请先创建标签
-          </div>
-          <div v-else class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-            <span
-              v-for="tag in availableTags"
-              :key="tag.tag_id"
-              class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border cursor-pointer hover:opacity-80 transition-opacity"
-              :style="{
-                borderColor: tag.tag_color,
-                color: tag.tag_color,
-              }"
-              @click="addTag(tag)"
-            >
-              <i class="fa fa-plus text-[10px]"></i>
-              {{ tag.tag_name }}
-            </span>
-          </div>
-        </div>
-
-        <div class="modal-action">
-          <button class="btn btn-ghost btn-sm" @click="close">关闭</button>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -160,3 +184,26 @@ const close = () => {
   emit('close')
 }
 </script>
+
+<style scoped>
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-fade-enter-active > div:last-child,
+.modal-fade-leave-active > div:last-child {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-from > div:last-child {
+  transform: scale(0.95) translateY(8px);
+  opacity: 0;
+}
+.modal-fade-leave-to > div:last-child {
+  transform: scale(0.95) translateY(8px);
+  opacity: 0;
+}
+</style>

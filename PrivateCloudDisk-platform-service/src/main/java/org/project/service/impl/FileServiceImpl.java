@@ -4,13 +4,18 @@ import jakarta.annotation.Resource;
 import org.project.model.entity.FileEntity;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.mapper.FileMapper;
+import org.project.mapper.FileStarMapper;
 import org.project.mapper.FolderNodeMapper;
+import org.project.mapper.ShareLinkMapper;
+import org.project.mapper.ShareResourceMapper;
+import org.project.mapper.TagMapper;
 import org.project.service.DirectoryTreeService;
 import org.project.service.FileService;
 import org.project.service.ex.*;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +31,14 @@ public class FileServiceImpl implements FileService {
     private DirectoryTreeService directoryTreeService;
     @Autowired
     private RabbitTemplate rabbitTemplate;
+    @Autowired
+    private FileStarMapper fileStarMapper;
+    @Autowired
+    private TagMapper tagMapper;
+    @Autowired
+    private ShareResourceMapper shareResourceMapper;
+    @Autowired
+    private ShareLinkMapper shareLinkMapper;
 
     @Override
     public UUID createMergingFile(String file_name, String file_type, long file_size, UUID user_id, UUID node_id, String file_checksum, int total_chunks) {
@@ -163,6 +176,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void completeDeleteFileByFileId(UUID file_id, UUID user_id) {
         FileEntity fileData = fileMapper.findUserFileById(file_id, user_id);
         if(fileData == null) {
@@ -172,6 +186,20 @@ public class FileServiceImpl implements FileService {
         if(!fileData.getStatus().equals(deleted)) {
             throw new FileStatusException("完全删除文件记录 文件状态异常 非deleted");
         }
+
+        /*
+         * AUDIT FIX [3.2] 永久删除关联数据一致性修复：
+         * 原行为仅删除文件元数据，标签与多资源分享表没有文件外键，可能产生孤儿引用；
+         * 新行为在同一事务中按“分享资源 -> 空分享 -> 标签 -> 收藏 -> 文件元数据”顺序清理。
+         * 注意：回收站/软删除仍只修改状态，不进入本方法，原有关联关系会完整保留。
+         */
+        List<UUID> affectedShareIds = shareResourceMapper.findShareIdsByFileId(file_id);
+        shareResourceMapper.deleteByFileId(file_id);
+        if (affectedShareIds != null && !affectedShareIds.isEmpty()) {
+            shareLinkMapper.deleteEmptySharesByIds(affectedShareIds);
+        }
+        tagMapper.deleteAllByFileId(file_id);
+        fileStarMapper.deleteAllByFileId(file_id);
 
         Integer rows = fileMapper.deleteUserFileById(file_id, user_id);
         if(rows != 1) {
@@ -229,14 +257,24 @@ public class FileServiceImpl implements FileService {
             throw new FileNotExistException();
         }
 
-        if(merge_failed.equals(status) && !fileEntity.getStatus().equals(FileEntity.FileStatus.merging)) {
+        // 定义状态常量（确保与调用方传入的字符串完全一致）
+        final String MERGE_FAILED = "merge_failed";
+        final String SCAN_FAILED  = "scan_failed";
+        final String REJECT       = "reject";
+        final String SCANNING     = "scanning";
+
+        if(MERGE_FAILED.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.merging)) {
             fileMapper.updateUserFileStatusById(file_id, merge_failed, user_id);
-        } else if(scan_failed.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.scanning)) {
+            return;
+        } else if(SCAN_FAILED.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.scanning)) {
             fileMapper.updateUserFileStatusById(file_id, scan_failed, user_id);
-        } else if(reject.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.scanning)) {
+            return;
+        } else if(REJECT.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.scanning)) {
             fileMapper.updateUserFileStatusById(file_id, reject, user_id);
-        } else if(FileEntity.FileStatus.scanning.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.merged)) {
+            return;
+        } else if(SCANNING.equals(status) && fileEntity.getStatus().equals(FileEntity.FileStatus.merged)) {
             fileMapper.updateUserFileStatusById(file_id, scanning, user_id);
+            return;
         }
 
         throw new FileStatusException("File State Error");

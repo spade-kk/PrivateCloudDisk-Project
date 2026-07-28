@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from app.core.redis_client import redis_client
+from app.core.business_service_client import BusinessServiceError, business_service_client
+from app.repositories.video_progress_repository import video_progress_repository
 from core.config import settings
 
 logger = logging.getLogger("video_progress")
@@ -30,6 +32,7 @@ class SaveProgressRequest(BaseModel):
     duration: float = Field(..., ge=0, description="视频总时长（秒）")
     resolution: str = Field(default="auto", description="当前分辨率")
     playback_rate: float = Field(default=1.0, ge=0.25, le=3.0, description="播放速度")
+    file_name: str = Field(default="", max_length=512, description="文件名快照，用于观看历史展示")
 
 
 class ProgressResponse(BaseModel):
@@ -50,21 +53,30 @@ async def save_video_progress(
     """
     保存用户观看视频的播放进度
 
-    使用 Redis 存储，TTL 30 天。
-    自动去重：如果进度差小于 5 秒且时间未超过 60 秒，跳过保存以减少 Redis 写入。
+    数据库持久化后再更新 Redis 热点缓存；缓存失效不会造成进度丢失。
     """
     key = f"{_PROGRESS_KEY_PREFIX}:{user_id}:{file_id}"
 
+    try:
+        metadata_response = await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+    metadata = metadata_response.get("data") or {}
+
     # 读取已有进度，避免重复写入
-    existing = await redis_client.get(key)
+    try:
+        existing = await redis_client.get(key)
+    except Exception as exc:
+        logger.warning("Redis 播放进度缓存不可用，本次直接持久化: %s", exc)
+        existing = None
     if existing:
         try:
             old = json.loads(existing)
             time_diff = abs(body.current_time - old.get("current_time", 0))
             now = __import__("time").time()
             old_ts = old.get("_ts", 0)
-            if time_diff < 5 and (now - old_ts) < 60:
-                # 进度变化太小且时间间隔短，跳过
+            if old.get("_persisted") and time_diff < 5 and (now - old_ts) < 60:
+                # 进度变化太小且时间间隔短，跳过缓存抖动；持久层已有上次有效值。
                 return {"code": 200, "message": "进度无显著变化，已跳过"}
         except (json.JSONDecodeError, KeyError):
             pass
@@ -77,10 +89,27 @@ async def save_video_progress(
         "playback_rate": body.playback_rate,
         "updated_at": __import__("datetime").datetime.now().isoformat(),
         "_ts": time.time(),
+        "file_name": body.file_name or metadata.get("name") or metadata.get("file_name") or "",
+        "_persisted": True,
     }
 
-    # TTL: 30 天
-    await redis_client.setex(key, 30 * 24 * 3600, json.dumps(data, ensure_ascii=False))
+    completed = body.duration > 0 and body.current_time >= max(body.duration - 5, body.duration * 0.95)
+    # AUDIT FIX [7.4]: 先提交数据库，再刷新 Redis；不再把 30 天 TTL 缓存当作业务事实。
+    await video_progress_repository.save(
+        user_id=user_id,
+        file_id=file_id,
+        file_name=data["file_name"],
+        current_time=body.current_time,
+        duration=body.duration,
+        resolution=body.resolution,
+        playback_rate=body.playback_rate,
+        completed=completed,
+    )
+    # TTL: 30 天，仅用于热点读取。
+    try:
+        await redis_client.setex(key, 30 * 24 * 3600, json.dumps(data, ensure_ascii=False))
+    except Exception as exc:
+        logger.warning("播放进度已持久化，但 Redis 缓存写入失败: %s", exc)
 
     logger.debug(f"保存播放进度: user={user_id}, file={file_id}, pos={body.current_time:.1f}s")
 
@@ -99,22 +128,42 @@ async def get_video_progress(
     若无历史记录，返回默认值。
     """
     key = f"{_PROGRESS_KEY_PREFIX}:{user_id}:{file_id}"
-    raw = await redis_client.get(key)
+    try:
+        raw = await redis_client.get(key)
+    except Exception as exc:
+        logger.warning("Redis 播放进度缓存不可用，降级读取数据库: %s", exc)
+        raw = None
 
     if not raw:
-        return {
-            "code": 200,
-            "data": {
-                "current_time": 0,
-                "duration": 0,
-                "resolution": "auto",
-                "playback_rate": 1.0,
-                "updated_at": None,
-            },
-        }
+        persisted = await video_progress_repository.get(user_id, file_id)
+        if persisted:
+            cache_data = {**persisted, "_ts": __import__("time").time(), "_persisted": True}
+            try:
+                await redis_client.setex(key, 30 * 24 * 3600, json.dumps(cache_data, ensure_ascii=False))
+            except Exception:
+                pass
+            return {"code": 200, "data": persisted}
+        return {"code": 200, "data": {"current_time": 0, "duration": 0, "resolution": "auto", "playback_rate": 1.0, "updated_at": None}}
 
     try:
         data = json.loads(raw)
+        # AUDIT FIX [7.4]: 首次读取旧版 Redis-only 进度时同步补写数据库，完成平滑迁移。
+        if not data.get("_persisted"):
+            await video_progress_repository.save(
+                user_id=user_id,
+                file_id=file_id,
+                file_name=data.get("file_name", ""),
+                current_time=float(data.get("current_time", 0)),
+                duration=float(data.get("duration", 0)),
+                resolution=data.get("resolution", "auto"),
+                playback_rate=float(data.get("playback_rate", 1.0)),
+                completed=False,
+            )
+            data["_persisted"] = True
+            try:
+                await redis_client.setex(key, 30 * 24 * 3600, json.dumps(data, ensure_ascii=False))
+            except Exception:
+                pass
         return {
             "code": 200,
             "data": {

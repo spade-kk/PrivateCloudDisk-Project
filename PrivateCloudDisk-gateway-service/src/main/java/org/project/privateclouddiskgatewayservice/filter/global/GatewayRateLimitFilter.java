@@ -134,12 +134,16 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
     private String clientIp(ServerWebExchange exchange) {
         String forwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
         if (StringUtils.hasText(forwardedFor)) {
+            log.info("[Gateway] 客户端真实IP解析 来自: X-Forwarded-For: {}", forwardedFor.split(",")[0].trim());
             return forwardedFor.split(",")[0].trim();
         }
         String realIp = exchange.getRequest().getHeaders().getFirst("X-Real-IP");
         if (StringUtils.hasText(realIp)) {
+            log.info("[Gateway] 客户端真实IP解析 来自: X-Real-IP: {}", realIp.trim());
             return realIp.trim();
         }
+        log.info("[Gateway] 客户端真实IP解析 直接解析: {}", exchange.getRequest().getRemoteAddress() == null
+                            ? "unknown" : exchange.getRequest().getRemoteAddress().getAddress().getHostAddress());
         return exchange.getRequest().getRemoteAddress() == null
                 ? "unknown"
                 : exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();

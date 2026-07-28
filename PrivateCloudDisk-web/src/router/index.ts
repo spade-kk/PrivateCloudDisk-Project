@@ -102,6 +102,21 @@ const routes: RouteRecordRaw[] = [
   },
 
   // ============================================================
+  // AUDIT FIX [2.2]: 独立文件预览工作区
+  // 预览路由位于 /app Layout 之外，不渲染控制台侧栏和菜单，为播放器、文档工具栏
+  // 与后续协作能力保留完整视口。所有页面通过 fileId 路由参数识别资源。
+  // ============================================================
+  { path: '/preview/video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { title: '视频播放', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/image/:fileId', name: 'ImagePreview', component: () => import('@/views/preview/ImagePreviewView.vue'), meta: { title: '图片预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/pdf/:fileId', name: 'PDFPreview', component: () => import('@/views/preview/PDFPreviewView.vue'), meta: { title: 'PDF 预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/word/:fileId', name: 'WordPreview', component: () => import('@/views/preview/WordPreviewView.vue'), meta: { title: 'Word 预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/ppt/:fileId', name: 'PPTPreview', component: () => import('@/views/preview/PPTPreviewView.vue'), meta: { title: 'PPT 预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/excel/:fileId', name: 'ExcelPreview', component: () => import('@/views/preview/ExcelPreviewView.vue'), meta: { title: 'Excel 预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/code/:fileId', name: 'CodePreview', component: () => import('@/views/preview/CodePreviewView.vue'), meta: { title: '代码预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/markdown/:fileId', name: 'MarkdownPreview', component: () => import('@/views/preview/MarkdownPreviewView.vue'), meta: { title: 'Markdown 预览', requiresAuth: true, previewWorkspace: true } },
+  { path: '/preview/archive/:fileId', name: 'ArchivePreview', component: () => import('@/views/preview/ArchivePreviewView.vue'), meta: { title: '压缩包预览', requiresAuth: true, previewWorkspace: true } },
+
+  // ============================================================
   // 控制台 — 需要登录认证
   // 所有子路由共享 Layout 布局（侧边栏+顶栏+内容区）
   // meta.requiresAuth: true 触发路由守卫的登录检查
@@ -141,22 +156,6 @@ const routes: RouteRecordRaw[] = [
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue'), meta: { title: '个人信息', requiresAuth: true } },
       // 空间管理
       { path: 'spaces', name: 'Spaces', component: () => import('@/views/SpaceManagementView.vue'), meta: { title: '空间管理', requiresAuth: true } },
-      // 视频播放器：通过 fileId 参数指定播放文件
-      { path: 'video/:fileId', name: 'VideoPlayer', component: () => import('@/views/VideoPlayerView.vue'), meta: { title: '视频播放', requiresAuth: true } },
-      // 文档预览 — PDF 独立预览页面（缩放、旋转、导航、搜索、缩略图、打印）
-      { path: 'preview/pdf/:fileId', name: 'PDFPreview', component: () => import('@/views/preview/PDFPreviewView.vue'), meta: { title: 'PDF 预览', requiresAuth: true } },
-      // 文档预览 — Word 独立预览页面（文档布局、页面视图、大纲导航）
-      { path: 'preview/word/:fileId', name: 'WordPreview', component: () => import('@/views/preview/WordPreviewView.vue'), meta: { title: 'Word 预览', requiresAuth: true } },
-      // 文档预览 — PPT 独立预览页面（幻灯片布局、分页导航、全屏演示）
-      { path: 'preview/ppt/:fileId', name: 'PPTPreview', component: () => import('@/views/preview/PPTPreviewView.vue'), meta: { title: 'PPT 预览', requiresAuth: true } },
-      // 文档预览 — Excel 独立预览页面（网格布局、工作表切换、行列导航）
-      { path: 'preview/excel/:fileId', name: 'ExcelPreview', component: () => import('@/views/preview/ExcelPreviewView.vue'), meta: { title: 'Excel 预览', requiresAuth: true } },
-      // 代码预览 — 独立预览页面（语法高亮、IDE 悬停提示、代码结构导航、搜索、行跳转）
-      { path: 'preview/code/:fileId', name: 'CodePreview', component: () => import('@/views/preview/CodePreviewView.vue'), meta: { title: '代码预览', requiresAuth: true } },
-      // Markdown 预览 — 独立预览页面（代码高亮、目录导航、Mermaid 图表、KaTeX 公式、全文搜索）
-      { path: 'preview/markdown/:fileId', name: 'MarkdownPreview', component: () => import('@/views/preview/MarkdownPreviewView.vue'), meta: { title: 'Markdown 预览', requiresAuth: true } },
-      // 压缩包预览 — 独立预览页面（目录结构树、文件元数据、层级展开折叠）
-      { path: 'preview/archive/:fileId', name: 'ArchivePreview', component: () => import('@/views/preview/ArchivePreviewView.vue'), meta: { title: '压缩包预览', requiresAuth: true } },
       // 视频/语音通话页面
       { path: 'call', name: 'Call', component: () => import('@/views/CallView.vue'), meta: { title: '通话', requiresAuth: true } },
       // 控制台 404 兜底

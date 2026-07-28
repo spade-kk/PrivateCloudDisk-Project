@@ -10,7 +10,9 @@ import {
   buildVideoStreamUrl,
   buildHlsStreamUrl,
   getVideoThumbnailUrl,
-  recordVideoHistoryApi
+  recordVideoHistoryApi,
+  getVideoHistoryApi,
+  getVideoStatisticsApi,
 } from '@/api/modules/video'
 
 export interface Resolution {
@@ -70,6 +72,9 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
 
   const savedProgress = ref<any>(null)
   const watchHistory = ref<any[]>([])
+  const historyTotal = ref(0)
+  const playableVideoCount = ref(0)
+  const sidebarLoading = ref(false)
 
   const availableResolutions = computed(() => {
     if (!streamInfo.value?.resolutions) return []
@@ -92,10 +97,10 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
   const isDash = computed(() => streamInfo.value?.has_dash ?? false)
   const isMp4 = computed(() => !isHls.value && !isDash.value)
 
-  /** 视频预览封面图 URL（medium 尺寸，用作 video poster） */
+  /** 视频预览封面图 URL（poster 保持源画幅、不裁剪，用作核心播放器封面） */
   const previewThumbnailUrl = computed(() => {
     if (!currentFile.value?.node_id) return ''
-    return getVideoThumbnailUrl(currentFile.value.node_id, 'medium')
+    return getVideoThumbnailUrl(currentFile.value.node_id, 'poster')
   })
 
   /** 视频列表/网格缩略图 URL（small 尺寸） */
@@ -153,7 +158,7 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
       if (tokenRes.code !== 200) {
         throw new Error(tokenRes.message || '获取播放凭证失败')
       }
-      streamToken.value = tokenRes.data?.token || tokenRes.data
+      streamToken.value = tokenRes.data?.token || ''
       tokenExpiresAt.value = tokenRes.data?.expires_at
         ? new Date(tokenRes.data.expires_at).getTime()
         : Date.now() + 3600 * 1000
@@ -194,7 +199,7 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
         resolution: currentResolution.value
       })
       if (tokenRes.code === 200) {
-        streamToken.value = tokenRes.data?.token || tokenRes.data
+        streamToken.value = tokenRes.data?.token || ''
         tokenExpiresAt.value = tokenRes.data?.expires_at
           ? new Date(tokenRes.data.expires_at).getTime()
           : Date.now() + 3600 * 1000
@@ -435,9 +440,30 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
         duration: duration.value,
         resolution: currentResolution.value,
         playbackRate: playbackRate.value,
+        fileName: currentFile.value.node_name,
       })
     } catch {
       // 静默失败
+    }
+  }
+
+  /** 加载右侧观看历史和账号视频资源统计。 */
+  async function loadSidebarData(): Promise<void> {
+    sidebarLoading.value = true
+    try {
+      const [historyResponse, statisticsResponse] = await Promise.all([
+        getVideoHistoryApi(20, 0),
+        getVideoStatisticsApi(),
+      ])
+      if (historyResponse.code === 200) {
+        watchHistory.value = historyResponse.data.items
+        historyTotal.value = historyResponse.data.total
+      }
+      if (statisticsResponse.code === 200) {
+        playableVideoCount.value = statisticsResponse.data.playable_video_count
+      }
+    } finally {
+      sidebarLoading.value = false
     }
   }
 
@@ -468,7 +494,7 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
     isFullscreen.value = false
     isPiP.value = false
     controlsVisible.value = true
-    watchHistory.value = []
+    // 观看历史属于页面侧栏状态，切换当前视频时保留，避免不必要闪烁。
   }
 
   return {
@@ -502,6 +528,9 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
     hlsInstance,
     savedProgress,
     watchHistory,
+    historyTotal,
+    playableVideoCount,
+    sidebarLoading,
     availableResolutions,
     availablePlaybackRates,
     isHls,
@@ -531,6 +560,7 @@ export const useVideoPlayerStore = defineStore('videoPlayer', () => {
     showControls,
     hideControls,
     saveProgress,
+    loadSidebarData,
     reset,
     onLoadedMetadata,
     onTimeUpdate,

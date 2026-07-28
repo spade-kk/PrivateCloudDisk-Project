@@ -191,3 +191,41 @@ class NotificationService:
         #     logger.error(f"安全事件上报失败: file_id={file_id}, error={e}")
         #     # 不上抛异常，安全事件上报失败不应阻塞主流程
         #     return False
+
+    @staticmethod
+    async def notify_ops_alert(
+        *,
+        title: str,
+        severity: str,
+        details: dict,
+    ) -> bool:
+        """向可选的企业运维 Webhook 发送结构化告警。
+
+        AUDIT FIX [7.3]（需求一-3）：
+        原行为只有本地日志，值班系统无法主动感知增强死信；新行为在配置
+        ``OPS_ALERT_WEBHOOK_URL`` 时推送标准 JSON。告警失败不会阻塞 DLQ 最终处置，
+        MySQL 死信台账仍是可审计事实源。
+        """
+        if not settings.ops_alert_webhook_url:
+            logger.warning("未配置 OPS_ALERT_WEBHOOK_URL，运维告警仅记录日志: %s", title)
+            return False
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(8.0),
+                limits=_CLIENT_LIMITS,
+                trust_env=False,
+            ) as client:
+                response = await client.post(
+                    settings.ops_alert_webhook_url,
+                    json={
+                        "source": "PrivateCloudDisk-storage-service",
+                        "title": title,
+                        "severity": severity,
+                        "details": details,
+                    },
+                )
+                response.raise_for_status()
+            return True
+        except Exception as exc:
+            logger.error("运维告警发送失败: title=%s, error=%s", title, exc)
+            return False

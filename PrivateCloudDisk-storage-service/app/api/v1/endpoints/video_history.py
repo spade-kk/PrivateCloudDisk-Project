@@ -13,6 +13,9 @@ from fastapi import APIRouter, Header, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
 from app.core.redis_client import redis_client
+from app.core.business_service_client import BusinessServiceError, business_service_client
+from app.repositories.preview_resource_repository import preview_resource_repository
+from app.repositories.video_progress_repository import video_progress_repository
 
 logger = logging.getLogger("video_history")
 
@@ -28,6 +31,7 @@ class RecordHistoryRequest(BaseModel):
     watched_duration: float = Field(..., ge=0, description="已观看时长（秒）")
     total_duration: float = Field(..., ge=0, description="视频总时长（秒）")
     completed: bool = Field(default=False, description="是否完整看完")
+    file_name: str = Field(default="", max_length=512, description="文件名快照")
 
 
 @router.post("/{file_id}", summary="记录视频观看历史")
@@ -39,12 +43,25 @@ async def record_video_history(
     """
     记录视频观看历史
 
-    存储到 Redis ZSET，按观看时间排序。
-    保留最近 500 条记录。
+    同步写入数据库并用 Redis ZSET 维护最近访问热榜。
     """
     import time
 
     now = time.time()
+
+    try:
+        metadata_response = await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+    metadata = metadata_response.get("data") or {}
+    file_name = body.file_name or metadata.get("name") or metadata.get("file_name") or ""
+
+    # AUDIT FIX [7.4]: 观看历史与进度共用幂等持久表，Redis 只保留排序缓存。
+    await video_progress_repository.save(
+        user_id=user_id, file_id=file_id, file_name=file_name,
+        current_time=body.watched_duration, duration=body.total_duration,
+        resolution="auto", playback_rate=1.0, completed=body.completed,
+    )
 
     # 存储详细历史记录
     detail_key = f"{_HISTORY_KEY_PREFIX}:{user_id}:{file_id}"
@@ -54,18 +71,21 @@ async def record_video_history(
         "completed": body.completed,
         "updated_at": __import__("datetime").datetime.now().isoformat(),
         "_ts": now,
+        "file_name": file_name,
     }
 
     # 使用管道批量操作
-    pipe = redis_client.pipeline()
-    pipe.setex(detail_key, 90 * 24 * 3600, json.dumps(detail, ensure_ascii=False))
+    try:
+        pipe = redis_client.pipeline()
+        pipe.setex(detail_key, 90 * 24 * 3600, json.dumps(detail, ensure_ascii=False))
 
-    # 添加到用户的观看列表（ZSET，按时间排序）
-    list_key = f"{_HISTORY_LIST_KEY}:{user_id}"
-    pipe.zadd(list_key, {file_id: now})
-    pipe.zremrangebyrank(list_key, 0, -501)  # 保留最近 500 条
-
-    await pipe.execute()
+        # 添加到用户的观看列表（ZSET，按时间排序）
+        list_key = f"{_HISTORY_LIST_KEY}:{user_id}"
+        pipe.zadd(list_key, {file_id: now})
+        pipe.zremrangebyrank(list_key, 0, -501)  # 保留最近 500 条
+        await pipe.execute()
+    except Exception as exc:
+        logger.warning("观看历史已持久化，但 Redis 最近访问缓存更新失败: %s", exc)
 
     logger.debug(f"记录观看历史: user={user_id}, file={file_id}, completed={body.completed}")
 
@@ -83,35 +103,21 @@ async def get_video_history_list(
 
     按观看时间倒序排列，返回最近观看的视频 ID 列表。
     """
-    list_key = f"{_HISTORY_LIST_KEY}:{user_id}"
-
-    # 获取所有 file_id（按时间倒序）
-    results = await redis_client.zrevrange(list_key, offset, offset + limit - 1, withscores=True)
-
-    items = []
-    for file_id, timestamp in results:
-        # 获取详细信息
-        detail_key = f"{_HISTORY_KEY_PREFIX}:{user_id}:{file_id}"
-        raw = await redis_client.get(detail_key)
-        detail = {}
-        if raw:
-            try:
-                detail = json.loads(raw)
-            except json.JSONDecodeError:
-                pass
-
-        items.append({
-            "file_id": file_id,
-            "watched_duration": detail.get("watched_duration", 0),
-            "total_duration": detail.get("total_duration", 0),
-            "completed": detail.get("completed", False),
-            "updated_at": detail.get("updated_at"),
-        })
+    items, total = await video_progress_repository.list_history(user_id, limit, offset)
+    for item in items:
+        item["thumbnail_url"] = f"/api/v1/files/video/stream/{item['file_id']}/thumbnail?size=small"
 
     return {
         "code": 200,
         "data": {
             "items": items,
-            "total": await redis_client.zcard(list_key),
+            "total": total,
         },
     }
+
+
+@router.get("/statistics", summary="获取账号视频资源统计")
+async def get_video_statistics(user_id: str = Header(..., alias="X-User-Id")):
+    """返回数据库中已就绪的 HLS 视频数，支持多实例实时一致读取。"""
+    total = await preview_resource_repository.count_ready_videos(user_id)
+    return {"code": 200, "data": {"playable_video_count": total}}

@@ -26,6 +26,38 @@
         <result column="tag_color" property="tag_color"/>
     </resultMap>
 
+    <!--
+        AUDIT FIX [3.1] 文件“有效状态”统一判定片段。
+        原行为只判断标签关联是否存在；新行为同时校验文件自身状态和目录祖先逻辑状态。
+        该判定仅影响查询可见性，不会删除回收站中的关联数据。
+    -->
+    <sql id="ActiveFilePredicate">
+        f.file_status = 'active'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM pcd_directory_closure_table c
+            INNER JOIN pcd_directory_tree_table ancestor_node
+                ON ancestor_node.node_id = c.ancestor_id
+            WHERE c.descendant_id = f.file_node_id
+              AND c.user_id = f.file_author_id
+              AND ancestor_node.node_status IN ('trashed', 'deleted')
+        )
+    </sql>
+
+    <!-- 需求三-1：目录自身及任一祖先进入回收站/删除状态时，对关联查询隐藏。 -->
+    <sql id="ActiveFolderPredicate">
+        d.node_status NOT IN ('trashed', 'deleted')
+        AND NOT EXISTS (
+            SELECT 1
+            FROM pcd_directory_closure_table c
+            INNER JOIN pcd_directory_tree_table ancestor_node
+                ON ancestor_node.node_id = c.ancestor_id
+            WHERE c.descendant_id = d.node_id
+              AND c.user_id = d.node_user_id
+              AND ancestor_node.node_status IN ('trashed', 'deleted')
+        )
+    </sql>
+
     <!-- ==================== 标签 CRUD ==================== -->
 
     <insert id="insertTag" parameterType="org.project.model.entity.TagEntity" useGeneratedKeys="true" keyProperty="tag_id">
@@ -60,12 +92,20 @@
             COALESCE(foc.cnt, 0) AS folder_count
         FROM pcd_tag_table t
         LEFT JOIN (
-            SELECT ft_tag_id, COUNT(*) AS cnt
-            FROM pcd_file_tag_table WHERE ft_target_type = 'file' GROUP BY ft_tag_id
+            SELECT ft.ft_tag_id, COUNT(*) AS cnt
+            FROM pcd_file_tag_table ft
+            INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
+            WHERE ft.ft_target_type = 'file'
+              AND <include refid="ActiveFilePredicate"/>
+            GROUP BY ft.ft_tag_id
         ) fc ON t.tag_id = fc.ft_tag_id
         LEFT JOIN (
-            SELECT ft_tag_id, COUNT(*) AS cnt
-            FROM pcd_file_tag_table WHERE ft_target_type = 'folder' GROUP BY ft_tag_id
+            SELECT ft.ft_tag_id, COUNT(*) AS cnt
+            FROM pcd_file_tag_table ft
+            INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
+            WHERE ft.ft_target_type = 'folder'
+              AND <include refid="ActiveFolderPredicate"/>
+            GROUP BY ft.ft_tag_id
         ) foc ON t.tag_id = foc.ft_tag_id
         WHERE t.tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         ORDER BY t.tag_created_at DESC
@@ -124,21 +164,32 @@
           AND ft_target_type = 'folder'
     </delete>
 
+    <!-- AUDIT FIX [3.2] 只在文件永久删除事务中调用；回收站/软删除不会触发。 -->
+    <delete id="deleteAllByFileId">
+        DELETE FROM pcd_file_tag_table
+        WHERE ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft_target_type = 'file'
+    </delete>
+
     <select id="findTagsByFileId" resultMap="TagEntityMap">
         SELECT t.* FROM pcd_tag_table t
         INNER JOIN pcd_file_tag_table ft ON t.tag_id = ft.ft_tag_id
+        INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND <include refid="ActiveFilePredicate"/>
         ORDER BY t.tag_name
     </select>
 
     <select id="findTagsByNodeId" resultMap="TagEntityMap">
         SELECT t.* FROM pcd_tag_table t
         INNER JOIN pcd_file_tag_table ft ON t.tag_id = ft.ft_tag_id
+        INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND <include refid="ActiveFolderPredicate"/>
         ORDER BY t.tag_name
     </select>
 
@@ -149,8 +200,10 @@
             t.tag_color
         FROM pcd_file_tag_table ft
         INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
+        INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND <include refid="ActiveFilePredicate"/>
           AND ft.ft_file_id IN
           <foreach collection="file_ids" item="id" open="(" separator="," close=")">
               #{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
@@ -164,8 +217,10 @@
             t.tag_color
         FROM pcd_file_tag_table ft
         INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
+        INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND <include refid="ActiveFolderPredicate"/>
           AND ft.ft_node_id IN
           <foreach collection="node_ids" item="id" open="(" separator="," close=")">
               #{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
@@ -182,10 +237,11 @@
             f.file_type
         FROM pcd_file_tag_table ft
         INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
-        LEFT JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
+        INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
         WHERE ft.ft_tag_id = #{tag_id}
           AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND <include refid="ActiveFilePredicate"/>
         ORDER BY ft.ft_tagged_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
@@ -200,26 +256,33 @@
             NULL AS file_type
         FROM pcd_file_tag_table ft
         INNER JOIN pcd_tag_table t ON ft.ft_tag_id = t.tag_id
-        LEFT JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
+        INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
         WHERE ft.ft_tag_id = #{tag_id}
           AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND <include refid="ActiveFolderPredicate"/>
         ORDER BY ft.ft_tagged_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="countFilesByTagId" resultType="int">
-        SELECT COUNT(*) FROM pcd_file_tag_table
-        WHERE ft_tag_id = #{tag_id}
-          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND ft_target_type = 'file'
+        SELECT COUNT(*)
+        FROM pcd_file_tag_table ft
+        INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
+        WHERE ft.ft_tag_id = #{tag_id}
+          AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'file'
+          AND <include refid="ActiveFilePredicate"/>
     </select>
 
     <select id="countFoldersByTagId" resultType="int">
-        SELECT COUNT(*) FROM pcd_file_tag_table
-        WHERE ft_tag_id = #{tag_id}
-          AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND ft_target_type = 'folder'
+        SELECT COUNT(*)
+        FROM pcd_file_tag_table ft
+        INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
+        WHERE ft.ft_tag_id = #{tag_id}
+          AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ft.ft_target_type = 'folder'
+          AND <include refid="ActiveFolderPredicate"/>
     </select>
 
     <select id="findFileTagByTagAndFile" resultMap="FileTagEntityMap">

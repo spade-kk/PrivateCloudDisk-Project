@@ -11,7 +11,6 @@
 | index      | CONTENT_EXTRACT_ERROR| 标记文件为 DEGRADED (无索引)        |
 | index      | CONTENT_INDEX_ERROR  | 标记文件为 DEGRADED (无索引)        |
 | office/PDF | OFFICE_TO_PDF_ERROR  | 标记文件为 DEGRADED (无 PDF 预览)    |
-| markdown   | MARKDOWN_TO_HTML_ERR | 标记文件为 DEGRADED (无 HTML 预览)   |
 | archive    | ARCHIVE_PARSE_ERROR  | 标记文件为 DEGRADED (无目录预览)      |
 | 全部       | UNKNOWN              | 全面记录日志，人工排查               |
 
@@ -26,11 +25,12 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from core.config import (
-    FailureReason, TaskStatus,
+    FailureReason, TaskStatus, TaskTypes, settings,
     REDIS_ENHANCE_EVENT_KEY, REDIS_ENHANCE_MASTER_KEY,
     MASTER_TASK_TTL,
 )
 from core.consumers.dlq.base import BaseDLQConsumer
+from core.rabbitmq import rabbitmq_service
 from core.services.notification_service import NotificationService
 
 logger = logging.getLogger("enhance_dlq_consumer")
@@ -44,12 +44,18 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
 
     def _get_handler(self, failure_reason: str) -> Callable:
         handlers: dict[str, Callable] = {
+            # FailureReason.THUMBNAIL_ERROR: self._handle_recoverable,
+            # FailureReason.TRANSCODE_ERROR: self._handle_recoverable,
+            # FailureReason.CONTENT_EXTRACT_ERROR: self._handle_recoverable,
+            # FailureReason.CONTENT_INDEX_ERROR: self._handle_recoverable,
+            # FailureReason.OFFICE_TO_PDF_ERROR: self._handle_recoverable,
+            # FailureReason.ARCHIVE_PARSE_ERROR: self._handle_recoverable,
+            # FailureReason.UNKNOWN: self._handle_recoverable,
             FailureReason.THUMBNAIL_ERROR: self._handle_degraded,
             FailureReason.TRANSCODE_ERROR: self._handle_degraded,
             FailureReason.CONTENT_EXTRACT_ERROR: self._handle_degraded,
             FailureReason.CONTENT_INDEX_ERROR: self._handle_degraded,
             FailureReason.OFFICE_TO_PDF_ERROR: self._handle_degraded,
-            FailureReason.MARKDOWN_TO_HTML_ERROR: self._handle_degraded,
             FailureReason.ARCHIVE_PARSE_ERROR: self._handle_degraded,
             FailureReason.UNKNOWN: self._handle_unknown,
         }
@@ -62,7 +68,7 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
         增强失败不更新总任务状态（增强不影响文件可用性）
         """
         enhance_task_id = data.get("enhance_task_id", "")
-        stage = data.get("stage", "unknown")
+        stage = str(data.get("stage") or data.get("task_type") or "unknown")
 
         if not enhance_task_id:
             logger.warning("[ENHANCE-DLQ] 缺少 enhance_task_id，无法更新事件状态")
@@ -82,6 +88,80 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
             )
         except Exception as e:
             logger.error(f"[ENHANCE-DLQ] 更新 Redis 失败状态失败: {e}")
+
+    async def _handle_recoverable(self, data: dict) -> bool:
+        """对增强死信执行有界自动恢复，耗尽后再进入透明降级和告警流程。"""
+        stage = str(data.get("stage") or data.get("task_type") or "unknown")
+        routing_keys = {
+            TaskTypes.THUMBNAIL: settings.file_enhance_thumbnail_routing_key,
+            TaskTypes.VIDEO_TRANSCODE: settings.file_enhance_transcode_routing_key,
+            TaskTypes.HLS_TRANSCODE: settings.file_enhance_hls_routing_key,
+            TaskTypes.CONTENT_INDEX: settings.file_enhance_index_routing_key,
+            TaskTypes.OFFICE_TO_PDF: settings.file_enhance_office_to_pdf_routing_key,
+            TaskTypes.ARCHIVE_PARSE: settings.file_enhance_archive_parse_routing_key,
+        }
+        try:
+            recovery_count = max(0, int(data.get("dlq_recovery_count") or 0))
+        except (TypeError, ValueError):
+            recovery_count = 0
+
+        if stage in routing_keys and recovery_count < settings.enhance_dlq_recovery_max_attempts:
+            next_recovery = recovery_count + 1
+            delay = min(
+                settings.retry_base_delay_seconds * (2 ** recovery_count),
+                settings.retry_max_delay_seconds,
+            )
+            retry_data = dict(data)
+            retry_data.update({
+                "stage": stage,
+                "task_type": stage,
+                # AUDIT FIX [7.4]（需求一-3）:
+                # DLQ 恢复是新的、有界重试周期；阶段内 retry_count 归零，独立计数防止无限循环。
+                "retry_count": 0,
+                "dlq_recovery_count": next_recovery,
+                "failure_reason": str(data.get("failure_reason") or FailureReason.UNKNOWN),
+            })
+            from app.core.redis_client import redis_client
+            enhance_task_id = str(data.get("enhance_task_id") or "")
+            if enhance_task_id:
+                await redis_client.delete(
+                    REDIS_ENHANCE_EVENT_KEY.format(enhance_task_id=enhance_task_id, stage=stage)
+                )
+
+            await rabbitmq_service.publish_message(
+                exchange_name=settings.file_enhance_exchange,
+                routing_key=f"{routing_keys[stage]}.retry",
+                message=retry_data,
+                delay_seconds=delay,
+            )
+            await self._log_dlq_action(
+                retry_data,
+                "AUTO_RETRY",
+                f"增强死信将在 {delay} 秒后执行第 {next_recovery} 次恢复",
+                source="file_enhance",
+            )
+            from app.repositories.dlq_record_repository import dlq_record_repository
+            await dlq_record_repository.update_disposition(
+                source_queue="file_enhance",
+                stage=stage,
+                payload=retry_data,
+                status="retrying",
+                note=f"第 {next_recovery} 次自动恢复已进入持久化延迟队列",
+            )
+            logger.warning(
+                "[ENHANCE-DLQ] AUTO_RETRY stage=%s file_id=%s recovery=%s/%s delay=%ss",
+                stage,
+                data.get("file_id"),
+                next_recovery,
+                settings.enhance_dlq_recovery_max_attempts,
+                delay,
+            )
+            return True
+
+        # 未知阶段不能安全路由；已耗尽的已知阶段也必须停止重试并进入降级。
+        if stage not in routing_keys:
+            return await self._handle_unknown(data)
+        return await self._handle_degraded(data)
 
     async def _handle_degraded(self, data: dict) -> bool:
         """
@@ -125,6 +205,27 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
         except Exception as e:
             logger.error(f"[ENHANCE-DLQ] 通知业务服务失败: {e}")
 
+        await NotificationService.notify_ops_alert(
+            title=f"文件增强任务自动恢复耗尽: {stage}",
+            severity="warning",
+            details={
+                "file_id": file_id,
+                "enhance_task_id": data.get("enhance_task_id"),
+                "failure_reason": reason,
+                "failure_detail": data.get("failure_detail"),
+                "dlq_recovery_count": data.get("dlq_recovery_count", 0),
+            },
+        )
+
+        # from app.repositories.dlq_record_repository import dlq_record_repository
+        # await dlq_record_repository.update_disposition(
+        #     source_queue="file_enhance",
+        #     stage=stage,
+        #     payload=data,
+        #     status="discarded",
+        #     note="自动恢复次数耗尽，文件已标记为 degraded",
+        # )
+
         return True
 
     async def _handle_unknown(self, data: dict) -> bool:
@@ -140,6 +241,31 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
             f"未知失败: {data.get('failure_reason')}",
             source="file_enhance",
         )
+        # AUDIT FIX [7.4]（需求一-3）: 未知阶段不盲目路由，持久化丢弃状态并输出高等级告警日志。
+        logger.critical(
+            "[ENHANCE-DLQ] ALERT 未知增强阶段需人工介入: file_id=%s payload_stage=%s",
+            data.get("file_id"),
+            data.get("stage"),
+        )
+        await NotificationService.notify_ops_alert(
+            title="文件增强死信任务类型无法识别",
+            severity="critical",
+            details={
+                "file_id": data.get("file_id"),
+                "enhance_task_id": data.get("enhance_task_id"),
+                "stage": data.get("stage"),
+                "failure_reason": data.get("failure_reason"),
+                "failure_detail": data.get("failure_detail"),
+            },
+        )
+        # from app.repositories.dlq_record_repository import dlq_record_repository
+        # await dlq_record_repository.update_disposition(
+        #     source_queue="file_enhance",
+        #     stage=str(data.get("stage") or "unknown"),
+        #     payload=data,
+        #     status="discarded",
+        #     note="任务类型无法识别，已停止自动重试并触发告警",
+        # )
         return True
 
 

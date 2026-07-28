@@ -101,8 +101,9 @@ export function checkFolderStarredApi(node_id: string): Promise<boolean> {
 
 /**
  * 获取收藏列表（含文件/文件夹详情，分页）
+ * 后端返回统一格式 { code: 200, message: null, data: StarredItem[] }
  */
-export function getStarredItemsApi(page: number = 1, pageSize: number = 50): Promise<StarredItem[]> {
+export function getStarredItemsApi(page: number = 1, pageSize: number = 50): Promise<{ code: number; message: string | null; data: StarredItem[] }> {
   return get(`business/stars/?page=${page}&pageSize=${pageSize}`)
 }
 
@@ -115,15 +116,17 @@ export function countStarredItemsApi(): Promise<number> {
 
 /**
  * 获取收藏的文件ID列表（用于批量判断收藏状态）
+ * 后端返回统一格式 { code: 200, message: null, data: string[] }
  */
-export function getStarredFileIdsApi(): Promise<string[]> {
+export function getStarredFileIdsApi(): Promise<{ code: number; message: string | null; data: string[] }> {
   return get('business/stars/file-ids')
 }
 
 /**
  * 获取收藏的文件夹ID列表（用于批量判断收藏状态）
+ * 后端返回统一格式 { code: 200, message: null, data: string[] }
  */
-export function getStarredNodeIdsApi(): Promise<string[]> {
+export function getStarredNodeIdsApi(): Promise<{ code: number; message: string | null; data: string[] }> {
   return get('business/stars/folder-ids')
 }
 

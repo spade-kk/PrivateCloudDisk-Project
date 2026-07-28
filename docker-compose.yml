@@ -363,6 +363,13 @@ services:
       QUARANTINE_DIR: /data/uploads/quarantine
       REDIS_URL: redis://redis:6379/0
       BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
+      # AUDIT FIX [8.3]: 预览资源元数据、播放进度和死信台账持久化连接。
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 123456
+      MYSQL_DATABASE: private_cloud_disk
+      OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
 
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
@@ -384,6 +391,16 @@ services:
       MAX_REQUESTS_PER_OPERATION_TOKEN: 300
       RATE_PER_SEC: 10
       MAX_RANGE_BYTES: 104857600
+      # 需求三：原始内容 Preview Token 的短有效期、并发和体积边界，可按环境覆盖。
+      PREVIEW_GRANT_TTL_SECONDS: ${PREVIEW_GRANT_TTL_SECONDS:-120}
+      PREVIEW_GRANT_USER_MAX_ACTIVE: ${PREVIEW_GRANT_USER_MAX_ACTIVE:-6}
+      PREVIEW_GRANT_USER_IP_MAX_ACTIVE: ${PREVIEW_GRANT_USER_IP_MAX_ACTIVE:-3}
+      PREVIEW_GRANT_MAX_REQUESTS: ${PREVIEW_GRANT_MAX_REQUESTS:-24}
+      PREVIEW_GRANT_RATE_PER_SEC: ${PREVIEW_GRANT_RATE_PER_SEC:-6}
+      PREVIEW_GRANT_MAX_CONCURRENT: ${PREVIEW_GRANT_MAX_CONCURRENT:-2}
+      PREVIEW_TEXT_MAX_BYTES: ${PREVIEW_TEXT_MAX_BYTES:-10485760}
+      PREVIEW_IMAGE_MAX_BYTES: ${PREVIEW_IMAGE_MAX_BYTES:-26214400}
+      PREVIEW_MAX_RANGE_BYTES: ${PREVIEW_MAX_RANGE_BYTES:-8388608}
       THUMBNAIL_TTL: 3600
       OPERATION_TOKEN_ISSUE_FILE_LIMIT: 10
       OPERATION_TOKEN_ISSUE_FILE_WINDOW_SECONDS: 60
@@ -410,6 +427,7 @@ services:
     depends_on:
       - rabbitmq
       - redis
+      - mysql
       - platform-service-backend
     environment:
       RABBITMQ_HOST: rabbitmq
@@ -420,6 +438,13 @@ services:
       FILE_UPLOAD_DIR: /data/uploads
       REDIS_URL: redis://redis:6379/0
       BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 123456
+      MYSQL_DATABASE: private_cloud_disk
+      # 需求一-3：可选的企业运维告警入口，未配置时降级为日志 + MySQL 死信台账。
+      OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
       PRIVATE_KEY_PATH: /backend_file_service/private_key.pem
       PUBLIC_KEY_PATH: /backend_file_service/public_key.pem
 

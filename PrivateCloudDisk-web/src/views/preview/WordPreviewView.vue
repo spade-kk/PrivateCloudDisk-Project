@@ -305,6 +305,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOfficePreviewStore } from '@/stores/officePreviewStore'
+import { buildAuthenticatedPdfSource } from '@/utils/pdfPreviewAuth'
 import { useToastStore } from '@/stores/toastStore'
 import PreviewToolbar from '@/components/preview/shared/PreviewToolbar.vue'
 
@@ -417,7 +418,7 @@ async function loadPdfIntoCanvas(): Promise<void> {
     const pdfUrl = store.previewUrl
     if (!pdfUrl) throw new Error('预览 URL 不可用')
 
-    const loadingTask = pdfjsLib.getDocument(pdfUrl)
+    const loadingTask = pdfjsLib.getDocument(buildAuthenticatedPdfSource(pdfUrl))
     pdfDoc.value = await loadingTask.promise
     await renderPage(store.config.currentPage)
   } catch (err: any) {

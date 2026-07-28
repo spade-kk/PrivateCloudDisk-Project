@@ -105,15 +105,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { sendVerificationCodeApi } from '@/api/modules/users'
-import { useAuthStore } from '@/stores/authStore'
+import { useToastStore } from '@/stores/toastStore'
 
 const emit = defineEmits<{
   loginSuccess: []
   loginError: [message: string]
 }>()
 
-const authStore = useAuthStore()
+const toastStore = useToastStore()
 
 const loginType = ref<'phone' | 'email'>('phone')
 const target = ref('')
@@ -123,7 +122,6 @@ const formError = ref('')
 const focusedField = ref('')
 const countdown = ref(0)
 const codeSent = ref(false)
-const captchaToken = ref('')
 
 const typeOptions = [
   { value: 'phone', label: '手机验证码', icon: 'fa fa-mobile' },
@@ -141,41 +139,23 @@ function clearFormError() {
 
 async function sendCode() {
   if (!targetValid.value || countdown.value > 0) return
-
-  try {
-    const res = await sendVerificationCodeApi(
-      target.value,
-      captchaToken.value || '',
-      'code_login',
-      'login',
-    )
-    if (res.code === 200) {
-      codeSent.value = true
-      countdown.value = 60
-      const timer = setInterval(() => {
-        countdown.value--
-        if (countdown.value <= 0) clearInterval(timer)
-      }, 1000)
-    } else {
-      formError.value = res.message || '发送验证码失败'
-    }
-  } catch (e: any) {
-    formError.value = e?.message || '发送验证码失败'
-  }
+  /*
+   * 【需求十一改动说明】
+   * 原行为：未确认服务端契约时仍调用验证码接口，容易产生 404 和无效风控计数。
+   * 新行为：保留完整 UI 与此函数作为后续接入定位点，当前只展示友好提示，不发起网络请求。
+   */
+  const message = `${loginType.value === 'phone' ? '手机号' : '邮箱'}验证码登录正在开发中，敬请期待`
+  formError.value = message
+  toastStore.showToast(message, 'info')
 }
 
 async function handleSubmit() {
   formError.value = ''
   if (!targetValid.value || code.value.length !== 6) return
-
-  loading.value = true
-  const result = await authStore.codeLogin(target.value, code.value, loginType.value, captchaToken.value)
-  loading.value = false
-
-  if (result.success) {
-    emit('loginSuccess')
-  } else {
-    formError.value = result.message || '验证码登录失败'
-  }
+  // 【需求十一】后端验证码登录正式开放后，在此处恢复 authStore.codeLogin 调用。
+  const message = '验证码登录正在开发中，敬请期待'
+  formError.value = message
+  toastStore.showToast(message, 'info')
+  emit('loginError', message)
 }
 </script>

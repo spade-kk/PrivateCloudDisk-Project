@@ -14,13 +14,14 @@ public interface UserService {
      *
      * @param account 账号（可选，与 phoneNumber 二选一）
      * @param phoneNumber 手机号（可选，与 account 二选一）
+     * @param email 邮箱（可选）
      * @param password 密码
      * @param captchaToken 人机验证 token
      * @param captchaAction 人机验证动作
      * @param clientIp 客户端 IP
      * @return JWT 令牌
      */
-    String login(String account, String phoneNumber, String password,
+    String login(String account, String phoneNumber, String email, String password,
                  String captchaToken, String captchaAction, String clientIp);
 
     /**

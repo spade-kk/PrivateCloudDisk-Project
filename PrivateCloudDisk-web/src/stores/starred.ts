@@ -69,16 +69,24 @@ export const useStarredStore = defineStore('starred', () => {
   /**
    * 初始化收藏ID集合（在用户登录后调用一次）
    * 只加载 ID 列表，不加载详情，性能开销小。
+   *
+   * 后端返回统一格式 { code: 200, message: null, data: [...] }
+   * 需先解包 code/data 再使用，遵循项目统一的响应处理规范。
    */
   async function initStarredIds(): Promise<void> {
     if (initialized.value) return
     try {
-      const [fileIds, nodeIds] = await Promise.all([
+      const [fileRes, nodeRes] = await Promise.all([
         getStarredFileIdsApi(),
         getStarredNodeIdsApi(),
       ])
-      starredFileIds.value = new Set(fileIds)
-      starredNodeIds.value = new Set(nodeIds)
+      // 解包响应：提取 data 字段，确保 Set 中存储的是 ID 字符串而非整个响应对象
+      if (fileRes && (fileRes as any).code === 200 && (fileRes as any).data) {
+        starredFileIds.value = new Set((fileRes as any).data as string[])
+      }
+      if (nodeRes && (nodeRes as any).code === 200 && (nodeRes as any).data) {
+        starredNodeIds.value = new Set((nodeRes as any).data as string[])
+      }
       initialized.value = true
     } catch (err) {
       console.error('[StarredStore] 初始化收藏ID失败:', err)
@@ -179,14 +187,22 @@ export const useStarredStore = defineStore('starred', () => {
 
   /**
    * 获取收藏列表（含文件/文件夹详情，转换为前端节点格式）
+   *
+   * 后端返回统一格式 { code: 200, message: null, data: StarredItem[] }
+   * 需先校验 code === 200，再从 data 中提取列表并转换为 StarredNode 格式。
    */
   async function fetchStarredNodes(page: number = 1, pageSize: number = 50): Promise<StarredNode[]> {
     loading.value = true
     try {
-      const items: StarredItem[] = await getStarredItemsApi(page, pageSize)
+      const res: any = await getStarredItemsApi(page, pageSize)
+      // 校验业务状态码，失败时抛出错误由上层处理
+      if (res.code !== 200 || !res.data) {
+        throw new Error(res.message || '加载收藏列表失败')
+      }
+      const items: StarredItem[] = res.data
       const nodes = items.map(starredItemToNode)
       starredNodes.value = nodes
-      // 同步更新ID集合
+      // 同步更新ID集合（用于快速判断收藏状态）
       for (const item of items) {
         if (item.target_type === 'folder') {
           starredNodeIds.value.add(item.target_id)

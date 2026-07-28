@@ -51,6 +51,16 @@
           AND star_target_type = 'folder'
     </delete>
 
+    <!--
+        AUDIT FIX [3.2] 仅供文件永久删除事务调用。
+        软删除与回收站操作不会执行该 SQL，因此收藏关系可在恢复后自动重新可见。
+    -->
+    <delete id="deleteAllByFileId">
+        DELETE FROM pcd_file_star_table
+        WHERE star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND star_target_type = 'file'
+    </delete>
+
     <!-- ==================== 查询 ==================== -->
 
     <select id="findFileStarByUserIdAndFileId" resultMap="FileStarEntityMap">
@@ -68,17 +78,41 @@
     </select>
 
     <select id="findStarredFileIdsByUserId" resultType="string">
-        SELECT star_file_id FROM pcd_file_star_table
-        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND star_target_type = 'file'
-        ORDER BY star_starred_at DESC
+        SELECT s.star_file_id
+        FROM pcd_file_star_table s
+        INNER JOIN pcd_file_info_table f ON s.star_file_id = f.file_id
+        WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND s.star_target_type = 'file'
+          AND f.file_status = 'active'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pcd_directory_closure_table c
+              INNER JOIN pcd_directory_tree_table ancestor_node
+                  ON ancestor_node.node_id = c.ancestor_id
+              WHERE c.descendant_id = f.file_node_id
+                AND c.user_id = f.file_author_id
+                AND ancestor_node.node_status IN ('trashed', 'deleted')
+          )
+        ORDER BY s.star_starred_at DESC
     </select>
 
     <select id="findStarredNodeIdsByUserId" resultType="string">
-        SELECT star_node_id FROM pcd_file_star_table
-        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND star_target_type = 'folder'
-        ORDER BY star_starred_at DESC
+        SELECT s.star_node_id
+        FROM pcd_file_star_table s
+        INNER JOIN pcd_directory_tree_table d ON s.star_node_id = d.node_id
+        WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND s.star_target_type = 'folder'
+          AND d.node_status NOT IN ('trashed', 'deleted')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM pcd_directory_closure_table c
+              INNER JOIN pcd_directory_tree_table ancestor_node
+                  ON ancestor_node.node_id = c.ancestor_id
+              WHERE c.descendant_id = d.node_id
+                AND c.user_id = d.node_user_id
+                AND ancestor_node.node_status IN ('trashed', 'deleted')
+          )
+        ORDER BY s.star_starred_at DESC
     </select>
 
     <!--
@@ -103,14 +137,76 @@
         LEFT JOIN pcd_directory_tree_table d
             ON s.star_node_id = d.node_id AND s.star_target_type = 'folder'
         WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND (f.file_id IS NOT NULL OR d.node_id IS NOT NULL)
+          AND (
+              (
+                  s.star_target_type = 'file'
+                  AND f.file_status = 'active'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pcd_directory_closure_table c
+                      INNER JOIN pcd_directory_tree_table ancestor_node
+                          ON ancestor_node.node_id = c.ancestor_id
+                      WHERE c.descendant_id = f.file_node_id
+                        AND c.user_id = f.file_author_id
+                        AND ancestor_node.node_status IN ('trashed', 'deleted')
+                  )
+              )
+              OR
+              (
+                  s.star_target_type = 'folder'
+                  AND d.node_status NOT IN ('trashed', 'deleted')
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pcd_directory_closure_table c
+                      INNER JOIN pcd_directory_tree_table ancestor_node
+                          ON ancestor_node.node_id = c.ancestor_id
+                      WHERE c.descendant_id = d.node_id
+                        AND c.user_id = d.node_user_id
+                        AND ancestor_node.node_status IN ('trashed', 'deleted')
+                  )
+              )
+          )
         ORDER BY s.star_starred_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="countStarredItemsByUserId" resultType="int">
-        SELECT COUNT(*) FROM pcd_file_star_table
-        WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        SELECT COUNT(*)
+        FROM pcd_file_star_table s
+        LEFT JOIN pcd_file_info_table f
+            ON s.star_file_id = f.file_id AND s.star_target_type = 'file'
+        LEFT JOIN pcd_directory_tree_table d
+            ON s.star_node_id = d.node_id AND s.star_target_type = 'folder'
+        WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+              (
+                  s.star_target_type = 'file'
+                  AND f.file_status = 'active'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pcd_directory_closure_table c
+                      INNER JOIN pcd_directory_tree_table ancestor_node
+                          ON ancestor_node.node_id = c.ancestor_id
+                      WHERE c.descendant_id = f.file_node_id
+                        AND c.user_id = f.file_author_id
+                        AND ancestor_node.node_status IN ('trashed', 'deleted')
+                  )
+              )
+              OR
+              (
+                  s.star_target_type = 'folder'
+                  AND d.node_status NOT IN ('trashed', 'deleted')
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pcd_directory_closure_table c
+                      INNER JOIN pcd_directory_tree_table ancestor_node
+                          ON ancestor_node.node_id = c.ancestor_id
+                      WHERE c.descendant_id = d.node_id
+                        AND c.user_id = d.node_user_id
+                        AND ancestor_node.node_status IN ('trashed', 'deleted')
+                  )
+              )
+          )
     </select>
 
 </mapper>

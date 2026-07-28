@@ -78,12 +78,12 @@
           <router-link
             v-else
             :to="item.path"
-            v-slot="{ isActive }"
+            v-slot="{ isExactActive }"
           >
             <a
               class="mx-2 flex min-h-11 items-center rounded-lg px-4 py-3 text-neutral-600 transition hover:bg-primary/10 hover:text-primary"
               :class="[
-                isActive || isItemActive(item) ? 'bg-primary/10 text-primary font-medium' : '',
+                isExactActive || isItemActive(item) ? 'bg-primary/10 text-primary font-medium' : '',
                 collapsed ? 'lg:justify-center' : ''
               ]"
             >

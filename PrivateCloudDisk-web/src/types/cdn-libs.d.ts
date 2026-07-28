@@ -88,4 +88,5 @@ declare module 'dompurify' {
   export default DOMPurify
 }
 
-export {}
+// 注意：本文件必须保持为全局声明脚本，不能添加 export；否则这些声明会变为对不存在模块的增强，
+// vue-tsc 仍会报告 TS2307。运行时依旧完全由 CDN loader 提供，不会把依赖打入构建产物。

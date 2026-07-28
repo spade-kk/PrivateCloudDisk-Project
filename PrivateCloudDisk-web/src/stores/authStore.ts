@@ -63,11 +63,12 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value
   }
 
-  async function login(phoneNumber: string, password: string, captchaToken: string = ''): Promise<{ success: boolean; message?: string; scope?: string }> {
+  async function login(identifier: string, password: string, captchaToken: string = ''): Promise<{ success: boolean; message?: string; scope?: string }> {
     try {
       // 客户端密码预哈希 - 密码明文永不离开浏览器
       const hashedPassword = await hashPasswordForTransport(password)
-      const res = await loginApi(phoneNumber, hashedPassword, captchaToken, 'login')
+      // 【需求九】统一账号输入由 API 层根据格式映射为 account / phone_number / email。
+      const res = await loginApi(identifier.trim(), hashedPassword, captchaToken, 'login')
       if (res.code === 200) {
         saveTokenFromResponse(res.data)
         return { success: true }
@@ -76,7 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error: unknown) {
       const err = error as ApiErrorLike
       if (err.isBusinessError) {
-        return { success: false, message: err.message || '手机号或密码错误', scope: 'form' }
+        return { success: false, message: err.message || '账号或密码错误', scope: 'form' }
       }
       return { success: false, message: err.message || '网络错误，请稍后重试', scope: 'network' }
     }

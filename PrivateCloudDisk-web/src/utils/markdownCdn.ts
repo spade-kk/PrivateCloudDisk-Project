@@ -16,15 +16,18 @@
 //   md.render('# Hello')
 // ============================================================
 
-import { createSingletonLoader, loadScript } from './cdnLoader'
+import { createSingletonLoader } from './cdnLoader'
 
 // ============================================================
 // 版本与 CDN 配置
 // ============================================================
 // 使用 jsdelivr CDN，与 index.html 中预连接的域名保持一致
-const MARKDOWN_IT_VERSION = '14.3.0'
-const MARKDOWN_IT_ANCHOR_VERSION = '9.2.1'
-const MARKDOWN_IT_EMOJI_VERSION = '3.0.0'
+// AUDIT FIX [2.3]（需求一-4/5）:
+// 原版本/文件名组合中 anchor@9.2.1 不存在，且插件全局名大小写不匹配，会返回 404 文本并被 nosniff 拒绝。
+// 按需求固定 markdown-it 13.0.1，并选用各包真实发布的 UMD 构建。
+const MARKDOWN_IT_VERSION = '13.0.1'
+const MARKDOWN_IT_ANCHOR_VERSION = '8.6.7'
+const MARKDOWN_IT_EMOJI_VERSION = '2.0.2'
 const MARKDOWN_IT_TOC_VERSION = '1.2.0'
 const MARKDOWN_IT_TASK_LISTS_VERSION = '2.1.1'
 
@@ -41,7 +44,8 @@ const CDN_BASE = 'https://cdn.jsdelivr.net/npm'
 export const loadMarkdownIt = createSingletonLoader<typeof import('markdown-it').default>({
   url: `${CDN_BASE}/markdown-it@${MARKDOWN_IT_VERSION}/dist/markdown-it.min.js`,
   globalName: 'markdownit',
-  timeout: 30_000,
+  timeout: 12_000,
+  maxRetries: 1,
   // transform：UDM 包暴露的是构造函数本身，window.markdownit 即构造函数
   transform: (val) => val as typeof import('markdown-it').default,
 })
@@ -52,9 +56,10 @@ export const loadMarkdownIt = createSingletonLoader<typeof import('markdown-it')
  */
 export const loadMarkdownItAnchor =
   createSingletonLoader<typeof import('markdown-it-anchor').default>({
-    url: `${CDN_BASE}/markdown-it-anchor@${MARKDOWN_IT_ANCHOR_VERSION}/dist/markdown-it-anchor.min.js`,
+    url: `${CDN_BASE}/markdown-it-anchor@${MARKDOWN_IT_ANCHOR_VERSION}/dist/markdownItAnchor.umd.js`,
     globalName: 'markdownItAnchor',
-    timeout: 20_000,
+    timeout: 10_000,
+    maxRetries: 1,
     transform: (val) => val as typeof import('markdown-it-anchor').default,
   })
 
@@ -64,13 +69,14 @@ export const loadMarkdownItAnchor =
  */
 export const loadMarkdownItEmoji =
   createSingletonLoader<typeof import('markdown-it-emoji').default>({
-    url: `${CDN_BASE}/markdown-it-emoji@${MARKDOWN_IT_EMOJI_VERSION}/dist/markdown-it-emoji.min.js`,
+    url: `https://cdnjs.cloudflare.com/ajax/libs/markdown-it-emoji/${MARKDOWN_IT_EMOJI_VERSION}/markdown-it-emoji.min.js`,
     globalName: 'markdownItEmoji',
-    timeout: 20_000,
+    timeout: 10_000,
+    maxRetries: 1,
     transform: (val) => val as typeof import('markdown-it-emoji').default,
   })
 
-/**
+/** (已经放弃 不加载 函数不使用  插件不加载)
  * 加载 markdown-it-table-of-contents 插件
  * UMD 全局变量：`markdownItToc`
  *
@@ -103,9 +109,10 @@ export const loadMarkdownItToc = createSingletonLoader<
 export const loadMarkdownItTaskLists = createSingletonLoader<
   typeof import('markdown-it-task-lists').default
 >({
-  url: `${CDN_BASE}/markdown-it-task-lists@${MARKDOWN_IT_TASK_LISTS_VERSION}/dist/markdown-it-task-lists.min.js`,
-  globalName: 'markdownItTaskLists',
-  timeout: 20_000,
+    url: `${CDN_BASE}/markdown-it-task-lists@${MARKDOWN_IT_TASK_LISTS_VERSION}/dist/markdown-it-task-lists.min.js`,
+    globalName: 'markdownItTaskLists',
+    timeout: 10_000,
+    maxRetries: 1,
   transform: (val) => val as typeof import('markdown-it-task-lists').default,
 })
 
@@ -132,12 +139,11 @@ export const loadMarkdownItTaskLists = createSingletonLoader<
  */
 export async function loadMarkdownItWithPlugins(options?: {
   highlightFn?: (code: string, lang: string) => string
-}): Promise<import('markdown-it').default> {
+}): Promise<import('markdown-it').MarkdownIt> {
   // 并行加载 markdown-it 主库与所有插件
-  const [MarkdownIt, anchor, toc, emoji, taskLists] = await Promise.all([
+  const [MarkdownIt, anchor, emoji, taskLists] = await Promise.all([
     loadMarkdownIt(),
     loadMarkdownItAnchor().catch(() => null),
-    loadMarkdownItToc().catch(() => null),
     loadMarkdownItEmoji().catch(() => null),
     loadMarkdownItTaskLists().catch(() => null),
   ])
@@ -172,9 +178,8 @@ export async function loadMarkdownItWithPlugins(options?: {
     })
   }
 
-  if (toc) {
-    md.use(toc, { includeLevel: [1, 2, 3] })
-  }
+  // 原有 markdown-it-table-of-contents 包未发布浏览器 UMD 构建，因此不再向页面注入一个必定 404 的脚本。
+  // 目录仍由 MarkdownPreview.extractOutline 从最终 DOM 构建，功能保持完整且锚点来源唯一。
 
   if (emoji) {
     md.use(emoji)
@@ -194,7 +199,6 @@ export function preloadMarkdownLibs(): void {
   Promise.allSettled([
     loadMarkdownIt(),
     loadMarkdownItAnchor(),
-    loadMarkdownItToc(),
     loadMarkdownItEmoji(),
     loadMarkdownItTaskLists(),
   ]).catch(() => {

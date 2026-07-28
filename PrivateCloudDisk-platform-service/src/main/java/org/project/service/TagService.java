@@ -6,6 +6,7 @@ import org.project.model.vo.TagVO;
 import org.project.model.vo.TaggedFileVO;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -46,6 +47,9 @@ public interface TagService {
 
     /** 批量获取文件夹标签 */
     List<FileTagEntity> getFolderTagsBatch(UUID user_id, List<UUID> node_ids);
+
+    /** 批量获取文件及目录标签，并按目标 UUID 分组。 */
+    Map<String, List<TagVO>> getTagsBatch(UUID user_id, List<UUID> file_ids, List<UUID> folder_ids);
 
     // ==================== 按标签查询 ====================
 

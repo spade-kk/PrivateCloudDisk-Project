@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     operation_tokens, files, uploads, tasks, download_grants,
     video_stream, video_progress, video_sprite, video_subtitle,
     video_history, video_player,
+    preview_resources, preview_grants,
 )
 
 
@@ -26,3 +27,5 @@ api_router.include_router(video_sprite.router)
 api_router.include_router(video_subtitle.router)
 api_router.include_router(video_history.router)
 api_router.include_router(video_player.router)
+api_router.include_router(preview_resources.router)
+api_router.include_router(preview_grants.router)

@@ -445,7 +445,10 @@ export default defineConfig(({ command, mode }) => {
     build: {
       // === 目标浏览器 ===
       // 设置合适的 target 影响语法降级程度
-      target: 'es2020',
+      // AUDIT FIX [2.4]（需求一-7）:
+      // 原行为只输出 ES2020，较旧 Safari 解析阶段即可白屏；新行为保留现代能力并显式覆盖 Safari 13。
+      target: ['es2018', 'safari13'],
+      cssTarget: 'safari13',
 
       // === Source Map ===
       // 生产环境禁用 source map（防止源码泄露，减小体积）

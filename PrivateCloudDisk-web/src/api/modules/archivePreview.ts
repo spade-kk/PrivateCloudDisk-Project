@@ -88,7 +88,8 @@ export interface ArchiveTreeData {
  * @returns Promise<ArchivePreviewInfo> 预览状态信息
  */
 export function getArchivePreviewInfoApi(fileId: string): Promise<ArchivePreviewInfo> {
-  return get(`business/files/${fileId}/archive-preview-status`)
+  // AUDIT FIX [7.1]: 压缩包预览由文件存储服务的持久化资源接口提供，不再误请求主业务服务。
+  return get<any>(`files/files/${fileId}/archive-preview-status`).then(response => response.data || response)
 }
 
 /**
@@ -102,5 +103,5 @@ export function getArchivePreviewInfoApi(fileId: string): Promise<ArchivePreview
  * @returns Promise<ArchiveTreeData> 目录树数据
  */
 export function getArchiveTreeApi(fileId: string): Promise<ArchiveTreeData> {
-  return get(`business/files/${fileId}/archive-tree`)
+  return get<any>(`files/files/${fileId}/archive-tree`).then(response => response.data || response)
 }

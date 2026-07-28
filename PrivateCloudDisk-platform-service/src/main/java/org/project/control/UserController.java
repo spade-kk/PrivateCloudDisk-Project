@@ -58,6 +58,7 @@ public class UserController extends BaseController {
         String token = userService.login(
                 loginRequest.getAccount(),
                 loginRequest.getPhone_number(),
+                loginRequest.getEmail(),
                 loginRequest.getPassword(),
                 loginRequest.getCaptcha_token(),
                 loginRequest.getCaptcha_action(),

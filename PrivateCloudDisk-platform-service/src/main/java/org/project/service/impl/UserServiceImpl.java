@@ -68,13 +68,14 @@ public class UserServiceImpl implements UserService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
-    public String login(String account, String phoneNumber, String password,
+    public String login(String account, String phoneNumber, String email, String password,
                         String captchaToken, String captchaAction, String clientIp) {
         // 1. 业务层限流：登录失败次数检查（IP 维度 + 账号维度）
         // 构造临时 LoginRequest 用于兼容现有的 ApiAbuseProtectionService
         LoginRequest tempRequest = new LoginRequest();
         tempRequest.setAccount(account);
         tempRequest.setPhone_number(phoneNumber);
+        tempRequest.setEmail(email);
         apiAbuseProtectionService.checkLoginStart(tempRequest, clientIp);
 
         try {
@@ -85,13 +86,15 @@ public class UserServiceImpl implements UserService {
                     clientIp);
 
             // 3. 账号密码认证
-            if (account == null && phoneNumber == null) {
+            if (account == null && phoneNumber == null && email == null) {
                 throw new AccountOrPhoneNumberException();
             }
 
             UserEntity result;
             if (account != null) {
                 result = userMapper.findUserByAccount(account);
+            } else if (email != null) {
+                result = userMapper.findUserByEmail(email.trim().toLowerCase());
             } else {
                 result = userMapper.findUserByPhoneNumber(phoneNumber);
             }
@@ -104,6 +107,9 @@ public class UserServiceImpl implements UserService {
                     (!result.getAccount().equals(account) ||
                             !result.getPhone_number().equals(phoneNumber))) {
                 throw new AccountOrPhoneNumberException("用户账号手机号不匹配");
+            }
+            if (email != null && (result.getEmail() == null || !result.getEmail().equalsIgnoreCase(email.trim()))) {
+                throw new AccountOrPhoneNumberException("用户邮箱不匹配");
             }
 
             if (!passwordMatches(password, result.getPassword())) {
@@ -124,6 +130,7 @@ public class UserServiceImpl implements UserService {
             tempRequest = new LoginRequest();
             tempRequest.setAccount(account);
             tempRequest.setPhone_number(phoneNumber);
+            tempRequest.setEmail(email);
             apiAbuseProtectionService.recordLoginFailure(tempRequest, clientIp);
             throw e;
         }

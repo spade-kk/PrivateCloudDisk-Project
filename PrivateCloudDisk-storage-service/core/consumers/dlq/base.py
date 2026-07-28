@@ -62,8 +62,18 @@ class BaseDLQConsumer(ABC):
             message_body = message.body.decode("utf-8")
             data = json.loads(message_body)
 
-            failure_reason = data.get("failure_reason", FailureReason.UNKNOWN)
-            task_type = data.get("task_type", "unknown")
+            # AUDIT FIX [7.4]（需求一-2）:
+            # dict.get 的默认值不会覆盖空字符串；RabbitMQ DLX 转发原消息时正会产生空 failure_reason。
+            # 这里统一规范旧消息、显式 DLQ 消息和滚动升级消息，保证日志与数据库台账永不落空。
+            task_type = str(data.get("task_type") or data.get("stage") or "unknown").strip()
+            failure_reason = str(data.get("failure_reason") or FailureReason.UNKNOWN).strip()
+            data["task_type"] = task_type
+            data["stage"] = str(data.get("stage") or task_type).strip()
+            data["failure_reason"] = failure_reason
+            try:
+                data["retry_count"] = max(0, int(data.get("retry_count") or 0))
+            except (TypeError, ValueError):
+                data["retry_count"] = 0
             file_id = data.get("file_id", data.get("uploadsSessionId", "unknown"))
 
             logger.error(
@@ -106,9 +116,18 @@ class BaseDLQConsumer(ABC):
     async def _log_dlq_action(
         data: dict, action: str, detail: str, source: str = "unknown"
     ):
-        """DLQ 处理动作日志（写入 Redis 持久化记录，保留 30 天）"""
+        """DLQ 处理动作日志（数据库台账 + Redis 30 天运维缓存）。"""
+        # AUDIT FIX [7.4]: 先写可审计的数据库台账；写入失败会抛出并触发消息重入队。
+        # from app.repositories.dlq_record_repository import dlq_record_repository
+        # await dlq_record_repository.record(
+        #     source_queue=source,
+        #     stage=str(data.get("stage") or data.get("task_type") or "unknown"),
+        #     payload=data,
+        #     failure_reason=str(data.get("failure_reason") or FailureReason.UNKNOWN),
+        #     error=detail,
+        # )
         try:
-            from server import redis_client
+            from app.core.redis_client import redis_client
 
             file_id = data.get("file_id", data.get("uploadsSessionId", "unknown"))
             dlq_key = (

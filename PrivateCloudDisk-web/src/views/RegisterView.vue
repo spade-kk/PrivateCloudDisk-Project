@@ -77,7 +77,7 @@
             <p class="mt-2 text-sm leading-6 text-slate-500 sm:text-base">请使用真实邮箱接收验证码，后续可用于协作通知和账号安全提醒。</p>
           </div>
 
-          <form class="mt-6 grid gap-[15px]" @submit.prevent="handleRegister">
+          <form class="mt-6 grid gap-[15px]" @focusin="ensureTurnstile" @submit.prevent="handleRegister">
             <label class="grid gap-2">
               <span class="text-sm font-extrabold text-slate-700">用户名</span>
               <div
@@ -205,19 +205,18 @@
                 </span>
               </div>
 
-              <div class="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-3">
-                <div
-                  ref="turnstileContainer"
-                  class="turnstile-widget"
-                  :class="{ hidden: !turnstileSiteKey }"
-                ></div>
-                <div v-if="!turnstileSiteKey" class="text-sm text-danger">
-                  未配置 Turnstile Site Key
-                </div>
-                <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-slate-500">
-                  <i class="fa fa-spinner fa-spin"></i>
-                  正在加载验证组件
-                </div>
+              <!-- 【需求十】移除额外边框包装；组件按用户首次表单交互再渲染。 -->
+              <div
+                ref="turnstileContainer"
+                class="turnstile-widget"
+                :class="{ hidden: !turnstileSiteKey }"
+              ></div>
+              <div v-if="!turnstileSiteKey" class="text-sm text-danger">
+                未配置 Turnstile Site Key
+              </div>
+              <div v-else-if="captchaLoading" class="inline-flex items-center gap-2 text-sm text-slate-500">
+                <i class="fa fa-spinner fa-spin"></i>
+                正在加载验证组件
               </div>
               <p v-if="captchaError" class="mt-2 text-xs text-danger">{{ captchaError }}</p>
             </div>
@@ -257,7 +256,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { post } from '@/utils/request'
 import { hashPasswordForTransport } from '@/utils/crypto'
@@ -354,18 +353,18 @@ function clearFormError() {
   formError.value = ''
 }
 
-function loadTurnstileScript() {
+function loadTurnstileScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve()
 
   const existingScript = document.getElementById(TURNSTILE_SCRIPT_ID)
   if (existingScript) {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       existingScript.addEventListener('load', () => resolve(), { once: true })
       existingScript.addEventListener('error', () => reject(new Error('Turnstile script failed')), { once: true })
     })
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const script = document.createElement('script')
     script.id = TURNSTILE_SCRIPT_ID
     script.src = TURNSTILE_SCRIPT_SRC
@@ -393,7 +392,9 @@ async function initTurnstile() {
       sitekey: turnstileSiteKey,
       action: 'register',
       theme: 'light',
-      size: 'normal',
+      size: 'flexible',
+      execution: 'execute',
+      appearance: 'interaction-only',
       callback: (token) => {
         captchaToken.value = token
         captchaError.value = ''
@@ -412,6 +413,20 @@ async function initTurnstile() {
   } finally {
     captchaLoading.value = false
   }
+
+  if (window.turnstile && turnstileWidgetId.value !== null) {
+    window.turnstile.execute(turnstileWidgetId.value)
+  }
+}
+
+async function ensureTurnstile() {
+  if (captchaToken.value || captchaLoading.value || turnstileWidgetId.value !== null) return
+  /*
+   * 【需求十改动说明】
+   * 原行为：注册页首次渲染即加载 Turnstile。
+   * 新行为：用户开始填写表单时再加载，失败后继续使用既有 resetTurnstile 恢复下一次验证。
+   */
+  await initTurnstile()
 }
 
 function resetTurnstile() {
@@ -523,7 +538,7 @@ async function handleRegister() {
     // 客户端密码预哈希 - 密码明文永不离开浏览器
     const hashedPassword = await hashPasswordForTransport(form.password)
 
-    const response = await post('business/users/', {
+    const response = await post<any>('business/users/', {
       name: form.name,
       email: form.email,
       password: hashedPassword,
@@ -539,17 +554,13 @@ async function handleRegister() {
     }
     formError.value = response?.message || response?.data?.message || '注册失败'
     resetTurnstile()
-  } catch (error) {
+  } catch (error: any) {
     formError.value = error.message || error.response?.data?.message || '注册失败，请稍后重试'
     resetTurnstile()
   } finally {
     loading.value = false
   }
 }
-
-onMounted(() => {
-  initTurnstile()
-})
 
 onBeforeUnmount(() => {
   if (verificationTimer.value) clearInterval(verificationTimer.value)

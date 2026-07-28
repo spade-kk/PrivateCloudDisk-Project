@@ -69,7 +69,7 @@
             type="button"
             class="login-tab"
             :class="{ active: activeTab === tab.key }"
-            @click="activeTab = tab.key"
+            @click="selectLoginTab(tab.key)"
           >
             {{ tab.label }}
           </button>
@@ -78,25 +78,27 @@
         <!-- 密码登录 -->
         <div v-show="activeTab === 'password'" class="tab-content">
           <form class="login-form" @submit.prevent="handlePasswordLogin">
-            <!-- 手机号 -->
+            <!-- 需求九：账号、手机号和邮箱共用一个输入框，前端实时识别请求字段。 -->
             <div class="field-group">
-              <label class="field-label">手机号</label>
-              <div class="field-input-wrap" :class="{ focused: focusedField === 'phone' }">
-                <i class="fa fa-mobile field-icon"></i>
+              <label class="field-label">账号 / 手机号 / 邮箱</label>
+              <div class="field-input-wrap" :class="{ focused: focusedField === 'identifier' }">
+                <i :class="identifierIcon" class="field-icon"></i>
                 <input
-                  v-model.trim="phone"
-                  type="tel"
-                  inputmode="tel"
-                  autocomplete="tel"
+                  v-model.trim="identifier"
+                  type="text"
+                  inputmode="text"
+                  autocomplete="username"
                   class="field-input"
-                  placeholder="请输入手机号"
+                  placeholder="请输入 PCD 账号、手机号或邮箱"
                   required
-                  @focus="focusedField = 'phone'"
+                  @focus="handleCredentialFocus('identifier')"
                   @blur="focusedField = ''"
                   @input="clearFormError"
                 />
               </div>
-              <p v-if="phone && !phoneValid" class="field-error">请输入 11 位手机号</p>
+              <p v-if="identifier" class="field-hint" :class="{ 'field-error': !identifierValid }">
+                {{ identifierHint }}
+              </p>
             </div>
 
             <!-- 密码 -->
@@ -111,7 +113,7 @@
                   class="field-input"
                   placeholder="请输入账号密码"
                   required
-                  @focus="focusedField = 'password'"
+                  @focus="handleCredentialFocus('password')"
                   @blur="focusedField = ''"
                   @input="clearFormError"
                 />
@@ -183,18 +185,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import LoginFormCode from '@/components/auth/LoginFormCode.vue'
 import LoginFormQR from '@/components/auth/LoginFormQR.vue'
 import LoginFormThirdParty from '@/components/auth/LoginFormThirdParty.vue'
+import { detectLoginIdentifierType } from '@/api/modules/users'
+import { useToastStore } from '@/stores/toastStore'
 
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script'
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const toastStore = useToastStore()
 
 // 登录方式 Tab
 const activeTab = ref<'password' | 'code' | 'qr'>('password')
@@ -205,7 +210,7 @@ const loginTabs = [
 ]
 
 // 密码登录状态
-const phone = ref(import.meta.env.VITE_DEMO_LOGIN_PHONE || '')
+const identifier = ref(import.meta.env.VITE_DEMO_LOGIN_IDENTIFIER || import.meta.env.VITE_DEMO_LOGIN_PHONE || '')
 const password = ref(import.meta.env.VITE_DEMO_LOGIN_PASSWORD || '')
 const loading = ref(false)
 const formError = ref('')
@@ -213,7 +218,7 @@ const captchaError = ref('')
 const captchaLoading = ref(false)
 const captchaToken = ref('')
 const turnstileContainer = ref(null)
-const turnstileWidgetId = ref(null)
+const turnstileWidgetId = ref<string | null>(null)
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || ''
 const focusedField = ref('')
 const showPassword = ref(false)
@@ -221,14 +226,45 @@ const rememberDevice = ref(true)
 
 const trustItems = ['端到端加密', '操作审计', '等保合规']
 
-const phoneValid = computed(() => /^1[3-9]\d{9}$/.test(phone.value))
+const identifierType = computed(() => detectLoginIdentifierType(identifier.value))
+const identifierValid = computed(() => {
+  const value = identifier.value.trim()
+  if (identifierType.value === 'phone_number') return /^1[3-9]\d{9}$/.test(value)
+  if (identifierType.value === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254
+  return /^[a-zA-Z0-9_]{4,16}$/.test(value)
+})
+const identifierHint = computed(() => {
+  if (!identifierValid.value) return '请输入 4–16 位字母数字账号、11 位手机号或标准邮箱'
+  if (identifierType.value === 'phone_number') return '已识别为手机号'
+  if (identifierType.value === 'email') return '已识别为邮箱'
+  return '已识别为 PCD 账号'
+})
+const identifierIcon = computed(() => {
+  if (identifierType.value === 'phone_number') return 'fa fa-mobile'
+  if (identifierType.value === 'email') return 'fa fa-envelope'
+  return 'fa fa-user'
+})
 
 const submitDisabled = computed(() => {
-  return loading.value || !phoneValid.value || !password.value || !turnstileSiteKey || !captchaToken.value
+  return loading.value || !identifierValid.value || !password.value || !turnstileSiteKey || !captchaToken.value
 })
 
 function clearFormError() {
   formError.value = ''
+}
+
+function selectLoginTab(tab: 'password' | 'code' | 'qr') {
+  if (tab !== 'password') {
+    // 【需求十一】保留入口布局作为后续接入点，但未实现功能不得发起占位网络请求。
+    toastStore.showToast(`${tab === 'code' ? '验证码登录' : '扫码登录'}正在开发中，敬请期待`, 'info')
+    return
+  }
+  activeTab.value = tab
+}
+
+function handleCredentialFocus(field: string) {
+  focusedField.value = field
+  void ensureTurnstile()
 }
 
 function handleLoginSuccess() {
@@ -240,8 +276,8 @@ async function handlePasswordLogin() {
   formError.value = ''
   captchaError.value = ''
 
-  if (!phoneValid.value) {
-    formError.value = '请输入正确的手机号'
+  if (!identifierValid.value) {
+    formError.value = '请输入正确的账号、手机号或邮箱'
     return
   }
   if (!captchaToken.value) {
@@ -250,7 +286,7 @@ async function handlePasswordLogin() {
   }
 
   loading.value = true
-  const result = await authStore.login(phone.value, password.value, captchaToken.value)
+  const result = await authStore.login(identifier.value, password.value, captchaToken.value)
   loading.value = false
   if (result.success) {
     handleLoginSuccess()
@@ -258,22 +294,22 @@ async function handlePasswordLogin() {
   }
 
   resetTurnstile()
-  formError.value = result.message || (result.scope === 'form' ? '手机号或密码错误' : '网络错误，请稍后重试')
+  formError.value = result.message || (result.scope === 'form' ? '账号或密码错误' : '网络错误，请稍后重试')
 }
 
 // Turnstile 验证
-function loadTurnstileScript() {
+function loadTurnstileScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve()
 
   const existingScript = document.getElementById(TURNSTILE_SCRIPT_ID)
   if (existingScript) {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       existingScript.addEventListener('load', () => resolve(), { once: true })
       existingScript.addEventListener('error', () => reject(new Error('Turnstile script failed')), { once: true })
     })
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const script = document.createElement('script')
     script.id = TURNSTILE_SCRIPT_ID
     script.src = TURNSTILE_SCRIPT_SRC
@@ -323,7 +359,20 @@ async function renderTurnstile() {
     captchaLoading.value = false
   }
 
-  window.turnstile.execute(turnstileWidgetId.value);
+  if (window.turnstile && turnstileWidgetId.value !== null) {
+    window.turnstile.execute(turnstileWidgetId.value)
+  }
+}
+
+async function ensureTurnstile() {
+  if (captchaToken.value || captchaLoading.value || turnstileWidgetId.value !== null) return
+  /*
+   * 【需求十改动说明】
+   * 原行为：页面 mounted 后立即加载第三方脚本并渲染组件。
+   * 新行为：用户聚焦账号或密码输入框时才按需渲染，降低首屏外部资源开销；
+   * 业务失败仍沿用 resetTurnstile，保证同一组件可重新获取挑战令牌。
+   */
+  await renderTurnstile()
 }
 
 function resetTurnstile() {
@@ -332,10 +381,6 @@ function resetTurnstile() {
     window.turnstile.reset(turnstileWidgetId.value)
   }
 }
-
-onMounted(() => {
-  renderTurnstile()
-})
 
 onBeforeUnmount(() => {
   if (window.turnstile && turnstileWidgetId.value !== null) {
@@ -716,10 +761,18 @@ onBeforeUnmount(() => {
   color: #64748b;
 }
 
+.field-hint,
 .field-error {
   font-size: 12px;
-  color: #ef4444;
   margin: 0;
+}
+
+.field-hint {
+  color: #64748b;
+}
+
+.field-error {
+  color: #ef4444;
 }
 
 /* 记住设备 */

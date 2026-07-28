@@ -3,6 +3,7 @@ uvicorn
 aiofiles
 python-multipart
 redis
+aiomysql
 pyjwt[crypto]
 aiohttp
 pyvips
@@ -25,6 +26,5 @@ ffmpeg-python
 apache-skywalking
 
 libarchive-c
-fitz
-python-markdown
-pygments
+# AUDIT FIX [5.2]（需求五）：PyMuPDF 才提供流水线使用的 fitz 模块；原 fitz 包并非 PDF 渲染引擎。
+PyMuPDF

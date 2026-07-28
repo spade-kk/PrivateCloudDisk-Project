@@ -108,23 +108,16 @@ export function getThumbnailUrl(
 }
 
 /**
- * 获取视频缩略图 URL（独立于图片缩略图接口）
+ * 获取 Office/PDF 首页四档预览图 URL。
  *
- * 后端: GET /api/v1/files/video/stream/{file_id}/thumbnail?size=small|medium|large
- * 使用 ffmpeg 提取视频首帧，与图片缩略图（libvips）生成逻辑分离。
- *
- * @param fileId - 文件 ID
- * @param size - 尺寸: small(160×90), medium(400×225), large(800×450)
- * @param token - HLS 流媒体访问 Token（可选，用于无 Header 鉴权场景如 img 标签）
- * @returns 完整的缩略图 URL 字符串
+ * AUDIT FIX [5.2]（需求五-5/6）：由后端持久化资源台账定位，不再由前端猜测目录文件名。
  */
-export function getVideoThumbnailUrl(
+export function getDocumentThumbnailUrl(
   fileId: string,
-  size: 'small' | 'medium' | 'large' = 'small',
+  size: 'original' | 'large' | 'medium' | 'small' = 'small',
 ): string {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-  const params = new URLSearchParams({ size })
-  return `${baseUrl}/files/video/stream/${encodeURIComponent(fileId)}/thumbnail?${params.toString()}`
+  return `${baseUrl}/files/files/${encodeURIComponent(fileId)}/document-thumbnail?size=${size}`
 }
 
 // ============================================================

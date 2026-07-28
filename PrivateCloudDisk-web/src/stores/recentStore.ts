@@ -61,19 +61,19 @@ export const useRecentStore = defineStore('recent', () => {
   async function loadByType(type: AccessType, page: number = 1, pageSize: number = 50): Promise<void> {
     loading.value = true
     try {
-      let data: RecentAccessVO[]
+      let res: { code: number; message: string | null; data: RecentAccessVO[] }
       switch (type) {
         case 'upload':
-          data = await getRecentUploadsApi(page, pageSize)
-          recentUploads.value = data
+          res = await getRecentUploadsApi(page, pageSize)
+          if (res.code === 200) recentUploads.value = res.data || []
           break
         case 'download':
-          data = await getRecentDownloadsApi(page, pageSize)
-          recentDownloads.value = data
+          res = await getRecentDownloadsApi(page, pageSize)
+          if (res.code === 200) recentDownloads.value = res.data || []
           break
         case 'open':
-          data = await getRecentOpensApi(page, pageSize)
-          recentOpens.value = data
+          res = await getRecentOpensApi(page, pageSize)
+          if (res.code === 200) recentOpens.value = res.data || []
           break
       }
     } catch (err) {
@@ -87,14 +87,15 @@ export const useRecentStore = defineStore('recent', () => {
   async function loadAll(page: number = 1, pageSize: number = 50): Promise<void> {
     loading.value = true
     try {
-      const [uploads, downloads, opens] = await Promise.all([
+      const [uploadRes, downloadRes, openRes] = await Promise.all([
         getRecentUploadsApi(page, pageSize),
         getRecentDownloadsApi(page, pageSize),
         getRecentOpensApi(page, pageSize),
       ])
-      recentUploads.value = uploads
-      recentDownloads.value = downloads
-      recentOpens.value = opens
+      // 解包响应：后端统一返回 { code: 200, message: null, data: [...] }
+      if (uploadRes.code === 200) recentUploads.value = uploadRes.data || []
+      if (downloadRes.code === 200) recentDownloads.value = downloadRes.data || []
+      if (openRes.code === 200) recentOpens.value = openRes.data || []
       initialized.value = true
     } catch (err) {
       console.error('[RecentStore] 加载全部失败:', err)

@@ -1,34 +1,42 @@
 package org.project.model.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 /**
- * 创建分享链接请求
+ * 创建分享链接请求（v2 — 多资源分享模型）
+ *
+ * <p>变更：v1 使用单个 target_type + file_id/node_id 指定分享目标，
+ * v2 改为 resources 列表，支持同时分享多个文件和文件夹。
  */
 @Data
 public class ShareCreateRequest {
-    /** 分享目标类型：file / folder */
-    @NotBlank(message = "分享目标类型不能为空")
-    @Pattern(regexp = "file|folder", message = "分享目标类型必须是 file 或 folder")
-    private String target_type;
 
-    /** 分享的文件ID（target_type=file 时必填） */
-    private String file_id;
-
-    /** 分享的文件夹节点ID（target_type=folder 时必填） */
-    private String node_id;
+    /** 分享资源列表（至少包含一个资源） */
+    @NotEmpty(message = "分享资源列表不能为空")
+    @Valid
+    private List<ShareResourceItem> resources;
 
     /** 分享名称 */
     @NotBlank(message = "分享名称不能为空")
     @Size(max = 200, message = "分享名称最长200个字符")
     private String share_name;
 
-    /** 提取码（明文，不传表示无密码） */
-    @Size(max = 20, message = "提取码最长20个字符")
+    /** 分享说明（可选，支持富文本，展示端使用白名单净化） */
+    @Size(max = 10000, message = "分享说明最长10000个字符")
+    private String share_description;
+
+    /** 提取码（明文，不传表示无密码）
+     * <p>格式约束：4-20 位字母数字组合，禁止特殊字符，防止注入和编码问题 */
+    @Size(min = 4, max = 20, message = "提取码长度必须为4-20位")
+    @Pattern(regexp = "^[A-Za-z0-9]+$", message = "提取码只能包含字母和数字，不能包含特殊字符")
     private String password;
 
     /** 有效期天数（0 表示永久有效） */

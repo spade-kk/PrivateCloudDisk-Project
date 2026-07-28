@@ -21,8 +21,41 @@ import { createSingletonLoader } from './cdnLoader'
 const HIGHLIGHT_JS_VERSION = '11.11.1'
 const CDN_URL = `https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@${HIGHLIGHT_JS_VERSION}/highlight.min.js`
 
+// 主题样式基础 URL
+const STYLE_BASE_URL = `https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@${HIGHLIGHT_JS_VERSION}/styles`
+
+// 预设主题名称（可暴露给外部切换）
+export type HighlightTheme = 'default' | 'github-dark' | 'dark' | 'vs2015' | 'atom-one-dark' | 'monokai'
+
+// 用于防止重复注入的标记
+let injectedTheme: string | null = null
+
 /**
- * 加载 highlight.js
+ * 注入 highlight.js 主题 CSS
+ * @param theme 主题名称（不含 .min.css）
+ */
+export function injectHighlightTheme(theme: HighlightTheme = 'default'): void {
+  // 如果已经注入相同的主题，则跳过
+  if (injectedTheme === theme) return
+
+  // 移除之前注入的主题（实现动态切换）
+  const oldLink = document.querySelector('link[data-hljs-theme]')
+  if (oldLink) {
+    oldLink.remove()
+  }
+
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = `${STYLE_BASE_URL}/${theme}.min.css`
+  link.dataset.hljsTheme = 'true'
+  document.head.appendChild(link)
+
+  injectedTheme = theme
+}
+
+/**
+ * 加载 highlight.js（JS 核心库 + 默认样式
+ * 若需动态切换主题，可自行调用 injectHighlightTheme('github-dark')
  * UMD 全局变量：`hljs`
  */
 export const loadHighlight = createSingletonLoader<typeof import('highlight.js').default>({
@@ -34,7 +67,12 @@ export const loadHighlight = createSingletonLoader<typeof import('highlight.js')
     const h = (window as any).hljs
     return !!h && typeof h?.highlight === 'function' && typeof h?.highlightAuto === 'function'
   },
-  transform: (val) => val as typeof import('highlight.js').default,
+  transform: (val) => {
+    // JS 加载完成后，自动注入默认主题
+    // 注意：此时 DOM 尚未挂载也可能，但 link 标签会立即开始加载样式
+    injectHighlightTheme('default')
+    return val as typeof import('highlight.js').default
+  },
 })
 
 /**
@@ -50,7 +88,7 @@ export function getHighlightSync(): typeof import('highlight.js').default | null
 }
 
 /**
- * 预加载 highlight.js（在路由预取阶段调用）
+ * 预加载 highlight.js（在路由预取阶段调用）（包含样式）
  */
 export function preloadHighlight(): void {
   loadHighlight().catch(() => {

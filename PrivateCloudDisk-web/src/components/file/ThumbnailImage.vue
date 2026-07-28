@@ -13,18 +13,21 @@
     <!-- 加载成功：显示缩略图 -->
     <img
       v-show="loaded && objectUrl"
-      :src="objectUrl"
+      :src="objectUrl || undefined"
       :alt="alt"
+      loading="lazy"
+      decoding="async"
       class="thumbnail-img"
+      :style="{ objectFit: fit }"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { loadThumbnail, loadVideoThumbnail, type ThumbnailSize } from '@/utils/imageCache'
+import { ref, computed, watch, onMounted } from 'vue'
+import { loadDocumentThumbnail, loadThumbnail, loadVideoThumbnail, type ThumbnailSize } from '@/utils/imageCache'
 import { getFileIconClass } from '@/utils/fileIcon'
-import { isVideo } from '@/utils/previewHelper'
+import { isOffice, isPdf, isVideo } from '@/utils/previewHelper'
 
 const props = withDefaults(
   defineProps<{
@@ -32,10 +35,12 @@ const props = withDefaults(
     fileName: string
     size?: ThumbnailSize
     iconSize?: string
+    fit?: 'cover' | 'contain'
   }>(),
   {
     size: 'small',
     iconSize: '1.5rem',
+    fit: 'cover',
   },
 )
 
@@ -70,9 +75,12 @@ async function loadImage() {
   try {
     // 视频文件使用独立的视频缩略图接口（ffmpeg 首帧）
     const isVideoFile = isVideo(props.fileName)
+    const isDocumentFile = isPdf(props.fileName) || isOffice(props.fileName)
     const url = isVideoFile
       ? await loadVideoThumbnail(props.fileId, props.size)
-      : await loadThumbnail(props.fileId, props.size)
+      : isDocumentFile
+        ? await loadDocumentThumbnail(props.fileId, props.size)
+        : await loadThumbnail(props.fileId, props.size)
     objectUrl.value = url
     loaded.value = true
     emit('load')

@@ -1,15 +1,17 @@
 package org.project.model.vo;
 
 import org.project.model.entity.*;
+import org.project.model.entity.ShareResourceEntity.ResourceType;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class VoMapper {
     private VoMapper() {
     }
 
-    // ==================== Share 相关转换方法 ====================
+    // ==================== Share 相关转换方法（v2） ====================
 
     public static ShareLinkVO toShareLinkVO(ShareLinkEntity entity) {
         if (entity == null) {
@@ -19,16 +21,15 @@ public final class VoMapper {
         vo.setShare_id(entity.getShare_id().toString());
         vo.setShare_token(entity.getShare_token());
         vo.setShare_url("/share/" + entity.getShare_token());
-        vo.setShare_target_type(entity.getShare_target_type().name());
         vo.setShare_name(entity.getShare_name());
-        vo.setTarget_name(entity.getTarget_name());
-        vo.setTarget_size(entity.getTarget_size());
-        vo.setFile_type(entity.getFile_type());
+        vo.setShare_description(entity.getShare_description());
         vo.setShare_has_password(entity.getShare_has_password());
         vo.setShare_expires_at(entity.getShare_expires_at());
         vo.setShare_view_count(entity.getShare_view_count());
         vo.setShare_status(entity.getShare_status().name());
         vo.setShare_created_at(entity.getShare_created_at());
+        vo.setResource_count(entity.getResource_count());
+        // 列表接口不返回资源列表和密码
         return vo;
     }
 
@@ -39,6 +40,26 @@ public final class VoMapper {
         return entities.stream().map(VoMapper::toShareLinkVO).toList();
     }
 
+    public static ShareResourceVO toShareResourceVO(ShareResourceEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        ShareResourceVO vo = new ShareResourceVO();
+        vo.setShare_resource_id(entity.getShare_resource_id().toString());
+        vo.setResource_type(entity.getResource_type().name());
+        vo.setResource_name(entity.getResource_name());
+        vo.setResource_size(entity.getResource_size());
+        vo.setFile_type(entity.getFile_type());
+        return vo;
+    }
+
+    public static List<ShareResourceVO> toShareResourceVOList(List<ShareResourceEntity> entities) {
+        if (entities == null) {
+            return List.of();
+        }
+        return entities.stream().map(VoMapper::toShareResourceVO).toList();
+    }
+
     public static ShareAccessInfoVO toShareAccessInfoVO(ShareLinkEntity entity) {
         if (entity == null) {
             return null;
@@ -46,10 +67,7 @@ public final class VoMapper {
         ShareAccessInfoVO vo = new ShareAccessInfoVO();
         vo.setShare_token(entity.getShare_token());
         vo.setShare_name(entity.getShare_name());
-        vo.setShare_target_type(entity.getShare_target_type().name());
-        vo.setTarget_name(entity.getTarget_name());
-        vo.setTarget_size(entity.getTarget_size());
-        vo.setFile_type(entity.getFile_type());
+        vo.setShare_description(entity.getShare_description());
         vo.setOwner_name(entity.getOwner_name());
         vo.setHas_password(entity.getShare_has_password());
         vo.setIs_expired(entity.getShare_status() == ShareLinkEntity.ShareStatus.expired ||
@@ -57,13 +75,42 @@ public final class VoMapper {
         vo.setIs_revoked(entity.getShare_status() == ShareLinkEntity.ShareStatus.revoked);
         vo.setExpires_at(entity.getShare_expires_at());
         vo.setCreated_at(entity.getShare_created_at());
+        vo.setResource_count(entity.getResource_count());
+        // 公开 info 接口不返回资源列表 — 需密码验证后获取
         return vo;
     }
-    
+
+    /**
+     * 转换为分享详情 VO（管理端详情接口，含资源列表 + 明文提取码）
+     */
+    public static ShareDetailVO toShareDetailVO(ShareLinkEntity entity, String decryptedPassword) {
+        if (entity == null) {
+            return null;
+        }
+        ShareDetailVO vo = new ShareDetailVO();
+        vo.setShare_id(entity.getShare_id().toString());
+        vo.setShare_token(entity.getShare_token());
+        vo.setShare_url("/share/" + entity.getShare_token());
+        vo.setShare_name(entity.getShare_name());
+        vo.setShare_description(entity.getShare_description());
+        vo.setOwner_name(entity.getOwner_name());
+        vo.setShare_has_password(entity.getShare_has_password());
+        vo.setShare_password(decryptedPassword);
+        vo.setShare_expires_at(entity.getShare_expires_at());
+        vo.setShare_view_count(entity.getShare_view_count());
+        vo.setShare_status(entity.getShare_status().name());
+        vo.setShare_created_at(entity.getShare_created_at());
+        vo.setResource_count(entity.getResource_count());
+        if (entity.getResources() != null) {
+            vo.setResources(toShareResourceVOList(entity.getResources()));
+        }
+        return vo;
+    }
+
     // ==================== 新增方法 ====================
-    
+
     public static TrashTargetVO toTrashTargetVO(TrashTargetEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         TrashTargetVO vo = new TrashTargetVO();
@@ -78,16 +125,16 @@ public final class VoMapper {
         vo.setExpires_at(entity.getExpires_at());
         return vo;
     }
-    
+
     public static List<TrashTargetVO> toTrashTargetVOList(List<TrashTargetEntity> entities) {
-        if(entities == null) {
+        if (entities == null) {
             return List.of();
         }
         return entities.stream().map(VoMapper::toTrashTargetVO).toList();
     }
-    
+
     public static FileStarVO toFileStarVO(FileStarEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         FileStarVO vo = new FileStarVO();
@@ -106,18 +153,18 @@ public final class VoMapper {
         vo.setStarred_at(entity.getStarred_at());
         return vo;
     }
-    
+
     public static List<FileStarVO> toFileStarVOList(List<FileStarEntity> entities) {
-        if(entities == null) {
+        if (entities == null) {
             return List.of();
         }
         return entities.stream().map(VoMapper::toFileStarVO).toList();
     }
-    
+
     // ==================== 原有方法 ====================
 
     public static FileVO toFileVO(FileEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         FileVO vo = new FileVO();
@@ -132,12 +179,12 @@ public final class VoMapper {
     }
 
     public static FolderNodeVO toFolderNodeVO(FolderNodeEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         FolderNodeVO vo = new FolderNodeVO();
         vo.setNode_id(entity.getNode_id().toString());
-        if(entity.getParent_id() == null) vo.setParent_id(null);
+        if (entity.getParent_id() == null) vo.setParent_id(null);
         else vo.setParent_id(entity.getParent_id().toString());
         vo.setName(entity.getName());
         vo.setCreate_time(entity.getCreate_time());
@@ -145,7 +192,7 @@ public final class VoMapper {
     }
 
     public static NodeVO toNodeVO(NodeEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         NodeVO vo = new NodeVO();
@@ -157,14 +204,14 @@ public final class VoMapper {
     }
 
     public static List<NodeVO> toNodeVOList(List<NodeEntity> entities) {
-        if(entities == null) {
+        if (entities == null) {
             return List.of();
         }
         return entities.stream().map(VoMapper::toNodeVO).toList();
     }
 
     public static UserProfileVO toUserProfileVO(UserEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         UserProfileVO vo = new UserProfileVO();
@@ -178,7 +225,7 @@ public final class VoMapper {
     }
 
     public static InternalFileMetadataVO toInternalFileMetadataVO(FileEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         InternalFileMetadataVO vo = new InternalFileMetadataVO();
@@ -196,7 +243,7 @@ public final class VoMapper {
     }
 
     public static UploadsSessionInternalVO toUploadsSessionInternalVO(UploadsSessionEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         UploadsSessionInternalVO vo = new UploadsSessionInternalVO();
@@ -216,7 +263,7 @@ public final class VoMapper {
     }
 
     public static UploadsChunkInternalVO toUploadsChunkInternalVO(UploadsChunkEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         UploadsChunkInternalVO vo = new UploadsChunkInternalVO();
@@ -229,7 +276,7 @@ public final class VoMapper {
     }
 
     public static QuotaVO toQuotaVO(QuotaEntity entity) {
-        if(entity == null) {
+        if (entity == null) {
             return null;
         }
         QuotaVO vo = new QuotaVO();

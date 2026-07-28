@@ -23,7 +23,7 @@
         <!-- 加载错误 -->
         <div v-if="error" class="lightbox-error">
           <i class="fa fa-exclamation-triangle"></i>
-          <span>图片加载失败</span>
+          <span>{{ error }}</span>
           <button @click="retry" class="retry-btn">重试</button>
         </div>
 
@@ -35,7 +35,7 @@
         >
           <img
             ref="imageRef"
-            :src="objectUrl"
+            :src="objectUrl || undefined"
             :alt="fileName"
             class="lightbox-image"
             :style="imageStyle"
@@ -125,7 +125,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { loadThumbnail, imageCache } from '@/utils/imageCache'
+import { loadOriginalImage, imageCache } from '@/utils/imageCache'
+import { getPreviewErrorMessage } from '@/api/modules/previewContent'
 
 const props = withDefaults(
   defineProps<{
@@ -150,7 +151,7 @@ const emit = defineEmits<{
 // ---- 状态 ----
 const imageRef = ref<HTMLImageElement | null>(null)
 const loading = ref(true)
-const error = ref(false)
+const error = ref('')
 const objectUrl = ref<string | null>(null)
 const scale = ref(1)
 const rotation = ref(0)
@@ -265,14 +266,14 @@ async function loadImage() {
   if (!props.fileId) return
 
   loading.value = true
-  error.value = false
+  error.value = ''
 
   try {
-    // 使用 ImageCacheManager 异步加载，自动携带 Token，支持 LRU 缓存
-    const url = await loadThumbnail(props.fileId, 'large')
+    // AUDIT FIX [4.4]: 灯箱加载原文件而非 large 有损缩略图，修复图片点击后无法获得大图预览的问题。
+    const url = await loadOriginalImage(props.fileId)
     objectUrl.value = url
     loading.value = false
-    error.value = false
+    error.value = ''
 
     // 获取图片尺寸
     if (imageRef.value) {
@@ -282,9 +283,9 @@ async function loadImage() {
       }
       imageSize.value = `${imageRef.value.naturalWidth} × ${imageRef.value.naturalHeight}`
     }
-  } catch {
+  } catch (loadError) {
     loading.value = false
-    error.value = true
+    error.value = getPreviewErrorMessage(loadError)
   }
 }
 
@@ -301,12 +302,12 @@ function onImageLoad() {
 
 function onImageError() {
   loading.value = false
-  error.value = true
+  error.value = '图片数据无法解析，请确认文件内容完整后重试'
 }
 
 function retry() {
   // 清除旧缓存，强制重新加载
-  imageCache.evict(props.fileId, 'large')
+  imageCache.evictOriginal(props.fileId)
   loadImage()
 }
 
@@ -372,7 +373,7 @@ watch(
   (val) => {
     if (val) {
       loading.value = true
-      error.value = false
+      error.value = ''
       objectUrl.value = null
       scale.value = 1
       rotation.value = 0
@@ -380,6 +381,7 @@ watch(
       loadImage()
     }
   },
+  { immediate: true },
 )
 
 // 当 fileId 变化时重新加载
@@ -387,7 +389,7 @@ watch(
   () => props.fileId,
   () => {
     loading.value = true
-    error.value = false
+    error.value = ''
     objectUrl.value = null
     scale.value = 1
     rotation.value = 0

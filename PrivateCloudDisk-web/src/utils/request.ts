@@ -232,14 +232,22 @@ service.interceptors.response.use(
       const status = error.response.status
       switch (status) {
         case 401:
-          // 未授权：清除 Token 并跳转登录页
-          message = '登录已过期，请重新登录'
-          cookie.remove(TOKEN_COOKIE_KEY)
-          // 兼容旧版：同时清除 localStorage 中的旧 Token
-          localStorage.removeItem('cloudDriveToken')
-          // 非登录页面才跳转，避免死循环
-          if (!window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login'
+          /*
+           * 需求三-2：Preview Token 是比登录会话更短的业务授权，它过期不等于 JWT 登录过期。
+           * 原行为对任意 401 都清除登录态；新行为允许明确标记 skipAuthRedirect 的请求自行刷新业务令牌。
+           */
+          if ((error.config as any)?.skipAuthRedirect) {
+            message = '预览授权已过期，请重新加载'
+          } else {
+            // 未授权：清除 Token 并跳转登录页
+            message = '登录已过期，请重新登录'
+            cookie.remove(TOKEN_COOKIE_KEY)
+            // 兼容旧版：同时清除 localStorage 中的旧 Token
+            localStorage.removeItem('cloudDriveToken')
+            // 非登录页面才跳转，避免死循环
+            if (!window.location.pathname.startsWith('/login')) {
+              window.location.href = '/login'
+            }
           }
           break
         case 403:

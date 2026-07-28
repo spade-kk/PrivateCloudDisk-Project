@@ -23,6 +23,16 @@
             <div><label class="text-neutral-500 text-sm">修改时间</label><p>{{ formatTime(node?.updated_at) }}</p></div>
             <div><label class="text-neutral-500 text-sm">存储路径</label><p class="text-xs break-all">{{ fullPath }}</p></div>
             <div v-if="node?.md5"><label class="text-neutral-500 text-sm">MD5</label><p class="text-xs font-mono break-all">{{ node?.md5 }}</p></div>
+            <div>
+              <div class="flex items-center justify-between">
+                <label class="text-neutral-500 text-sm">标签</label>
+                <button class="text-xs text-primary hover:underline" type="button" @click="tagPickerVisible = true"><i class="fa fa-tags"></i> 管理</button>
+              </div>
+              <div v-if="currentTags.length" class="mt-2 flex flex-wrap gap-1.5">
+                <TagBadge v-for="tag in currentTags" :key="tag.tag_id" :tag="tag" />
+              </div>
+              <p v-else class="mt-1 text-xs text-neutral-400">暂未添加标签</p>
+            </div>
           </div>
           <div class="grid grid-cols-1 gap-2 pt-4 sm:grid-cols-3">
             <button v-if="node?.node_type === 'FILE'" @click="download" class="touch-button rounded-lg bg-primary py-2 text-white">下载</button>
@@ -35,14 +45,26 @@
         </div>
       </div>
     </div>
+    <TagPickerDialog
+      :visible="tagPickerVisible"
+      :target-id="node?.node_id || ''"
+      :target-type="node?.node_type === 'FOLDER' ? 'folder' : 'file'"
+      :target-name="node?.node_name || ''"
+      @close="tagPickerVisible = false"
+      @updated="loadTags"
+    />
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { formatFileSize, getFileExtension, formatTime } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'
 import { useRouter } from 'vue-router'
+import TagBadge from '@/components/tag/TagBadge.vue'
+import TagPickerDialog from '@/components/tag/TagPickerDialog.vue'
+import { useTagStore } from '@/stores/tagStore'
+import type { TagVO } from '@/api/modules/tags'
 
 const props = defineProps({
   visible: Boolean,
@@ -51,6 +73,26 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'download', 'versionHistory'])
 const router = useRouter()
+const tagStore = useTagStore()
+const tagPickerVisible = ref(false)
+const currentTags = ref<TagVO[]>([])
+
+async function loadTags() {
+  if (!props.node?.node_id) return
+  currentTags.value = await tagStore.loadFileTags(
+    props.node.node_id,
+    props.node.node_type === 'FOLDER' ? 'folder' : 'file',
+  )
+}
+
+watch(
+  () => [props.visible, props.node?.node_id],
+  ([visible]) => {
+    if (visible) void loadTags()
+    else tagPickerVisible.value = false
+  },
+  { immediate: true },
+)
 
 const iconClass = computed(() => getFileIconClass(props.node?.node_name || ''))
 
@@ -64,12 +106,12 @@ const isVideoFile = computed(() => {
 
 const download = () => emit('download', props.node)
 const copyPath = () => {
-  navigator.clipboard.writeText(props.fullPath)
+  navigator.clipboard.writeText(props.fullPath || '')
 }
 
 const playVideo = () => {
   if (props.node?.node_id) {
-    router.push({ name: 'VideoPlayer', query: { fileId: props.node.node_id, fileName: props.node.node_name } })
+    router.push({ name: 'VideoPlayer', params: { fileId: props.node.node_id }, query: { name: props.node.node_name } })
   }
 }
 

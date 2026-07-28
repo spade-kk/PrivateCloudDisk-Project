@@ -18,6 +18,7 @@ import json
 import asyncio
 import platform
 from dataclasses import dataclass, field
+from typing import Awaitable, Callable, Optional
 import ffmpeg
 import math
 from core.config import settings, FailureReason, VIDEO_TYPES
@@ -96,6 +97,12 @@ class HlsTranscodeResult:
     hls_master_playlist: str = ""         # master.m3u8 路径
     hls_resolutions: list = field(default_factory=list)  # 各分辨率详情
     resolutions: list = field(default_factory=list)      # 前端兼容: 分辨率列表
+    preview_paths: dict = field(default_factory=dict)    # small/medium/large/poster 多级首帧资源
+    hover_preview_path: str = ""                         # 前 30 秒悬停预览 MP4
+    manifest_path: str = ""                              # 元数据清单路径
+    source_width: int = 0
+    source_height: int = 0
+    duration: float = 0
     error: str = ""
     failure_reason: str = ""
 
@@ -118,6 +125,7 @@ class HlsTranscodePipeline:
         file_id: str,
         storage_path: str,
         file_type: str,
+        hover_preview_ready: Optional[Callable[[str, dict], Awaitable[None]]] = None,
     ) -> HlsTranscodeResult:
         """
         执行 HLS 转码
@@ -183,9 +191,30 @@ class HlsTranscodePipeline:
 
         try:
             # 1. 生成视频预览图
-            preview_path = await HlsTranscodePipeline._generate_preview(
+            preview_paths = await HlsTranscodePipeline._generate_previews(
                 storage_path, file_id, thumbnail_dir,
             )
+            preview_path = preview_paths.get("poster")
+
+            # AUDIT FIX [2.2/3.1]（需求二、三）：生成可缓存的前 30 秒轻量 MP4，
+            # 悬停时不再拉取整段原视频，也不会占用核心 HLS 播放会话。
+            hover_preview_path = await HlsTranscodePipeline._generate_hover_preview(
+                storage_path,
+                file_id,
+                source_info.get("has_audio", False),
+            )
+            # 需求六-1：30 秒资源生成后立即通知持久层独立提交，不再等待多码率 HLS 和雪碧图。
+            if hover_preview_path and hover_preview_ready:
+                try:
+                    await hover_preview_ready(hover_preview_path, source_info)
+                except Exception as exc:
+                    # 独立事务失败不销毁已生成文件；主流程结束后的幂等 upsert 仍可兜底补账。
+                    logger.error(
+                        "[HLS-PREVIEW] 30秒预览资源即时入库失败，将在HLS完成后兜底: file_id=%s, error=%s",
+                        file_id,
+                        exc,
+                        exc_info=True,
+                    )
 
             # 2. 检测可用的硬件加速编码器
             hw_encoder = await HlsTranscodePipeline._detect_hw_encoder()
@@ -262,6 +291,10 @@ class HlsTranscodePipeline:
                 "duration": source_duration,
                 "resolutions": resolutions,
                 "preview_path": preview_path,
+                "preview_paths": preview_paths,
+                "hover_preview_path": hover_preview_path,
+                # AUDIT FIX [7.4]: 保留真实源路径用于遗留数据回填；新查询仍以数据库资源记录为准。
+                "source_path": storage_path,
                 "sprite": sprite_config,
                 "created_at": None,
             }
@@ -280,6 +313,12 @@ class HlsTranscodePipeline:
                 hls_master_playlist=master_playlist_path,
                 hls_resolutions=hls_resolutions,
                 resolutions=resolutions,
+                preview_paths=preview_paths,
+                hover_preview_path=hover_preview_path,
+                manifest_path=manifest_path,
+                source_width=source_width,
+                source_height=source_height,
+                duration=source_duration,
             )
 
         except Exception as e:
@@ -357,7 +396,7 @@ class HlsTranscodePipeline:
         Returns:
             dict: {"width": int, "height": int, "duration": float}
         """
-        info = {"width": 0, "height": 0, "duration": 0}
+        info = {"width": 0, "height": 0, "duration": 0, "has_audio": False}
         try:
             data = await asyncio.wait_for(
                 asyncio.to_thread(ffmpeg.probe, input_path),
@@ -368,7 +407,8 @@ class HlsTranscodePipeline:
                 if stream.get("codec_type") == "video":
                     info["width"] = stream.get("width", 0)
                     info["height"] = stream.get("height", 0)
-                    break
+                elif stream.get("codec_type") == "audio":
+                    info["has_audio"] = True
 
             info["duration"] = float(data.get("format", {}).get("duration", 0))
             logger.info(
@@ -386,37 +426,113 @@ class HlsTranscodePipeline:
         return info
 
     @staticmethod
-    async def _generate_preview(
+    async def _generate_previews(
         input_path: str, file_id: str, output_dir: str,
-    ) -> str | None:
-        """使用 ffmpeg-python 生成视频预览图（第 1 秒帧）"""
-        preview_path = os.path.join(output_dir, f"{file_id}_preview.jpg")
-        try:
-            await asyncio.wait_for(
-                asyncio.to_thread(
-                    lambda: (
-                        ffmpeg
-                        .input(input_path, ss="00:00:01")
-                        .output(preview_path, vframes=1, **{"q:v": "2"})
+    ) -> dict[str, str]:
+        """生成适配不同使用场景的首帧资源。
+
+        poster 保留源画幅、无裁剪和无黑边，供核心播放器使用；列表尺寸采用等比缩放加画布，
+        保证网格布局稳定。任一变体失败不会阻断其他变体和 HLS 主流程。
+        """
+        variants = {
+            "poster": (None, None, "2"),
+            "large": (1280, 720, "3"),
+            "medium": (640, 360, "4"),
+            "small": (320, 180, "5"),
+        }
+        generated: dict[str, str] = {}
+        for variant, (width, height, quality) in variants.items():
+            output_path = os.path.join(output_dir, f"{file_id}_{variant}.jpg")
+            try:
+                def _render() -> None:
+                    stream = ffmpeg.input(input_path, ss="00:00:01").video
+                    if width and height:
+                        stream = stream.filter("scale", width, height, force_original_aspect_ratio="decrease")
+                        stream = stream.filter("pad", width, height, "(ow-iw)/2", "(oh-ih)/2", color="black")
+                    (
+                        ffmpeg.output(stream, output_path, vframes=1, **{"q:v": quality})
                         .overwrite_output()
                         .run(capture_stdout=True, capture_stderr=True)
                     )
-                ),
-                timeout=60,
-            )
-            if os.path.exists(preview_path):
-                return preview_path
-            return None
-        except asyncio.TimeoutError:
-            logger.warning("[HLS] 预览图生成超时")
-            return None
+
+                await asyncio.wait_for(asyncio.to_thread(_render), timeout=60)
+                if os.path.exists(output_path):
+                    generated[variant] = output_path
+            except Exception as exc:
+                logger.warning("[HLS] %s 首帧生成失败: %s", variant, exc)
+        return generated
+
+    @staticmethod
+    async def _generate_hover_preview(
+        input_path: str,
+        file_id: str,
+        has_audio: bool,
+    ) -> str:
+        """
+        生成文件浏览器悬停使用的前 30 秒 MP4。
+
+        AUDIT FIX [2.2/3.1]：
+        原行为需要加载完整原视频或复用核心 HLS；新行为仅生成前 30 秒，
+        保持源宽高比并限制在 960×720 边界内。H.264/yuv420p/faststart
+        同时兼容 Safari 与微信内置浏览器，CRF 23 用于平衡清晰度和加载体积。
+        辅助产物失败只记录告警，不中断核心 HLS 转码。
+        """
+        output_dir = os.path.join(settings.file_upload_dir, "video_previews")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"{file_id}_30s.mp4")
+        temporary_path = f"{output_path}.tmp.mp4"
+
+        try:
+            def _transcode() -> None:
+                source = ffmpeg.input(input_path, t=30)
+                video = source.video.filter(
+                    "scale",
+                    "trunc(iw*min(960/iw,720/ih)/2)*2",
+                    "trunc(ih*min(960/iw,720/ih)/2)*2",
+                )
+                streams = [video]
+                output_options = {
+                    "c:v": "libx264",
+                    "preset": "veryfast",
+                    "crf": 23,
+                    "pix_fmt": "yuv420p",
+                    "movflags": "+faststart",
+                }
+                if has_audio:
+                    streams.append(source.audio)
+                    output_options.update({"c:a": "aac", "b:a": "96k", "ac": 2})
+                else:
+                    output_options["an"] = None
+                (
+                    ffmpeg.output(*streams, temporary_path, **output_options)
+                    .overwrite_output()
+                    .run(capture_stdout=True, capture_stderr=True)
+                )
+
+            await asyncio.wait_for(asyncio.to_thread(_transcode), timeout=600)
+            if os.path.isfile(temporary_path) and os.path.getsize(temporary_path) > 0:
+                os.replace(temporary_path, output_path)
+                logger.info(
+                    "[HLS] 30 秒悬停预览生成完成: file_id=%s, size=%s",
+                    file_id,
+                    os.path.getsize(output_path),
+                )
+                return output_path
         except ffmpeg.Error as e:
-            stderr_text = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
-            logger.warning(f"[HLS] 预览图生成失败: {stderr_text[:200]}")
-            return None
-        except Exception as e:
-            logger.warning(f"[HLS] 预览图生成异常: {e}")
-            return None
+            stderr = e.stderr.decode('utf-8', errors='ignore') if e.stderr else 'No stderr'
+            logger.warning(
+                "[HLS] 30 秒悬停预览生成失败: file_id=%s, ffmpeg stderr=%s",
+                file_id, stderr
+            )
+        except Exception as exc:
+            logger.warning("[HLS] 30 秒悬停预览生成失败: file_id=%s, error=%s", file_id, exc)
+        finally:
+            if os.path.exists(temporary_path):
+                try:
+                    os.unlink(temporary_path)
+                except OSError:
+                    pass
+        return ""
 
     @staticmethod
     async def _transcode_hls(

@@ -95,6 +95,15 @@ CREATE TABLE pcd_file_info_table (
 --   3. 支持文件和文件夹两种分享类型
 --   4. 分享访问永为只读，无 CRUD 权限
 --   5. 通过 share_token + 访问令牌验证，杜绝横向越权
+-- 分享业务表 版本二
+-- 升级目标：将单目标分享模型（一个分享链接对应一个文件或文件夹）
+--           升级为多资源分享模型（一个分享链接包含多个文件和文件夹）
+--
+-- 变更内容：
+--   1. 修改 pcd_share_link_table：主分享链接管理表 移除 share_target_type、share_file_id、
+--      share_node_id 及关联约束
+--   2. 新建 pcd_share_resource_table：分享资源关系表，支持一个分享链接
+--      包含多个文件和文件夹
 -- =====================================================================
 DROP TABLE IF EXISTS pcd_share_link_table;
 CREATE TABLE pcd_share_link_table (
@@ -102,12 +111,8 @@ CREATE TABLE pcd_share_link_table (
     share_token             VARCHAR(36)     NOT NULL UNIQUE           COMMENT '分享访问令牌（UUID，对外暴露）',
     share_owner_id          BINARY(16)     NOT NULL                   COMMENT '分享者用户ID',
     FOREIGN KEY (share_owner_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
-    share_target_type       ENUM('file', 'folder') NOT NULL           COMMENT '分享目标类型',
-    share_file_id           BINARY(16)     NULL                       COMMENT '分享的文件ID（分享文件时填写）',
-    FOREIGN KEY (share_file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
-    share_node_id           BINARY(16)     NULL                       COMMENT '分享的文件夹节点ID（分享文件夹时填写）',
-    FOREIGN KEY (share_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
     share_name              VARCHAR(200)    NOT NULL                   COMMENT '分享名称（用户自定义）',
+    share_description       TEXT            NULL                       COMMENT '分享说明（支持受限富文本）',
     share_password          VARCHAR(120)    NULL                       COMMENT '提取码（BCrypt 哈希，NULL 表示无密码）',
     share_has_password      TINYINT(1)      NOT NULL DEFAULT 0         COMMENT '是否有密码保护',
     share_expires_at        DATETIME        NULL                       COMMENT '过期时间（NULL 表示永久有效）',
@@ -117,17 +122,28 @@ CREATE TABLE pcd_share_link_table (
     share_updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_share_owner (share_owner_id, share_status),
     INDEX idx_share_token (share_token),
-    INDEX idx_share_status (share_status),
-    CONSTRAINT chk_share_target CHECK (
-        (share_target_type = 'file' AND share_file_id IS NOT NULL AND share_node_id IS NULL) OR
-        (share_target_type = 'folder' AND share_node_id IS NOT NULL AND share_file_id IS NULL)
-    )
+    INDEX idx_share_status (share_status)
 ) COMMENT='分享链接管理表';
 
--- =====================================================================
--- 旧的分享表（替换为上面的新表）
--- =====================================================================
-DROP TABLE IF EXISTS pcd_sharing_Link_mange_table;
+DROP TABLE IF EXISTS pcd_share_resource_table;
+CREATE TABLE pcd_share_resource_table (
+    share_resource_id       BINARY(16)     NOT NULL PRIMARY KEY       COMMENT '分享资源ID（主键）',
+    share_id                BINARY(16)     NOT NULL                   COMMENT '所属分享链接ID',
+    FOREIGN KEY (share_id) REFERENCES pcd_share_link_table(share_id) ON DELETE CASCADE,
+    resource_type           ENUM('file', 'folder') NOT NULL           COMMENT '资源类型：file=文件，folder=文件夹',
+    file_id                 BINARY(16)     NULL                       COMMENT '文件ID（resource_type=file 时必填）',
+    FOREIGN KEY (file_id) REFERENCES pcd_file_info_table(file_id) ON DELETE CASCADE,
+    node_id                 BINARY(16)     NULL                       COMMENT '文件夹节点ID（resource_type=folder 时必填）',
+    FOREIGN KEY (node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
+    created_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_resource_share (share_id),
+    INDEX idx_resource_file (file_id),
+    INDEX idx_resource_node (node_id),
+    CONSTRAINT chk_resource_target CHECK (
+        (resource_type = 'file' AND file_id IS NOT NULL AND node_id IS NULL) OR
+        (resource_type = 'folder' AND node_id IS NOT NULL AND file_id IS NULL)
+    )
+) COMMENT='分享资源关系表（一个分享链接可包含多个文件/文件夹）';
 
 /*
 
