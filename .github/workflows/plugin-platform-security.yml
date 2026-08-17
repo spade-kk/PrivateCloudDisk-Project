@@ -1,0 +1,134 @@
+# 插件生态与自动化平台安全门禁
+# 需求对应：Sprint 0 安全基线。所有插件、工作流与生命周期变更必须先通过密钥扫描、
+# 契约校验、静态分析和各语言测试，才允许进入构建/部署流水线。
+name: Plugin Platform Security Gates
+
+on:
+  pull_request:
+    paths:
+      - 'PrivateCloudDisk-plugin-service/**'
+      - 'PrivateCloudDisk-automation-service/**'
+      - 'PrivateCloudDisk-plugin-runtime-service/**'
+      - 'PrivateCloudDisk-storage-service/**'
+      - 'PrivateCloudDisk-platform-service/**'
+      - 'PrivateCloudDisk-gateway-service/**'
+      - 'PrivateCloudDisk-web/**'
+      - 'contracts/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/plugin-platform-security.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'PrivateCloudDisk-plugin-service/**'
+      - 'PrivateCloudDisk-automation-service/**'
+      - 'PrivateCloudDisk-plugin-runtime-service/**'
+      - 'PrivateCloudDisk-storage-service/**'
+      - 'PrivateCloudDisk-platform-service/**'
+      - 'PrivateCloudDisk-gateway-service/**'
+      - 'PrivateCloudDisk-web/**'
+      - 'contracts/**'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secrets-and-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 扫描仓库密钥
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 校验 JSON 契约
+        run: |
+          set -euo pipefail
+          find contracts -type f -name '*.json' -print0 |
+            xargs -0 -n1 jq empty
+
+  java-services:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - PrivateCloudDisk-platform-service
+          - PrivateCloudDisk-gateway-service
+          - PrivateCloudDisk-plugin-service
+          - PrivateCloudDisk-automation-service
+          - PrivateCloudDisk-workflow-service
+          - PrivateCloudDisk-scheduler-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.2'
+      - name: 编译并运行测试
+        run: gradle -p "${{ matrix.service }}" clean test --no-daemon
+
+  python-storage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: PrivateCloudDisk-storage-service/requirements.txt
+      - name: 安装依赖
+        run: pip install -r PrivateCloudDisk-storage-service/requirements.txt
+      - name: 编译检查与生命周期契约测试
+        working-directory: PrivateCloudDisk-storage-service
+        run: |
+          python -m compileall -q app core
+          pytest -q tests/test_file_preprocess_lifecycle.py tests/test_enhance_dlq_contract.py
+
+  go-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: PrivateCloudDisk-plugin-runtime-service/go.mod
+      - name: 运行 Runtime 单元测试
+        working-directory: PrivateCloudDisk-plugin-runtime-service
+        run: go test ./...
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: PrivateCloudDisk-web/package-lock.json
+      - name: 类型检查与生产构建
+        working-directory: PrivateCloudDisk-web
+        run: |
+          npm ci
+          npx vue-tsc --noEmit
+          npm run build
+
+  codeql:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java-kotlin, javascript-typescript, python, go]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v3

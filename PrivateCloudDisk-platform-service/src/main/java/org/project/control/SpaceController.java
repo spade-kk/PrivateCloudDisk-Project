@@ -32,7 +32,16 @@ public class SpaceController extends BaseController {
             @RequestHeader("X-User-Id") String userId) {
         SpaceEntity space = spaceService.createSpace(
                 UUID.fromString(userId), request.getSpaceName(), request.getSpaceType(),
-                request.getSpaceDescription(), request.getSpaceVisibility());
+                request.getSpaceDescription(), request.getSpaceVisibility(), request.getJoinPolicy());
+        // 公开仓库的权限开关由独立设置接口维护；创建接口保持旧请求体兼容，避免老客户端被迫升级。
+        if ("public".equals(space.getSpaceType())) {
+            space.setAllowPublicBrowse(request.getAllowPublicBrowse() == null || request.getAllowPublicBrowse());
+            space.setAllowPublicDownload(request.getAllowPublicDownload() == null || request.getAllowPublicDownload());
+            space.setAllowPublicUpload(Boolean.TRUE.equals(request.getAllowPublicUpload()));
+            spaceService.updatePublicRepository(space.getSpaceId(), UUID.fromString(userId),
+                    space.getSpaceName(), space.getSpaceDescription(), space.getAllowPublicBrowse(),
+                    space.getAllowPublicDownload(), space.getAllowPublicUpload());
+        }
         return new JsonResult<>(OK, space);
     }
 
@@ -65,7 +74,13 @@ public class SpaceController extends BaseController {
         SpaceEntity space = spaceService.updateSpace(
                 UUID.fromString(spaceId), UUID.fromString(userId),
                 request.getSpaceName(), request.getSpaceDescription(),
-                request.getSpaceVisibility(), request.getSpaceQuota());
+                request.getSpaceVisibility(), request.getJoinPolicy(), request.getSpaceQuota());
+        if ("public".equals(space.getSpaceType()) &&
+                (request.getAllowPublicBrowse() != null || request.getAllowPublicDownload() != null || request.getAllowPublicUpload() != null)) {
+            spaceService.updatePublicRepository(space.getSpaceId(), UUID.fromString(userId),
+                    null, null, request.getAllowPublicBrowse(), request.getAllowPublicDownload(), request.getAllowPublicUpload());
+            space = spaceService.getSpaceById(space.getSpaceId(), UUID.fromString(userId));
+        }
         return new JsonResult<>(OK, space);
     }
 
@@ -210,14 +225,18 @@ public class SpaceController extends BaseController {
 
     @GetMapping({"/spaces/public/discover", "/spaces/public/discover/"})
     public JsonResult<List<SpaceEntity>> discoverPublicSpaces(
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestHeader("X-User-Id") String userId) {
+        // 旧发现接口保留路径以兼容客户端，但公开仓库发现统一要求登录，避免匿名枚举仓库元数据。
         List<SpaceEntity> spaces = spaceService.discoverPublicSpaces(keyword);
         return new JsonResult<>(OK, spaces);
     }
 
     @GetMapping({"/spaces/public/by-name/{spaceName}", "/spaces/public/by-name/{spaceName}/"})
     public JsonResult<SpaceEntity> getPublicSpaceByName(
-            @PathVariable String spaceName) {
+            @PathVariable String spaceName,
+            @RequestHeader("X-User-Id") String userId) {
+        // 兼容旧路径但沿用公开浏览开关；匿名访问请使用分享链接，而非仓库入口。
         SpaceEntity space = spaceService.getPublicSpaceByName(spaceName);
         return new JsonResult<>(OK, space);
     }

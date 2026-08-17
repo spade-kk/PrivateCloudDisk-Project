@@ -7,6 +7,7 @@
     <resultMap id="FileStarEntityMap" type="org.project.model.entity.FileStarEntity">
         <id column="star_id" property="star_id"/>
         <result column="star_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="star_space_id" property="space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="star_target_type" property="target_type"/>
         <result column="star_file_id" property="file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="star_node_id" property="node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
@@ -20,16 +21,18 @@
     <!-- ==================== 插入 ==================== -->
 
     <insert id="insertFileStar" parameterType="org.project.model.entity.FileStarEntity">
-        INSERT INTO pcd_file_star_table (star_user_id, star_target_type, star_file_id, star_starred_at)
+        INSERT INTO pcd_file_star_table (star_user_id, star_space_id, star_target_type, star_file_id, star_starred_at)
         VALUES (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
                 'file',
                 #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
                 #{starred_at})
     </insert>
 
     <insert id="insertFolderStar" parameterType="org.project.model.entity.FileStarEntity">
-        INSERT INTO pcd_file_star_table (star_user_id, star_target_type, star_node_id, star_starred_at)
+        INSERT INTO pcd_file_star_table (star_user_id, star_space_id, star_target_type, star_node_id, star_starred_at)
         VALUES (#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
                 'folder',
                 #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
                 #{starred_at})
@@ -38,17 +41,25 @@
     <!-- ==================== 删除 ==================== -->
 
     <delete id="deleteFileStar">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_target_type = 'file'
+          AND (star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND star_space_id IS NULL))
     </delete>
 
     <delete id="deleteFolderStar">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_target_type = 'folder'
+          AND (star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND star_space_id IS NULL))
     </delete>
 
     <!--
@@ -64,25 +75,37 @@
     <!-- ==================== 查询 ==================== -->
 
     <select id="findFileStarByUserIdAndFileId" resultMap="FileStarEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_target_type = 'file'
+          AND (star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND star_space_id IS NULL))
     </select>
 
     <select id="findFolderStarByUserIdAndNodeId" resultMap="FileStarEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_file_star_table
         WHERE star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND star_target_type = 'folder'
+          AND (star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND star_space_id IS NULL))
     </select>
 
     <select id="findStarredFileIdsByUserId" resultType="string">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT s.star_file_id
         FROM pcd_file_star_table s
         INNER JOIN pcd_file_info_table f ON s.star_file_id = f.file_id
         WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND s.star_target_type = 'file'
+          AND (s.star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND s.star_space_id IS NULL))
           AND f.file_status = 'active'
           AND NOT EXISTS (
               SELECT 1
@@ -97,11 +120,15 @@
     </select>
 
     <select id="findStarredNodeIdsByUserId" resultType="string">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT s.star_node_id
         FROM pcd_file_star_table s
         INNER JOIN pcd_directory_tree_table d ON s.star_node_id = d.node_id
         WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND s.star_target_type = 'folder'
+          AND (s.star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND s.star_space_id IS NULL))
           AND d.node_status NOT IN ('trashed', 'deleted')
           AND NOT EXISTS (
               SELECT 1
@@ -120,9 +147,12 @@
         LEFT JOIN 文件信息表和目录树表，按收藏时间倒序
     -->
     <select id="findStarredItemsByUserId" resultMap="FileStarEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             s.star_id,
             s.star_user_id,
+            s.star_space_id,
             s.star_target_type,
             s.star_file_id,
             s.star_node_id,
@@ -137,6 +167,8 @@
         LEFT JOIN pcd_directory_tree_table d
             ON s.star_node_id = d.node_id AND s.star_target_type = 'folder'
         WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (s.star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND s.star_space_id IS NULL))
           AND (
               (
                   s.star_target_type = 'file'
@@ -171,6 +203,8 @@
     </select>
 
     <select id="countStarredItemsByUserId" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COUNT(*)
         FROM pcd_file_star_table s
         LEFT JOIN pcd_file_info_table f
@@ -178,6 +212,8 @@
         LEFT JOIN pcd_directory_tree_table d
             ON s.star_node_id = d.node_id AND s.star_target_type = 'folder'
         WHERE s.star_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (s.star_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND s.star_space_id IS NULL))
           AND (
               (
                   s.star_target_type = 'file'

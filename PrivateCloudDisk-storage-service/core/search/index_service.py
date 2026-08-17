@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.config import settings
-from core.search.opensearch_client import get_opensearch_client
+from core.search.opensearch_client import get_opensearch_client, is_opensearch_available
 
 logger = logging.getLogger("index_service")
 
@@ -24,11 +24,15 @@ class IndexService:
 
         Args:
             document: {
-                file_id, user_id, node_id, filename, file_ext,
+                file_id, user_id, space_id, node_id, filename, file_ext,
                 file_type, file_category, size_bytes, status,
                 created_at, updated_at, tags, summary, extraction
             }
         """
+        # REQ-WORKER-TASKBUS-2026-07：启动降级后不再触发后续客户端连接异常。
+        if not is_opensearch_available():
+            logger.warning("OpenSearch 不可用，跳过文件基本信息索引: file_id=%s", document.get("file_id"))
+            return False
         try:
             document["indexed_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -52,10 +56,14 @@ class IndexService:
 
         Args:
             document: {
-                file_id, user_id, filename, file_ext, created_at,
+                file_id, user_id, space_id, filename, file_ext, created_at,
                 content_text, content_chunks, ocr_text, image_labels, extraction
             }
         """
+        # REQ-WORKER-TASKBUS-2026-07：内容增强必须 fail-open，避免索引依赖拖垮后处理流水线。
+        if not is_opensearch_available():
+            logger.warning("OpenSearch 不可用，跳过文件内容索引: file_id=%s", document.get("file_id"))
+            return False
         try:
             document["indexed_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -75,6 +83,9 @@ class IndexService:
     @staticmethod
     async def delete_file_index(file_id: str) -> bool:
         """删除文件在两个索引中的文档"""
+        if not is_opensearch_available():
+            logger.debug("OpenSearch 不可用，跳过删除文件索引: file_id=%s", file_id)
+            return False
         try:
             client = get_opensearch_client()
 

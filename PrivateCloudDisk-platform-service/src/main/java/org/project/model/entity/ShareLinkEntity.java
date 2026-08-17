@@ -35,6 +35,9 @@ public class ShareLinkEntity implements Serializable {
     /** 分享者用户ID */
     private UUID share_owner_id;
 
+    /** 需求：空间管理能力全量集成（五-4），分享来源空间。 */
+    private UUID share_space_id;
+
     /** 分享名称 */
     private String share_name;
 
@@ -46,6 +49,9 @@ public class ShareLinkEntity implements Serializable {
 
     /** 是否有密码保护 */
     private Boolean share_has_password;
+
+    /** 分享内容权限：false 时仅允许查看目录/元数据，不允许获取实际文件内容。 */
+    private Boolean share_allow_download = true;
 
     /** 过期时间 */
     private LocalDateTime share_expires_at;

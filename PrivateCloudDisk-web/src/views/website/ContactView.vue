@@ -6,7 +6,7 @@
         <div class="mx-auto max-w-3xl text-center">
           <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">联系我们</span>
           <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">获取帮助与支持</h1>
-          <p class="mt-4 text-lg text-neutral-500">无论您有任何问题，我们的团队都随时为您提供帮助</p>
+          <p class="mt-4 text-lg text-neutral-500">功能、部署、接口契约和扩展能力问题请通过项目维护渠道反馈</p>
         </div>
       </div>
     </section>
@@ -84,18 +84,17 @@
           <!-- Info -->
           <div class="space-y-6">
             <div class="rounded-2xl border border-neutral-200 bg-white p-8">
-              <h3 class="text-lg font-bold text-neutral-800">企业服务热线</h3>
+            <h3 class="text-lg font-bold text-neutral-800">项目维护渠道</h3>
               <div class="mt-4 space-y-3">
                 <div class="flex items-center gap-3">
-                  <i class="fa fa-phone text-primary"></i>
-                  <span class="text-sm text-neutral-600">400-888-XXXX</span>
+                  <i class="fa fa-github text-primary"></i>
+                  <span class="text-sm text-neutral-600">以项目仓库 Issue / PR 为准</span>
                 </div>
                 <div class="flex items-center gap-3">
                   <i class="fa fa-envelope text-primary"></i>
-                  <span class="text-sm text-neutral-600">support@clouddrive.com</span>
+                  <span class="text-sm text-neutral-600">以实际维护方公布渠道为准</span>
                 </div>
-                <p class="text-xs text-neutral-400 mt-2">工作时间: 周一至周五 9:00 - 21:00</p>
-                <p class="text-xs text-neutral-400">周末及节假日: 10:00 - 18:00</p>
+                <p class="text-xs text-neutral-400 mt-2">响应时间和支持范围不在仓库中固化承诺</p>
               </div>
             </div>
 
@@ -116,7 +115,7 @@
     <!-- Map placeholder -->
     <section class="border-t border-neutral-100 py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <h2 class="text-2xl font-bold text-neutral-900 text-center">我们的办公地点</h2>
+        <h2 class="text-2xl font-bold text-neutral-900 text-center">项目模块入口</h2>
         <div class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div v-for="office in offices" :key="office.city" class="rounded-2xl border border-neutral-200 bg-white p-6">
             <div class="flex items-start gap-4">
@@ -142,30 +141,30 @@ const submitting = ref(false)
 const form = ref({ name: '', company: '', email: '', phone: '', type: '', message: '', agree: false })
 
 const contactCards = [
-  { title: '售前咨询', desc: '产品咨询与方案推荐', contact: 'sales@clouddrive.com', icon: 'fa fa-comments', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
-  { title: '技术支持', desc: '技术问题与故障排查', contact: 'support@clouddrive.com', icon: 'fa fa-life-ring', bgClass: 'bg-success/10', iconClass: 'text-success' },
-  { title: '商务合作', desc: '渠道合作与生态合作', contact: 'partner@clouddrive.com', icon: 'fa fa-handshake-o', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
-  { title: '社区论坛', desc: '用户交流与技术分享', contact: '社区论坛', icon: 'fa fa-users', bgClass: 'bg-info/10', iconClass: 'text-info' },
+  { title: '功能问题', desc: '文件、空间、分享和预览', contact: '提交 Issue', icon: 'fa fa-comments', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
+  { title: '部署问题', desc: 'Compose、存储和中间件', contact: '查看 docs', icon: 'fa fa-life-ring', bgClass: 'bg-success/10', iconClass: 'text-success' },
+  { title: '扩展问题', desc: '插件、工作流和运行时', contact: '查看 contracts', icon: 'fa fa-puzzle-piece', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
+  { title: '文档建议', desc: 'README、API 和官网文案', contact: '提交 PR', icon: 'fa fa-users', bgClass: 'bg-info/10', iconClass: 'text-info' },
 ]
 
 const quickLinks = [
   { label: '帮助文档', url: '/docs', icon: 'fa fa-book' },
-  { label: 'API 文档', url: '#', icon: 'fa fa-code' },
-  { label: '系统状态', url: '#', icon: 'fa fa-check-circle' },
-  { label: '更新日志', url: '#', icon: 'fa fa-refresh' },
-  { label: '安全白皮书', url: '#', icon: 'fa fa-shield' },
+  { label: 'API 文档', url: '/docs/api', icon: 'fa fa-code' },
+  { label: '系统状态', url: '/status', icon: 'fa fa-check-circle' },
+  { label: '更新日志', url: '/changelog', icon: 'fa fa-refresh' },
+  { label: '安全说明', url: '/security', icon: 'fa fa-shield' },
 ]
 
 const offices = [
-  { city: '北京', type: '全球总部', address: '北京市海淀区中关村软件园 A 座 18 层', phone: '010-88888888', email: 'beijing@clouddrive.com' },
-  { city: '上海', type: '研发中心', address: '上海市浦东新区张江高科技园区 B 栋 12 层', phone: '021-66666666', email: 'shanghai@clouddrive.com' },
+  { city: 'Web', type: '官网与业务前端', address: 'PrivateCloudDisk-web/src/views/website', phone: '以项目仓库为准', email: 'README / docs' },
+  { city: 'Services', type: '微服务与基础设施', address: '根目录各 PrivateCloudDisk-* 子项目', phone: '以 Compose 为准', email: 'docs/architecture.md' },
 ]
 
 async function handleSubmit() {
   submitting.value = true
   // 模拟提交
   await new Promise(r => setTimeout(r, 1000))
-  alert('消息已发送，我们会在 24 小时内回复您。')
+  alert('信息已整理，请通过项目维护渠道提交。')
   form.value = { name: '', company: '', email: '', phone: '', type: '', message: '', agree: false }
   submitting.value = false
 }

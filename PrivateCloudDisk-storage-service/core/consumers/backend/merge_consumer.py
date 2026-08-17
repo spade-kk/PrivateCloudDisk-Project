@@ -1,8 +1,8 @@
 """
-合并消费者 — 文件后台处理阶段 1/4
+合并消费者 — 文件后台处理阶段 1/5
 
 职责: 合并分片文件为完整文件
-顺序: merge → hash_calculate → virus_scan → mark_active
+顺序: merge → content_preprocess → hash_calculate → virus_scan → mark_active
 """
 from __future__ import annotations
 import logging

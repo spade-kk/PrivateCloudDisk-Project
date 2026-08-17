@@ -12,12 +12,12 @@
         <article class="prose prose-neutral max-w-none text-sm leading-relaxed space-y-8">
           <div>
             <h2 class="text-xl font-bold text-neutral-900">1. 引言</h2>
-            <p class="mt-3 text-neutral-600">CloudDrive（以下简称"我们"）深知个人信息对您的重要性，我们将按照法律法规的规定，保护您的个人信息及隐私安全。本隐私政策旨在向您说明我们如何收集、使用、存储、共享和保护您的个人信息。</p>
+            <p class="mt-3 text-neutral-600">PrivateCloudDisk（以下简称"项目"）的部署方应依据适用法律和实际业务场景制定隐私规则。本页面说明代码和部署中可能涉及的信息类型，不替代部署方的正式隐私政策。</p>
           </div>
 
           <div>
             <h2 class="text-xl font-bold text-neutral-900">2. 我们收集的信息</h2>
-            <p class="mt-3 text-neutral-600">在您使用 CloudDrive 服务的过程中，我们可能会收集以下类型的信息：</p>
+            <p class="mt-3 text-neutral-600">在使用 PrivateCloudDisk 的过程中，实际部署可能处理以下类型的信息：</p>
             <ul class="mt-2 space-y-1 text-neutral-600 list-disc list-inside">
               <li><strong>账户信息：</strong>注册时提供的用户名、邮箱地址、手机号码等。</li>
               <li><strong>使用数据：</strong>您存储的文件元数据（文件名、大小、类型等），不包括文件内容本身。</li>
@@ -40,13 +40,13 @@
 
           <div>
             <h2 class="text-xl font-bold text-neutral-900">4. 数据存储与安全</h2>
-            <p class="mt-3 text-neutral-600">我们采用业界领先的安全措施保护您的数据：</p>
+            <p class="mt-3 text-neutral-600">代码提供的访问和处理机制包括：</p>
             <ul class="mt-2 space-y-1 text-neutral-600 list-disc list-inside">
-              <li>所有文件数据采用 AES-256-GCM 端到端加密存储</li>
-              <li>数据传输采用 TLS 1.3 加密协议</li>
-              <li>数据多地冗余备份，保障数据安全</li>
-              <li>严格的访问控制和身份认证机制</li>
-              <li>定期的安全审计和渗透测试</li>
+              <li>平台通过网关认证、空间上下文和操作凭证控制访问边界</li>
+              <li>服务间使用内部请求校验和服务令牌进行边界控制</li>
+              <li>文件上传、下载、预览和处理状态由服务接口协同管理</li>
+              <li>实际传输加密、存储加密、备份和审计策略取决于部署配置</li>
+              <li>部署方应结合实际环境完成安全审计、备份验证和合规评估</li>
             </ul>
           </div>
 
@@ -87,8 +87,8 @@
           <div>
             <h2 class="text-xl font-bold text-neutral-900">9. 联系我们</h2>
             <p class="mt-3 text-neutral-600">如果您对本隐私政策有任何疑问或意见，请通过以下方式联系我们：</p>
-            <p class="mt-2 text-neutral-600">邮箱：privacy@clouddrive.com</p>
-            <p class="text-neutral-600">地址：北京市海淀区中关村科技园</p>
+            <p class="mt-2 text-neutral-600">本页面不固化未经确认的邮箱或办公地址</p>
+            <p class="text-neutral-600">联系渠道：以项目仓库和实际部署方公布的信息为准</p>
           </div>
         </article>
       </div>

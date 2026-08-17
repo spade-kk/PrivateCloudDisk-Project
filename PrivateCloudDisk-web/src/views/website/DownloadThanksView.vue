@@ -22,7 +22,7 @@
         </div>
 
         <h1 class="mt-8 text-3xl font-extrabold tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
-          感谢下载 <span class="text-primary">CloudDrive</span>
+          感谢下载 <span class="text-primary">PrivateCloudDisk</span>
         </h1>
         <p class="mt-4 text-lg text-neutral-500">
           您的 <strong>{{ clientDisplayName }}</strong> 客户端正在下载中
@@ -139,7 +139,7 @@
     <section class="border-t border-neutral-100 bg-neutral-50/50 py-16 sm:py-20">
       <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
         <h2 class="text-xl font-bold text-neutral-900">也需要其他平台客户端？</h2>
-        <p class="mt-2 text-sm text-neutral-500">CloudDrive 支持 Windows、macOS、Linux、iOS、Android 全平台</p>
+        <p class="mt-2 text-sm text-neutral-500">仓库包含 Web、桌面端、移动端、原生客户端和 CLI 入口，具体能力以各子项目为准</p>
         <div class="mt-6 flex flex-wrap justify-center gap-3">
           <router-link
             v-for="p in allPlatforms"
@@ -191,7 +191,7 @@ const route = useRoute()
 const clientPlatform = computed(() => (route.query.platform as string) || 'windows-x64')
 const clientVersion = computed(() => (route.query.version as string) || '3.2.0')
 const clientDownloadPath = computed(() => (route.query.downloadPath as string) || '')
-const clientDisplayName = computed(() => (route.query.displayName as string) || 'CloudDrive')
+const clientDisplayName = computed(() => (route.query.displayName as string) || 'PrivateCloudDisk')
 const clientExtension = computed(() => (route.query.extension as string) || 'exe')
 
 // ============================================================
@@ -208,7 +208,7 @@ function triggerDownload() {
   // 触发浏览器下载
   const link = document.createElement('a')
   link.href = clientDownloadPath.value
-  link.download = `CloudDrive-${clientPlatform.value}-${clientVersion.value}.${clientExtension.value}`
+  link.download = `PrivateCloudDisk-${clientPlatform.value}-${clientVersion.value}.${clientExtension.value}`
   link.style.display = 'none'
   document.body.appendChild(link)
   link.click()
@@ -231,51 +231,49 @@ onMounted(() => {
 // ============================================================
 const platformInstallSteps: Record<string, string[]> = {
   'windows-x64': [
-    '下载完成后，双击 <code>CloudDrive-Setup.exe</code> 安装程序',
+    '下载完成后，双击 <code>PrivateCloudDisk-Setup.exe</code> 安装程序',
     '按照安装向导提示，选择安装目录并点击"下一步"',
-    '安装完成后，CloudDrive 将自动启动，并使用系统托盘常驻运行',
+    '安装完成后，PrivateCloudDisk 将按客户端实现启动；是否常驻以客户端配置为准',
     '使用您的账户登录，即可开始同步文件',
   ],
   'windows-arm64': [
-    '下载完成后，双击 <code>CloudDrive-Setup-ARM64.exe</code> 安装程序',
+    '下载完成后，双击 <code>PrivateCloudDisk-Setup-ARM64.exe</code> 安装程序',
     '按照安装向导提示完成安装',
-    '安装完成后，CloudDrive 将自动启动',
+    '安装完成后，PrivateCloudDisk 将按客户端实现启动',
     '使用您的账户登录，即可开始同步文件',
   ],
   'macos-x64': [
-    '下载完成后，打开 <code>CloudDrive.dmg</code> 磁盘映像',
-    '将 CloudDrive 图标拖拽到 Applications 文件夹',
+    '下载完成后，打开 <code>PrivateCloudDisk.dmg</code> 磁盘映像',
+    '将 PrivateCloudDisk 图标拖拽到 Applications 文件夹',
     '首次打开时，在"系统偏好设置 > 安全性与隐私"中允许运行',
     '使用您的账户登录，即可开始同步文件',
   ],
   'macos-arm64': [
-    '下载完成后，打开 <code>CloudDrive-AppleSilicon.dmg</code> 磁盘映像',
-    '将 CloudDrive 图标拖拽到 Applications 文件夹',
+    '下载完成后，打开 <code>PrivateCloudDisk-AppleSilicon.dmg</code> 磁盘映像',
+    '将 PrivateCloudDisk 图标拖拽到 Applications 文件夹',
     '首次打开时，在"系统偏好设置 > 安全性与隐私"中允许运行',
     '使用您的账户登录，即可开始同步文件',
   ],
   'linux-x64': [
     '下载完成后，打开终端进入下载目录',
-    '运行 <code>chmod +x CloudDrive-*.AppImage && ./CloudDrive-*.AppImage</code>',
-    '或使用包管理器安装：<code>dpkg -i clouddrive-*.deb</code>',
+    '运行 <code>chmod +x PrivateCloudDisk-*.AppImage && ./PrivateCloudDisk-*.AppImage</code>',
+    '或按当前发布包说明使用包管理器安装',
     '使用您的账户登录，即可开始同步文件',
   ],
   'linux-arm64': [
     '下载完成后，打开终端进入下载目录',
-    '运行 <code>chmod +x CloudDrive-*-arm64.AppImage && ./CloudDrive-*-arm64.AppImage</code>',
-    '或使用包管理器安装：<code>dpkg -i clouddrive-*-arm64.deb</code>',
+    '运行 <code>chmod +x PrivateCloudDisk-*-arm64.AppImage && ./PrivateCloudDisk-*-arm64.AppImage</code>',
+    '或按当前发布包说明使用包管理器安装',
     '使用您的账户登录，即可开始同步文件',
   ],
   'linux-deb': [
     '下载完成后，打开终端进入下载目录',
-    '运行 <code>sudo dpkg -i clouddrive-*.deb</code> 安装',
-    '运行 <code>clouddrive</code> 启动客户端',
+    '按当前发布包说明完成安装并启动客户端',
     '使用您的账户登录，即可开始同步文件',
   ],
   'linux-rpm': [
     '下载完成后，打开终端进入下载目录',
-    '运行 <code>sudo rpm -i clouddrive-*.rpm</code> 安装',
-    '运行 <code>clouddrive</code> 启动客户端',
+    '按当前发布包说明完成安装并启动客户端',
     '使用您的账户登录，即可开始同步文件',
   ],
 }
@@ -284,7 +282,7 @@ const installSteps = computed(() => {
   return platformInstallSteps[clientPlatform.value] || [
     '下载完成后，运行安装程序',
     '按照安装向导完成安装',
-    '启动 CloudDrive 客户端',
+    '启动 PrivateCloudDisk 客户端',
     '使用您的账户登录，即可开始同步文件',
   ]
 })
@@ -344,28 +342,28 @@ const sysReqs = computed(() => {
 // 静态数据
 // ============================================================
 const featureHighlights = [
-  { title: '文件实时同步', desc: '选择本地文件夹，自动同步到云端，多设备无缝切换。', icon: 'fa fa-refresh', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
+  { title: '多端文件访问', desc: '通过对应客户端访问平台文件，具体同步策略以客户端实现和部署配置为准。', icon: 'fa fa-refresh', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
   { title: '拖拽上传', desc: '直接将文件拖入客户端即可上传，体验与本地文件管理器一致。', icon: 'fa fa-upload', bgClass: 'bg-success/10', iconClass: 'text-success' },
-  { title: '在线预览', desc: '支持 Office 文档、PDF、图片、视频等 100+ 格式在线预览。', icon: 'fa fa-eye', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
-  { title: '团队协作', desc: '创建共享文件夹，与团队成员实时协作编辑。', icon: 'fa fa-users', bgClass: 'bg-info/10', iconClass: 'text-info' },
-  { title: '文件锁定', desc: '编辑文件时自动锁定，防止多人同时修改造成冲突。', icon: 'fa fa-lock', bgClass: 'bg-danger/10', iconClass: 'text-danger' },
-  { title: '版本历史', desc: '自动保存文件历史版本，随时回滚到任意时间点。', icon: 'fa fa-history', bgClass: 'bg-purple-100', iconClass: 'text-purple-600' },
+  { title: '在线预览', desc: '支持 Office 文档、PDF、图片、视频、代码等多类文件在线预览，实际格式以服务配置为准。', icon: 'fa fa-eye', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
+  { title: '空间协作', desc: '在空间中组织成员、角色、文件夹和分享资源，具体协作能力以平台接口为准。', icon: 'fa fa-users', bgClass: 'bg-info/10', iconClass: 'text-info' },
+  { title: '访问边界', desc: '通过空间、角色、分享资源和操作凭证控制文件访问范围。', icon: 'fa fa-lock', bgClass: 'bg-danger/10', iconClass: 'text-danger' },
+  { title: '处理状态', desc: '上传、预览、下载和异步处理状态由服务接口协同记录。', icon: 'fa fa-history', bgClass: 'bg-purple-100', iconClass: 'text-purple-600' },
 ]
 
 const tutorials = [
-  { title: '登录您的 CloudDrive 账户', desc: '安装完成后，打开客户端，使用您的企业邮箱或手机号登录。如果是首次使用，请先注册账户。', tip: '支持 SSO 单点登录，企业用户可直接使用公司账户登录' },
-  { title: '设置同步文件夹', desc: '在客户端中选择您想要同步到云端的本地文件夹。CloudDrive 会自动监控文件夹变化，实时同步新增、修改和删除的文件。', tip: '建议选择"文档"或"桌面"等重要文件夹，确保关键数据实时备份' },
-  { title: '上传您的第一个文件', desc: '直接将文件拖拽到客户端窗口，或右键点击文件选择"通过 CloudDrive 分享"，即可快速上传文件到云端。', tip: '大文件上传支持断点续传，上传中断后会自动恢复，无需重新开始' },
-  { title: '创建共享链接', desc: '右键点击云端文件，选择"创建共享链接"，即可生成一个安全的分享链接。您可以设置密码保护、有效期和下载次数限制。', tip: '企业版支持设置链接的访问权限，可限制仅企业内部成员访问' },
-  { title: '邀请团队成员', desc: '在"团队空间"中创建项目文件夹，通过邮箱邀请团队成员加入。设置每个成员的权限（查看/编辑/管理），开始高效协作。', tip: '管理员可在后台查看所有成员的操作日志，满足合规审计要求' },
+  { title: '登录您的平台账户', desc: '安装完成后，打开客户端并使用平台支持的账户认证方式登录；具体认证选项以实际部署为准。', tip: '客户端身份注册和扩展绑定由 client-registration-service 负责' },
+  { title: '选择文件访问方式', desc: '根据客户端能力访问文件列表、空间、分享、收藏和回收站；本地同步或挂载能力以对应客户端实现为准。', tip: '请先阅读对应客户端 README 和部署配置' },
+  { title: '上传或下载文件', desc: '使用客户端上传、下载或预览文件；大文件处理会经过上传会话、文件服务和异步处理链路。', tip: '文件夹上传、文件夹下载和断点续传以客户端与服务接口支持为准' },
+  { title: '创建共享链接', desc: '在平台文件操作中创建分享资源，访问范围、凭证和撤回能力以当前接口与部署配置为准。', tip: '请以 Share API 和空间权限规则为准' },
+  { title: '加入空间协作', desc: '在空间中管理成员、角色、文件夹和分享资源，按项目或部门组织协作边界。', tip: '空间权限和资源范围以平台服务接口与实际配置为准' },
 ]
 
 const faqs = [
   { q: '下载的文件在哪里？', a: '下载的文件默认保存在浏览器的下载目录中。您可以在浏览器的下载管理器中查看下载进度和文件位置。Windows 默认路径为 C:\\Users\\用户名\\Downloads，macOS 默认路径为 ~/Downloads。' },
-  { q: '安装过程中遇到安全警告怎么办？', a: 'Windows 可能会出现"Windows 已保护你的电脑"提示，请点击"更多信息"然后选择"仍要运行"。macOS 首次打开时，请前往"系统偏好设置 > 安全性与隐私"中点击"仍要打开"。CloudDrive 客户端已通过数字签名验证，请放心安装。' },
-  { q: '如何卸载客户端？', a: 'Windows 用户可通过"控制面板 > 程序和功能"卸载，macOS 用户直接将 Applications 中的 CloudDrive 拖入废纸篓，Linux 用户使用对应的包管理器卸载。卸载前请确保文件已同步到云端。' },
-  { q: '客户端支持代理设置吗？', a: '支持。在客户端"设置 > 网络"中配置 HTTP/HTTPS/SOCKS5 代理。支持系统代理自动检测和手动配置两种方式。' },
-  { q: '如何更新到最新版本？', a: '客户端会自动检测新版本并在后台静默下载更新包。您也可以手动点击"检查更新"按钮，或前往下载页面下载最新版本覆盖安装。' },
+  { q: '安装过程中遇到安全警告怎么办？', a: '请根据操作系统提示核对安装包来源、发布流程和本机安全策略；仓库页面不对未提供签名证据的安装包作数字签名承诺。' },
+  { q: '如何卸载客户端？', a: '请按照对应操作系统和客户端子项目的卸载说明处理；卸载前请确认本地未保存需要上传的文件。' },
+  { q: '客户端支持代理设置吗？', a: '代理能力取决于具体客户端实现和部署网络，请查看对应客户端 README 与配置项。' },
+  { q: '如何更新到最新版本？', a: '请以对应客户端子项目的发布说明、构建产物和部署流程为准；官网不虚构自动更新或静默下载能力。' },
 ]
 
 const allPlatforms = [

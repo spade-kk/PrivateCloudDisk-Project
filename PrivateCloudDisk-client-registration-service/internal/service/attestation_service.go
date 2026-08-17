@@ -23,20 +23,20 @@ import (
 // 【三层验证架构】
 // 对应 macOS 客户端的三层证明：
 //
-//   第一层：硬件证明验证
-//     - 检查 tokenID 是否为系统真实值 "com.apple.setoken"（kSecAttrTokenIDSecureEnclave）
-//     - 服务端无法直接验证 SE 硬件，但可结合 App Attest 间接验证
+//	第一层：硬件证明验证
+//	  - 检查 tokenID 是否为系统真实值 "com.apple.setoken"（kSecAttrTokenIDSecureEnclave）
+//	  - 服务端无法直接验证 SE 硬件，但可结合 App Attest 间接验证
 //
-//   第二层：APP 证明验证（Apple App Attestation）
-//     - 解析 CBOR 格式的 Apple 证明语句
-//     - 验证证书链：Apple Root CA → Credential CA → Attestation Cert
-//     - 验证证明签名：authenticatorData || clientDataHash
-//     - 验证 clientDataHash == SHA256(PublicKey)，确保公钥被绑定到证明中
-//     - 验证 RP ID Hash == SHA256(AppID)，确保证明来自正确的 APP
+//	第二层：APP 证明验证（Apple App Attestation）
+//	  - 解析 CBOR 格式的 Apple 证明语句
+//	  - 验证证书链：Apple Root CA → Credential CA → Attestation Cert
+//	  - 验证证明签名：authenticatorData || clientDataHash
+//	  - 验证 clientDataHash == SHA256(PublicKey)，确保公钥被绑定到证明中
+//	  - 验证 RP ID Hash == SHA256(AppID)，确保证明来自正确的 APP
 //
-//   第三层：业务实例签名验证
-//     - 使用业务公钥验证 ECDSA 签名
-//     - 验证挑战值、时间戳等字段
+//	第三层：业务实例签名验证
+//	  - 使用业务公钥验证 ECDSA 签名
+//	  - 验证挑战值、时间戳等字段
 //
 // 验证流程：
 //  1. 挑战值验证 — 确保挑战值有效且未被使用
@@ -92,6 +92,11 @@ func (s *AttestationService) VerifyAttestation(
 		return result, fmt.Errorf("证明中缺少挑战值")
 	}
 	result.addLog("PASS", "挑战值格式验证通过")
+	if challengePublicKey == "" || challengePublicKey != attestation.PublicKey {
+		result.addLog("FAIL", "证明公钥与挑战值绑定公钥不一致")
+		return result, fmt.Errorf("证明公钥与挑战值绑定公钥不一致")
+	}
+	result.addLog("PASS", "挑战值与公钥绑定验证通过")
 
 	// ─── 验证 2: 时间戳窗口 ────────────────────────────────────────────────────
 	attestationTime := time.Unix(attestation.Timestamp, 0)
@@ -115,11 +120,16 @@ func (s *AttestationService) VerifyAttestation(
 	result.addLog("PASS", fmt.Sprintf("应用标识验证通过: %s", attestation.AppID))
 
 	// ─── 验证 4: 平台标识 ──────────────────────────────────────────────────────
-	if attestation.Platform != "macOS" {
+	/*
+	 * 本地插件第二阶段 / Web 运行时：
+	 * 原行为仅接受 macOS Secure Enclave 客户端；新行为增加 WebCrypto 软件密钥通道。
+	 * Web 身份固定评估为 low，仅用于浏览器受限沙箱与签名分发，不能冒充原生硬件证明。
+	 */
+	if attestation.Platform != "macOS" && attestation.Platform != "Web" {
 		result.addLog("FAIL", fmt.Sprintf("不支持的平台: %s", attestation.Platform))
 		return result, fmt.Errorf("不支持的平台: %s", attestation.Platform)
 	}
-	result.addLog("PASS", "平台标识验证通过: macOS")
+	result.addLog("PASS", fmt.Sprintf("平台标识验证通过: %s", attestation.Platform))
 
 	// ─── 验证 5: 密钥算法验证 ──────────────────────────────────────────────────
 	if attestation.KeyAlgorithm != "ECDSA-P256" && attestation.KeyAlgorithm != "EC-P256" {
@@ -128,9 +138,20 @@ func (s *AttestationService) VerifyAttestation(
 	}
 	result.addLog("PASS", fmt.Sprintf("密钥算法验证通过: %s", attestation.KeyAlgorithm))
 
+	if attestation.Platform == "Web" {
+		if attestation.TokenID != "WebCrypto-P256" {
+			result.addLog("FAIL", "Web 客户端密钥来源标识无效")
+			return result, fmt.Errorf("Web 客户端密钥来源标识无效")
+		}
+		if attestation.AppleAttestation != "" {
+			result.addLog("FAIL", "Web 客户端不得声明 Apple App Attestation")
+			return result, fmt.Errorf("Web 客户端证明类型冲突")
+		}
+	}
+
 	// ─── 验证 6: Apple App Attestation 验证 ────────────────────────────────────
 	hasAppAttest := attestation.AppleAttestation != ""
-	if hasAppAttest {
+	if attestation.Platform == "macOS" && hasAppAttest {
 		appAttestResult, err := s.verifyAppleAppAttestation(attestation)
 		if err != nil {
 			result.addLog("FAIL", fmt.Sprintf("Apple App Attestation 验证失败: %v", err))
@@ -140,8 +161,10 @@ func (s *AttestationService) VerifyAttestation(
 		for _, log := range appAttestResult {
 			result.addLog("PASS", log)
 		}
-	} else {
+	} else if attestation.Platform == "macOS" {
 		result.addLog("INFO", "Apple App Attestation 未提供（降级到 medium）")
+	} else {
+		result.addLog("INFO", "WebCrypto 软件密钥不具备硬件证明（固定为 low）")
 	}
 
 	// ─── 验证 7: 业务签名验证 ──────────────────────────────────────────────────
@@ -439,6 +462,10 @@ func (s *AttestationService) evaluateIntegrityLevel(
 	attestation *domain.AttestationObject,
 	hasAppAttest bool,
 ) string {
+	// 浏览器密钥可能被同源脚本调用，不具备设备硬件不可导出证明，因此不得升级完整性等级。
+	if attestation.Platform == "Web" {
+		return "low"
+	}
 	score := 0
 
 	// 使用 Secure Enclave（硬件级安全）

@@ -1,6 +1,6 @@
 # PrivateCloudDisk-gateway-service
 
-企业级 API 网关服务，基于 Spring Cloud Gateway (WebFlux) 构建，是整个私有云盘系统的统一入口，负责请求路由、JWT 认证鉴权、分布式限流和请求日志记录。
+API 网关服务，基于 Spring Cloud Gateway (WebFlux) 构建，是浏览器和客户端访问平台服务的统一入口，负责路由、JWT 认证、客户端身份边界、内部请求头清理、请求控制和日志处理。实际路由以 `src/main/resources/application*.properties` 为准。
 
 ---
 
@@ -8,7 +8,7 @@
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| Spring Boot | 4.0.6 | 应用框架 (WebFlux) |
+| Spring Boot | 3.4.7 | 应用框架 (WebFlux) |
 | Spring Cloud Gateway | 2025.1.1 | API 网关 (响应式) |
 | Spring Security | 6.x (WebFlux) | 安全框架 |
 | Spring Data Redis Reactive | - | 响应式 Redis (限流计数) |

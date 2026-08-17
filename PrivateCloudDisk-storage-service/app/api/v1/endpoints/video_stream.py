@@ -53,16 +53,22 @@ _HLS_TOKEN_EXPIRE_SECONDS = 3600  # Token 默认 1 小时有效
 # Token 工具函数
 # =============================================================================
 
-def _generate_hls_token(file_id: str, user_id: str, expires_in: int = _HLS_TOKEN_EXPIRE_SECONDS) -> str:
+def _generate_hls_token(file_id: str, user_id: str, space_id: str | None = None,
+                        expires_in: int = _HLS_TOKEN_EXPIRE_SECONDS) -> str:
     """
     生成 HLS 流媒体访问 Token
 
     格式: <base64_payload>.<hmac_signature>
     实现简单 HMAC 签名 Token，不需要完整 JWT 库依赖
     """
+    # 兼容旧内部调用：历史第三参数曾经是 expires_in；新逻辑将空间作为显式绑定字段。
+    if isinstance(space_id, int):
+        expires_in, space_id = space_id, None
     payload = {
         "file_id": file_id,
         "user_id": user_id,
+        # AUDIT FIX [4.4]：将空间绑定进 HLS 授权，避免同一用户在多空间中复用流令牌。
+        "space_id": space_id or "",
         "exp": int(time.time()) + expires_in,
         "iat": int(time.time()),
     }
@@ -132,7 +138,7 @@ async def _get_hls_root(file_id: str, token: str) -> Path:
     """根据令牌中的用户与数据库资源台账定位 HLS 根目录。"""
     payload = _verify_hls_token(token, file_id)
     resource = await preview_resource_service.get_ready(
-        file_id, str(payload["user_id"]), "hls", "master"
+        file_id, str(payload["user_id"]), "hls", "master", space_id=payload.get("space_id") or None
     )
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HLS 资源不存在或已失效")
@@ -215,6 +221,7 @@ async def get_video_stream_token(
     file_id: str,
     body: dict,
     user_id: str = Header(..., alias="X-User-Id"),
+    space_id: Optional[str] = Header(default=None, alias="X-Space-Id"),
 ):
     """
     获取 HLS 流媒体访问 Token
@@ -239,12 +246,12 @@ async def get_video_stream_token(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="HLS 转码尚未完成")
 
     # 生成 Token
-    token = _generate_hls_token(file_id, user_id, expires_in)
+    token = _generate_hls_token(file_id, user_id, space_id, expires_in)
 
     from datetime import datetime, timezone, timedelta
     expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
 
-    logger.info(f"[HLS-TOKEN] 签发: file_id={file_id}, user={user_id}, resolution={resolution}")
+    logger.info(f"[HLS-TOKEN] 签发: file_id={file_id}, space_id={space_id}, user={user_id}, resolution={resolution}")
 
     return {
         "code": 200,
@@ -618,10 +625,15 @@ async def get_video_hover_preview(
     resource = await preview_resource_service.get_ready(
         file_id, user_id, "video_preview", "30s",
     )
+    logger.info(resource)
     if not resource:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="视频悬停预览尚未生成")
 
-    path = Path(resource["storage_path"])
+    path = Path(resource["storage_path"]).resolve()
+    try:
+        path.relative_to(Path(settings.file_upload_dir).resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="悬停预览路径不在允许范围内") from exc
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="悬停预览记录存在但文件缺失")
 
@@ -702,6 +714,19 @@ async def get_video_thumbnail(
     thumbnail_resource = await preview_resource_service.get_ready(file_id, user_id, "video_thumbnail", size)
     pre_generated_thumb = thumbnail_resource.get("storage_path") if thumbnail_resource else None
     storage_path = metadata.get("storage_path")
+    upload_root = Path(settings.file_upload_dir).resolve()
+    if pre_generated_thumb:
+        pre_generated_thumb = str(Path(pre_generated_thumb).resolve())
+        try:
+            Path(pre_generated_thumb).relative_to(upload_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="视频缩略图路径不在允许范围内") from exc
+    if storage_path:
+        storage_path = str(Path(storage_path).resolve())
+        try:
+            Path(storage_path).relative_to(upload_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="视频文件路径不在允许范围内") from exc
 
     # 3. 检查预生成缩略图
     if pre_generated_thumb and os.path.exists(pre_generated_thumb):

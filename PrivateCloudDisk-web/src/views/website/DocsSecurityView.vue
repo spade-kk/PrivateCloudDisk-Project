@@ -238,7 +238,7 @@
                     </div>
                     <div class="flex justify-between">
                       <span class="text-neutral-500">锁定时长</span>
-                      <span class="font-medium">30 分钟</span>
+                      <span class="font-medium">按配置</span>
                     </div>
                   </div>
                 </div>

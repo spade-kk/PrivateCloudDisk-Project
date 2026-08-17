@@ -28,6 +28,17 @@ public class BaseController {
     //操作成功的状态码
     public static final int OK = 200;
 
+    /**
+     * 上传会话创建遇到乐观锁冲突时返回明确协议，前端可透明重试，避免把瞬时并发竞争展示为业务失败。
+     */
+    @ExceptionHandler(OptimisticLockConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleOptimisticLockConflict(OptimisticLockConflictException e) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", "OPTIMISTIC_LOCK_CONFLICT");
+        body.put("message", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<JsonResult<Void>> handleRateLimitException(RateLimitExceededException e) {
         JsonResult<Void> result = new JsonResult<>(e.getMessage(), 42900);

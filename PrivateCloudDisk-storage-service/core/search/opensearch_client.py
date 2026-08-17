@@ -13,6 +13,16 @@ logger = logging.getLogger("opensearch_client")
 
 # 全局单例
 _os_client: AsyncOpenSearch | None = None
+# REQ-WORKER-TASKBUS-2026-07：OpenSearch 启动降级状态。
+# 原行为：启动探测失败后只返回 False，后续内容增强仍会重新创建客户端并抛异常。
+# 新行为：本进程将依赖标记为不可用，内容索引直接跳过；影响范围仅为搜索索引写入，
+# 文件合并、病毒扫描、文件激活及其他增强阶段不受影响。重启 Worker 后重新探测。
+_opensearch_available: bool | None = None
+
+
+def is_opensearch_available() -> bool:
+    """返回当前 Worker 是否允许调用 OpenSearch；未完成首次探测时保持兼容地允许探测。"""
+    return _opensearch_available is not False
 
 
 def get_opensearch_client() -> AsyncOpenSearch:
@@ -50,6 +60,8 @@ async def ensure_indices() -> bool:
         FILE_CONTENT_INDEX_BODY,
     )
 
+    global _opensearch_available
+
     try:
         client = get_opensearch_client()
 
@@ -83,8 +95,10 @@ async def ensure_indices() -> bool:
             )
             logger.debug(f"文件内容索引已存在: {settings.opensearch_content_index}")
 
+        _opensearch_available = True
         return True
     except Exception as e:
+        _opensearch_available = False
         logger.warning(
             "OpenSearch 服务不可用，跳过索引初始化 "
             "(文件内容搜索功能暂不可用，其他功能不受影响)"
@@ -95,11 +109,12 @@ async def ensure_indices() -> bool:
 
 async def close_opensearch_client():
     """关闭 OpenSearch 客户端"""
-    global _os_client
+    global _os_client, _opensearch_available
     if _os_client is not None:
         try:
             await _os_client.close()
             _os_client = None
+            _opensearch_available = None
             logger.info("OpenSearch 客户端已关闭")
         except Exception as e:
             logger.warning(f"关闭 OpenSearch 客户端异常: {e}")

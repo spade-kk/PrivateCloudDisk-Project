@@ -20,9 +20,9 @@ import { get, post, del } from '@/utils/request'
  * @param file_id - 要下载的文件 ID
  * @returns Promise<{ operation_token: string, expires_at: string }> 操作令牌及过期时间
  */
-export function createDownloadGrantApi(file_id: string): Promise<any> {
+export function createDownloadGrantApi(file_id: string, spaceId?: string): Promise<any> {
   const data = { file_id }
-  return post('files/download-grants', data)
+  return post('files/download-grants', data, spaceId ? { headers: { 'X-Space-Id': spaceId } } : undefined)
 }
 
 /**
@@ -69,10 +69,11 @@ export function getFileContentApi(
   file_id: string,
   download_grant: string,
   onProgress?: (progressEvent: ProgressEvent) => void,
+  spaceId?: string,
 ): Promise<any> {
   return get(`files/files/${file_id}/content`, {}, {
     responseType: 'blob',
-    headers: { 'X-Download-Grant': download_grant },
+    headers: { 'X-Download-Grant': download_grant, ...(spaceId ? { 'X-Space-Id': spaceId } : {}) },
     onDownloadProgress: onProgress,
   })
 }

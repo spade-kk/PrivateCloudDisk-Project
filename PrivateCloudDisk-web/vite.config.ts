@@ -20,10 +20,52 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import viteCompression from 'vite-plugin-compression'
-import JavaScriptObfuscator from 'javascript-obfuscator'
+import { minify as terserMinify } from 'terser'
 import cssnano from 'cssnano'
 import fs from 'node:fs'
 import path from 'node:path'
+
+/**
+ * Monaco 同源静态资源插件。
+ * 原行为把完整 ESM 语言服务纳入 Rollup，生产构建在约 2GB 堆上 OOM；新行为在开发环境
+ * 只读服务 npm 包的 min/vs，在生产构建结束后复制到独立静态目录，不参与 Terser 与压缩遍历。
+ */
+function selfHostedMonacoPlugin() {
+  const sourceRoot = path.resolve(process.cwd(), 'node_modules/monaco-editor/min/vs')
+  const webPrefix = '/vendor/monaco/vs/'
+  const mimeTypes: Record<string, string> = {
+    '.js': 'application/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.ttf': 'font/ttf',
+    '.svg': 'image/svg+xml',
+  }
+  return {
+    name: 'pcd-self-hosted-monaco',
+    configureServer(server: any) {
+      server.middlewares.use((request: any, response: any, next: () => void) => {
+        const requestPath = String(request.url || '').split('?', 1)[0]
+        if (!requestPath.startsWith(webPrefix)) return next()
+        const relative = decodeURIComponent(requestPath.slice(webPrefix.length))
+        const target = path.resolve(sourceRoot, relative)
+        if (target !== sourceRoot && !target.startsWith(`${sourceRoot}${path.sep}`)) {
+          response.statusCode = 403
+          response.end('Forbidden')
+          return
+        }
+        if (!fs.existsSync(target) || !fs.statSync(target).isFile()) return next()
+        response.setHeader('Content-Type', mimeTypes[path.extname(target)] || 'application/octet-stream')
+        response.setHeader('Cache-Control', 'no-cache')
+        fs.createReadStream(target).pipe(response)
+      })
+    },
+    closeBundle() {
+      const targetRoot = path.resolve(process.cwd(), 'dist/vendor/monaco/vs')
+      fs.mkdirSync(path.dirname(targetRoot), { recursive: true })
+      fs.cpSync(sourceRoot, targetRoot, { recursive: true, force: true })
+    },
+  }
+}
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -82,12 +124,18 @@ export default defineConfig(({ command, mode }) => {
             enforce: 'post' as const,
             // 仅处理生产构建
             apply: 'build' as const,
-            transform(code: string, id: string) {
+            async transform(code: string, id: string) {
               // 仅混淆 crypto.ts 模块
               if (!cryptoModuleRE.test(id)) return null
 
               try {
-                const result = JavaScriptObfuscator.obfuscate(code, {
+                /*
+                 * 插件生态 Sprint 0 供应链修复：
+                 * 原行为直接执行 javascript-obfuscator，其 multimatch/minimatch 依赖存在高危内存耗尽公告。
+                 * 新行为保留原配置痕迹用于回溯，但使用项目既有 Terser 做最小化与标识符压缩。
+                 * 客户端混淆从来不是密钥边界，真正安全性仍由 TLS、服务端哈希和限流承担。
+                 */
+                const historicalObfuscatorOptions = {
                   compact: true,
                   // 控制流扁平化：将 if/else/for 等结构化控制流转换为
                   // switch-case，使代码执行路径难以静态分析
@@ -148,10 +196,25 @@ export default defineConfig(({ command, mode }) => {
                   unicodeEscapeSequence: false,
                   // 不生成 source map（避免泄露原始代码结构）
                   sourceMap: false,
+                }
+                const result = await terserMinify(code, {
+                  module: true,
+                  compress: {
+                    passes: 3,
+                    dead_code: true,
+                    drop_debugger: true,
+                  },
+                  mangle: {
+                    module: true,
+                    reserved: historicalObfuscatorOptions.reservedNames,
+                  },
+                  format: { comments: false },
+                  sourceMap: false,
                 })
+                if (!result.code) throw new Error('Terser 未生成 crypto 模块代码')
 
                 return {
-                  code: result.getObfuscatedCode(),
+                  code: result.code,
                   map: null,
                 }
               } catch (e) {
@@ -343,6 +406,8 @@ export default defineConfig(({ command, mode }) => {
             },
           }
         })(),
+      // 必须放在压缩/静态资源处理插件之后，使 Monaco 不进入主包和二次压缩流程。
+      selfHostedMonacoPlugin(),
     ].filter(Boolean),
 
     // ============================================================
@@ -542,7 +607,6 @@ export default defineConfig(({ command, mode }) => {
         // 以下库改为 CDN 动态加载，通过 src/utils/*Cdn.ts 加载器统一管理
         // 此处声明为 external 防止构建时残留打包引用导致 OOM 与产物膨胀
         external: [
-          'monaco-editor',
           'markdown-it',
           'markdown-it-anchor',
           'markdown-it-emoji',
@@ -561,6 +625,12 @@ export default defineConfig(({ command, mode }) => {
             'vendor-vue': ['vue', 'vue-router', 'pinia'],
             // Element Plus UI 组件库
             'vendor-element': ['element-plus'],
+            'vendor-workflow': [
+              '@vue-flow/core',
+              '@vue-flow/background',
+              '@vue-flow/controls',
+              'yaml',
+            ],
             // 工具库（axios, fingerprintjs, hls.js, gsap）
             'vendor-utils': ['axios', '@fingerprintjs/fingerprintjs', 'hls.js', 'gsap'],
           },

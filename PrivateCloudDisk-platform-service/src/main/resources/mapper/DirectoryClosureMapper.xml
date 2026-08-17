@@ -5,56 +5,82 @@
 
 <mapper namespace="org.project.mapper.DirectoryClosureMapper">
     <insert id="insertSelf">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
         INSERT INTO pcd_directory_closure_table (
         ancestor_id,
         descendant_id,
         depth,
-        user_id
+        user_id,
+        closure_space_id
         )
         VALUES (
         #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
         #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
         0,
-        #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+        #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         )
     </insert>
 
     <insert id="insertRelationsFromParent">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         INSERT INTO pcd_directory_closure_table (
         ancestor_id,
         descendant_id,
         depth,
-        user_id
+        user_id,
+        closure_space_id
         )
         SELECT
         ancestor_id,
         #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
         depth + 1,
-        #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+        #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         FROM pcd_directory_closure_table
         WHERE descendant_id = #{parentId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true and closure_space_id is null
+                AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
     </insert>
 
     <select id="isDescendant" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COUNT(1)
         FROM pcd_directory_closure_table
-        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND ancestor_id = #{ancestorId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE ancestor_id = #{ancestorId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         AND descendant_id = #{descendantId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+          OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          OR (#{personalSpace}=true and closure_space_id is null
+              AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
     </select>
 
     <select id="getMaxDepthToNode" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COALESCE(MAX(depth), 0)
         FROM pcd_directory_closure_table
-        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND descendant_id = #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE descendant_id = #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+          OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          OR (#{personalSpace}=true and closure_space_id is null
+              AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
     </select>
 
     <select id="selectDescendantIds" resultType="java.util.UUID">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT descendant_id
         FROM pcd_directory_closure_table
-        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND ancestor_id = #{ancestorId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE ancestor_id = #{ancestorId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+          OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          OR (#{personalSpace}=true and closure_space_id is null
+              AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
         ORDER BY depth ASC
     </select>
 
@@ -63,20 +89,30 @@
         保留子树内部关系，例如 movingNode -> child。
     -->
     <delete id="deleteExternalRelationsForMove">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE c
         FROM pcd_directory_closure_table c
         JOIN (
         SELECT descendant_id
         FROM pcd_directory_closure_table
-        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND ancestor_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE ancestor_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+              AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+             OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+             OR (#{personalSpace}=true AND closure_space_id IS NULL
+                 AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
         ) subtree
         ON subtree.descendant_id = c.descendant_id
         JOIN (
         SELECT ancestor_id
         FROM pcd_directory_closure_table
-        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND descendant_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE descendant_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+              AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+             OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+             OR (#{personalSpace}=true AND closure_space_id IS NULL
+                 AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
         AND ancestor_id != #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         ) old_ancestors
         ON old_ancestors.ancestor_id = c.ancestor_id
@@ -88,23 +124,33 @@
         新祖先到子树节点深度 = 新祖先到新父级深度 + 子树根到子树节点深度 + 1
     -->
     <insert id="insertRelationsForMove">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         INSERT INTO pcd_directory_closure_table (
         user_id,
         ancestor_id,
         descendant_id,
-        depth
+        depth,
+        closure_space_id
         )
         SELECT
         supertree.user_id,
         supertree.ancestor_id,
         subtree.descendant_id,
-        supertree.depth + subtree.depth + 1
+        supertree.depth + subtree.depth + 1,
+        #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         FROM pcd_directory_closure_table supertree
         JOIN pcd_directory_closure_table subtree
-        WHERE supertree.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND subtree.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND supertree.descendant_id = #{newParentId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE supertree.descendant_id = #{newParentId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
         AND subtree.ancestor_id = #{movingNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+              AND supertree.user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              AND subtree.user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+          OR (supertree.closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            AND subtree.closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+          OR (#{personalSpace}=true
+            AND supertree.closure_space_id IS NULL
+            AND subtree.closure_space_id IS NULL))
     </insert>
 
     <!--
@@ -112,13 +158,19 @@
         注意：这个 SQL 应该在删除 file_info 和 directory_node 之后执行。
     -->
     <delete id="deleteClosureRowsBySubtree">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE c
         FROM pcd_directory_closure_table c
         JOIN (
         SELECT descendant_id
         FROM pcd_directory_closure_table
-        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        AND ancestor_id = #{rootNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE ancestor_id = #{rootNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+              AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+             OR closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+             OR (#{personalSpace}=true AND closure_space_id IS NULL
+                 AND user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
         ) subtree
         ON subtree.descendant_id = c.descendant_id
     </delete>
@@ -127,6 +179,8 @@
         查询多个文件节点的祖先链路径（含节点名称），用于计算文件夹下载时的相对路径
     -->
     <select id="selectAncestorPaths" resultType="org.project.mapper.PathNodeInfo">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             c.descendant_id AS descendantId,
             c.ancestor_id AS ancestorId,
@@ -135,12 +189,15 @@
         FROM pcd_directory_closure_table c
         INNER JOIN pcd_directory_tree_table n
             ON c.ancestor_id = n.node_id
-        WHERE c.user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND c.descendant_id IN
+        WHERE c.descendant_id IN
           <foreach collection="descendantIds" item="id" open="(" separator="," close=")">
             #{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           </foreach>
           AND c.ancestor_id != #{rootNodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and c.user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            OR c.closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true and c.closure_space_id is null
+                AND c.user_id=#{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
         ORDER BY c.descendant_id, c.depth DESC
     </select>
 

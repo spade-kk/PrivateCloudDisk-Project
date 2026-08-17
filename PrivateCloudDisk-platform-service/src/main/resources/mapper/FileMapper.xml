@@ -15,50 +15,151 @@
         <result column="file_total_chunks" property="total_chunks"/>
         <result column="file_storage_path" property="storage_path"/>
         <result column="file_status" property="status" />
+        <result column="file_space_id" property="space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
     </resultMap>
 
     <insert id="insertFile" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.FileEntity">
-        insert into pcd_file_info_table(file_id, file_name, file_uploaded_time, file_size, file_type, file_author_id, file_checksum, file_node_id, file_total_chunks, file_storage_path, file_status)
-        values(#{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{checksum}, #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{total_chunks}, #{storage_path}, #{status});
+        insert into pcd_file_info_table(file_id, file_name, file_uploaded_time, file_size, file_type, file_author_id, file_checksum, file_node_id, file_total_chunks, file_storage_path, file_status, file_space_id)
+        values(#{id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{uploaded_time}, #{size}, #{type}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{checksum}, #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{total_chunks}, #{storage_path}, #{status}, #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler});
     </insert>
 
     <select id="findUserActiveFilesByNodeId" resultMap="FileEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         select * from pcd_file_info_table
         where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and file_space_id is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              )
           and file_status not in ('trashed', 'deleted', 'merging', 'merge_failed', 'scanning', 'reject', 'scan_failed', 'merged');
     </select>
 
+    <select id="findActiveFilesByNodeIdAndSpaceId" resultMap="FileEntityMap">
+        SELECT * FROM pcd_file_info_table
+        WHERE file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND file_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND file_status = 'active'
+        ORDER BY file_name ASC;
+    </select>
+
+    <select id="findActiveFileByNodeIdAndNameAndSpaceId" resultMap="FileEntityMap">
+        SELECT * FROM pcd_file_info_table
+        WHERE file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND file_name = #{name}
+          AND file_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND file_status = 'active'
+        LIMIT 1;
+    </select>
+
+    <!--
+        分享文件夹子项必须按 owner + space + parent 三元组读取。
+        原行为复用 findUserActiveFilesByNodeId，会在没有 HTTP 空间上下文的公开分享请求中
+        回退到 user_id，可能把同一用户其他空间的同名节点泄露到分享页。
+    -->
+    <select id="findShareActiveFilesByNodeId" resultMap="FileEntityMap">
+        SELECT *
+        FROM pcd_file_info_table
+        WHERE file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+              file_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+                  AND file_space_id IS NULL)
+          )
+          AND file_status = 'active'
+        ORDER BY file_name ASC;
+    </select>
+
     <select id="findUserExistFilesByNodeId" resultMap="FileEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         select * from pcd_file_info_table
         where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and file_space_id is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              )
           and file_status not in ('trashed', 'deleted', 'merge_failed', 'reject', 'scan_failed');
     </select>
 
     <select id="findActiveFilesByDescendantNodes" resultMap="FileEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT f.*
         FROM pcd_file_info_table f
-        WHERE f.file_author_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and f.file_author_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or f.file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and f.file_space_id is null
+                    and f.file_author_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              )
           AND f.file_node_id IN (
               SELECT descendant_id
               FROM pcd_directory_closure_table
               WHERE ancestor_id = #{nodeId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-                AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           )
           AND f.file_status NOT IN ('trashed', 'deleted', 'merging', 'merge_failed', 'scanning', 'reject', 'scan_failed', 'merged')
         ORDER BY f.file_name ASC
     </select>
 
     <select id="findUserFileById" resultMap="FileEntityMap" parameterType="java.util.UUID">
-        select * from pcd_file_info_table where file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        select * from pcd_file_info_table
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and file_space_id is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              );
+    </select>
+
+    <!--
+        需求三-2/3：授权链路必须使用 user_id + space_id + file_id 三元组。
+        个人空间历史记录允许 file_space_id=NULL；自建空间不允许 NULL 回退。
+    -->
+    <select id="findUserFileByIdAndSpaceId" resultMap="FileEntityMap">
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        SELECT *
+        FROM pcd_file_info_table
+        WHERE file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+              file_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL AND file_space_id IS NULL)
+              OR (#{personalSpace}=true AND file_space_id IS NULL)
+          )
+        LIMIT 1
     </select>
 
     <select id="findUserFileByNodeIdAndName" resultMap="FileEntityMap">
-        select * from pcd_file_info_table where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_name = #{name} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        select * from pcd_file_info_table
+        where file_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and file_name = #{name}
+          and (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and file_space_id is null
+                    and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              );
     </select>
 
     <select id="isFileDeleted" resultType="boolean">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             CASE
                 WHEN f.file_status IN ('TRASHED', 'DELETED') THEN TRUE
@@ -76,11 +177,19 @@
                 ELSE FALSE
                 END AS deleted
         FROM pcd_file_info_table f
-        WHERE f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or f.file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and f.file_space_id is null
+                    and f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              )
     </select>
 
     <select id="selectFileEffectiveStatus" resultType="string">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             CASE MIN(
                     CASE
@@ -107,29 +216,92 @@
                            ON n.node_user_id = c.user_id
                                AND n.node_id = c.ancestor_id
                                AND n.node_status IN ('TRASHED', 'DELETED')
-        WHERE f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+                (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                    and f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                or f.file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                or (#{personalSpace} = true and f.file_space_id is null
+                    and f.file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+              )
         GROUP BY f.file_id, f.file_status
     </select>
 
     <update id="updateUserFileNameById">
-        update pcd_file_info_table set file_name = #{file_new_name} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        update pcd_file_info_table set file_name = #{file_new_name}
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace} = true and file_space_id is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <update id="updateUserFileParentNodeIdById">
-        update pcd_file_info_table set file_node_id = #{target_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        update pcd_file_info_table set file_node_id = #{target_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace} = true and file_space_id is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <update id="updateUserFileStatusById">
-        update pcd_file_info_table set file_status = #{status} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        update pcd_file_info_table set file_status = #{status}
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace} = true and file_space_id is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <update id="updateUserFileStoragePath">
-        update pcd_file_info_table set file_storage_path = #{storage_path} where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        update pcd_file_info_table set file_storage_path = #{storage_path}
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace} = true and file_space_id is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
+    </update>
+
+    <!--
+      插件生态生命周期：
+      原行为先写原始 storage_path，激活时只改 status；新行为在候选内容通过最终
+      Hash/Scan 后原子提交最终 path/checksum/size/status，避免 active 元数据指向旧对象。
+    -->
+    <update id="activateWithFinalContent">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        update pcd_file_info_table
+        set file_storage_path = COALESCE(#{storage_path}, file_storage_path),
+            file_checksum = COALESCE(#{checksum}, file_checksum),
+            file_size = COALESCE(#{file_size}, file_size),
+            file_status = 'active'
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and file_status = 'merged'
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace} = true and file_space_id is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <delete id="deleteUserFileById" parameterType="java.util.UUID">
-        delete from pcd_file_info_table where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        delete from pcd_file_info_table
+        where file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or file_space_id = #{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace} = true and file_space_id is null
+                and file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </delete>
 
     <delete id="cleanUserFailedStatusFiles" parameterType="java.util.UUID">

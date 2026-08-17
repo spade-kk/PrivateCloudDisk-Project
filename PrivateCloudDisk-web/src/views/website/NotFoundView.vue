@@ -50,7 +50,7 @@
         <p class="text-xs text-neutral-300">
           <span class="font-mono">HTTP 404</span>
           <span class="mx-2">|</span>
-          <a href="mailto:support@clouddrive.com" class="hover:text-primary transition">support@clouddrive.com</a>
+          <span class="hover:text-primary transition">以项目仓库维护渠道为准</span>
         </p>
       </div>
     </div>

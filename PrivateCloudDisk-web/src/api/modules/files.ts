@@ -19,8 +19,9 @@ import { del, get, post, patch } from '@/utils/request'
  * @param file_id - 文件唯一标识符
  * @returns Promise<{ file_id, file_name, file_size, file_type, created_at, ... }> 文件详情
  */
-export function getFileInfoApi(file_id: string): Promise<any> {
-  return get(`business/files/${file_id}`)
+export function getFileInfoApi(file_id: string, spaceId?: string): Promise<any> {
+  // 公开仓库预览通过显式请求头传递空间，不改变既有控制台调用方式。
+  return get(`business/files/${file_id}`, undefined, spaceId ? { headers: { 'X-Space-Id': spaceId } } : undefined)
 }
 
 /**

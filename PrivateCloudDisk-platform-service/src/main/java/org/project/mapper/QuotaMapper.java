@@ -63,21 +63,23 @@ public interface QuotaMapper {
      * @param user_id
      * @return
      */
-    int increaseQuotaUsedCapacity(@Param("size") Long size, @Param("user_id") UUID user_id);
+    int increaseQuotaUsedCapacity(@Param("size") Long size, @Param("user_id") UUID user_id, @Param("version") Integer version);
+
     /**
      *
      * @param size
      * @param user_id
      * @return
      */
-    int increaseQuotaUsedCapacityByFileSize(@Param("size") Long size, @Param("user_id") UUID user_id);
+    int increaseQuotaUsedCapacityByFileSize(@Param("size") Long size, @Param("user_id") UUID user_id, @Param("version") Integer version);
+
     /**
      *
      * @param size
      * @param user_id
      * @return
      */
-    int decreaseQuotaUsedCapacity(@Param("size") Long size, @Param("user_id") UUID user_id);
+    int decreaseQuotaUsedCapacity(@Param("size") Long size, @Param("user_id") UUID user_id, @Param("version") Integer version);
 
     /**
      *

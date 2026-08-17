@@ -137,6 +137,10 @@ async def issue_download_grant(
     client_ip: str,
     session_id: Optional[str] = None,
     ttl_seconds: int = DOWNLOAD_GRANT_TTL_SECONDS,
+    metadata: Optional[dict] = None,
+    grant_source: str = "space",
+    share_token: str = "",
+    share_resource_id: str = "",
 ) -> str:
     """
     颁发下载授权 Grant（Opaque Token）
@@ -171,7 +175,9 @@ async def issue_download_grant(
         HTTPException 503: 业务服务不可用
     """
     # 1. 验证文件权限
-    metadata = await _fetch_file_metadata(file_id, user_id)
+    # 需求二-2：分享授权已由主业务服务完成资源范围校验，直接复用同一
+    # Grant 引擎写入缓存；普通 file_id 申请保持原有元数据查询行为。
+    metadata = metadata or await _fetch_file_metadata(file_id, user_id)
 
     # 2. L1 — 用户级并发检查
     user_key = _user_active_key(user_id)
@@ -205,12 +211,16 @@ async def issue_download_grant(
         "fileName": metadata.get("name", ""),
         "fileSize": metadata.get("size", 0),
         "fileType": metadata.get("file_type", ""),
+        "spaceId": metadata.get("space_id", ""),
         "status": GRANT_STATUS_ACTIVE,
         "issuedAt": now_ms,
         "expiresAt": expires_at,
         "maxParallelChunks": MAX_PARALLEL_CHUNKS,
         "ip": client_ip,
         "sessionId": session_id or "",
+        "grantSource": grant_source,
+        "shareToken": share_token,
+        "shareResourceId": share_resource_id,
     }
     token_key = _token_key(token_hash)
     await redis_client.hset(token_key, mapping=grant_data)
@@ -309,6 +319,29 @@ async def verify_download_grant(token: str, file_id: str) -> dict:
     return grant_data
 
 
+async def verify_download_grant_for_share(
+    token: str,
+    user_id: str,
+    share_token: str,
+    share_resource_id: str,
+) -> dict:
+    """验证分享下载 Grant 的用户、分享和虚拟资源三重绑定。"""
+    if not validate_token_format(token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="下载授权格式无效")
+    grant = await redis_client.hgetall(_token_key(_hash_token(token)))
+    if not grant or grant.get("status") != GRANT_STATUS_ACTIVE:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="下载授权已过期或已失效")
+    if grant.get("userId") != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载授权用户不匹配")
+    if grant.get("grantSource") != "share" or grant.get("shareToken") != share_token \
+            or grant.get("shareResourceId") != share_resource_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载授权与分享资源不匹配")
+    if int(grant.get("expiresAt") or 0) < int(time.time() * 1000):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="下载授权已过期")
+    grant["token_hash"] = _hash_token(token)
+    return grant
+
+
 # ============================
 # Grant 释放（下载完成）
 # ============================
@@ -344,6 +377,9 @@ async def release_download_grant(token: str):
     file_name = grant_data.get("fileName", "")
     file_size = int(grant_data.get("fileSize", 0))
     file_type = grant_data.get("fileType", "")
+    space_id = grant_data.get("spaceId", "")
+    grant_source = grant_data.get("grantSource", "space")
+    share_resource_id = grant_data.get("shareResourceId", "")
 
     # 标记为 COMPLETED，短 TTL
     await redis_client.hset(token_key, "status", GRANT_STATUS_COMPLETED)
@@ -379,6 +415,9 @@ async def release_download_grant(token: str):
                     "fileSize": file_size,
                     "fileType": file_type,
                     "userId": user_id,
+                    "spaceId": space_id,
+                    "accessSource": grant_source,
+                    "shareResourceId": share_resource_id,
                     "downloadGrant": token_hash,
                     "eventTime": datetime.utcnow().isoformat(),
                 },
@@ -585,7 +624,9 @@ async def _fetch_file_metadata(file_id: str, user_id: str) -> dict:
     """通过 SDK 异步调用业务服务获取文件元数据"""
     from app.core.business_service_client import BusinessServiceError
     try:
-        result = await business_service_client.get_file_metadata(file_id, user_id)
+        result = await business_service_client.get_file_metadata(
+            file_id, user_id, space_operation="DOWNLOAD",
+        )
     except BusinessServiceError as e:
         if e.status_code == 404:
             raise HTTPException(

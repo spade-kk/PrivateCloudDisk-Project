@@ -20,6 +20,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.project.context.SpaceContextHolder;
 import org.project.model.dto.FileSearchRequest;
 import org.project.model.vo.FileSearchVO;
 import org.project.service.FileSearchService;
@@ -389,9 +390,7 @@ public class FileSearchServiceImpl implements FileSearchService {
         if (hasText(request.getTenantId())) {
             boolQuery.filter(QueryBuilders.termQuery("tenant_id", request.getTenantId()));
         }
-        if (hasText(request.getUserId())) {
-            boolQuery.filter(QueryBuilders.termQuery("user_id", request.getUserId()));
-        }
+        applySpaceAccessFilter(boolQuery, request);
         if (hasText(request.getStatus())) {
             boolQuery.filter(QueryBuilders.termQuery("status", normalizeStatus(request.getStatus())));
         }
@@ -410,6 +409,40 @@ public class FileSearchServiceImpl implements FileSearchService {
             }
             boolQuery.filter(QueryBuilders.termQuery(field, normalizeFilterValue(field, rawValue)));
         });
+    }
+
+    /**
+     * 应用空间级搜索隔离。
+     *
+     * <p>空间管理能力全量集成（需求三、五-1、五-9）：
+     * 原行为始终按 user_id 过滤，导致协作空间成员看不到其他成员上传的合法资源；
+     * 新行为自定义空间严格匹配 space_id，个人空间同时兼容尚未重建索引的历史文档
+     * （历史文档无 space_id 时仍要求 user_id 等于当前用户），防止跨用户、跨空间检索泄漏。</p>
+     */
+    private void applySpaceAccessFilter(BoolQueryBuilder boolQuery, FileSearchRequest request) {
+        SpaceContextHolder.SpaceContext context = SpaceContextHolder.get();
+        if (context == null) {
+            // 兼容非 Web 场景（离线任务/历史单测）直接调用搜索服务，仍按用户隔离。
+            if (hasText(request.getUserId())) {
+                boolQuery.filter(QueryBuilders.termQuery("user_id", request.getUserId()));
+            }
+            return;
+        }
+        String spaceId = context.spaceId().toString();
+        if (!context.personalSpace()) {
+            boolQuery.filter(QueryBuilders.termQuery("space_id", spaceId));
+            return;
+        }
+
+        BoolQueryBuilder personalScope = QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("space_id", spaceId));
+        if (hasText(request.getUserId())) {
+            personalScope.should(QueryBuilders.boolQuery()
+                    .mustNot(QueryBuilders.existsQuery("space_id"))
+                    .filter(QueryBuilders.termQuery("user_id", request.getUserId())));
+        }
+        personalScope.minimumShouldMatch(1);
+        boolQuery.filter(personalScope);
     }
 
     private void applySort(SearchSourceBuilder sourceBuilder, FileSearchRequest request) {

@@ -1,6 +1,6 @@
 """
 上传会话删除消息消费者
-职责: 接收上传会话删除事件 → 删除物理分块文件 → 通知业务服务标记 deleted
+职责: 接收上传会话删除事件 → 删除物理分块文件 → 通知业务服务删除 canceled 会话记录
 
 与 Spring Boot MQ 方案的对应:
 - Spring Boot UploadsServiceImpl.markUploadSessionDeleted → 本文件
@@ -8,7 +8,7 @@
   1. 解析消息获取 uploads_id
   2. 删除所有与该 uploads_id 关联的分块文件
   3. 调用业务服务内部接口 POST /business/internal/storage/uploads/{id}/delete-complete
-  4. 业务服务更新状态为 deleted → 发布 uploads.session.deleted 事件 → 释放配额
+  4. 业务服务删除 canceled 会话记录 → 发布 uploads.session.deleted 事件 → 释放配额
 
 失败处理策略:
   - 分块目录不存在（文件已被清理） → WARN 日志 + ACK（正常跳过）
@@ -79,13 +79,16 @@ class UploadsSessionDeleteConsumer:
                     f"分块删除 IO 异常: eventId={event_id}, "
                     f"uploadsSessionId={uploads_session_id}, error={io_error}"
                 )
-                await self._publish_to_dlq(
+                published = await self._publish_to_dlq(
                     raw_data,
                     failure_reason=FailureReason.UPLOADS_DELETE_IO_ERROR,
                     error=io_error,
                     task_type="uploads_session_delete",
                 )
-                await message.ack()
+                if published:
+                    await message.ack()
+                else:
+                    await message.nack(requeue=True)
                 return
 
             if expected_count == 0:
@@ -106,7 +109,7 @@ class UploadsSessionDeleteConsumer:
                     f"deleted={deleted_count}"
                 )
 
-            # 步骤2: 通知业务服务标记为 deleted
+            # 步骤2: 通知业务服务删除 canceled 会话记录
             success = await self._notify_business_service(uploads_session_id)
 
             if success:
@@ -122,13 +125,16 @@ class UploadsSessionDeleteConsumer:
                     f"通知业务服务失败: eventId={event_id}, "
                     f"uploadsSessionId={uploads_session_id}"
                 )
-                await self._publish_to_dlq(
+                published = await self._publish_to_dlq(
                     raw_data,
                     failure_reason=FailureReason.UPLOADS_SESSION_NOTIFY_BS_ERROR,
                     error="通知业务服务标记删除完成失败",
                     task_type="uploads_session_delete",
                 )
-                await message.ack()
+                if published:
+                    await message.ack()
+                else:
+                    await message.nack(requeue=True)
 
         except json.JSONDecodeError:
             logger.error("上传会话删除消息 JSON 解析失败，丢弃")
@@ -136,12 +142,15 @@ class UploadsSessionDeleteConsumer:
         except Exception as e:
             logger.error(f"上传会话删除处理异常: {e}", exc_info=True)
             if raw_data:
-                await self._publish_to_dlq(
+                published = await self._publish_to_dlq(
                     raw_data,
                     failure_reason=FailureReason.UPLOADS_DELETE_IO_ERROR,
                     error=str(e),
                     task_type="uploads_session_delete",
                 )
+                if not published:
+                    await message.nack(requeue=True)
+                    return
             await message.ack()
 
     async def _delete_chunk_files(
@@ -197,17 +206,20 @@ class UploadsSessionDeleteConsumer:
 
     async def _notify_business_service(self, uploads_session_id: str) -> bool:
         """
-        调用业务服务内部接口标记上传会话为 deleted
+        调用业务服务内部接口删除 canceled 上传会话记录；不再写入 deleted 状态
 
         POST api/v1/business/internal/storage/uploads/{uploads_id}/delete-complete
         """
         url = (
             f"{settings.business_service_url}"
-            f"api/v1/business/internal/storage/uploads/{uploads_session_id}/delete-complete"
+            f"/business/internal/storage/uploads/{uploads_session_id}/delete-complete"
         )
 
         try:
-            async with aiohttp.ClientSession() as session:
+            headers = {}
+            if settings.pcd_internal_service_token:
+                headers["X-PCD-Service-Token"] = settings.pcd_internal_service_token
+            async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.post(
                     url, timeout=aiohttp.ClientTimeout(total=30)
                 ) as resp:
@@ -241,7 +253,7 @@ class UploadsSessionDeleteConsumer:
         failure_reason: str,
         error: str,
         task_type: str,
-    ):
+    ) -> bool:
         """
         将携带完整失败元数据的消息发布到上传事件 DLQ
 
@@ -262,7 +274,8 @@ class UploadsSessionDeleteConsumer:
             enriched["failure_reason"] = failure_reason
             enriched["task_type"] = task_type
             enriched["error"] = error
-            enriched["dlq_retry_count"] = 0
+            enriched["dlq_retry_count"] = int(enriched.get("dlq_retry_count") or 0)
+            enriched["message_id"] = str(enriched.get("message_id") or enriched.get("eventId") or task_type)
 
             await rabbitmq_service.publish_message(
                 settings.uploads_event_dlx,
@@ -274,6 +287,7 @@ class UploadsSessionDeleteConsumer:
                 f"uploadsSessionId={original_data.get('uploadsSessionId', 'unknown')}, "
                 f"failure_reason={failure_reason}"
             )
+            return True
         except Exception as e:
             logger.error(
                 f"发布到 DLQ 失败（消息可能丢失）: "
@@ -281,3 +295,4 @@ class UploadsSessionDeleteConsumer:
                 f"error={e}",
                 exc_info=True,
             )
+            return False

@@ -39,6 +39,9 @@ logger = logging.getLogger("enhance_dlq_consumer")
 class EnhanceDLQConsumer(BaseDLQConsumer):
     """增强处理死信消费者"""
 
+    # 具体阶段可覆盖该值，形成独立 DLQ 恢复策略；未覆盖时沿用历史全局配置。
+    dlq_recovery_max_attempts: int | None = None
+
     def _get_dlq_source_name(self) -> str:
         return "file_enhance"
 
@@ -105,7 +108,12 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
         except (TypeError, ValueError):
             recovery_count = 0
 
-        if stage in routing_keys and recovery_count < settings.enhance_dlq_recovery_max_attempts:
+        max_recoveries = (
+            self.dlq_recovery_max_attempts
+            if self.dlq_recovery_max_attempts is not None
+            else settings.enhance_dlq_recovery_max_attempts
+        )
+        if stage in routing_keys and recovery_count < max_recoveries:
             next_recovery = recovery_count + 1
             delay = min(
                 settings.retry_base_delay_seconds * (2 ** recovery_count),
@@ -128,9 +136,9 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
                     REDIS_ENHANCE_EVENT_KEY.format(enhance_task_id=enhance_task_id, stage=stage)
                 )
 
-            await rabbitmq_service.publish_message(
+            await rabbitmq_service.publish_retry_message(
                 exchange_name=settings.file_enhance_exchange,
-                routing_key=f"{routing_keys[stage]}.retry",
+                routing_key=routing_keys[stage],
                 message=retry_data,
                 delay_seconds=delay,
             )
@@ -153,7 +161,7 @@ class EnhanceDLQConsumer(BaseDLQConsumer):
                 stage,
                 data.get("file_id"),
                 next_recovery,
-                settings.enhance_dlq_recovery_max_attempts,
+                max_recoveries,
                 delay,
             )
             return True

@@ -27,6 +27,13 @@ class MarkActivePipeline:
         user_id: str,
         thumbnails: list | None = None,
         transcoded: list | None = None,
+        storage_path: str | None = None,
+        checksum: str | None = None,
+        file_size: int | None = None,
+        content_revision: int = 0,
+        content_modified: bool = False,
+        preprocess_status: str = "",
+        space_id: str = "",
     ) -> MarkActiveResult:
         """
         标记文件为活跃状态
@@ -41,6 +48,13 @@ class MarkActivePipeline:
             await NotificationService.notify_file_activate(
                 file_id=file_id,
                 user_id=user_id,
+                storage_path=storage_path,
+                checksum=checksum,
+                file_size=file_size,
+                content_revision=content_revision,
+                content_modified=content_modified,
+                preprocess_status=preprocess_status,
+                space_id=space_id,
             )
 
             # 如果有缩略图或转码信息，更新文件状态

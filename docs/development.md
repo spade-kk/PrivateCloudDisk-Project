@@ -20,7 +20,7 @@
 |------|------|
 | IntelliJ IDEA | Java 开发 (platform-service, gateway-service, im) |
 | VS Code | 前端开发 (web, admin-web, desktop) |
-| PyCharm | Python 开发 (shortage-service) |
+| PyCharm | Python 开发 (storage-service) |
 | Xcode | iOS/macOS 开发 |
 | Android Studio | Android 开发 |
 | Visual Studio 2022 | Windows 开发 |
@@ -56,7 +56,7 @@ cd PrivateCloudDisk-platform-service
 ./gradlew bootRun
 
 # 2. 启动文件服务 (:8000)
-cd PrivateCloudDisk-shortage-service
+cd PrivateCloudDisk-storage-service
 pip install -r requirements.txt
 uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 
@@ -126,7 +126,7 @@ npm run dev:h5
 | PrivateCloudDisk-win | Windows 原生 | .NET/msbuild | `App.xaml.cs` |
 | PrivateCloudDisk-gateway-service | Java 网关 | Gradle | `*Application.java` |
 | PrivateCloudDisk-platform-service | Java 业务 | Gradle | `*Application.java` |
-| PrivateCloudDisk-shortage-service | Python 文件 | pip | `server.py` |
+| PrivateCloudDisk-storage-service | Python 文件处理服务 | pip | `app/main.py` |
 | PrivateCloudDisk-im | Java IM | Maven | `im-platform/`, `im-server/` |
 | PrivateCloudDisk-db | SQL 脚本 | - | `database_init.sql` |
 | PrivateCloudDisk-infra | Docker 配置 | Docker | 各中间件目录 |
@@ -236,8 +236,8 @@ SELECT HEX(user_id), user_account FROM pcd_user_info_table;
 
 | 账号 | 密码 | 角色 |
 |------|------|------|
-| `superadmin` | `admin123` | 超级管理员 |
-| `pcd_test001` | `test123456` | 普通用户 |
+| 管理员账户 | 由部署初始化或环境变量提供 | 超级管理员 |
+| 测试用户 | 由测试 fixture 或测试环境提供 | 普通用户 |
 
 ### 7.2 运行测试
 
@@ -247,7 +247,7 @@ cd PrivateCloudDisk-platform-service
 ./gradlew test
 
 # Python 测试
-cd PrivateCloudDisk-shortage-service
+cd PrivateCloudDisk-storage-service
 python tests.py
 
 # 前端测试

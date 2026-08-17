@@ -22,6 +22,9 @@ public class FileTagEntity implements Serializable {
     /** 用户ID（冗余，加速查询） */
     private UUID ft_user_id;
 
+    /** 需求：空间管理能力全量集成（五-6），标签关联所属空间。 */
+    private UUID ft_space_id;
+
     /** 标签ID */
     private Long ft_tag_id;
 

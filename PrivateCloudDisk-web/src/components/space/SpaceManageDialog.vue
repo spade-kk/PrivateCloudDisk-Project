@@ -59,8 +59,18 @@
             <select v-model="editForm.spaceVisibility" class="w-full rounded-lg border px-3 py-2 text-sm">
               <option value="private">私有</option>
               <option value="public">公开</option>
+              <option value="visible">可发现</option>
+              <option value="hidden">仅成员可见</option>
               <option value="whitelist">白名单</option>
               <option value="blacklist">黑名单</option>
+            </select>
+          </div>
+          <div v-if="space.spaceType !== 'personal' && space.spaceType !== 'public'">
+            <label class="mb-1 block text-xs font-medium text-neutral-500">加入策略</label>
+            <select v-model="editForm.joinPolicy" class="w-full rounded-lg border px-3 py-2 text-sm">
+              <option value="open">开放加入</option>
+              <option value="approval_required">需要审批</option>
+              <option value="invite_only">仅限邀请</option>
             </select>
           </div>
           <div v-if="isOwner">
@@ -71,6 +81,12 @@
               min="1"
               class="w-full rounded-lg border px-3 py-2 text-sm"
             />
+          </div>
+          <div v-if="space.spaceType === 'public'" class="space-y-2 rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <p class="text-xs font-semibold text-blue-700">公开仓库权限</p>
+            <label class="flex items-center justify-between text-xs text-blue-700"><span>允许公开浏览</span><input v-model="editForm.allowPublicBrowse" type="checkbox" /></label>
+            <label class="flex items-center justify-between text-xs text-blue-700"><span>允许公开下载</span><input v-model="editForm.allowPublicDownload" type="checkbox" /></label>
+            <label class="flex items-center justify-between text-xs text-blue-700"><span>允许登录用户上传</span><input v-model="editForm.allowPublicUpload" type="checkbox" /></label>
           </div>
           <button
             class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
@@ -223,14 +239,26 @@ const editForm = ref({
   spaceName: '',
   spaceDescription: '',
   spaceVisibility: '',
+  joinPolicy: 'approval_required',
   spaceQuotaGB: 0,
+  allowPublicBrowse: true,
+  allowPublicDownload: true,
+  allowPublicUpload: false,
 })
 
-const tabs = [
-  { key: 'info', label: '基本信息' },
-  { key: 'members', label: '成员管理' },
-  { key: 'requests', label: '加入申请' },
-]
+/**
+ * 公开空间（仓库）不具备团队成员/加入申请概念（需求一、三）。
+ * 保留原团队空间 Tab，仅在公开仓库管理弹窗中收敛为仓库设置，避免
+ * 用户误以为可以加入仓库或管理仓库成员；原有成员业务逻辑不删除，
+ * 仍完整服务于团队/企业空间。
+ */
+const tabs = computed(() => props.space.spaceType === 'public'
+  ? [{ key: 'info', label: '仓库设置' }]
+  : [
+      { key: 'info', label: '基本信息' },
+      { key: 'members', label: '成员管理' },
+      { key: 'requests', label: '加入申请' },
+    ])
 
 watch(() => props.visible, (val) => {
   if (val) {
@@ -238,11 +266,22 @@ watch(() => props.visible, (val) => {
       spaceName: props.space.spaceName,
       spaceDescription: props.space.spaceDescription || '',
       spaceVisibility: props.space.spaceVisibility,
+      joinPolicy: props.space.joinPolicy || 'approval_required',
       spaceQuotaGB: Math.round(props.space.spaceQuota / 1024 / 1024 / 1024),
+      allowPublicBrowse: props.space.allowPublicBrowse !== false,
+      allowPublicDownload: props.space.allowPublicDownload !== false,
+      allowPublicUpload: props.space.allowPublicUpload === true,
     }
     activeTab.value = 'info'
-    loadMembers()
-    loadRequests()
+    // 公开仓库没有成员管理入口；成员接口只用于既有团队/企业空间。
+    if (props.space.spaceType !== 'public') {
+      loadMembers()
+      loadRequests()
+    } else {
+      // 通过既有 owner 成员记录完成所有者识别，避免扩展前端用户模型；该记录不在仓库 UI 展示。
+      loadMembers()
+      joinRequests.value = []
+    }
   }
 })
 
@@ -266,7 +305,11 @@ async function saveInfo() {
       spaceName: editForm.value.spaceName,
       spaceDescription: editForm.value.spaceDescription,
       spaceVisibility: editForm.value.spaceVisibility,
+      joinPolicy: editForm.value.joinPolicy,
       spaceQuota: isOwner.value ? editForm.value.spaceQuotaGB * 1024 * 1024 * 1024 : undefined,
+      allowPublicBrowse: props.space.spaceType === 'public' ? editForm.value.allowPublicBrowse : undefined,
+      allowPublicDownload: props.space.spaceType === 'public' ? editForm.value.allowPublicDownload : undefined,
+      allowPublicUpload: props.space.spaceType === 'public' ? editForm.value.allowPublicUpload : undefined,
     })
     await spaceStore.refreshSpaces()
     emit('refresh')

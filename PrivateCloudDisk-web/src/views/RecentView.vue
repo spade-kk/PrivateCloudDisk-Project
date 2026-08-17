@@ -2,12 +2,15 @@
   <div class="space-y-4 sm:space-y-6">
     <!-- 标题栏 -->
     <div class="flex items-center justify-between">
-      <h1 class="flex items-center gap-2 text-xl font-bold text-neutral-700 sm:text-2xl">
-        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <i class="fa fa-clock-o text-primary"></i>
-        </span>
-        最近访问
-      </h1>
+      <div>
+        <h1 class="flex items-center gap-2 text-xl font-bold text-neutral-700 sm:text-2xl">
+          <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <i class="fa fa-clock-o text-primary"></i>
+          </span>
+          最近访问
+        </h1>
+        <CurrentSpaceBadge class="mt-2" />
+      </div>
     </div>
 
     <!-- Tab 切换 — 纯 Tailwind 实现 -->
@@ -152,16 +155,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useRecentStore } from '@/stores/recentStore'
 import { getFileIconClass } from '@/utils/fileIcon'
 import { isVideo } from '@/utils/previewHelper'
 import type { RecentAccessVO, AccessType } from '@/api/modules/recent'
+import { useSpaceStore } from '@/stores/spaceStore'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 
 const recentStore = useRecentStore()
 const router = useRouter()
+const spaceStore = useSpaceStore()
 
 // ============================================================
 // Tab 标签数据
@@ -272,4 +278,6 @@ const openItem = (item: RecentAccessVO) => {
 onMounted(() => {
   recentStore.loadAll()
 })
+
+watch(() => spaceStore.revision, () => void recentStore.loadAll())
 </script>

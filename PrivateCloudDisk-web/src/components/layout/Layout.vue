@@ -88,6 +88,10 @@ const currentRouteName = computed(() => {
     BillingPayment: '订单支付', BillingPaymentSuccess: '支付成功',
     BillingRefund: '申请退款', BillingRefundSuccess: '退款成功',
     Help: '帮助中心', VideoPlayer: '视频播放', Spaces: '空间管理',
+    PluginManagement: '插件管理', PluginCreate: '创建插件',
+    PluginMarketplace: '插件市场', SpacePluginManagement: '空间工具',
+    WorkflowManagement: '工作流管理', WorkflowCreate: '创建工作流',
+    WorkflowEdit: '编辑工作流', WorkflowMarketplace: '工作流市场',
   }
   return names[route.name] || route.name
 })

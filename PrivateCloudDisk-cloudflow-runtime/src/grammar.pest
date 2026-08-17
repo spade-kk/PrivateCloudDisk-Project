@@ -1,0 +1,48 @@
+// CloudFlow V1 PEG grammar. 语法由 Pest 生成解析器，业务代码只负责 Pair -> AST。
+file = { SOI ~ workflow ~ EOI }
+
+workflow = { "workflow" ~ string_value ~ block }
+top_item = _{ metadata_block | variables_block | trigger_block | runtime_block | step_decl | on_failure_block | control_block | assignment | named_block }
+
+metadata_block = { "metadata" ~ block }
+variables_block = { "variables" ~ block }
+trigger_block = { "trigger" ~ block }
+runtime_block = { "runtime" ~ block }
+on_failure_block = { "on_failure" ~ block }
+
+step_decl = { "step" ~ ident ~ block }
+step_item = _{ action_decl | depends_decl | condition_decl | retry_decl | output_decl | timeout_decl | assignment | named_block | call_stmt }
+
+action_decl = { "action" ~ (qualified | "plugin") ~ block? }
+depends_decl = { "depends_on" ~ qualified ~ ("," ~ qualified)* ~ ";"? }
+condition_decl = { "condition" ~ "{" ~ condition_body ~ "}" }
+condition_body = @{ (!"}" ~ ANY)* }
+retry_decl = { "retry" ~ block }
+output_decl = { "output" ~ ident ~ ";"? }
+timeout_decl = { "timeout" ~ "=" ~ duration ~ ";"? }
+
+control_block = { ("if" | "foreach" | "parallel" | "try" | "catch" | "finally" | "wait") ~ (!"{" ~ ANY)* ~ block }
+
+block = { "{" ~ block_item* ~ "}" }
+block_item = _{ step_decl | action_decl | condition_decl | retry_decl | control_block | assignment | named_block | call_stmt | output_decl | depends_decl | timeout_decl }
+named_block = { qualified ~ block }
+assignment = { qualified ~ "=" ~ value ~ ";"? }
+call_stmt = { qualified ~ "(" ~ value_list? ~ ")" ~ ";"? }
+
+value_list = { value ~ ("," ~ value)* ~ ","? }
+value = _{ triple_string | string_value | boolean | duration | number | array | call_expr | qualified }
+call_expr = { qualified ~ "(" ~ argument_list? ~ ")" }
+argument_list = { argument ~ ("," ~ argument)* ~ ","? }
+argument = { qualified ~ "=" ~ value }
+array = { "[" ~ value_list? ~ "]" }
+duration = @{ ASCII_DIGIT+ ~ ("ms" | "s" | "m" | "h" | "d") }
+boolean = @{ "true" | "false" }
+number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+triple_string = @{ "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\"" }
+string_value = @{ "\"" ~ ("\\" ~ ANY | !"\"" ~ ANY)* ~ "\"" }
+qualified = @{ ident ~ ("." ~ ident)* }
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
+WHITESPACE = _{ " " | "\t" | NEWLINE | comment }
+NEWLINE = _{ "\r\n" | "\n" | "\r" }
+comment = _{ "#" ~ (!NEWLINE ~ ANY)* }

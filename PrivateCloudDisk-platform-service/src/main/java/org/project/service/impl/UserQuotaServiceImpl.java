@@ -1,10 +1,13 @@
 package org.project.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
+import org.project.context.SpaceContextHolder;
 import org.project.mapper.QuotaMapper;
+import org.project.mapper.SpaceQuotaReservationMapper;
 import org.project.model.entity.QuotaEntity;
 import org.project.service.UserQuotaService;
 import org.project.service.ex.QuotaExceededException;
+import org.project.service.ex.OptimisticLockConflictException;
 import org.project.service.ex.ServiceException;
 import org.project.util.RedisDistributedLock;
 import org.redisson.api.RLock;
@@ -48,6 +51,9 @@ public class UserQuotaServiceImpl implements UserQuotaService {
     @Autowired
     private RedisDistributedLock redisDistributedLock;
 
+    @Autowired
+    private SpaceQuotaReservationMapper spaceQuotaReservationMapper;
+
     @Override
     public QuotaEntity findUserQuotaInfo(UUID user_id) {
         return quotaMapper.findQuotaByUserId(user_id);
@@ -55,6 +61,11 @@ public class UserQuotaServiceImpl implements UserQuotaService {
 
     @Override
     public Long getAvailableUserQuota(UUID user_id) {
+        SpaceContextHolder.SpaceContext context = SpaceContextHolder.get();
+        if (isCustomSpace(context)) {
+            Long available = spaceQuotaReservationMapper.findAvailable(context.spaceId());
+            return available == null ? 0L : available;
+        }
         QuotaEntity quota = quotaMapper.findQuotaByUserId(user_id);
         if (quota == null) {
             return 0L;
@@ -67,6 +78,9 @@ public class UserQuotaServiceImpl implements UserQuotaService {
     @Override
     @Transactional
     public void preCommitQuota(UUID user_id, long fileSize) {
+        if (reserveCustomSpaceIfNeeded(fileSize)) {
+            return;
+        }
         log.info("配额预占开始: userId={}, fileSize={}", user_id, fileSize);
 
         String lockKey = LOCK_KEY_PREFIX + user_id;
@@ -104,7 +118,7 @@ public class UserQuotaServiceImpl implements UserQuotaService {
 
         int rows = quotaMapper.increaseQuotaReleasedCapacity(fileSize, user_id, quota.getVersion());
         if (rows == 0) {
-            throw new ServiceException("配额预占失败（乐观锁冲突）: userId=" + user_id);
+            throw new OptimisticLockConflictException("配额预占发生乐观锁冲突，请重试: userId=" + user_id);
         }
         log.info("配额预占成功: userId={}, fileSize={}", user_id, fileSize);
     }
@@ -140,12 +154,15 @@ public class UserQuotaServiceImpl implements UserQuotaService {
                 log.warn("配额预占乐观锁冲突，重试: userId={}, retry={}", user_id, retry + 1);
             }
         }
-        throw new ServiceException("配额预占失败：乐观锁重试耗尽: userId=" + user_id);
+        throw new OptimisticLockConflictException("配额预占乐观锁重试耗尽，请重试: userId=" + user_id);
     }
 
     @Override
     @Transactional
     public void commitQuota(UUID user_id, long fileSize) {
+        if (commitCustomSpaceIfNeeded(fileSize)) {
+            return;
+        }
         log.info("配额提交开始: userId={}, fileSize={}", user_id, fileSize);
 
         String lockKey = LOCK_KEY_PREFIX + user_id;
@@ -201,6 +218,9 @@ public class UserQuotaServiceImpl implements UserQuotaService {
     @Override
     @Transactional
     public void rollbackQuota(UUID user_id, long fileSize) {
+        if (rollbackCustomSpaceIfNeeded(fileSize)) {
+            return;
+        }
         log.info("配额回滚开始: userId={}, fileSize={}", user_id, fileSize);
 
         String lockKey = LOCK_KEY_PREFIX + user_id;
@@ -299,16 +319,68 @@ public class UserQuotaServiceImpl implements UserQuotaService {
         log.info("increaseUserUsedQuotaBySize: size={}, userId={}", size, user_id);
         QuotaEntity quota = quotaMapper.findQuotaByUserId(user_id);
         if (quota != null) {
-            quotaMapper.increaseQuotaUsedCapacity(size, user_id);
+            quotaMapper.increaseQuotaUsedCapacity(size, user_id, quota.getVersion());
         }
     }
 
     @Override
     public void decreaseUserUsedQuotaBySize(Long size, UUID user_id) {
         log.info("decreaseUserUsedQuotaBySize: size={}, userId={}", size, user_id);
+        SpaceContextHolder.SpaceContext context = SpaceContextHolder.get();
+        if (isCustomSpace(context)) {
+            spaceQuotaReservationMapper.decreaseUsed(context.spaceId(), size == null ? 0L : size);
+            return;
+        }
         QuotaEntity quota = quotaMapper.findQuotaByUserId(user_id);
         if (quota != null) {
-            quotaMapper.decreaseQuotaUsedCapacity(size, user_id);
+            quotaMapper.decreaseQuotaUsedCapacity(size, user_id, quota.getVersion());
         }
+    }
+
+    /**
+     * 空间管理能力全量集成
+     * 原行为所有上传都占用上传者个人配额；新行为仅自定义空间改走空间级原子预占，
+     * 默认个人空间仍执行下方全部原逻辑，保证旧客户端与账单数据不变。
+     */
+    private boolean reserveCustomSpaceIfNeeded(long fileSize) {
+        SpaceContextHolder.SpaceContext context = SpaceContextHolder.get();
+        if (!isCustomSpace(context)) {
+            return false;
+        }
+        int rows = spaceQuotaReservationMapper.reserve(context.spaceId(), fileSize);
+        if (rows != 1) {
+            Long available = spaceQuotaReservationMapper.findAvailable(context.spaceId());
+            throw new QuotaExceededException(available == null ? 0L : available, fileSize);
+        }
+        log.info("空间配额预占成功: spaceId={}, fileSize={}", context.spaceId(), fileSize);
+        return true;
+    }
+
+    private boolean commitCustomSpaceIfNeeded(long fileSize) {
+        SpaceContextHolder.SpaceContext context = SpaceContextHolder.get();
+        if (!isCustomSpace(context)) {
+            return false;
+        }
+        if (spaceQuotaReservationMapper.commit(context.spaceId(), fileSize) != 1) {
+            throw new ServiceException("空间配额提交失败或预占已释放: spaceId=" + context.spaceId());
+        }
+        log.info("空间配额提交成功: spaceId={}, fileSize={}", context.spaceId(), fileSize);
+        return true;
+    }
+
+    private boolean rollbackCustomSpaceIfNeeded(long fileSize) {
+        SpaceContextHolder.SpaceContext context = SpaceContextHolder.get();
+        if (!isCustomSpace(context)) {
+            return false;
+        }
+        int rows = spaceQuotaReservationMapper.rollback(context.spaceId(), fileSize);
+        if (rows == 0) {
+            log.warn("空间配额无需回滚或已回滚: spaceId={}, fileSize={}", context.spaceId(), fileSize);
+        }
+        return true;
+    }
+
+    private boolean isCustomSpace(SpaceContextHolder.SpaceContext context) {
+        return context != null && !context.personalSpace();
     }
 }

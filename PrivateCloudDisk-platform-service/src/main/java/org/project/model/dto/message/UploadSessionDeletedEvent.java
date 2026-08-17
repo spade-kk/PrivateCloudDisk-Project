@@ -31,6 +31,9 @@ public class UploadSessionDeletedEvent implements Serializable {
     /** 用户ID */
     private UUID userId;
 
+    /** 空间管理能力全量集成（需求五-9）：用于最终释放正确空间的预占额度。 */
+    private UUID spaceId;
+
     /** 文件名称 */
     private String fileName;
 

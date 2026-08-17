@@ -6,7 +6,7 @@
         <div class="mx-auto max-w-3xl text-center">
           <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">关于我们</span>
           <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">让数据管理更简单</h1>
-          <p class="mt-4 text-lg text-neutral-500">CloudDrive 致力于为企业提供安全、高效、智能的文件存储管理解决方案</p>
+          <p class="mt-4 text-lg text-neutral-500">PrivateCloudDisk 致力于把文件管理、空间协作和可扩展自动化能力放在同一个私有云平台中</p>
         </div>
       </div>
     </section>
@@ -18,15 +18,15 @@
           <div>
             <h2 class="text-3xl font-bold text-neutral-900">我们的故事</h2>
             <p class="mt-4 text-neutral-500 leading-relaxed">
-              CloudDrive 创立于 2020 年，由一群来自顶级互联网公司的工程师和安全专家共同创建。
-              我们深刻理解企业在数据管理中面临的挑战——数据分散、安全风险、协作低效。
+              PrivateCloudDisk 是一个围绕文件与空间协作构建的全栈项目，前端、网关、平台业务、文件存储、通知、即时通讯和扩展服务均位于同一仓库。
+              项目关注数据边界、文件生命周期和团队协作过程中的可维护性。
             </p>
             <p class="mt-4 text-neutral-500 leading-relaxed">
-              经过 6 年的持续研发和迭代，CloudDrive 已成长为服务超过 10,000 家企业的私有云存储平台。
-              我们始终坚持"数据主权归于客户"的理念，通过端到端加密技术确保客户对数据的完全掌控。
+              当前平台已经覆盖文件与文件夹 CURD、上传下载、预览、分享、回收站、收藏、标签、空间成员管理，以及插件、工作流和市场能力。
+              官网展示以当前代码、配置、数据库迁移和服务契约为依据，不把未验证的客户数量、性能或认证结果写成产品承诺。
             </p>
             <p class="mt-4 text-neutral-500 leading-relaxed">
-              目前团队已超过 200 人，在北京、上海、深圳、成都设有研发中心，为客户提供 7x24 小时的技术支持服务。
+              项目支持 Docker Compose 联调，并为 Web、桌面、移动端和原生客户端保留子项目入口；生产部署、备份、监控和技术支持范围需要结合实际环境确认。
             </p>
           </div>
           <div class="grid grid-cols-2 gap-4">
@@ -115,17 +115,17 @@
 
 <script setup lang="ts">
 const milestones = [
-  { year: '2020', title: '正式成立', desc: '获天使轮融资' },
-  { year: '2021', title: '产品发布', desc: 'v1.0 正式上线' },
-  { year: '2023', title: '万家企业', desc: '服务超 1 万家' },
-  { year: '2025', title: '全球化', desc: '服务 200+ 国家' },
+  { year: '01', title: '基础文件能力', desc: '文件、目录、上传、下载和预览' },
+  { year: '02', title: '空间协作', desc: '成员、角色、权限和资源范围' },
+  { year: '03', title: '文件生命周期', desc: '处理、激活、派生资源和事件' },
+  { year: '04', title: '插件与工作流', desc: '扩展运行、市场和自动化调度' },
 ]
 
 const values = [
-  { title: '安全第一', desc: '数据安全是我们的生命线，银行级加密保护每一份文件', icon: 'fa fa-shield', bgClass: 'bg-success/10', iconClass: 'text-success' },
-  { title: '客户至上', desc: '倾听客户需求，持续改进产品，提供卓越服务体验', icon: 'fa fa-heart', bgClass: 'bg-danger/10', iconClass: 'text-danger' },
-  { title: '技术创新', desc: '拥抱前沿技术，保持架构先进性，引领行业技术变革', icon: 'fa fa-lightbulb-o', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
-  { title: '开放共赢', desc: '开放 API 与生态合作，与合作伙伴共同成长', icon: 'fa fa-handshake-o', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
+  { title: '边界清晰', desc: '用服务、空间、权限和事件边界降低系统复杂度', icon: 'fa fa-shield', bgClass: 'bg-success/10', iconClass: 'text-success' },
+  { title: '能力真实', desc: '官网和文档只描述可以从实现与配置中核验的能力', icon: 'fa fa-check-circle', bgClass: 'bg-danger/10', iconClass: 'text-danger' },
+  { title: '持续演进', desc: '让文件、预览、协作和自动化能力按模块独立演进', icon: 'fa fa-lightbulb-o', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
+  { title: '开放扩展', desc: '通过 API、插件、工作流和市场连接具体业务', icon: 'fa fa-handshake-o', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
 ]
 
 const team = [

@@ -13,6 +13,7 @@
 - 新增 content_snippet: 前2000字符摘要，写入基本信息索引便于快速搜索
 - 新增 image_labels: 写入基本信息索引，同一个关键词在两个索引都能命中
 - 新增 tenant_id: 多租户权限隔离
+- 新增 space_id: 空间管理能力全量集成，搜索结果按空间隔离
 """
 from __future__ import annotations
 import logging
@@ -111,6 +112,7 @@ class ContentIndexPipeline:
         node_id: str = "",
         created_at: str = "",
         tenant_id: str = "",
+        space_id: str = "",
     ) -> ContentIndexResult:
         """
         执行内容索引
@@ -133,11 +135,25 @@ class ContentIndexPipeline:
             node_id: 目录节点 ID
             created_at: 创建时间 (ISO 格式)
             tenant_id: 租户 ID
+            space_id: 文件所属空间 ID；为空仅用于兼容历史个人空间事件
 
         Returns:
             ContentIndexResult
         """
         logger.info(f"开始内容索引: file_id={file_id}, file_name={file_name}")
+
+        # REQ-WORKER-TASKBUS-2026-07：启动时 OpenSearch 已降级时，原行为仍继续抽取并在
+        # IndexService 中重新连接而抛异常；新行为在流水线入口短路为成功跳过，避免内容增强
+        # 进入无意义重试/DLQ。OpenSearch 恢复由 Worker 重启后的启动探测负责。
+        from core.search.opensearch_client import is_opensearch_available
+        if not is_opensearch_available():
+            logger.warning("OpenSearch 启动探测不可用，跳过内容索引增强: file_id=%s", file_id)
+            return ContentIndexResult(
+                success=True,
+                file_id=file_id,
+                skipped=True,
+                skipped_reason="OpenSearch unavailable at Worker startup",
+            )
 
         file_path = Path(storage_path)
         if not file_path.exists():
@@ -156,7 +172,8 @@ class ContentIndexPipeline:
             logger.info(f"无匹配的抽取器，跳过内容索引: file_id={file_id}, type={file_type}")
             # 仍然写入基本信息索引（含关键词提示）
             await ContentIndexPipeline._index_basic_only(
-                file_id, user_id, node_id, file_name, ext, file_type, file_size, created_at, tenant_id
+                file_id, user_id, node_id, file_name, ext, file_type, file_size,
+                created_at, tenant_id, space_id
             )
             return ContentIndexResult(
                 success=True,
@@ -189,6 +206,7 @@ class ContentIndexPipeline:
                 file_size=file_size,
                 created_at=created_at,
                 tenant_id=tenant_id,
+                space_id=space_id,
                 extraction=extraction,
             )
         except Exception as e:
@@ -229,7 +247,7 @@ class ContentIndexPipeline:
     async def _index_basic_only(
         file_id: str, user_id: str, node_id: str,
         file_name: str, ext: str, file_type: str, file_size: int,
-        created_at: str, tenant_id: str = "",
+        created_at: str, tenant_id: str = "", space_id: str = "",
     ):
         """仅写入基本信息索引 (没有合适抽取器时)"""
         file_category = ContentIndexPipeline._categorize(file_type)
@@ -247,6 +265,8 @@ class ContentIndexPipeline:
             "user_id": user_id,
             "node_id": node_id,
             "tenant_id": tenant_id,
+            # 需求五-9：新增字段，不改变原文档其他结构；历史空值由查询端兼容。
+            "space_id": space_id,
             "filename": file_name,
             "file_ext": ext,
             "file_type": file_type,
@@ -275,7 +295,7 @@ class ContentIndexPipeline:
     async def _index_to_opensearch(
         file_id: str, user_id: str, node_id: str,
         file_name: str, ext: str, file_type: str, file_size: int,
-        created_at: str, tenant_id: str,
+        created_at: str, tenant_id: str, space_id: str,
         extraction: ExtractionResult,
     ):
         """写入 OpenSearch 基本信息索引 + 内容索引"""
@@ -302,6 +322,7 @@ class ContentIndexPipeline:
             "user_id": user_id,
             "node_id": node_id,
             "tenant_id": tenant_id,
+            "space_id": space_id,
             "filename": file_name,
             "file_ext": ext,
             "file_type": file_type,
@@ -333,6 +354,7 @@ class ContentIndexPipeline:
             "user_id": user_id,
             "node_id": node_id,
             "tenant_id": tenant_id,
+            "space_id": space_id,
             "filename": file_name,
             "file_ext": ext,
             "file_type": file_type,

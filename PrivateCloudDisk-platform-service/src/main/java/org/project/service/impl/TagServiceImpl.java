@@ -2,6 +2,7 @@ package org.project.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.project.context.SpaceContextHolder;
 import org.project.mapper.TagMapper;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
@@ -47,6 +48,7 @@ public class TagServiceImpl implements TagService {
 
         TagEntity tag = new TagEntity();
         tag.setTag_user_id(user_id);
+        tag.setTag_space_id(SpaceContextHolder.getSpaceId());
         tag.setTag_name(tag_name);
         tag.setTag_color(tag_color != null ? tag_color : "#3B82F6");
         tag.setTag_created_at(LocalDateTime.now());
@@ -132,6 +134,7 @@ public class TagServiceImpl implements TagService {
 
             FileTagEntity ft = new FileTagEntity();
             ft.setFt_user_id(user_id);
+            ft.setFt_space_id(SpaceContextHolder.getSpaceId());
             ft.setFt_tag_id(tag_id);
             ft.setFt_target_type(target_type);
             if (isFile) {

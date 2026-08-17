@@ -41,23 +41,25 @@ UUID_PATTERN = re.compile(
 )
 
 
-async def _find_owner(file_id: str) -> str | None:
-    """从主文件元数据表读取归属用户，避免历史资源被错误绑定到其他账号。"""
+async def _find_owner(file_id: str) -> tuple[str, str | None] | None:
+    """从主文件元数据表读取归属用户和空间，避免历史资源被错误绑定到其他作用域。"""
     pool = await get_database_pool()
     async with pool.acquire() as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
-                "SELECT BIN_TO_UUID(file_author_id) AS user_id "
+                "SELECT BIN_TO_UUID(file_author_id) AS user_id, "
+                "BIN_TO_UUID(file_space_id) AS space_id "
                 "FROM pcd_file_info_table WHERE file_id=UUID_TO_BIN(%s)",
                 (file_id,),
             )
             row = await cursor.fetchone()
-    return row["user_id"] if row else None
+    return (row["user_id"], row.get("space_id")) if row else None
 
 
 def _resource(
     file_id: str,
     user_id: str,
+    space_id: str | None,
     resource_type: str,
     variant: str,
     path: Path,
@@ -67,6 +69,7 @@ def _resource(
     return PreviewResource(
         file_id=file_id,
         user_id=user_id,
+        space_id=space_id,
         resource_type=resource_type,
         resource_variant=variant,
         storage_path=str(path.resolve()),
@@ -81,9 +84,9 @@ def _resource(
 async def _discover(root: Path) -> list[PreviewResource]:
     """发现已存在的可管理资源；Markdown HTML 按需求显式排除。"""
     discovered: list[PreviewResource] = []
-    owner_cache: dict[str, str | None] = {}
+    owner_cache: dict[str, tuple[str, str | None] | None] = {}
 
-    async def owner_of(file_id: str) -> str | None:
+    async def owner_of(file_id: str) -> tuple[str, str | None] | None:
         if file_id not in owner_cache:
             owner_cache[file_id] = await _find_owner(file_id)
         return owner_cache[file_id]
@@ -96,10 +99,11 @@ async def _discover(root: Path) -> list[PreviewResource]:
                 logger.warning("跳过非 UUID HLS 目录: %s", master.parent)
                 continue
             file_id = match.group("file_id")
-            user_id = await owner_of(file_id)
-            if not user_id:
+            owner_scope = await owner_of(file_id)
+            if not owner_scope:
                 logger.warning("跳过无文件元数据的 HLS 资源: file_id=%s", file_id)
                 continue
+            user_id, space_id = owner_scope
             manifest_path = master.parent / "manifest.json"
             manifest: dict[str, Any] = {}
             if manifest_path.is_file():
@@ -108,7 +112,7 @@ async def _discover(root: Path) -> list[PreviewResource]:
                 except (OSError, json.JSONDecodeError) as exc:
                     logger.warning("HLS manifest 读取失败: %s", exc)
             discovered.append(_resource(
-                file_id, user_id, "hls", "master", master.parent,
+                file_id, user_id, space_id, "hls", "master", master.parent,
                 "application/vnd.apple.mpegurl",
                 width=manifest.get("source_width"),
                 height=manifest.get("source_height"),
@@ -131,15 +135,16 @@ async def _discover(root: Path) -> list[PreviewResource]:
             if not match:
                 continue
             file_id = match.group("file_id")
-            user_id = await owner_of(file_id)
-            if not user_id:
+            owner_scope = await owner_of(file_id)
+            if not owner_scope:
                 logger.warning("跳过无文件元数据的历史资源: %s", path)
                 continue
+            user_id, space_id = owner_scope
             variant = fixed_variant
             if variant is None:
                 variant = path.stem[len(file_id) + 1:] or "default"
             discovered.append(_resource(
-                file_id, user_id, resource_type, variant, path, mime_type,
+                file_id, user_id, space_id, resource_type, variant, path, mime_type,
                 duration_seconds=30.0 if resource_type == "video_preview" else None,
             ))
 
@@ -150,9 +155,10 @@ async def _discover(root: Path) -> list[PreviewResource]:
             if not match:
                 continue
             file_id = match.group("file_id")
-            user_id = await owner_of(file_id)
-            if not user_id:
+            owner_scope = await owner_of(file_id)
+            if not owner_scope:
                 continue
+            user_id, space_id = owner_scope
             suffix = path.stem[len(file_id):].lstrip("_")
             if suffix.startswith("office_"):
                 resource_type, variant = "office_thumbnail", suffix.removeprefix("office_")
@@ -163,7 +169,7 @@ async def _discover(root: Path) -> list[PreviewResource]:
             else:
                 resource_type, variant = "thumbnail", suffix or "default"
             discovered.append(_resource(
-                file_id, user_id, resource_type, variant, path, "image/jpeg",
+                file_id, user_id, space_id, resource_type, variant, path, "image/jpeg",
             ))
 
     return discovered

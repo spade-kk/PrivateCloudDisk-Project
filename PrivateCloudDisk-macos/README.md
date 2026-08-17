@@ -1,6 +1,6 @@
 # PrivateCloudDisk-macos
 
-企业级私有云盘 macOS 原生客户端，基于 SwiftUI + AppKit 构建，支持文件管理、虚拟磁盘挂载、即时通讯等完整功能。
+macOS 原生客户端，基于 SwiftUI + AppKit 构建，包含文件访问、系统集成和虚拟磁盘相关模块；挂载、即时通讯和后台能力以工程配置、系统权限和构建结果为准。
 
 ---
 

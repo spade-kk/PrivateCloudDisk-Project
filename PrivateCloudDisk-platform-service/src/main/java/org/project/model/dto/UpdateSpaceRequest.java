@@ -24,10 +24,19 @@ public class UpdateSpaceRequest {
     private String spaceDescription;
 
     /** 可见性：private / public / whitelist / blacklist */
-    @Pattern(regexp = "^(private|public|whitelist|blacklist)$", message = "可见性类型无效")
+    @Pattern(regexp = "^(private|public|visible|hidden|whitelist|blacklist)$", message = "可见性类型无效")
     private String spaceVisibility;
+
+    /** [SPACE-COLLAB-DTO-02] 团队/企业空间加入策略。 */
+    @Pattern(regexp = "^(open|approval_required|invite_only)$", message = "加入策略无效")
+    private String joinPolicy;
 
     /** 空间配额（字节），非负 */
     @Min(value = 0, message = "空间配额不能为负数")
     private Long spaceQuota;
+
+    /** 公开仓库权限开关；非 public 空间忽略。 */
+    private Boolean allowPublicBrowse;
+    private Boolean allowPublicDownload;
+    private Boolean allowPublicUpload;
 }

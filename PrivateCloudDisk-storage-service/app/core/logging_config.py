@@ -4,6 +4,7 @@
 """
 import logging
 import sys
+import os
 from typing import Optional
 
 
@@ -48,6 +49,8 @@ class ColoredFormatter(logging.Formatter):
         
         # 设置模块名称的颜色
         record.name = f"{Colors.CYAN}{record.name}{Colors.RESET}"
+        # 当前Worker颜色
+        record.worker_id = f"{Colors.YELLOW}{record.worker_id}"
         
         return super().format(record)
 
@@ -68,9 +71,16 @@ def setup_logging(
     # 默认日志格式
     if format_str is None:
         format_str = (
-            "%(asctime)s | %(levelname)-8s | %(name)-20s | "
+            "%(asctime)s | %(levelname)-8s | worker=%(worker_id)s | %(name)-20s | "
             "L%(lineno)-4d | %(message)s"
         )
+
+    class _WorkerContextFilter(logging.Filter):
+        """为多进程日志补齐稳定 worker_id；不改变现有业务日志文本。"""
+
+        def filter(self, record: logging.LogRecord) -> bool:
+            record.worker_id = os.getenv("WORKER_ID", f"pid-{os.getpid()}")
+            return True
     
     # 创建格式化器
     if enable_color and sys.stdout.isatty():
@@ -90,6 +100,7 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
+    console_handler.addFilter(_WorkerContextFilter())
     
     # 添加处理器
     root_logger.addHandler(console_handler)

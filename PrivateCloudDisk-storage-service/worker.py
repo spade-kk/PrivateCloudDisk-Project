@@ -14,10 +14,11 @@
   WORKER_PREFETCH_DLQ          - 死信队列 prefetch 数 (默认 1)
   WORKER_PREFETCH_USD          - 上传会话删除队列 prefetch 数 (默认 4)
   WORKER_PREFETCH_SQ           - 安全隔离队列 prefetch 数 (默认 1)
-  WORKER_PREFETCH_BE_MERGE     - 后台合并队列 prefetch 数 (默认 2)
-  WORKER_PREFETCH_BE_HASH      - 后台哈希队列 prefetch 数 (默认 2)
-  WORKER_PREFETCH_BE_VIRUS     - 后台病毒扫描队列 prefetch 数 (默认 2)
-  WORKER_PREFETCH_BE_MA        - 后台标记活跃队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_MERGE     - 后台合并任务队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_HASH      - 后台哈希任务队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_VIRUS     - 后台病毒扫描任务队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_BE_MA        - 后台标记活跃任务队列 prefetch 数 (默认 2)
+  WORKER_PREFETCH_CONTENT_PROCESSED - 内容预处理结果队列 prefetch 数 (默认 4)
   WORKER_PREFETCH_EN_THUMB     - 增强缩略图队列 prefetch 数 (默认 2)
   WORKER_PREFETCH_EN_TRANS     - 增强转码队列 prefetch 数 (默认 1)
   WORKER_PREFETCH_EN_HLS       - 增强 HLS 队列 prefetch 数 (默认 1)
@@ -40,8 +41,8 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │  Worker 进程 (独立)                                                  │
 │  - 文件删除消费者 (prefetch=2, concur=4)                             │
-│  - 后台处理消费者 (merge/hash/virus/mark_active, 各独立队列)           │
-│  - 增强消费者 (thumbnail/transcode/hls/index, 各独立队列)              │
+│  - 后台处理消费者 (merge/hash/virus/mark_active, 各独立任务队列)         │
+│  - 增强消费者 (thumbnail/transcode/hls/index, 各独立任务队列)            │
 │  - 后台 DLQ 消费者 (prefetch=1, concur=2)                            │
 │  - 增强 DLQ 消费者 (prefetch=1, concur=2)                            │
 │  - 上传会话删除消费者 (prefetch=4, concur=4)                          │
@@ -53,6 +54,10 @@ import sys
 import asyncio
 import logging
 import signal
+import socket
+import json
+import multiprocessing
+import time
 from typing import Optional
 
 from core.config import settings
@@ -61,11 +66,15 @@ from core.consumers import (
     on_file_delete_message,
     on_uploads_session_delete_message,
     on_uploads_event_dlq_message,
-    # Backend — 顺序流水线
+    # Backend Task Bus — 顺序流水线
     on_backend_merge_message,
     on_backend_hash_message,
     on_backend_virus_message,
     on_backend_mark_active_message,
+    # Lifecycle — merge 与 hash 之间的内容预处理闸门
+    on_file_content_processed_message,
+    on_file_content_timeout_message,
+    on_file_content_processed_dlq_message,
     # Enhancement — 并发流水线
     on_enhance_thumbnail_message,
     on_enhance_transcode_message,
@@ -73,9 +82,15 @@ from core.consumers import (
     on_enhance_index_message,
     on_enhance_office_to_pdf_message,
     on_enhance_archive_parse_message,
-    # DLQ — Backend + Enhancement
+    # Task Bus DLQ：使用现有按阶段统一策略的消费者
     on_backend_dlq_message,
     on_enhance_dlq_message,
+    # 其他域 DLQ / 生命周期降级消费者
+    on_file_content_ready_dlq_message,
+    on_file_content_processed_dedicated_dlq_message,
+    on_file_delete_dlq_message,
+    on_file_event_dlq_message,
+    on_security_quarantine_message,
 )
 from app.core.logging_config import setup_logging, get_logger
 
@@ -97,21 +112,15 @@ CONFIG = {
     },
     "dlq_delete": {
         "queue": settings.file_delete_dlq,
-        "callback": on_backend_dlq_message,
+        "callback": on_file_delete_dlq_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
     "security_quarantine": {
         "queue": settings.security_quarantine_queue,
-        "callback": on_backend_dlq_message,
+        "callback": on_security_quarantine_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_SQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_SQ", "2")),
-    },
-    "dlq_content": {
-        "queue": settings.content_index_dlq,
-        "callback": on_enhance_dlq_message,
-        "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
-        "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
     "uploads_session_delete": {
         "queue": settings.uploads_session_delete_queue,
@@ -131,7 +140,7 @@ CONFIG = {
         "prefetch": int(os.getenv("WORKER_PREFETCH_DLQ", "1")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_DLQ", "2")),
     },
-    # ========== Backend — 顺序流水线（每个阶段独立队列） ==========
+    # ========== Backend Task Bus — 每个阶段独立任务队列 ==========
     "backend_merge": {
         "queue": settings.file_backend_merge_queue,
         "callback": on_backend_merge_message,
@@ -155,6 +164,31 @@ CONFIG = {
         "callback": on_backend_mark_active_message,
         "prefetch": int(os.getenv("WORKER_PREFETCH_BE_MA", "2")),
         "concurrency": int(os.getenv("WORKER_CONCURRENCY_BE_MA", "4")),
+    },
+    # ========== Lifecycle — 内容预处理闸门 ==========
+    "file_content_processed": {
+        "queue": settings.file_content_processed_queue,
+        "callback": on_file_content_processed_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_CONTENT_PROCESSED", "4")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_CONTENT_PROCESSED", "8")),
+    },
+    "file_content_timeout": {
+        "queue": settings.file_content_timeout_queue,
+        "callback": on_file_content_timeout_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_CONTENT_TIMEOUT", "4")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_CONTENT_TIMEOUT", "8")),
+    },
+    "dlq_file_content_processed": {
+        "queue": settings.file_content_processed_dlq,
+        "callback": on_file_content_processed_dedicated_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_CONTENT_DLQ", "2")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_CONTENT_DLQ", "4")),
+    },
+    "dlq_file_content_ready": {
+        "queue": settings.file_content_ready_dlq,
+        "callback": on_file_content_ready_dlq_message,
+        "prefetch": int(os.getenv("WORKER_PREFETCH_CONTENT_READY_DLQ", "1")),
+        "concurrency": int(os.getenv("WORKER_CONCURRENCY_CONTENT_READY_DLQ", "2")),
     },
     # ========== Enhancement — 并发流水线（各阶段独立并行） ==========
     "enhance_thumbnail": {
@@ -256,6 +290,21 @@ CONFIG = {
     },
 }
 
+# 保留每个队列的细粒度并发配置；只有未设置任何旧式
+# WORKER_CONCURRENCY_<QUEUE> 变量时，才使用统一 WORKER_CONCURRENCY 作为默认值。
+# 这样既支持新部署的统一调优，也不会覆盖既有生产环境的队列级参数。
+if os.getenv("WORKER_CONCURRENCY") and not any(
+    key.startswith("WORKER_CONCURRENCY_") for key in os.environ
+):
+    try:
+        _global_concurrency = max(1, int(os.getenv("WORKER_CONCURRENCY", "1")))
+    except (TypeError, ValueError):
+        _global_concurrency = 1
+        # 配置错误不应阻止 Worker 启动；使用保守并发并让运维日志继续可见。
+        logging.getLogger("worker").warning("WORKER_CONCURRENCY 非法，降级为 1")
+    for _queue_config in CONFIG.values():
+        _queue_config["concurrency"] = _global_concurrency
+
 
 # =============================================================================
 # 日志
@@ -300,17 +349,24 @@ class Worker:
     """
 
     def __init__(self):
+        self.worker_id = os.getenv("WORKER_ID") or f"{socket.gethostname()}-{os.getpid()}"
         self._running = False
         self._shutdown_event: Optional[asyncio.Event] = None
+        self._background_stop_event: Optional[asyncio.Event] = None
+        self._background_tasks: list[asyncio.Task] = []
+        self._health_server: asyncio.AbstractServer | None = None
 
     async def start(self):
         """启动 Worker"""
         logger.info("=" * 60)
-        logger.info("PrivateCloudDisk Worker 进程启动")
+        logger.info("PrivateCloudDisk Worker 进程启动 worker_id=%s", self.worker_id)
         logger.info("=" * 60)
 
         self._running = True
         self._shutdown_event = asyncio.Event()
+        self._background_stop_event = asyncio.Event()
+
+        await self._start_health_server()
 
         # AUDIT FIX [7.4]: Worker 与 HTTP 进程分别维护连接池，保证增强流水线和 DLQ 可持久化。
         from app.db.database import init_database
@@ -335,6 +391,20 @@ class Worker:
         await rabbitmq_service.connect()
         logger.info("RabbitMQ 连接成功")
 
+        # 需求：Outbox Publisher 和 DB Sweeper 与消费者并行运行。
+        # Outbox 保证 Gate 提交后消息最终可达；Sweeper 保证 MQ/Automation 全不可用时仍可继续 hash。
+        from app.services.storage_outbox_service import storage_outbox_service
+        self._background_tasks = [
+            asyncio.create_task(
+                storage_outbox_service.run_publisher(self._background_stop_event),
+                name="storage-outbox-publisher",
+            ),
+            asyncio.create_task(
+                storage_outbox_service.run_gate_sweeper(self._background_stop_event),
+                name="file-preprocess-gate-sweeper",
+            ),
+        ]
+        logger.info("Outbox Publisher 和 DB Sweeper 并行任务创建成功")
         # 1.5. 初始化文件存储层
         #_init_storage()
 
@@ -342,8 +412,11 @@ class Worker:
         try:
             from core.search.opensearch_client import ensure_indices
             logger.info("初始化 OpenSearch 索引...")
-            await ensure_indices()
-            logger.info("OpenSearch 索引初始化完成")
+            opensearch_ready = await ensure_indices()
+            if opensearch_ready:
+                logger.info("OpenSearch 索引初始化完成")
+            else:
+                logger.warning("OpenSearch 不可用，已禁用本进程内容索引增强；其他流水线继续运行")
         except Exception as e:
             logger.warning(f"OpenSearch 索引初始化失败 (非致命): {e}")
 
@@ -380,6 +453,25 @@ class Worker:
         logger.info("收到关闭信号，开始优雅关闭...")
         self._running = False
 
+        if self._background_stop_event:
+            self._background_stop_event.set()
+        if self._background_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._background_tasks, return_exceptions=True),
+                    timeout=10,
+                )
+            except asyncio.TimeoutError:
+                for task in self._background_tasks:
+                    task.cancel()
+                await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks.clear()
+
+        if self._health_server:
+            self._health_server.close()
+            await self._health_server.wait_closed()
+            self._health_server = None
+
         # 关闭 OpenSearch 客户端
         try:
             from core.search.opensearch_client import close_opensearch_client
@@ -412,13 +504,61 @@ class Worker:
 
         logger.info("Worker 已关闭")
 
+    async def _start_health_server(self) -> None:
+        """启动本地健康端点，不暴露文件载荷或凭据。"""
+        try:
+            port = int(os.getenv("WORKER_HEALTH_PORT", str(settings.worker_health_port)))
+            self._health_server = await asyncio.start_server(
+                self._handle_health_request,
+                settings.worker_health_host,
+                port,
+            )
+            logger.info("Worker 健康端点已启动 worker_id=%s address=%s:%s", self.worker_id, settings.worker_health_host, port)
+        except OSError as exc:
+            # 多实例若未配置端口偏移，不应阻止消息消费者启动；以日志告警。
+            logger.warning("Worker 健康端点启动失败（不影响消费）worker_id=%s error=%s", self.worker_id, exc)
+
+    async def _handle_health_request(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        try:
+            request = await asyncio.wait_for(reader.read(1024), timeout=2)
+            path = request.split(b" ", 2)[1].decode("ascii", "ignore") if b" " in request else "/"
+            if path != "/health":
+                status, body = "404 Not Found", {"status": "not_found"}
+            else:
+                from core.messaging.metrics import worker_metrics
+
+                status, body = "200 OK", {
+                    "status": "ok" if self._running and rabbitmq_service.health_snapshot()["connected"] else "degraded",
+                    "worker_id": self.worker_id,
+                    "pid": os.getpid(),
+                    "rabbitmq": rabbitmq_service.health_snapshot(),
+                    "metrics": worker_metrics.snapshot(),
+                }
+            encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
+            writer.write(
+                f"HTTP/1.1 {status}\r\nContent-Type: application/json; charset=utf-8\r\n"
+                f"Content-Length: {len(encoded)}\r\nConnection: close\r\n\r\n".encode("ascii") + encoded
+            )
+            await writer.drain()
+        except Exception:
+            logger.debug("健康端点请求处理失败", exc_info=True)
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+
 
 # =============================================================================
 # 入口
 # =============================================================================
 
-def main():
-    """Worker 主入口"""
+def _run_worker_process(index: int = 0):
+    """单个子进程入口；每个进程独立创建 asyncio/MQ/DB 连接。"""
+    os.environ["WORKER_ID"] = f"{socket.gethostname()}-{os.getpid()}-{index}"
+    base_port = int(os.getenv("WORKER_HEALTH_PORT", str(settings.worker_health_port)))
+    os.environ["WORKER_HEALTH_PORT"] = str(base_port + index)
     worker = Worker()
 
     loop = asyncio.new_event_loop()
@@ -446,6 +586,64 @@ def main():
         loop.close()
 
     logger.info("Worker 进程退出")
+
+
+def main():
+    """Worker 主入口：主进程管理多个独立 asyncio 子进程。"""
+    configured = int(os.getenv("WORKER_PROCESSES", str(settings.worker_processes or 0)))
+    process_count = configured if configured > 0 else (os.cpu_count() or 1)
+    # W-05：未显式配置时按 CPU 核心数启动；容器/开发环境可通过
+    # WORKER_PROCESSES=1 主动限制资源，默认策略与企业级多进程要求一致。
+    if process_count <= 1:
+        _run_worker_process(0)
+        return
+
+    context = multiprocessing.get_context("spawn")
+    processes: list[multiprocessing.Process] = []
+    shutting_down = False
+
+    def _parent_signal_handler(signum, _frame):
+        nonlocal shutting_down
+        if shutting_down:
+            return
+        shutting_down = True
+        logger.warning("主 Worker 收到信号=%s，通知子进程优雅退出", signum)
+        for index, proc in enumerate(processes):
+            if proc.is_alive():
+                try:
+                    os.kill(proc.pid, signum)
+                except ProcessLookupError:
+                    pass
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, _parent_signal_handler)
+
+    for index in range(process_count):
+        proc = context.Process(target=_run_worker_process, args=(index,), name=f"pcd-worker-{index + 1}")
+        proc.start()
+        processes.append(proc)
+    logger.info("Worker 主进程已启动子进程数量=%s", process_count)
+
+    try:
+        while processes:
+            alive = [proc for proc in processes if proc.is_alive()]
+            if not alive:
+                break
+            for proc in processes:
+                proc.join(timeout=0.5)
+            if shutting_down:
+                deadline = time.monotonic() + settings.worker_shutdown_timeout_seconds
+                while time.monotonic() < deadline and any(proc.is_alive() for proc in processes):
+                    time.sleep(0.2)
+                for proc in processes:
+                    if proc.is_alive():
+                        logger.error("子 Worker 未在超时内退出，强制终止 pid=%s", proc.pid)
+                        proc.terminate()
+                break
+    finally:
+        for proc in processes:
+            proc.join(timeout=2)
+        logger.info("Worker 主进程退出")
 
 
 if __name__ == "__main__":

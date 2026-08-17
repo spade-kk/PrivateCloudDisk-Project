@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.privateclouddisk.local/events/file-content-ready-v1.schema.json",
+  "title": "pcd.file.content.ready.v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "specversion", "id", "source", "type", "subject", "time",
+    "actor_user_id", "correlation_id", "data"
+  ],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "format": "uuid" },
+    "source": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "type": { "const": "pcd.file.content.ready.v1" },
+    "subject": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "time": { "type": "string", "format": "date-time" },
+    "actor_user_id": { "type": "string", "format": "uuid" },
+    "space_id": { "type": ["string", "null"], "format": "uuid" },
+    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "causation_id": { "type": "string", "maxLength": 128 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id", "backend_task_id", "pipeline_id", "file_id", "name",
+        "mime_type", "size", "upload_checksum", "staging_locator",
+        "content_lease_ref", "preprocess_deadline_at"
+      ],
+      "properties": {
+        "gate_id": { "type": "string", "format": "uuid" },
+        "backend_task_id": { "type": "string", "pattern": "^[0-9a-fA-F]{32}$" },
+        "pipeline_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "file_id": { "type": "string", "format": "uuid" },
+        "uploads_session_id": { "type": ["string", "null"], "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "mime_type": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "size": { "type": "integer", "minimum": 0 },
+        "upload_checksum": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "staging_locator": {
+          "type": "string",
+          "pattern": "^pcd-staging://[0-9a-fA-F-]{36}/original$"
+        },
+        "content_lease_ref": { "type": "string", "minLength": 32, "maxLength": 256 },
+        "preprocess_deadline_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+apiVersion: automation.pcd/v1
+kind: Workflow
+metadata:
+  name: weekly_sales_report
+  displayName: 销售周报
+  description: 每周一生成并保存销售周报
+spec:
+  trigger:
+    type: schedule
+    cron: "0 8 * * 1"
+    timezone: Asia/Shanghai
+  limits:
+    timeoutSeconds: 1800
+    maxParallel: 4
+  steps:
+    - id: collect_files
+      name: 收集销售文件
+      uses: builtin:file.list
+      with:
+        nodeId: "${{ vars.sales_node_id }}"
+        pattern: "*.xlsx"
+      result: excel_files
+
+    - id: aggregate_data
+      uses: builtin:data.aggregate_excel
+      needs: [collect_files]
+      with:
+        files: "${{ steps.collect_files.output }}"
+        groupBy: region
+        metrics: ["sum(sales)", "avg(profit)"]
+      result: report_data
+
+    - id: generate_report
+      uses: plugin:8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7:generate_report@1
+      needs: [aggregate_data]
+      if: "${{ steps.aggregate_data.output.rowCount > 0 }}"
+      with:
+        data: "${{ steps.aggregate_data.output }}"
+        templateFileId: "${{ vars.template_file_id }}"
+      retry:
+        maxAttempts: 2
+        backoff: exponential
+      result: report_file
+
+    - id: save_report
+      uses: builtin:file.save
+      needs: [generate_report]
+      with:
+        source: "${{ steps.generate_report.output.file_id }}"
+        targetNodeId: "${{ vars.report_node_id }}"
+
+    - id: notify_failure
+      uses: api:user.notify
+      if: "${{ workflow.failed }}"
+      with:
+        title: 销售周报生成失败
+        body: "失败步骤：${{ workflow.failedStep }}"

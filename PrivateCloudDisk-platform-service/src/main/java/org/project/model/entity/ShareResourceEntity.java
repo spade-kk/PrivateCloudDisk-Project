@@ -34,6 +34,9 @@ public class ShareResourceEntity implements Serializable {
     /** 所属分享链接ID */
     private UUID share_id;
 
+    /** 需求：空间管理能力全量集成（五-4），资源关系所属空间。 */
+    private UUID space_id;
+
     /** 资源类型：file / folder */
     private ResourceType resource_type;
 

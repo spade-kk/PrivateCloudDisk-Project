@@ -133,6 +133,8 @@ const props = withDefaults(
     visible: boolean
     fileId: string
     fileName: string
+    /** 公开仓库预览的空间上下文；控制台调用不传，保持原行为。 */
+    spaceId?: string
     hasPrev?: boolean
     hasNext?: boolean
   }>(),
@@ -270,7 +272,7 @@ async function loadImage() {
 
   try {
     // AUDIT FIX [4.4]: 灯箱加载原文件而非 large 有损缩略图，修复图片点击后无法获得大图预览的问题。
-    const url = await loadOriginalImage(props.fileId)
+    const url = await loadOriginalImage(props.fileId, props.spaceId)
     objectUrl.value = url
     loading.value = false
     error.value = ''
@@ -307,7 +309,7 @@ function onImageError() {
 
 function retry() {
   // 清除旧缓存，强制重新加载
-  imageCache.evictOriginal(props.fileId)
+  imageCache.evictOriginal(props.fileId, props.spaceId)
   loadImage()
 }
 

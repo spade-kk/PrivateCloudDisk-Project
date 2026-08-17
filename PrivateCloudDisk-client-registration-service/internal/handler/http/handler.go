@@ -1,7 +1,9 @@
 package http
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/privateclouddisk/client-registration-service/internal/domain"
@@ -12,13 +14,18 @@ import (
 //
 // 提供客户端注册相关的 REST API 端点。
 type Handler struct {
-	registrationService *service.RegistrationService
+	registrationService  *service.RegistrationService
+	internalServiceToken string
 }
 
 // NewHandler 创建新的 Handler
-func NewHandler(registrationService *service.RegistrationService) *Handler {
+func NewHandler(
+	registrationService *service.RegistrationService,
+	internalServiceToken string,
+) *Handler {
 	return &Handler{
-		registrationService: registrationService,
+		registrationService:  registrationService,
+		internalServiceToken: strings.TrimSpace(internalServiceToken),
 	}
 }
 
@@ -34,19 +41,63 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	{
 		clientGroup.POST("/register-challenge", h.GetRegisterChallenge)
 		clientGroup.POST("/register", h.RegisterClient)
+		// 第二阶段本地插件：只有“JWT 已认证 + 设备签名已验证”的请求才能建立用户绑定。
+		clientGroup.POST("/:clientId/bind", h.BindUser)
 	}
 
 	// 内部接口（供网关内部调用，获取客户端公钥、状态、吊销）
 	// 实际请求路径：GET /api/v1/client/internal/:clientId/public-key → 网关转发 → GET /client/internal/:clientId/public-key
-	internalGroup := r.Group("/client/internal")
+	internalGroup := r.Group("/client/internal", h.requireInternalServiceToken())
 	{
 		internalGroup.GET("/:clientId/public-key", h.GetPublicKey)
 		internalGroup.GET("/:clientId/status", h.GetClientStatus)
+		internalGroup.GET("/:clientId/plugin-binding", h.GetPluginBinding)
 		internalGroup.DELETE("/:clientId", h.RevokeClient)
 	}
 
 	// 健康检查
 	r.GET("/health", h.HealthCheck)
+}
+
+// BindUser 建立设备与登录用户的可信绑定。
+//
+// 需求对应：本地插件只能分发给已注册、未吊销且由当前用户持有的客户端。
+// X-User-Id 由网关注入，X-Client-ID 只能由设备签名过滤器验证后重新注入。
+func (h *Handler) BindUser(c *gin.Context) {
+	clientID := strings.TrimSpace(c.Param("clientId"))
+	userID := strings.TrimSpace(c.GetHeader("X-User-Id"))
+	verifiedClientID := strings.TrimSpace(c.GetHeader("X-Client-ID"))
+	authSource := strings.TrimSpace(c.GetHeader("X-Auth-Source"))
+	if clientID == "" || userID == "" {
+		c.JSON(http.StatusUnauthorized, domain.APIResponse{
+			Code: 401, Message: "缺少登录身份或客户端标识",
+		})
+		return
+	}
+	if verifiedClientID != clientID || authSource != "device-identity" {
+		c.JSON(http.StatusForbidden, domain.APIResponse{
+			Code: 403, Message: "客户端签名身份与绑定目标不一致",
+		})
+		return
+	}
+
+	var req domain.BindUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code: 400, Message: "客户端信息格式错误: " + err.Error(),
+		})
+		return
+	}
+	binding, err := h.registrationService.BindUser(clientID, userID, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code: 400, Message: "客户端绑定失败: " + err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code: 200, Message: "客户端绑定成功", Data: binding,
+	})
 }
 
 // ─── 公开接口 ──────────────────────────────────────────────────────────────────
@@ -237,6 +288,34 @@ func (h *Handler) GetClientStatus(c *gin.Context) {
 	})
 }
 
+// GetPluginBinding 供 Plugin Service 在每次本地插件分发前核验客户端归属和能力。
+func (h *Handler) GetPluginBinding(c *gin.Context) {
+	clientID := strings.TrimSpace(c.Param("clientId"))
+	userID := strings.TrimSpace(c.Query("user_id"))
+	if clientID == "" || userID == "" {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code: 400, Message: "客户端标识和用户标识不能为空",
+		})
+		return
+	}
+	binding, err := h.registrationService.GetUserBinding(clientID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code: 500, Message: "查询客户端绑定失败",
+		})
+		return
+	}
+	if binding == nil {
+		c.JSON(http.StatusNotFound, domain.APIResponse{
+			Code: 404, Message: "客户端未绑定、已吊销或不属于当前用户",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code: 200, Message: "success", Data: binding,
+	})
+}
+
 // RevokeClient 吊销客户端（内部接口）
 //
 // 网关路径：DELETE /api/v1/client/internal/:clientId
@@ -277,4 +356,26 @@ func (h *Handler) HealthCheck(c *gin.Context) {
 			"version": "1.0.0",
 		},
 	})
+}
+
+// requireInternalServiceToken 对所有私网管理接口执行默认拒绝的服务凭证校验。
+func (h *Handler) requireInternalServiceToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		configured := []byte(h.internalServiceToken)
+		presented := []byte(strings.TrimSpace(c.GetHeader("X-PCD-Service-Token")))
+		if len(configured) == 0 {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, domain.APIResponse{
+				Code: 503, Message: "内部服务凭证未配置",
+			})
+			return
+		}
+		if len(configured) != len(presented) ||
+			subtle.ConstantTimeCompare(configured, presented) != 1 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, domain.APIResponse{
+				Code: 401, Message: "内部服务凭证无效",
+			})
+			return
+		}
+		c.Next()
+	}
 }

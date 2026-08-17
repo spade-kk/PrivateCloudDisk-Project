@@ -26,6 +26,9 @@ class RabbitMQService:
         self.connection = None
         self.channel = None
         self.exchanges = {}
+        self._consumer_channels = []
+        self._consumer_tags = []
+        self._stopping = False
 
     async def connect(self):
         """建立 RabbitMQ 连接"""
@@ -35,6 +38,7 @@ class RabbitMQService:
                 f"@{settings.rabbitmq_host}:{settings.rabbitmq_port}/{settings.rabbitmq_vhost}"
             )
 
+            self._stopping = False
             self.connection = await aio_pika.connect_robust(
                 connection_url,
                 heartbeat=60,
@@ -54,43 +58,19 @@ class RabbitMQService:
 
         架构:
         ┌─────────────────────────────────────────────────────┐
-        │  pcd.file.process.exchange (DIRECT)                 │
-        │  ├── pcd.file.process.queue                         │
-        │  │   └── DLX → pcd.file.process.dlx                 │
-        │  └── pcd.security.quarantine.queue (病毒隔离专用)      │
-        │                                                      │
-        │  pcd.file.process.dlx (DIRECT)                      │
-        │  └── pcd.file.process.dlq                           │
-        │                                                      │
         │  pcd.file.delete.exchange (DIRECT)                  │
         │  ├── pcd.file.delete.queue                          │
         │  │   └── DLX → pcd.file.delete.dlx                  │
         │  └── pcd.file.delete.dlq                            │
         │                                                      │
-        │  pcd.content.index.exchange (DIRECT)                │
-        │  └── pcd.content.index.queue                        │
-        │      └── DLX → pcd.content.index.dlx                │
+        │  pcd.file.backend.exchange (DIRECT)                  │
+        │  ├── backend stage task queues                       │
+        │  └── DLX → pcd.file.backend.dlx                      │
         │                                                      │
-        │  pcd.content.index.dlx (DIRECT)                     │
-        │  └── pcd.content.index.dlq                          │
+        │  pcd.file.enhance.exchange (DIRECT)             │
+        │  └── enhancement task queues                         │
         └─────────────────────────────────────────────────────┘
         """
-        # ========== 文件处理交换机 ==========
-        fp_exchange = await self.channel.declare_exchange(
-            settings.file_process_exchange,
-            ExchangeType.DIRECT,
-            durable=True,
-        )
-        self.exchanges[settings.file_process_exchange] = fp_exchange
-
-        # ========== 文件处理死信交换机 ==========
-        fp_dlx = await self.channel.declare_exchange(
-            settings.file_process_dlx,
-            ExchangeType.DIRECT,
-            durable=True,
-        )
-        self.exchanges[settings.file_process_dlx] = fp_dlx
-
         # ========== 文件删除交换机 ==========
         fd_exchange = await self.channel.declare_exchange(
             settings.file_delete_exchange,
@@ -107,44 +87,6 @@ class RabbitMQService:
         )
         self.exchanges[settings.file_delete_dlx] = fd_dlx
 
-        # ========== 文件处理主队列 (绑定 DLX) ==========
-        # fp_queue = await self._declare_queue_safe(
-        #     settings.file_process_queue,
-        #     arguments={
-        #         "x-message-ttl": 604800000,  # 7 天 TTL
-        #         "x-dead-letter-exchange": settings.file_process_dlx,
-        #         "x-dead-letter-routing-key": settings.file_process_dlq_routing_key,
-        #     },
-        # )
-        # await fp_queue.bind(
-        #     fp_exchange,
-        #     routing_key=settings.file_process_routing_key,
-        # )
-
-        # ========== 文件处理死信队列 (DLQ) ==========
-        fp_dlq = await self._declare_queue_safe(
-            settings.file_process_dlq,
-            arguments={
-                "x-message-ttl": 2592000000,  # 30 天 TTL
-            },
-        )
-        await fp_dlq.bind(
-            fp_dlx,
-            routing_key=settings.file_process_dlq_routing_key,
-        )
-
-        # ========== 安全隔离队列 ==========
-        sq_queue = await self._declare_queue_safe(
-            settings.security_quarantine_queue,
-            arguments={
-                "x-message-ttl": 2592000000,  # 30 天
-            },
-        )
-        await sq_queue.bind(
-            fp_exchange,
-            routing_key=settings.security_quarantine_routing_key,
-        )
-
         # ========== 文件删除主队列 (绑定 DLX) ==========
         fd_queue = await self._declare_queue_safe(
             settings.file_delete_queue,
@@ -159,6 +101,22 @@ class RabbitMQService:
             routing_key=settings.file_delete_routing_key,
         )
 
+        # Sprint 0 安全基线（永久删除可靠性）：
+        # 使用 RabbitMQ TTL 队列承载指数退避，避免文件 IO 失败时在消费者协程中阻塞等待。
+        fd_retry_queue = await self._declare_queue_safe(
+            f"{settings.file_delete_queue}.retry",
+            arguments={
+                "x-queue-type": "quorum",
+                "x-message-ttl": 604800000,
+                "x-dead-letter-exchange": settings.file_delete_exchange,
+                "x-dead-letter-routing-key": settings.file_delete_routing_key,
+            },
+        )
+        await fd_retry_queue.bind(
+            fd_exchange,
+            routing_key=f"{settings.file_delete_routing_key}.retry",
+        )
+
         # ========== 文件删除死信队列 ==========
         fd_dlq = await self._declare_queue_safe(
             settings.file_delete_dlq,
@@ -169,48 +127,6 @@ class RabbitMQService:
         await fd_dlq.bind(
             fd_dlx,
             routing_key=settings.file_delete_dlq_routing_key,
-        )
-
-        # ========== 内容索引交换机 ==========
-        ci_exchange = await self.channel.declare_exchange(
-            settings.content_index_exchange,
-            ExchangeType.DIRECT,
-            durable=True,
-        )
-        self.exchanges[settings.content_index_exchange] = ci_exchange
-
-        # ========== 内容索引死信交换机 ==========
-        ci_dlx = await self.channel.declare_exchange(
-            settings.content_index_dlx,
-            ExchangeType.DIRECT,
-            durable=True,
-        )
-        self.exchanges[settings.content_index_dlx] = ci_dlx
-
-        # ========== 内容索引主队列 (绑定 DLX) ==========
-        ci_queue = await self._declare_queue_safe(
-            settings.content_index_queue,
-            arguments={
-                "x-message-ttl": 604800000,  # 7 天
-                "x-dead-letter-exchange": settings.content_index_dlx,
-                "x-dead-letter-routing-key": settings.content_index_dlq_routing_key,
-            },
-        )
-        await ci_queue.bind(
-            ci_exchange,
-            routing_key=settings.content_index_routing_key,
-        )
-
-        # ========== 内容索引死信队列 ==========
-        ci_dlq = await self._declare_queue_safe(
-            settings.content_index_dlq,
-            arguments={
-                "x-message-ttl": 2592000000,  # 30 天
-            },
-        )
-        await ci_dlq.bind(
-            ci_dlx,
-            routing_key=settings.content_index_dlq_routing_key,
         )
 
         # ========== 上传会话事件交换机（与 Spring Boot 主业务服务一致） ==========
@@ -254,6 +170,18 @@ class RabbitMQService:
             ue_dlx,
             routing_key=settings.uploads_event_dlq_routing_key,
         )
+        uploads_retry_queue = await self._declare_queue_safe(
+            settings.uploads_event_retry_queue,
+            arguments={
+                "x-message-ttl": 604800000,
+                "x-dead-letter-exchange": settings.uploads_event_dlx,
+                "x-dead-letter-routing-key": settings.uploads_event_dlq_routing_key,
+            },
+        )
+        await uploads_retry_queue.bind(
+            ue_dlx,
+            routing_key=settings.uploads_event_retry_routing_key,
+        )
 
         # ========== 上传会话已删除队列（主业务服务消费 → 释放配额） ==========
         # 虽然主业务服务会声明此队列，但存储服务也需声明以确保拓扑完整
@@ -279,6 +207,16 @@ class RabbitMQService:
             durable=True,
         )
         self.exchanges[settings.file_event_exchange] = fe_exchange
+
+        # 安全隔离属于文件事件域，绑定当前 file event exchange；不参与后台 Task Bus 阶段编排。
+        security_queue = await self._declare_queue_safe(
+            settings.security_quarantine_queue,
+            arguments={"x-message-ttl": 2592000000},
+        )
+        await security_queue.bind(
+            fe_exchange,
+            routing_key=settings.security_quarantine_routing_key,
+        )
 
         # ========== 文件事件死信交换机 ==========
         fe_dlx = await self.channel.declare_exchange(
@@ -360,110 +298,214 @@ class RabbitMQService:
         # 每个阶段独立 exchange + queue + DLQ
         await self._declare_backend_topology()
 
+        # ========== 文件内容预处理生命周期拓扑 ==========
+        # 需求：merge 与最终 hash 之间新增 fail-open 的插件预处理闸门。
+        await self._declare_file_lifecycle_topology()
+
         # ========== 新版文件增强处理拓扑（Enhancement — 并发流水线） ==========
         # 每个阶段独立 exchange + queue + DLQ
         await self._declare_enhance_topology()
 
         logger.info(
             f"RabbitMQ 拓扑声明完成: "
-            f"exchanges={len(self.exchanges)}, "
-            f"DLX={settings.file_process_dlx}, "
-            f"DLQ={settings.file_process_dlq}"
+            f"exchanges={len(self.exchanges)}"
         )
 
     async def _declare_backend_topology(self):
-        """
-        声明文件后台处理拓扑（顺序流水线）
+        """声明 Backend Task Bus 顺序流水线及可持久化 retry 回流拓扑。
 
-        拓扑结构:
-        ┌─────────────────────────────────────────────────────────────┐
-        │  pcd.file.backend.exchange (DIRECT)                        │
-        │  ├── pcd.file.backend.merge.queue                          │
-        │  │   └── DLX → pcd.file.backend.dlx → .merge.dlq          │
-        │  ├── pcd.file.backend.hash.queue                           │
-        │  │   └── DLX → pcd.file.backend.dlx → .hash.dlq           │
-        │  ├── pcd.file.backend.virus.queue                          │
-        │  │   └── DLX → pcd.file.backend.dlx → .virus.dlq          │
-        │  └── pcd.file.backend.mark_active.queue                    │
-        │      └── DLX → pcd.file.backend.dlx → .mark_active.dlq    │
-        │                                                              │
-        │  流水线: merge → hash → virus → mark_active                │
-        │  每个阶段成功后由消费者发布下一阶段消息                        │
-        └─────────────────────────────────────────────────────────────┘
+        REQ-WORKER-TASKBUS-2026-07：恢复原有 backend task exchange/queue。每个任务主队列
+        绑定一个 retry 队列；retry 消息通过消息 expiration 或队列 TTL 到期后由 RabbitMQ
+        dead-letter 回原任务 routing key，不由消费者 sleep 或直接重新投递主队列。
         """
         backend_stages = [
-            {
-                "queue": settings.file_backend_merge_queue,
-                "rk": settings.file_backend_merge_routing_key,
-                "dlq": settings.file_backend_merge_dlq,
-                "dlq_rk": settings.file_backend_merge_dlq_routing_key,
-            },
-            {
-                "queue": settings.file_backend_hash_queue,
-                "rk": settings.file_backend_hash_routing_key,
-                "dlq": settings.file_backend_hash_dlq,
-                "dlq_rk": settings.file_backend_hash_dlq_routing_key,
-            },
-            {
-                "queue": settings.file_backend_virus_queue,
-                "rk": settings.file_backend_virus_routing_key,
-                "dlq": settings.file_backend_virus_dlq,
-                "dlq_rk": settings.file_backend_virus_dlq_routing_key,
-            },
-            {
-                "queue": settings.file_backend_mark_active_queue,
-                "rk": settings.file_backend_mark_active_routing_key,
-                "dlq": settings.file_backend_mark_active_dlq,
-                "dlq_rk": settings.file_backend_mark_active_dlq_routing_key,
-            },
+            (settings.file_backend_merge_queue, settings.file_backend_merge_routing_key,
+             settings.file_backend_merge_dlq, settings.file_backend_merge_dlq_routing_key),
+            (settings.file_backend_hash_queue, settings.file_backend_hash_routing_key,
+             settings.file_backend_hash_dlq, settings.file_backend_hash_dlq_routing_key),
+            (settings.file_backend_virus_queue, settings.file_backend_virus_routing_key,
+             settings.file_backend_virus_dlq, settings.file_backend_virus_dlq_routing_key),
+            (settings.file_backend_mark_active_queue, settings.file_backend_mark_active_routing_key,
+             settings.file_backend_mark_active_dlq, settings.file_backend_mark_active_dlq_routing_key),
         ]
 
-        # 主交换机
-        be_exchange = await self.channel.declare_exchange(
+        backend_exchange = await self.channel.declare_exchange(
             settings.file_backend_exchange,
             ExchangeType.DIRECT,
             durable=True,
         )
-        self.exchanges[settings.file_backend_exchange] = be_exchange
-
-        # 死信交换机
-        be_dlx = await self.channel.declare_exchange(
+        backend_dlx = await self.channel.declare_exchange(
             settings.file_backend_dlx,
             ExchangeType.DIRECT,
             durable=True,
         )
-        self.exchanges[settings.file_backend_dlx] = be_dlx
+        self.exchanges[settings.file_backend_exchange] = backend_exchange
+        self.exchanges[settings.file_backend_dlx] = backend_dlx
 
-        for stage in backend_stages:
-            # 主队列（绑定 DLX）
-            q = await self._declare_queue_safe(
-                stage["queue"],
+        for queue_name, routing_key, dlq_name, dlq_routing_key in backend_stages:
+            queue = await self._declare_queue_safe(
+                queue_name,
                 arguments={
-                    "x-message-ttl": 604800000,  # 7 天
+                    "x-message-ttl": 604800000,
                     "x-dead-letter-exchange": settings.file_backend_dlx,
-                    "x-dead-letter-routing-key": stage["dlq_rk"],
+                    "x-dead-letter-routing-key": dlq_routing_key,
                 },
             )
-            await q.bind(be_exchange, routing_key=stage["rk"])
+            await queue.bind(backend_exchange, routing_key=routing_key)
 
-            # 死信队列
-            dlq = await self._declare_queue_safe(
-                stage["dlq"],
+            # REQ-WORKER-TASKBUS-2026-07：retry 队列必须具备明确 TTL、DLX 和原任务回流键；
+            # 仅把消息发布到 .retry 路由而不声明这些参数时，消息会永久停留在 retry 队列。
+            retry_queue = await self._declare_queue_safe(
+                f"{queue_name}.retry",
                 arguments={
-                    "x-message-ttl": 2592000000,  # 30 天
+                    "x-queue-type": "quorum",
+                    "x-message-ttl": 604800000,
+                    "x-dead-letter-exchange": settings.file_backend_exchange,
+                    "x-dead-letter-routing-key": routing_key,
                 },
             )
-            await dlq.bind(be_dlx, routing_key=stage["dlq_rk"])
+            await retry_queue.bind(backend_exchange, routing_key=f"{routing_key}.retry")
+
+            dlq = await self._declare_queue_safe(
+                dlq_name,
+                arguments={"x-message-ttl": 2592000000},
+            )
+            await dlq.bind(backend_dlx, routing_key=dlq_routing_key)
 
         logger.info(
-            f"文件后台处理拓扑声明完成: "
-            f"stages={len(backend_stages)}, "
-            f"exchange={settings.file_backend_exchange}"
+            "Backend Task Bus 拓扑声明完成: stages=%s exchange=%s",
+            len(backend_stages),
+            settings.file_backend_exchange,
+        )
+
+    async def _declare_file_lifecycle_topology(self):
+        """声明 file.content.ready/processed/timeout 的可靠消息拓扑。
+
+        ready 队列由 Automation 消费，但 Storage 同样声明它以避免服务启动顺序导致消息
+        无路由。timeout delay queue 是固定 TTL 逃生哨兵；数据库 sweeper 是第二条逃生
+        路径，两者最终调用同一个 Gate CAS。
+        """
+        lifecycle_exchange = await self.channel.declare_exchange(
+            settings.file_lifecycle_exchange,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        lifecycle_dlx = await self.channel.declare_exchange(
+            settings.file_lifecycle_dlx,
+            ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.exchanges[settings.file_lifecycle_exchange] = lifecycle_exchange
+        self.exchanges[settings.file_lifecycle_dlx] = lifecycle_dlx
+
+        quorum_common = {
+            "x-queue-type": "quorum",
+            "x-message-ttl": 604800000,  # 正常生命周期消息最多保留 7 天
+        }
+
+        ready_queue = await self._declare_queue_safe(
+            settings.file_content_ready_queue,
+            arguments={
+                **quorum_common,
+                "x-dead-letter-exchange": settings.file_lifecycle_dlx,
+                "x-dead-letter-routing-key": settings.file_content_ready_dlq_routing_key,
+            },
+        )
+        await ready_queue.bind(
+            lifecycle_exchange,
+            routing_key=settings.file_content_ready_routing_key,
+        )
+
+        processed_queue = await self._declare_queue_safe(
+            settings.file_content_processed_queue,
+            arguments={
+                **quorum_common,
+                "x-dead-letter-exchange": settings.file_lifecycle_dlx,
+                "x-dead-letter-routing-key": settings.file_content_processed_dlq_routing_key,
+            },
+        )
+        await processed_queue.bind(
+            lifecycle_exchange,
+            routing_key=settings.file_content_processed_routing_key,
+        )
+
+        # 不依赖 delayed-message 插件：消费者把暂时性失败按 attempt 发布到对应固定 TTL
+        # 队列，TTL 到期后 RabbitMQ 再投回 processed 主路由，不占用 Worker 并发槽。
+        retry_delays = [
+            int(value.strip())
+            for value in settings.file_content_processed_retry_delays_seconds.split(",")
+            if value.strip()
+        ]
+        for attempt, delay_seconds in enumerate(retry_delays, start=1):
+            retry_routing_key = f"{settings.file_content_processed_routing_key}.retry.{attempt}"
+            retry_queue = await self._declare_queue_safe(
+                f"{settings.file_content_processed_queue}.retry.{delay_seconds}s",
+                arguments={
+                    "x-message-ttl": delay_seconds * 1000,
+                    "x-dead-letter-exchange": settings.file_lifecycle_exchange,
+                    "x-dead-letter-routing-key": settings.file_content_processed_routing_key,
+                },
+            )
+            await retry_queue.bind(
+                lifecycle_exchange,
+                routing_key=retry_routing_key,
+            )
+
+        # 固定 TTL 队列仅承担延迟，不配置消费者；到期后路由到真正 timeout 队列。
+        timeout_delay_queue = await self._declare_queue_safe(
+            settings.file_content_timeout_delay_queue,
+            arguments={
+                "x-message-ttl": settings.file_preprocess_deadline_seconds * 1000,
+                "x-dead-letter-exchange": settings.file_lifecycle_exchange,
+                "x-dead-letter-routing-key": settings.file_content_timeout_routing_key,
+            },
+        )
+        await timeout_delay_queue.bind(
+            lifecycle_exchange,
+            routing_key=settings.file_content_timeout_schedule_routing_key,
+        )
+
+        timeout_queue = await self._declare_queue_safe(
+            settings.file_content_timeout_queue,
+            arguments={
+                **quorum_common,
+                "x-dead-letter-exchange": settings.file_lifecycle_dlx,
+                "x-dead-letter-routing-key": settings.file_content_processed_dlq_routing_key,
+            },
+        )
+        await timeout_queue.bind(
+            lifecycle_exchange,
+            routing_key=settings.file_content_timeout_routing_key,
+        )
+
+        ready_dlq = await self._declare_queue_safe(
+            settings.file_content_ready_dlq,
+            arguments={"x-queue-type": "quorum", "x-message-ttl": 2592000000},
+        )
+        await ready_dlq.bind(
+            lifecycle_dlx,
+            routing_key=settings.file_content_ready_dlq_routing_key,
+        )
+        processed_dlq = await self._declare_queue_safe(
+            settings.file_content_processed_dlq,
+            arguments={"x-queue-type": "quorum", "x-message-ttl": 2592000000},
+        )
+        await processed_dlq.bind(
+            lifecycle_dlx,
+            routing_key=settings.file_content_processed_dlq_routing_key,
+        )
+
+        logger.info(
+            "文件内容预处理拓扑声明完成: exchange=%s ready=%s processed=%s timeout=%ss",
+            settings.file_lifecycle_exchange,
+            settings.file_content_ready_queue,
+            settings.file_content_processed_queue,
+            settings.file_preprocess_deadline_seconds,
         )
 
     async def _declare_enhance_topology(self):
         """
-        声明文件增强处理拓扑（并发流水线）
+        声明文件增强 Task Bus 拓扑（并发任务）
 
         拓扑结构:
         ┌─────────────────────────────────────────────────────────────┐
@@ -477,8 +519,8 @@ class RabbitMQService:
         │  └── pcd.file.enhance.index.queue                          │
         │      └── DLX → pcd.file.enhance.dlx → .index.dlq          │
         │                                                              │
-        │  所有增强阶段可并发消费，互不阻塞                              │
-        │  由 mark_active 消费者扇出发布                               │
+        │  所有增强阶段拥有独立 file.enhance.* 任务队列，互不阻塞 │
+        │  由 mark_active 消费者按文件类型投递任务                   │
         └─────────────────────────────────────────────────────────────┘
         """
         enhance_stages = [
@@ -550,12 +592,13 @@ class RabbitMQService:
             )
             await q.bind(en_exchange, routing_key=stage["rk"])
 
-            # AUDIT FIX [7.4]（需求一-3）:
-            # 原实现通过 asyncio.sleep 占用消费者并发槽，再 ACK+发布；进程退出会丢失待重试消息。
-            # 新增每阶段持久化延迟队列：消息按 expiration 到期后由 RabbitMQ 原子死信回主路由。
+            # REQ-WORKER-TASKBUS-2026-07：任务失败不在消费者内 sleep；消息先进入持久化
+            # retry 队列，expiration/x-message-ttl 到期后由 RabbitMQ 原子死信回原任务路由。
             retry_queue = await self._declare_queue_safe(
                 f"{stage['queue']}.retry",
                 arguments={
+                    "x-queue-type": "quorum",
+                    "x-message-ttl": 604800000,
                     "x-dead-letter-exchange": settings.file_enhance_exchange,
                     "x-dead-letter-routing-key": stage["rk"],
                 },
@@ -676,34 +719,67 @@ class RabbitMQService:
             exchange = self.exchanges[exchange_name]
             message_body = json.dumps(message, ensure_ascii=False).encode("utf-8")
 
+            message_id = str(message.get("message_id") or message.get("messageId") or message.get("id") or "")
+            try:
+                retry_count = max(0, int(message.get("retry_count") or message.get("x-retry-count") or 0))
+            except (TypeError, ValueError):
+                # W-03：生产者收到旧/脏消息时将计数归零；真正的协议错误仍由消费者
+                # 解析阶段送入专属 DLQ，不能让发布端因日志字段异常丢失整条消息。
+                retry_count = 0
             msg_kwargs = {
                 "body": message_body,
                 "content_type": "application/json",
                 "delivery_mode": DeliveryMode.PERSISTENT,
-                "message_id": message.get("message_id", ""),
+                "message_id": message_id,
                 "headers": {
-                    "x-retry-count": message.get("retry_count", 0),
-                    "x-task-type": message.get("task_type", ""),
-                    "x-failure-reason": message.get("failure_reason", ""),
+                    # retry_count 同时进入 AMQP header，确保 Task Bus DLX 转发后计数不丢失。
+                    "x-retry-count": retry_count,
+                    "x-task-type": message.get("task_type") or message.get("stage") or message.get("event_type", ""),
+                    "x-failure-reason": message.get("failure_reason") or message.get("failure_code", ""),
+                    "x-message-kind": message.get("message_kind", ""),
+                    "x-schema-version": message.get("schema_version", 1),
+                    "x-correlation-id": message.get("correlation_id") or message.get("pipeline_id", ""),
                 },
             }
 
             if delay_seconds > 0:
-                msg_kwargs["expiration"] = str(delay_seconds * 1000)
+                # REQ-TASKBUS-RETRY-TTL-2026-07：RabbitMQ 协议层 expiration 是毫秒字符串，
+                # 但本项目使用的 aio-pika Message(expiration=...) 入参单位是秒，库会在编码
+                # AMQP Basic.Properties 时自动转换为毫秒。原实现传入 int(delay_seconds) 的
+                # 数值在 aio-pika 9.6.2 中正是正确行为；若在此处再乘 1000，会被库二次换算。
+                # 消息到期后由 retry 队列 DLX 回投原任务路由键。
+                msg_kwargs["expiration"] = max(1, int(delay_seconds))
 
             await exchange.publish(
                 Message(**msg_kwargs),
                 routing_key=routing_key,
             )
 
-            logger.debug(
+            logger.info(
                 f"消息已发布: exchange={exchange_name}, rk={routing_key}, "
-                f"message_id={message.get('message_id', 'N/A')[:8]}... "
+                f"message_id={message_id[:8] or 'N/A'}... "
                 f"delay={delay_seconds}s"
             )
         except Exception as e:
             logger.error(f"消息发布失败: {e}", exc_info=True)
             raise
+
+    async def publish_retry_message(
+        self,
+        *,
+        exchange_name: str,
+        routing_key: str,
+        message: dict,
+        delay_seconds: int,
+    ) -> None:
+        """发布到阶段专属 `.retry` 路由，等待发布确认后由调用方 ACK 原消息。"""
+
+        await self.publish_message(
+            exchange_name=exchange_name,
+            routing_key=f"{routing_key}.retry",
+            message=message,
+            delay_seconds=max(0, delay_seconds),
+        )
 
     async def publish_to_dlq(
         self,
@@ -713,7 +789,7 @@ class RabbitMQService:
     ) -> None:
         """发布消息到死信队列 (DLQ)"""
         logger.warning(
-            f"发布到 DLQ: message_id={message.get('message_id', 'N/A')[:8]}..., "
+            f"发布到 DLQ: message_id={str(message.get('message_id') or message.get('id') or '')[:8] or 'N/A'}..., "
             f"task_type={message.get('task_type')}, "
             f"failure_reason={message.get('failure_reason')}"
         )
@@ -722,7 +798,7 @@ class RabbitMQService:
     async def publish_security_event(self, message: dict) -> None:
         """发布安全事件到隔离队列"""
         await self.publish_message(
-            settings.file_process_exchange,
+            settings.file_event_exchange,
             settings.security_quarantine_routing_key,
             message,
         )
@@ -766,8 +842,11 @@ class RabbitMQService:
             max_concurrency: 最大协程并发数（Semaphore 限制）
         """
         try:
+            if self._stopping:
+                raise RuntimeError("RabbitMQ 服务正在关闭，拒绝创建新的消费者")
             # 为每个消费者创建独立的 channel，实现独立的 prefetch 控制
             consumer_channel = await self.connection.channel()
+            self._consumer_channels.append(consumer_channel)
             await consumer_channel.set_qos(prefetch_count=prefetch_count)
 
             queue = await consumer_channel.declare_queue(
@@ -807,10 +886,13 @@ class RabbitMQService:
                         )
                         # 关键修复：requeue=False 让消息通过 DLX 进入死信队列
                         # 而不是 requeue=True 导致无限重试循环
-                        try:
-                            await raw_message.nack(requeue=False)
-                        except Exception:
-                            pass
+                        # 回调通常已经完成 ACK/NACK；只在消息仍未处理时补充一次 DLX NACK，
+                        # 防止底层异常导致消息既未确认又无限 requeue。
+                        if not getattr(raw_message, "processed", False):
+                            try:
+                                await raw_message.nack(requeue=False)
+                            except Exception:
+                                logger.exception("MQ 异常处置失败 queue=%s", queue_name)
 
                     logger.debug(
                         f"[MQ-DONE] queue={queue_name} "
@@ -818,7 +900,8 @@ class RabbitMQService:
                         f"slots_avail={semaphore._value}/{max_concurrency}"
                     )
 
-            await queue.consume(concurrent_handler)
+            consumer_tag = await queue.consume(concurrent_handler)
+            self._consumer_tags.append((queue, consumer_tag))
 
             logger.info(
                 f"消费者启动: queue={queue_name}, "
@@ -834,9 +917,25 @@ class RabbitMQService:
 
     async def close(self):
         """关闭连接"""
+        self._stopping = True
+        for queue, consumer_tag in list(self._consumer_tags):
+            try:
+                await queue.cancel(consumer_tag)
+            except Exception:
+                logger.debug("取消消费者失败 queue=%s", getattr(queue, "name", "unknown"), exc_info=True)
+        self._consumer_tags.clear()
         if self.connection:
             await self.connection.close()
             logger.info("RabbitMQ 连接已关闭")
+        self._consumer_channels.clear()
+
+    def health_snapshot(self) -> dict:
+        """返回不含业务载荷的 Worker MQ 健康快照。"""
+        return {
+            "connected": bool(self.connection and not self.connection.is_closed),
+            "consumer_count": len(self._consumer_tags),
+            "stopping": self._stopping,
+        }
 
 
 # 全局单例

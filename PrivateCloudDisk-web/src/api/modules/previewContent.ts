@@ -15,8 +15,8 @@ export interface PreviewGrantData {
   preview_kind: 'markdown' | 'image' | 'text'
 }
 
-export function createPreviewGrantApi(fileId: string): Promise<any> {
-  return post('files/preview-grants', { file_id: fileId }, { skipAuthRedirect: true })
+export function createPreviewGrantApi(fileId: string, spaceId?: string): Promise<any> {
+  return post('files/preview-grants', { file_id: fileId }, { skipAuthRedirect: true, ...(spaceId ? { headers: { 'X-Space-Id': spaceId } } : {}) })
 }
 
 export function releasePreviewGrantApi(previewGrant: string): Promise<any> {
@@ -27,13 +27,13 @@ export function releasePreviewGrantApi(previewGrant: string): Promise<any> {
   )
 }
 
-export function getPreviewContentApi(fileId: string, previewGrant: string): Promise<Blob> {
+export function getPreviewContentApi(fileId: string, previewGrant: string, spaceId?: string): Promise<Blob> {
   return get(
     `files/files/${encodeURIComponent(fileId)}/preview-content`,
     {},
     {
       responseType: 'blob',
-      headers: { 'X-Preview-Grant': previewGrant },
+      headers: { 'X-Preview-Grant': previewGrant, ...(spaceId ? { 'X-Space-Id': spaceId } : {}) },
       skipAuthRedirect: true,
       timeout: 30_000,
     },
@@ -46,13 +46,13 @@ export function getPreviewContentApi(fileId: string, previewGrant: string): Prom
  * 令牌释放失败只等待 Redis TTL 回收，不覆盖已成功取得的内容；令牌申请或读取失败
  * 由页面统一展示“重试”按钮，避免自动无限重试放大限流压力。
  */
-export async function fetchPreviewContentBlob(fileId: string): Promise<Blob> {
+export async function fetchPreviewContentBlob(fileId: string, spaceId?: string): Promise<Blob> {
   let previewGrant = ''
   try {
-    const grantResponse = await createPreviewGrantApi(fileId)
+    const grantResponse = await createPreviewGrantApi(fileId, spaceId)
     previewGrant = grantResponse?.data?.preview_grant || ''
     if (!previewGrant) throw new Error('无法获取预览授权，请稍后重试')
-    const content = await getPreviewContentApi(fileId, previewGrant)
+    const content = await getPreviewContentApi(fileId, previewGrant, spaceId)
     return content instanceof Blob ? content : new Blob([content as any])
   } finally {
     if (previewGrant) {

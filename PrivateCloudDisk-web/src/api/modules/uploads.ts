@@ -11,7 +11,7 @@
 //   4. getBackendTaskStatusApi()    — 轮询后台任务状态（合并/哈希/病毒扫描/标记活跃）
 //
 // 后端处理流水线（仅后台处理，不包含增强）：
-//   merge → hash_calculate → virus_scan → mark_active
+//   merge → content_preprocess → hash_calculate → virus_scan → mark_active
 //
 // 增强事件（缩略图、转码、HLS、索引）独立并发执行，不提供接口查询。
 //
@@ -22,6 +22,38 @@
 // ============================================================
 
 import { get, post } from '@/utils/request'
+
+export interface UploadSessionCreateResponse {
+  uploads_id: string
+  max_concurrent_sessions?: number
+  active_session_count?: number
+  remaining_concurrent_sessions?: number
+}
+
+export interface UploadSessionSummary {
+  uploads_id: string
+  file_name: string
+  file_size: number
+  total_chunks: number
+  status: 'uploading' | 'completed' | 'canceled'
+  starting_time: string
+  endding_time: string
+}
+
+export interface UploadSessionConcurrencyResponse {
+  max_concurrent_sessions: number
+  active_session_count: number
+  remaining_concurrent_sessions: number
+  sessions: UploadSessionSummary[]
+}
+
+/** 识别服务端明确返回的上传创建乐观锁冲突。 */
+export function isOptimisticLockConflict(error: any): boolean {
+  return error?.status === 409
+    || error?.response?.status === 409
+    || error?.response?.data?.code === 'OPTIMISTIC_LOCK_CONFLICT'
+    || error?.response?.data?.data?.code === 'OPTIMISTIC_LOCK_CONFLICT'
+}
 
 // ============================================================
 // 上传会话管理
@@ -63,6 +95,14 @@ export function createUploadsSessionApi(
   return post('business/uploads/', data)
 }
 
+/** 查询当前用户/空间的活跃上传会话和剩余并发槽位。 */
+export function getActiveUploadsSessionsApi(): Promise<{
+  code: number
+  data: UploadSessionConcurrencyResponse
+}> {
+  return get('business/uploads/active')
+}
+
 // ============================================================
 // 分片上传
 // ============================================================
@@ -78,7 +118,7 @@ export function createUploadsSessionApi(
  *
  * @param uploads_id - 上传会话 ID（由 createUploadsSessionApi 返回）
  * @param chunk_index - 分片索引（从 0 开始）
- * @param upload_file_chunk - 分片 File 对象（Blob.slice() 切分得到）
+ * @param upload_file_chunk - 分片 Blob（File.slice() 切分得到）
  * @param signal - 可选的 AbortSignal，用于取消上传
  * @param onProgress - 可选的上传进度回调 (loaded, total)，用于实时速率计算
  * @returns Promise 分片上传结果
@@ -86,7 +126,7 @@ export function createUploadsSessionApi(
 export function uploadFileChunkApi(
   uploads_id: string,
   chunk_index: number,
-  upload_file_chunk: File,
+  upload_file_chunk: Blob,
   signal?: AbortSignal,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<any> {
@@ -128,7 +168,7 @@ export function completeUploadSessionApi(uploads_id: string): Promise<any> {
  * 查询后台文件处理任务状态（轮询用）
  *
  * 用于在上传完成后轮询后台文件处理进度。
- * 仅查询后台处理阶段（merge → hash_calculate → virus_scan → mark_active），
+ * 查询后台处理阶段（merge → content_preprocess → hash_calculate → virus_scan → mark_active），
  * 不包含增强事件（缩略图、转码等独立并发执行，不提供查询接口）。
  *
  * 返回格式：
@@ -139,11 +179,12 @@ export function completeUploadSessionApi(uploads_id: string): Promise<any> {
  *       file_id: string,
  *       file_name: string,
  *       status: "processing" | "completed" | "failed",
- *       current_stage: "merge" | "hash_calculate" | "virus_scan" | "mark_active",
+ *       current_stage: "merge" | "content_preprocess" | "hash_calculate" | "virus_scan" | "mark_active",
  *       created_at: string,
  *       updated_at: string,
  *       stages: [
  *         { stage: "merge",            status: "completed", summary: "completed" },
+ *         { stage: "content_preprocess", status: "completed", summary: "completed" },
  *         { stage: "hash_calculate",   status: "completed", summary: "completed" },
  *         { stage: "virus_scan",       status: "processing", summary: "processing" },
  *         { stage: "mark_active",      status: "pending", summary: "none" }

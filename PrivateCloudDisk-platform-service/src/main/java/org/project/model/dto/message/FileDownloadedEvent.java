@@ -39,6 +39,15 @@ public class FileDownloadedEvent implements Serializable {
     /** 用户ID */
     private String userId;
 
+    /** 需求五-9：下载记录所属空间。 */
+    private String spaceId;
+
+    /** 访问来源：space=普通文件下载，share=公开分享授权下载。 */
+    private String accessSource;
+
+    /** 分享资源虚拟标识；share 来源时使用，避免向客户端回传真实 file_id。 */
+    private String shareResourceId;
+
     /** 下载授权 Token */
     private String downloadGrant;
 

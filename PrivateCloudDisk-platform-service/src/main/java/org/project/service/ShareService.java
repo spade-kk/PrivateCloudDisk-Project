@@ -21,6 +21,17 @@ public interface ShareService {
                                 List<ResourceItem> resources,
                                 String password, Integer expireDays);
 
+    /** 新增下载权限开关；旧调用方默认允许下载，保持接口兼容。 */
+    default ShareLinkEntity createShare(String userId, String shareName, String shareDescription,
+                                        List<ResourceItem> resources,
+                                        String password, Integer expireDays,
+                                        Boolean allowDownload) {
+        return createShare(userId, shareName, shareDescription, resources, password, expireDays);
+    }
+
+    /** 更新分享是否允许通过授权令牌获取实际文件内容。 */
+    void updateShareDownloadPermission(String userId, String shareId, boolean allowDownload);
+
     /**
      * 获取用户的所有分享链接（列表，不含资源列表）
      * @param user_id 用户ID
@@ -70,6 +81,9 @@ public interface ShareService {
      */
     List<ShareResourceEntity> getShareResources(String shareToken);
 
+    /** 通过分享资源 ID 获取单项文件/文件夹详情，必须先通过分享访问令牌。 */
+    ShareResourceEntity getShareResourceDetail(String shareToken, String shareResourceId);
+
     /**
      * 通过分享资源ID浏览文件夹子内容
      * <p>安全：通过 share_resource_id 校验资源是否在分享范围内，不暴露内部 node_id</p>
@@ -78,11 +92,12 @@ public interface ShareService {
     List<SharedItem> getShareResourceChildren(String shareToken, String shareResourceId);
 
     /**
-     * 通过分享资源ID下载文件（支持真实和虚拟 share_resource_id）
-     * <p>安全：通过 share_resource_id 校验资源是否在分享范围内</p>
-     * @param share_token 分享令牌
+     * 文件服务内部授权解析结果。仅在服务间调用返回真实存储元数据，客户端永远不接触。
      */
-    FileEntity getSharedFileByResourceId(String shareToken, String shareResourceId);
+    ShareResourceAccess resolveShareResourceForStorage(String shareToken,
+                                                       String shareResourceId,
+                                                       String accessToken,
+                                                       String operation);
 
     /**
      * 修改分享链接提取码
@@ -114,6 +129,19 @@ public interface ShareService {
         public static ResourceItem of(String type, String id) {
             return new ResourceItem(type, id);
         }
+    }
+
+    /** 分享资源内部解析结果（不作为公开 API DTO）。 */
+    record ShareResourceAccess(
+            String fileId,
+            String spaceId,
+            String fileName,
+            Long fileSize,
+            String fileType,
+            String storagePath,
+            String shareResourceId,
+            boolean downloadAllowed
+    ) {
     }
 
     /**

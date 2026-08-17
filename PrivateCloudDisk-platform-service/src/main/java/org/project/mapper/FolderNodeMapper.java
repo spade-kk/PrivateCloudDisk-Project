@@ -38,6 +38,27 @@ public interface FolderNodeMapper {
      */
     // FolderNodeEntity findRootFolderNodeBySpaceId(@Param("space_id") UUID space_id);
 
+    /** 公开仓库只读查询：显式绑定 space_id，不依赖当前工作空间 ThreadLocal。 */
+    FolderNodeEntity findRootFolderNodeBySpaceId(@Param("space_id") UUID space_id);
+
+    FolderNodeEntity findFolderNodeByIdAndSpaceId(@Param("node_id") UUID node_id,
+                                                  @Param("space_id") UUID space_id);
+
+    /** 分享场景的文件夹三元组查询，避免同一用户不同空间的 node_id 被混用。 */
+    FolderNodeEntity findFolderNodeByIdAndUserAndSpace(
+            @Param("node_id") UUID nodeId,
+            @Param("user_id") UUID userId,
+            @Param("space_id") UUID spaceId);
+
+    List<FolderNodeEntity> findFolderNodesBySpaceId(@Param("parent_id") UUID parent_id,
+                                                    @Param("space_id") UUID space_id);
+
+    /** 分享目录子文件夹查询：父节点、分享者和空间必须全部匹配。 */
+    List<FolderNodeEntity> findShareFolderNodesByParentId(
+            @Param("parent_id") UUID parentId,
+            @Param("space_id") UUID spaceId,
+            @Param("user_id") UUID userId);
+
      /**
      * 根据节点ID查询文件夹节点下的子文件夹节点数据
      * @param node_id 节点ID

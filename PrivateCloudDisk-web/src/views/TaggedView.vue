@@ -2,12 +2,15 @@
   <div class="space-y-4 sm:space-y-6">
     <!-- 标题栏 -->
     <div class="flex items-center justify-between">
-      <h1 class="flex items-center gap-2 text-xl font-bold text-neutral-700 sm:text-2xl">
-        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <i class="fa fa-tags text-primary"></i>
-        </span>
-        标签管理
-      </h1>
+      <div>
+        <h1 class="flex items-center gap-2 text-xl font-bold text-neutral-700 sm:text-2xl">
+          <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+            <i class="fa fa-tags text-primary"></i>
+          </span>
+          标签管理
+        </h1>
+        <CurrentSpaceBadge class="mt-2" />
+      </div>
       <button
         class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 active:scale-95"
         @click="showCreateDialog = true"
@@ -218,17 +221,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useTagStore } from '@/stores/tagStore'
 import { useToastStore } from '@/stores/toastStore'
 import { getFileIconClass } from '@/utils/fileIcon'
 import type { TagVO, TaggedFileVO } from '@/api/modules/tags'
+import { useSpaceStore } from '@/stores/spaceStore'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 
 const tagStore = useTagStore()
 const toastStore = useToastStore()
 const router = useRouter()
+const spaceStore = useSpaceStore()
 
 const showCreateDialog = ref(false)
 const editTarget = ref<TagVO | null>(null)
@@ -263,6 +269,13 @@ const formatSize = (bytes: number): string => {
 
 onMounted(() => {
   tagStore.loadTags()
+})
+
+watch(() => spaceStore.revision, () => {
+  viewingTag.value = null
+  taggedFiles.value = []
+  taggedFolders.value = []
+  void tagStore.loadTags()
 })
 
 // ============================================================

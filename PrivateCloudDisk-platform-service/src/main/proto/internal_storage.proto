@@ -25,13 +25,13 @@ option java_outer_classname = "InternalStorageProto";
 // 上传会话状态
 enum UploadSessionStatus {
   UPLOAD_SESSION_STATUS_UNSPECIFIED = 0;
-  UPLOAD_SESSION_STATUS_INIT = 1;
+  // REQ-UPLOAD-SESSION-STATE-2026-07: 上传会话只保留传输生命周期状态；旧 INIT 编号不再返回。
+  reserved 1;
   UPLOAD_SESSION_STATUS_UPLOADING = 2;
-  UPLOAD_SESSION_STATUS_MERGING = 3;
+  // 原有 merging/failed/deleted 只属于旧状态机，不再作为可返回的状态；保留数值编号避免协议重排。
+  reserved 3, 5, 7;
   UPLOAD_SESSION_STATUS_COMPLETED = 4;
-  UPLOAD_SESSION_STATUS_FAILED = 5;
   UPLOAD_SESSION_STATUS_CANCELLED = 6;
-  UPLOAD_SESSION_STATUS_DELETED = 7;
 }
 
 // 分片状态
@@ -115,7 +115,7 @@ message ChunkInfo {
 }
 
 // ---------- 合并完成 ----------
-// 对应: POST /business/internal/storage/uploads/{uploads_id}/merging
+// 对应: POST /business/internal/storage/uploads/{uploads_id}/merge
 
 message MergingCompleteRequest {
   string uploads_id = 1;

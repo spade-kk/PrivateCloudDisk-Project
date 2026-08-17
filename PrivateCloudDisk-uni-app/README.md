@@ -1,6 +1,6 @@
 # PrivateCloudDisk-uni-app
 
-企业级私有云盘跨平台客户端，基于 uni-app (Vue 3) 构建，支持 iOS / Android / 微信小程序 / H5 多端部署。
+跨平台客户端，基于 uni-app (Vue 3) 构建，保留 iOS / Android / 微信小程序 / H5 的工程入口；不同端的文件、分享、预览和上传能力以各端适配情况为准。
 
 ---
 

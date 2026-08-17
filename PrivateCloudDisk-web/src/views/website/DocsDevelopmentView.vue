@@ -151,7 +151,7 @@ brew services start rabbitmq</pre>
                     <span class="h-2 w-2 rounded-full bg-info"></span>
                     <span class="text-xs font-medium">File Service (:8000)</span>
                   </div>
-                  <code class="font-mono text-xs text-neutral-600">cd PrivateCloudDisk-shortage-service && uvicorn server:app --reload</code>
+                  <code class="font-mono text-xs text-neutral-600">cd PrivateCloudDisk-storage-service && uvicorn app.main:app --reload</code>
                 </div>
               </div>
 
@@ -255,7 +255,7 @@ const projectStructure = [
   { name: 'PrivateCloudDisk-admin-web', type: 'React', icon: 'fa fa-tasks', iconClass: 'text-info', bgClass: 'bg-info/10', desc: '管理后台 Web 应用', path: 'src/main.tsx' },
   { name: 'PrivateCloudDisk-gateway-service', type: 'Java', icon: 'fa fa-gateway', iconClass: 'text-orange-500', bgClass: 'bg-orange-100', desc: 'API 网关服务', path: '*Application.java' },
   { name: 'PrivateCloudDisk-platform-service', type: 'Java', icon: 'fa fa-cogs', iconClass: 'text-success', bgClass: 'bg-success/10', desc: '核心业务服务', path: '*Application.java' },
-  { name: 'PrivateCloudDisk-shortage-service', type: 'Python', icon: 'fa fa-file', iconClass: 'text-warning', bgClass: 'bg-warning/10', desc: '文件服务', path: 'server.py' },
+  { name: 'PrivateCloudDisk-storage-service', type: 'Python', icon: 'fa fa-file', iconClass: 'text-warning', bgClass: 'bg-warning/10', desc: '文件存储与处理服务', path: 'app/main.py' },
   { name: 'PrivateCloudDisk-db', type: 'SQL', icon: 'fa fa-database', iconClass: 'text-purple-500', bgClass: 'bg-purple-50', desc: '数据库初始化脚本', path: 'database_init.sql' },
 ]
 
@@ -265,7 +265,7 @@ const codingStandards = [
     icon: 'fa fa-coffee',
     iconColor: 'text-warning',
     rules: [
-      '遵循阿里巴巴 Java 开发手册',
+      '遵循仓库现有 Java 编码与测试约定',
       'Controller → Service → Mapper 三层架构',
       '使用 Lombok 简化代码',
       '参数校验使用 Jakarta Validation',

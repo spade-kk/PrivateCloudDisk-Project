@@ -25,6 +25,19 @@
     <select id="findUserById" resultMap="UserEntityMap">
         select * from pcd_user_info_table where user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
     </select>
+    <select id="findUserByNameOrAccount" resultMap="UserEntityMap">
+        SELECT * FROM pcd_user_info_table
+        WHERE user_name = #{username} OR user_account = #{username}
+        LIMIT 1;
+    </select>
+    <select id="searchPublicUsers" resultMap="UserEntityMap">
+        SELECT user_id, user_account, user_name, user_image_path
+        FROM pcd_user_info_table
+        WHERE user_name LIKE CONCAT('%', #{keyword}, '%')
+           OR user_account LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY user_name ASC
+        LIMIT #{limit}
+    </select>
     <!--    配置sql语句插入单条用户数据-->
     <insert id="insertUser" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.UserEntity">
         insert into pcd_user_info_table (user_name, user_id, user_phone_number, user_image_path, user_password, user_account, user_email)

@@ -22,6 +22,12 @@ public class RecentAccessVO {
     /** 访问类型：upload / download / open */
     private String access_type;
 
+    /** 访问来源：space / share。 */
+    private String access_source;
+
+    /** 分享访问时的虚拟资源 ID。 */
+    private String share_resource_id;
+
     /** 文件/文件夹名称 */
     private String target_name;
 

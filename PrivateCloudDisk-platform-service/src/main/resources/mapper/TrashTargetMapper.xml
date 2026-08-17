@@ -8,6 +8,7 @@
         <id column="trash_id" property="trash_id"/>
         <result column="trash_target_id" property="target_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="trash_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="trash_space_id" property="space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="trash_target_name" property="target_name"/>
         <result column="trash_target_type" property="target_type"/>
         <result column="trash_file_type" property="file_type"/>
@@ -19,34 +20,50 @@
     
     <insert id="insertTrashTarget" parameterType="org.project.model.entity.TrashTargetEntity" useGeneratedKeys="true" keyProperty="trash_id">
         INSERT INTO pcd_trash_target_table (
-            trash_target_id, trash_user_id, trash_target_name, trash_target_type,
+            trash_target_id, trash_user_id, trash_space_id, trash_target_name, trash_target_type,
             trash_file_type, trash_target_size, trash_original_node_id, trash_deleted_at, trash_expires_at
         ) VALUES (
-            #{target_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{target_name}, #{target_type},
+            #{target_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{target_name}, #{target_type},
             #{file_type}, #{target_size}, #{original_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{deleted_at}, #{expires_at}
         )
     </insert>
     
     <delete id="deleteTrashTarget">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE FROM pcd_trash_target_table
         WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (trash_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND trash_space_id IS NULL))
     </delete>
     
     <select id="findTrashTargetById" resultMap="TrashTargetEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_trash_target_table
         WHERE trash_id = #{trash_id} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (trash_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND trash_space_id IS NULL))
     </select>
 
     <select id="findTrashTargetsByUserId" resultMap="TrashTargetEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_trash_target_table
         WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (trash_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND trash_space_id IS NULL))
         ORDER BY trash_deleted_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
     
     <select id="countTrashTargetsByUserId" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COUNT(*) FROM pcd_trash_target_table
         WHERE trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (trash_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND trash_space_id IS NULL))
     </select>
     
     <select id="findExpiredTrashTargets" resultMap="TrashTargetEntityMap">
@@ -55,8 +72,12 @@
     </select>
     
     <select id="findTrashTargetByTargetId" resultMap="TrashTargetEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_trash_target_table
         WHERE trash_target_id = #{target_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} AND trash_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (trash_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND trash_space_id IS NULL))
     </select>
     
 </mapper>

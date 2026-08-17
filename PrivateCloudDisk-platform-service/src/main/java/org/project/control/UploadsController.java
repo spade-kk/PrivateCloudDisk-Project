@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.project.control.result.JsonResult;
 import org.project.model.dto.CreateUploadsSessionRequest;
+import org.project.model.vo.UploadSessionConcurrencyVO;
+import org.project.model.vo.UploadSessionCreateVO;
 import org.project.service.UploadsService;
 import org.project.util.ClientIpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,10 +23,10 @@ public class UploadsController extends BaseController {
     /**
      * 处理上传会话创建的请求
      * @param createUploadsSessionRequest 创建上传会话请求体参数Json对象
-     * @return JsonResult data String
+     * @return JsonResult data 上传会话 ID 与当前并发槽位快照；旧客户端仍可从 uploads_id 读取会话 ID
      */
     @PostMapping("/")
-    public JsonResult<String> createUploadsSession(
+    public JsonResult<UploadSessionCreateVO> createUploadsSession(
             @RequestHeader("X-User-Id") String user_id,
             @Valid @RequestBody CreateUploadsSessionRequest createUploadsSessionRequest,
             HttpServletRequest request)
@@ -42,7 +44,23 @@ public class UploadsController extends BaseController {
                 UUID.fromString(createUploadsSessionRequest.getNode_id()),
                 clientIp);
 
-        return new JsonResult<String>(OK, uploads_id.toString());
+        UploadSessionConcurrencyVO concurrency = uploadsService.queryUploadConcurrency(UUID.fromString(user_id));
+        UploadSessionCreateVO response = new UploadSessionCreateVO();
+        response.setUploads_id(uploads_id.toString());
+        response.setMax_concurrent_sessions(concurrency.getMax_concurrent_sessions());
+        response.setActive_session_count(concurrency.getActive_session_count());
+        response.setRemaining_concurrent_sessions(concurrency.getRemaining_concurrent_sessions());
+        return new JsonResult<>(OK, response);
+    }
+
+    /**
+     * 查询当前用户/空间范围内的活跃上传会话及剩余并发槽位。
+     * 列表由服务层转换为脱敏摘要，不返回 checksum、用户内部字段或物理存储路径。
+     */
+    @GetMapping("/active")
+    public JsonResult<UploadSessionConcurrencyVO> queryActiveUploadsSessions(
+            @RequestHeader("X-User-Id") String user_id) {
+        return new JsonResult<>(OK, uploadsService.queryUploadConcurrency(UUID.fromString(user_id)));
     }
 
     /**

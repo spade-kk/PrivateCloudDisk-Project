@@ -22,6 +22,7 @@ router = APIRouter(tags=["任务状态"])
 # 后台处理流水线阶段（按顺序，不包含增强事件）
 BACKEND_PIPELINE_STAGES = [
     TaskTypes.MERGE,
+    TaskTypes.CONTENT_PREPROCESS,
     TaskTypes.HASH_CALCULATE,
     TaskTypes.VIRUS_SCAN,
     TaskTypes.MARK_ACTIVE,
@@ -38,9 +39,10 @@ async def get_task_status(
 
     后台处理步骤:
       1. merge: 文件合并
-      2. hash_calculate: 哈希计算
-      3. virus_scan: 病毒扫描
-      4. mark_active: 标记文件为活跃状态
+      2. content_preprocess: 用户/空间云插件预处理（无匹配时快速跳过）
+      3. hash_calculate: 对最终选定内容进行哈希计算
+      4. virus_scan: 病毒扫描
+      5. mark_active: 标记文件为活跃状态
 
     任务状态:
       - processing: 处理中
@@ -123,6 +125,15 @@ async def get_task_status(
             detail="无权访问此任务"
         )
 
+    # 文件生命周期预处理需求：数据库是闸门事实源，Redis 仍只承担 UI 投影。
+    preprocess_progress = None
+    try:
+        from app.repositories.file_preprocess_repository import file_preprocess_repository
+        preprocess_progress = await file_preprocess_repository.get_progress(backend_task_id)
+    except Exception:
+        # 查询接口降级不影响核心 Worker；数据库短暂不可用时保留原 Redis 响应。
+        preprocess_progress = None
+
     # 3. 获取各阶段状态（仅后台处理阶段，不包含增强）
     stages = []
     for stage_name in BACKEND_PIPELINE_STAGES:
@@ -130,11 +141,30 @@ async def get_task_status(
             backend_task_id=backend_task_id, stage=stage_name
         )
         event_status = await redis_client.get(event_key)
-        stages.append({
+        stage_item = {
             "stage": stage_name,
             "status": event_status if event_status else "pending",
             "summary": event_status if event_status else "none",
-        })
+        }
+        if stage_name == TaskTypes.CONTENT_PREPROCESS and preprocess_progress:
+            result_status = preprocess_progress.get("result_status")
+            summaries = {
+                "skipped": "未匹配预处理插件，继续安全检查",
+                "success": "云插件处理完成，正在校验最终内容",
+                "failed": "云插件执行失败，已安全回退原文件",
+                "timeout": "云插件执行超时，已安全回退原文件",
+                "fallback_unavailable": "自动化服务暂不可用，已安全回退原文件",
+            }
+            stage_item["summary"] = summaries.get(
+                result_status,
+                "正在匹配并执行用户或空间云插件",
+            )
+            stage_item["detail"] = {
+                "deadline_at": preprocess_progress.get("deadline_at"),
+                "result_status": result_status,
+                "content_modified": preprocess_progress.get("content_modified", False),
+            }
+        stages.append(stage_item)
 
     # 4. 返回任务状态
     return JSONResponse({
@@ -145,6 +175,12 @@ async def get_task_status(
             "file_name": master_data.get("file_name", ""),
             "status": master_data.get("status", TaskStatus.PROCESSING),
             "current_stage": master_data.get("current_stage"),
+            # 文件生命周期预处理需求：新增字段为可选扩展，旧客户端无需改动。
+            "preprocess_status": master_data.get("preprocess_status", ""),
+            "content_modified": master_data.get("content_modified", "0") == "1",
+            "preprocess_deadline_at": (
+                preprocess_progress.get("deadline_at") if preprocess_progress else None
+            ),
             "created_at": master_data.get("created_at"),
             "updated_at": master_data.get("updated_at"),
             "stages": stages,
@@ -164,7 +200,7 @@ async def get_stage_status(
 
     Args:
         backend_task_id: 后台任务 ID
-        stage_name: 阶段名称 (merge / hash_calculate / virus_scan / mark_active)
+        stage_name: 阶段名称 (merge / content_preprocess / hash_calculate / virus_scan / mark_active)
         user_id: 用户 ID
 
     Returns:

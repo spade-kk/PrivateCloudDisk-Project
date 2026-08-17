@@ -7,6 +7,7 @@
     <resultMap id="TagEntityMap" type="org.project.model.entity.TagEntity">
         <id column="tag_id" property="tag_id"/>
         <result column="tag_user_id" property="tag_user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="tag_space_id" property="tag_space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="tag_name" property="tag_name"/>
         <result column="tag_color" property="tag_color"/>
         <result column="tag_created_at" property="tag_created_at"/>
@@ -17,6 +18,7 @@
     <resultMap id="FileTagEntityMap" type="org.project.model.entity.FileTagEntity">
         <id column="ft_id" property="ft_id"/>
         <result column="ft_user_id" property="ft_user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ft_space_id" property="ft_space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="ft_tag_id" property="ft_tag_id"/>
         <result column="ft_target_type" property="ft_target_type"/>
         <result column="ft_file_id" property="ft_file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
@@ -61,30 +63,42 @@
     <!-- ==================== 标签 CRUD ==================== -->
 
     <insert id="insertTag" parameterType="org.project.model.entity.TagEntity" useGeneratedKeys="true" keyProperty="tag_id">
-        INSERT INTO pcd_tag_table (tag_user_id, tag_name, tag_color)
+        INSERT INTO pcd_tag_table (tag_user_id, tag_space_id, tag_name, tag_color)
         VALUES (#{tag_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{tag_space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
                 #{tag_name},
                 #{tag_color})
     </insert>
 
     <delete id="deleteTag">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE FROM pcd_tag_table
         WHERE tag_id = #{tag_id}
           AND tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (tag_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND tag_space_id IS NULL))
     </delete>
 
     <update id="updateTag" parameterType="org.project.model.entity.TagEntity">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         UPDATE pcd_tag_table
         SET tag_name = #{tag_name},
             tag_color = #{tag_color}
         WHERE tag_id = #{tag_id}
           AND tag_user_id = #{tag_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (tag_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND tag_space_id IS NULL))
     </update>
 
     <select id="findTagsByUserId" resultMap="TagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             t.tag_id,
             t.tag_user_id,
+            t.tag_space_id,
             t.tag_name,
             t.tag_color,
             t.tag_created_at,
@@ -108,17 +122,29 @@
             GROUP BY ft.ft_tag_id
         ) foc ON t.tag_id = foc.ft_tag_id
         WHERE t.tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (t.tag_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND t.tag_space_id IS NULL))
         ORDER BY t.tag_created_at DESC
     </select>
 
     <select id="findTagByName" resultMap="TagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_tag_table
         WHERE tag_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND tag_name = #{tag_name}
+          AND (tag_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND tag_space_id IS NULL))
     </select>
 
     <select id="findTagById" resultMap="TagEntityMap">
-        SELECT * FROM pcd_tag_table WHERE tag_id = #{tag_id}
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        SELECT * FROM pcd_tag_table
+        WHERE tag_id = #{tag_id}
+          AND (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+            OR tag_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND tag_space_id IS NULL))
     </select>
 
     <insert id="insertDefaultTags">
@@ -136,8 +162,9 @@
     <!-- ==================== 文件标签关联 ==================== -->
 
     <insert id="insertFileTag" parameterType="org.project.model.entity.FileTagEntity">
-        INSERT INTO pcd_file_tag_table (ft_user_id, ft_tag_id, ft_target_type, ft_file_id, ft_node_id)
+        INSERT INTO pcd_file_tag_table (ft_user_id, ft_space_id, ft_tag_id, ft_target_type, ft_file_id, ft_node_id)
         VALUES (#{ft_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+                #{ft_space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
                 #{ft_tag_id},
                 #{ft_target_type},
                 #{ft_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
@@ -149,19 +176,27 @@
     </delete>
 
     <delete id="deleteFileTagByTagAndFile">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE FROM pcd_file_tag_table
         WHERE ft_tag_id = #{tag_id}
           AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_target_type = 'file'
+          AND (ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft_space_id IS NULL))
     </delete>
 
     <delete id="deleteFileTagByTagAndNode">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         DELETE FROM pcd_file_tag_table
         WHERE ft_tag_id = #{tag_id}
           AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_target_type = 'folder'
+          AND (ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft_space_id IS NULL))
     </delete>
 
     <!-- AUDIT FIX [3.2] 只在文件永久删除事务中调用；回收站/软删除不会触发。 -->
@@ -172,28 +207,38 @@
     </delete>
 
     <select id="findTagsByFileId" resultMap="TagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT t.* FROM pcd_tag_table t
         INNER JOIN pcd_file_tag_table ft ON t.tag_id = ft.ft_tag_id
         INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFilePredicate"/>
         ORDER BY t.tag_name
     </select>
 
     <select id="findTagsByNodeId" resultMap="TagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT t.* FROM pcd_tag_table t
         INNER JOIN pcd_file_tag_table ft ON t.tag_id = ft.ft_tag_id
         INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFolderPredicate"/>
         ORDER BY t.tag_name
     </select>
 
     <select id="findTagsByFileIds" resultMap="FileTagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             ft.*,
             t.tag_name,
@@ -203,6 +248,8 @@
         INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFilePredicate"/>
           AND ft.ft_file_id IN
           <foreach collection="file_ids" item="id" open="(" separator="," close=")">
@@ -211,6 +258,8 @@
     </select>
 
     <select id="findTagsByNodeIds" resultMap="FileTagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             ft.*,
             t.tag_name,
@@ -220,6 +269,8 @@
         INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
         WHERE ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFolderPredicate"/>
           AND ft.ft_node_id IN
           <foreach collection="node_ids" item="id" open="(" separator="," close=")">
@@ -228,6 +279,8 @@
     </select>
 
     <select id="findFilesByTagId" resultMap="FileTagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             ft.*,
             t.tag_name,
@@ -241,12 +294,16 @@
         WHERE ft.ft_tag_id = #{tag_id}
           AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFilePredicate"/>
         ORDER BY ft.ft_tagged_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="findFoldersByTagId" resultMap="FileTagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             ft.*,
             t.tag_name,
@@ -260,45 +317,63 @@
         WHERE ft.ft_tag_id = #{tag_id}
           AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFolderPredicate"/>
         ORDER BY ft.ft_tagged_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="countFilesByTagId" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COUNT(*)
         FROM pcd_file_tag_table ft
         INNER JOIN pcd_file_info_table f ON ft.ft_file_id = f.file_id
         WHERE ft.ft_tag_id = #{tag_id}
           AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'file'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFilePredicate"/>
     </select>
 
     <select id="countFoldersByTagId" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COUNT(*)
         FROM pcd_file_tag_table ft
         INNER JOIN pcd_directory_tree_table d ON ft.ft_node_id = d.node_id
         WHERE ft.ft_tag_id = #{tag_id}
           AND ft.ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft.ft_target_type = 'folder'
+          AND (ft.ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft.ft_space_id IS NULL))
           AND <include refid="ActiveFolderPredicate"/>
     </select>
 
     <select id="findFileTagByTagAndFile" resultMap="FileTagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_file_tag_table
         WHERE ft_tag_id = #{tag_id}
           AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_target_type = 'file'
+          AND (ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft_space_id IS NULL))
     </select>
 
     <select id="findFileTagByTagAndNode" resultMap="FileTagEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_file_tag_table
         WHERE ft_tag_id = #{tag_id}
           AND ft_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ft_target_type = 'folder'
+          AND (ft_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND ft_space_id IS NULL))
     </select>
 
 </mapper>

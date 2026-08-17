@@ -11,12 +11,15 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
 from app.api.v1.router import api_router
+from app.api.internal.preprocess_broker import router as preprocess_broker_router
+from app.api.internal.automation_broker import router as automation_broker_router
 from app.middleware.timing import add_process_time_header
 from app.core.redis_client import redis_client
 from app.core.logging_config import setup_logging, get_logger
 from core.rabbitmq import rabbitmq_service
 from core.config import settings
 from app.db.database import close_database, init_database
+from app.core.space_context import reset_current_space_id, set_current_space_id
 
 
 # 配置日志系统
@@ -273,12 +276,29 @@ app.openapi = custom_openapi
 
 # ==================== 注册中间件 ====================
 
+@app.middleware("http")
+async def bind_space_context(request, call_next):
+    """
+    需求：空间管理能力全量集成（二、五-8）。
+    保存客户端可选 X-Space-Id，供存储服务内部 SDK、预览和下载授权链透明使用。
+    """
+    token = set_current_space_id(request.headers.get("X-Space-Id"))
+    try:
+        return await call_next(request)
+    finally:
+        reset_current_space_id(token)
+
+
 app.middleware("http")(add_process_time_header)
 
 
 # ==================== 注册路由 ====================
 
 app.include_router(api_router)
+# 文件生命周期预处理需求：内部 Broker 不挂在 /api/v1，Gateway 不得为其配置公网路由。
+app.include_router(preprocess_broker_router)
+# 云插件激活后只读 Broker：同样仅允许 Runtime 从服务私网调用。
+app.include_router(automation_broker_router)
 
 
 # ==================== 健康检查端点 ====================

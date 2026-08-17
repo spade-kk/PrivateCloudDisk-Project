@@ -88,6 +88,12 @@ func (s *RegistrationService) RegisterClient(
 	req *domain.RegisterRequest,
 ) (*domain.RegisterResponse, error) {
 	attestation := &req.Attestation
+	if req.Platform != "" && req.Platform != attestation.Platform {
+		return nil, fmt.Errorf("请求平台与证明平台不一致")
+	}
+	if len(req.AppVersion) == 0 || len(req.AppVersion) > 32 {
+		return nil, fmt.Errorf("客户端版本格式无效")
+	}
 
 	// ─── 步骤 1: 从 Redis 验证挑战值 ───────────────────────────────────────────
 	// 挑战值仅存于 Redis，查不到就意味着已过期、已使用或从未生成。
@@ -125,6 +131,23 @@ func (s *RegistrationService) RegisterClient(
 		// 设备已注册，返回已有 client_id（幂等性）
 		fmt.Printf("[Registration] 设备已注册，返回已有身份: client_id=%s\n",
 			existingIdentity.ClientID)
+		/*
+		 * 本地插件可信分发可靠性修复：
+		 * 原行为在重复注册时直接返回，若 Redis 公钥缓存已过期，网关仍无法验证后续设备签名。
+		 * 新行为以数据库中的可信身份回填缓存；不改变 client_id，也不修改原注册时间。
+		 */
+		if err := s.redisRepo.CachePublicKey(ctx, &domain.PublicKeyResponse{
+			ClientID:       existingIdentity.ClientID,
+			PublicKey:      existingIdentity.PublicKey,
+			KeyAlgorithm:   existingIdentity.KeyAlgorithm,
+			IntegrityLevel: existingIdentity.IntegrityLevel,
+			Status:         existingIdentity.Status,
+		}); err != nil {
+			return nil, fmt.Errorf("刷新客户端公钥缓存失败: %w", err)
+		}
+		if err := s.redisRepo.MarkChallengeUsed(ctx, attestation.Challenge); err != nil {
+			return nil, fmt.Errorf("消费注册挑战值失败: %w", err)
+		}
 
 		return &domain.RegisterResponse{
 			ClientID:       existingIdentity.ClientID,
@@ -139,19 +162,19 @@ func (s *RegistrationService) RegisterClient(
 	// ─── 步骤 5: 构建客户端身份并持久化 ─────────────────────────────────────────
 	now := time.Now()
 	identity := &domain.ClientIdentity{
-		ClientID:        clientID,
-		DeviceID:        attestation.DeviceID,
-		Platform:        attestation.Platform,
-		AppID:           attestation.AppID,
-		PublicKey:       attestation.PublicKey,
-		KeyAlgorithm:    attestation.KeyAlgorithm,
-		TokenID:         attestation.TokenID,
-		IntegrityLevel:  verifyResult.IntegrityLevel,
-		OSVersion:       attestation.OSVersion,
-		Hostname:        attestation.Hostname,
-		Status:          "active",
-		RegisteredAt:    now,
-		LastVerifiedAt:  now,
+		ClientID:       clientID,
+		DeviceID:       attestation.DeviceID,
+		Platform:       attestation.Platform,
+		AppID:          attestation.AppID,
+		PublicKey:      attestation.PublicKey,
+		KeyAlgorithm:   attestation.KeyAlgorithm,
+		TokenID:        attestation.TokenID,
+		IntegrityLevel: verifyResult.IntegrityLevel,
+		OSVersion:      attestation.OSVersion,
+		Hostname:       attestation.Hostname,
+		Status:         "active",
+		RegisteredAt:   now,
+		LastVerifiedAt: now,
 	}
 
 	if err := s.repo.InsertClient(identity); err != nil {
@@ -260,4 +283,39 @@ func (s *RegistrationService) RevokeClient(ctx context.Context, clientID string)
 // GetClientStatus 获取客户端状态
 func (s *RegistrationService) GetClientStatus(ctx context.Context, clientID string) (*domain.ClientIdentity, error) {
 	return s.repo.GetByClientID(clientID)
+}
+
+// BindUser 只接受 Handler 已核对过的网关注入身份与设备签名结果。
+func (s *RegistrationService) BindUser(
+	clientID, userID string,
+	request *domain.BindUserRequest,
+) (*domain.ClientUserBinding, error) {
+	identity, err := s.repo.GetByClientID(clientID)
+	if err != nil {
+		return nil, err
+	}
+	if identity == nil || identity.Status != "active" {
+		return nil, fmt.Errorf("客户端不存在或已吊销")
+	}
+	if err := s.repo.BindUser(
+		clientID, userID, request.ClientType, request.Platform,
+		request.AppVersion, request.Capabilities,
+	); err != nil {
+		return nil, err
+	}
+	binding, err := s.repo.GetUserBinding(clientID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if binding == nil {
+		return nil, fmt.Errorf("客户端已绑定到其他账号，需先由原账号解除或吊销")
+	}
+	return binding, nil
+}
+
+// GetUserBinding 供 Plugin Service 在每次分发时实时核验。
+func (s *RegistrationService) GetUserBinding(
+	clientID, userID string,
+) (*domain.ClientUserBinding, error) {
+	return s.repo.GetUserBinding(clientID, userID)
 }

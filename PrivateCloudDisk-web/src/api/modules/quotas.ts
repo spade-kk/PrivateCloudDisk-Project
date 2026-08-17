@@ -28,3 +28,22 @@ import { get } from '@/utils/request'
 export function getMyUserQuotaInfoApi(): Promise<any> {
   return get('business/quotas/me')
 }
+
+export interface SpaceQuotaInfo {
+  space_id: string
+  space_name: string
+  space_type: 'personal' | 'enterprise' | 'public' | 'team'
+  total_quota: number
+  used_quota: number
+  reserved_quota: number
+  file_count: number
+  usage_percent: number
+}
+
+/**
+ * 空间管理能力全量集成（需求五-10）：获取当前用户有查看权限的全部空间配额。
+ * 此接口不以当前空间作为筛选条件，响应始终包含默认个人空间。
+ */
+export function getAllSpaceQuotasApi(): Promise<{ code: number; data: SpaceQuotaInfo[] }> {
+  return get('business/quotas/space-quotas')
+}

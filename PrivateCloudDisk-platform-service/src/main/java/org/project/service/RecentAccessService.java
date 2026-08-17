@@ -27,6 +27,12 @@ public interface RecentAccessService {
                       String access_type, String file_name, Long file_size, String file_type);
 
     /**
+     * 记录分享授权下载，不保存真实 file_id，避免分享资源 ID 与平台内部 ID 混淆。
+     */
+    void recordShareDownloadAccess(UUID user_id, String shareResourceId,
+                                   String fileName, Long fileSize, String fileType);
+
+    /**
      * 获取用户最近访问列表（按类型筛选）
      */
     List<RecentAccessVO> getRecentAccess(UUID user_id, String access_type, int page, int pageSize);

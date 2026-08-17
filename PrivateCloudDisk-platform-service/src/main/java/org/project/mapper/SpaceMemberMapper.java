@@ -10,6 +10,7 @@ import java.util.UUID;
 public interface SpaceMemberMapper {
     SpaceMemberEntity findBySpaceAndUser(@Param("spaceId") UUID spaceId, @Param("userId") UUID userId);
     List<SpaceMemberEntity> findBySpaceId(@Param("spaceId") UUID spaceId);
+    List<SpaceMemberEntity> findBySpaceIdAndKeyword(@Param("spaceId") UUID spaceId, @Param("keyword") String keyword);
     List<SpaceMemberEntity> findByUserId(@Param("userId") UUID userId);
     int insert(SpaceMemberEntity member);
     int updateRole(@Param("spaceId") UUID spaceId, @Param("userId") UUID userId, @Param("role") String role);

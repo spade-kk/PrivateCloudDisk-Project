@@ -5,7 +5,7 @@
         <div class="mx-auto max-w-3xl text-center">
           <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">加入我们</span>
           <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">与优秀的人一起改变世界</h1>
-          <p class="mt-4 text-lg text-neutral-500">CloudDrive 正在寻找充满激情的人才，加入我们，一起构建下一代企业级云存储平台</p>
+          <p class="mt-4 text-lg text-neutral-500">PrivateCloudDisk 是持续演进的项目目录，贡献方式和岗位信息以实际维护渠道为准</p>
         </div>
       </div>
     </section>
@@ -14,7 +14,7 @@
     <section class="py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">
-          <h2 class="text-3xl font-bold text-neutral-900">为什么加入 CloudDrive</h2>
+          <h2 class="text-3xl font-bold text-neutral-900">为什么参与 PrivateCloudDisk</h2>
         </div>
         <div class="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div v-for="item in whyJoin" :key="item.title" class="rounded-2xl border border-neutral-200 bg-white p-6 text-center transition hover:-translate-y-1 hover:shadow-lg">
@@ -49,8 +49,8 @@
     <section class="py-20 sm:py-24">
       <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">
-          <h2 class="text-3xl font-bold text-neutral-900">开放职位</h2>
-          <p class="mt-4 text-neutral-500">找到适合你的位置，开启新的旅程</p>
+          <h2 class="text-3xl font-bold text-neutral-900">贡献方向</h2>
+          <p class="mt-4 text-neutral-500">从代码、测试、文档、部署和客户端等方向参与项目建设</p>
         </div>
         <div class="mt-12 space-y-8">
           <div v-for="dept in departments" :key="dept.name">
@@ -81,7 +81,7 @@
     <section class="border-t border-neutral-100 bg-neutral-50/50 py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">
-          <h2 class="text-3xl font-bold text-neutral-900">薪酬福利</h2>
+          <h2 class="text-3xl font-bold text-neutral-900">参与方式</h2>
         </div>
         <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           <div v-for="b in benefits" :key="b" class="rounded-xl border border-neutral-200 bg-white p-4 text-center hover:border-primary/20 transition">
@@ -97,9 +97,9 @@
         <div class="rounded-3xl bg-gradient-to-br from-primary to-info p-10 sm:p-16 text-white relative overflow-hidden">
           <div class="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
           <div class="relative">
-            <h2 class="text-3xl font-bold">找不到合适的职位？</h2>
-            <p class="mt-4 text-white/80">发送简历到 hr@clouddrive.com，我们会为你匹配合适的机会</p>
-            <a href="mailto:hr@clouddrive.com" class="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3 text-sm font-semibold text-primary hover:bg-neutral-50">投递简历 <i class="fa fa-paper-plane"></i></a>
+            <h2 class="text-3xl font-bold">想参与但未找到方向？</h2>
+            <p class="mt-4 text-white/80">请通过项目仓库的 issue、pull request 或维护渠道提交建议与贡献</p>
+            <a href="/contact" class="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3 text-sm font-semibold text-primary hover:bg-neutral-50">查看联系入口 <i class="fa fa-arrow-right"></i></a>
           </div>
         </div>
       </div>
@@ -109,10 +109,10 @@
 
 <script setup lang="ts">
 const whyJoin = [
-  { title: '技术前沿', desc: '深度参与分布式存储、AI 搜索、安全加密等前沿技术研发，解决大规模系统架构挑战。', icon: 'fa fa-rocket', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
-  { title: '快速成长', desc: '扁平化管理，开放的晋升通道，丰富的内外部培训资源，助你快速成长。', icon: 'fa fa-line-chart', bgClass: 'bg-success/10', iconClass: 'text-success' },
-  { title: '优秀团队', desc: '来自阿里、腾讯、Google 等顶级公司的技术专家和产品专家组成的核心团队。', icon: 'fa fa-users', bgClass: 'bg-info/10', iconClass: 'text-info' },
-  { title: '灵活办公', desc: '支持远程办公和弹性工作时间，在北京、上海、深圳、成都设有办公地点。', icon: 'fa fa-laptop', bgClass: 'bg-purple-50', iconClass: 'text-purple-500' },
+  { title: '后端服务', desc: '参与 Gateway、Platform、Storage、Plugin、Workflow、Automation 和 Scheduler 等服务建设。', icon: 'fa fa-rocket', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
+  { title: '前端与客户端', desc: '参与 Vue Web、管理端、桌面端、移动端、原生客户端和 CLI 的功能完善。', icon: 'fa fa-line-chart', bgClass: 'bg-success/10', iconClass: 'text-success' },
+  { title: '测试与文档', desc: '补充接口契约、集成测试、部署说明和功能文案，让项目能力可复现、可核验。', icon: 'fa fa-users', bgClass: 'bg-info/10', iconClass: 'text-info' },
+  { title: '部署与运维', desc: '围绕 Docker Compose、存储、中间件、监控和安全边界改进本地与生产部署。', icon: 'fa fa-laptop', bgClass: 'bg-purple-50', iconClass: 'text-purple-500' },
 ]
 
 const culture = [
@@ -155,5 +155,5 @@ const departments = [
   },
 ]
 
-const benefits = ['六险一金', '弹性工作', '带薪年假', '股票期权', '免费三餐', '年度体检', '技术培训', '团建旅游', 'MacBook Pro', '远程办公', '育儿假', '节日礼金']
+const benefits = ['代码贡献', '接口契约', '自动化测试', '文档维护', '部署验证', '问题反馈', '客户端适配', '插件开发', '工作流设计', '安全审查', '性能测试', '社区协作']
 </script>

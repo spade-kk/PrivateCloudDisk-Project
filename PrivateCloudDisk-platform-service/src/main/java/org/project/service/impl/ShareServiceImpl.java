@@ -2,6 +2,7 @@ package org.project.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.project.context.SpaceContextHolder;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
 import org.project.mapper.ShareLinkMapper;
@@ -13,6 +14,7 @@ import org.project.model.entity.ShareLinkEntity.ShareStatus;
 import org.project.model.entity.ShareResourceEntity;
 import org.project.model.entity.ShareResourceEntity.ResourceType;
 import org.project.service.ShareService;
+import org.project.service.SpacePermissionService;
 import org.project.service.ex.*;
 import org.project.util.AesUtil;
 import org.project.util.JwtUtil;
@@ -50,6 +52,7 @@ public class ShareServiceImpl implements ShareService {
     private final FolderNodeMapper folderNodeMapper;
     private final AesUtil aesUtil;
     private final JwtUtil jwtUtil;
+    private final SpacePermissionService spacePermissionService;
 
     // ==================== 分享令牌生成常量 ====================
 
@@ -87,9 +90,12 @@ public class ShareServiceImpl implements ShareService {
         // 使用 SecureRandom 生成，62^12 ≈ 3.2×10^21 种组合，碰撞概率极低
         share.setShare_token(generateShareToken());
         share.setShare_owner_id(ownerId);
+        share.setShare_space_id(SpaceContextHolder.getSpaceId());
         share.setShare_name(shareName);
         share.setShare_description(shareDescription == null || shareDescription.isBlank() ? null : shareDescription.trim());
         share.setShare_status(ShareLinkEntity.ShareStatus.active);
+        // 需求 2.3：旧接口默认允许下载；新接口可在创建后覆盖为仅浏览。
+        share.setShare_allow_download(true);
 
         // 密码 AES 加密（可逆，管理端可查看）
         if (password != null && !password.isBlank()) {
@@ -117,10 +123,13 @@ public class ShareServiceImpl implements ShareService {
             ShareResourceEntity res = new ShareResourceEntity();
             res.setShare_resource_id(UUID.randomUUID());
             res.setShare_id(share.getShare_id());
+            res.setSpace_id(SpaceContextHolder.getSpaceId());
 
             if ("file".equals(item.type())) {
                 UUID fid = UUID.fromString(item.id());
-                FileEntity file = fileMapper.findUserFileById(fid, ownerId);
+                // 需求三-1：分享创建也必须使用当前空间三元组，禁止用 file_id 跨空间引用。
+                FileEntity file = fileMapper.findUserFileByIdAndSpaceId(
+                        fid, ownerId, SpaceContextHolder.getSpaceId());
                 if (file == null) {
                     throw new FileNotExistException("文件不存在或无权访问: " + item.id());
                 }
@@ -132,7 +141,9 @@ public class ShareServiceImpl implements ShareService {
                 res.setFile_type(file.getType());
             } else if ("folder".equals(item.type())) {
                 UUID nid = UUID.fromString(item.id());
-                FolderNodeEntity folder = folderNodeMapper.findFolderNodeByIdAndUserId(nid, ownerId);
+                // 需求三-1：文件夹分享同样绑定当前空间，避免 node_id 横向越权。
+                FolderNodeEntity folder = folderNodeMapper.findFolderNodeByIdAndSpaceId(
+                        nid, SpaceContextHolder.getSpaceId());
                 if (folder == null) {
                     throw new NodeNotExistException("文件夹不存在或无权访问: " + item.id());
                 }
@@ -158,6 +169,29 @@ public class ShareServiceImpl implements ShareService {
         log.info("分享链接创建成功: userId={}, token={}, resourceCount={}",
                 userId, share.getShare_token(), resourceEntities.size());
         return share;
+    }
+
+    @Override
+    @Transactional
+    public ShareLinkEntity createShare(String userId, String shareName, String shareDescription,
+                                       List<ResourceItem> resources, String password, Integer expireDays,
+                                       Boolean allowDownload) {
+        ShareLinkEntity share = createShare(userId, shareName, shareDescription, resources, password, expireDays);
+        if (allowDownload != null && !allowDownload) {
+            updateShareDownloadPermission(userId, share.getShare_id().toString(), false);
+            share.setShare_allow_download(false);
+        }
+        return share;
+    }
+
+    @Override
+    @Transactional
+    public void updateShareDownloadPermission(String userId, String shareId, boolean allowDownload) {
+        int rows = shareLinkMapper.updateShareDownloadPermission(
+                UUID.fromString(shareId), UUID.fromString(userId), allowDownload);
+        if (rows != 1) {
+            throw new ServiceException("分享不存在或无权修改下载权限");
+        }
     }
 
     @Override
@@ -294,6 +328,28 @@ public class ShareServiceImpl implements ShareService {
     }
 
     @Override
+    public ShareResourceEntity getShareResourceDetail(String shareToken, String shareResourceId) {
+        ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
+        if (share == null || share.getShare_status() != ShareStatus.active) {
+            throw new ServiceException("分享链接无效");
+        }
+        final UUID resourceId;
+        try {
+            resourceId = UUID.fromString(shareResourceId);
+        } catch (IllegalArgumentException ex) {
+            // 虚拟 ID 不代表表中的单项资源；子节点详情应通过其父目录接口返回。
+            throw new OverstepAuthorityException("分享资源标识无效");
+        }
+        ShareResourceEntity resource = shareResourceMapper.findById(resourceId);
+        if (resource == null
+                || !share.getShare_id().equals(resource.getShare_id())
+                || !java.util.Objects.equals(share.getShare_space_id(), resource.getSpace_id())) {
+            throw new OverstepAuthorityException("该资源不在分享范围内");
+        }
+        return resource;
+    }
+
+    @Override
     public List<SharedItem> getShareResourceChildren(String shareToken, String shareResourceId) {
         // 1. 验证分享有效性
         ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
@@ -303,7 +359,8 @@ public class ShareServiceImpl implements ShareService {
 
         // 2. 通过 share_resource_id 查询资源（不暴露内部 node_id）
         ShareResourceEntity resource = shareResourceMapper.findById(UUID.fromString(shareResourceId));
-        if (resource == null || !resource.getShare_id().equals(share.getShare_id())) {
+        if (resource == null || !resource.getShare_id().equals(share.getShare_id())
+                || !java.util.Objects.equals(resource.getSpace_id(), share.getShare_space_id())) {
             throw new OverstepAuthorityException("该资源不在分享范围内");
         }
         if (resource.getResource_type() != ResourceType.folder) {
@@ -312,16 +369,25 @@ public class ShareServiceImpl implements ShareService {
 
         UUID nodeId = resource.getNode_id();
         UUID ownerId = share.getShare_owner_id();
+        UUID shareSpaceId = share.getShare_space_id();
+        FolderNodeEntity sharedFolder = folderNodeMapper.findFolderNodeByIdAndUserAndSpace(
+                nodeId, ownerId, shareSpaceId);
+        if (sharedFolder == null) {
+            throw new OverstepAuthorityException("分享目录不存在或已失效");
+        }
         List<SharedItem> items = new ArrayList<>();
 
-        List<FolderNodeEntity> subFolders = folderNodeMapper.findFolderNodesByIdAndUserId(nodeId, ownerId);
+        // AUDIT FIX [3.1]：公开分享请求没有普通 X-Space-Id 上下文，显式传递分享空间。
+        List<FolderNodeEntity> subFolders = folderNodeMapper.findShareFolderNodesByParentId(
+                nodeId, shareSpaceId, ownerId);
         if (subFolders != null) {
             for (FolderNodeEntity folder : subFolders) {
                 items.add(SharedItem.ofFolder(folder));
             }
         }
 
-        List<FileEntity> subFiles = fileMapper.findUserActiveFilesByNodeId(nodeId, ownerId);
+        List<FileEntity> subFiles = fileMapper.findShareActiveFilesByNodeId(
+                nodeId, shareSpaceId, ownerId);
         if (subFiles != null) {
             for (FileEntity file : subFiles) {
                 items.add(SharedItem.ofFile(file));
@@ -331,40 +397,82 @@ public class ShareServiceImpl implements ShareService {
         return items;
     }
 
+    /**
+     * 需求二-1/2：为文件服务提供内部分享资源解析结果。
+     * 原有公开下载接口直接返回 FileEntity（包含 storage_path）存在信息泄露风险；
+     * 新行为只允许带有效分享访问令牌的服务间调用，并严格校验 share_id、space_id、file_id。
+     */
     @Override
-    public FileEntity getSharedFileByResourceId(String shareToken, String shareResourceId) {
-        // 1. 验证分享有效性
-        ShareLinkEntity share = shareLinkMapper.findByToken(shareToken);
-        if (share == null || share.getShare_status() != ShareStatus.active) {
-            throw new ServiceException("分享链接无效");
+    public ShareResourceAccess resolveShareResourceForStorage(
+            String shareToken,
+            String shareResourceId,
+            String accessToken,
+            String operation) {
+        ShareLinkEntity share = getShareByAccessToken(accessToken);
+        if (!shareToken.equals(share.getShare_token())) {
+            throw new OverstepAuthorityException("分享访问令牌与分享链接不匹配");
         }
 
-        // 2. 尝试通过真实 share_resource_id 查找
+        UUID ownerId = share.getShare_owner_id();
+        UUID spaceId = share.getShare_space_id();
+        UUID fileId = null;
+        ShareResourceEntity resource = null;
+
         try {
             UUID realId = UUID.fromString(shareResourceId);
-            ShareResourceEntity resource = shareResourceMapper.findById(realId);
-            if (resource != null && resource.getShare_id().equals(share.getShare_id())) {
-                if (resource.getResource_type() != ResourceType.file) {
-                    throw new ServiceException("该资源不是文件，无法下载");
+            resource = shareResourceMapper.findById(realId);
+            if (resource != null && share.getShare_id().equals(resource.getShare_id())) {
+                if (resource.getResource_type() != ResourceType.file || resource.getFile_id() == null) {
+                    throw new ServiceException("该分享资源不是文件");
                 }
-                return fileMapper.findUserFileById(resource.getFile_id(), share.getShare_owner_id());
+                fileId = resource.getFile_id();
             }
         } catch (IllegalArgumentException ignored) {
-            // 不是 UUID 格式，尝试作为虚拟 ID 解析
+            // 非 UUID 继续按加密虚拟资源 ID 解码；解码结果仍需二次范围校验。
         }
 
-        // 3. 尝试解析虚拟 share_resource_id
-        String[] decoded = decodeVirtualResourceId(shareResourceId);
-        if (decoded != null && decoded.length == 3 && shareToken.equals(decoded[0]) && "file".equals(decoded[1])) {
-            UUID fileId = UUID.fromString(decoded[2]);
-            FileEntity file = fileMapper.findUserFileById(fileId, share.getShare_owner_id());
-            if (file == null) {
-                throw new OverstepAuthorityException("文件不在分享范围内");
+        if (fileId == null) {
+            String[] decoded = decodeVirtualResourceId(shareResourceId);
+            if (decoded == null || decoded.length != 3
+                    || !shareToken.equals(decoded[0]) || !"file".equals(decoded[1])) {
+                throw new OverstepAuthorityException("该资源不在分享范围内");
             }
-            return file;
+            try {
+                fileId = UUID.fromString(decoded[2]);
+            } catch (IllegalArgumentException ex) {
+                throw new OverstepAuthorityException("分享资源标识无效");
+            }
         }
 
-        throw new OverstepAuthorityException("该资源不在分享范围内");
+        if (spaceId != null && resource != null && !spaceId.equals(resource.getSpace_id())) {
+            throw new OverstepAuthorityException("分享资源空间不匹配");
+        }
+
+        if (shareResourceMapper.countFileInShare(share.getShare_id(), fileId, spaceId) != 1) {
+            throw new OverstepAuthorityException("文件不在分享范围内");
+        }
+        if (!spacePermissionService.validateFileInSpace(ownerId, spaceId, fileId)) {
+            throw new OverstepAuthorityException("文件不属于分享者当前空间");
+        }
+        FileEntity file = fileMapper.findUserFileByIdAndSpaceId(fileId, ownerId, spaceId);
+        if (file == null || file.getStorage_path() == null || file.getStorage_path().isBlank()) {
+            throw new ServiceException("分享文件不存在或已失效");
+        }
+
+        boolean downloadAllowed = !Boolean.FALSE.equals(share.getShare_allow_download());
+        if ("DOWNLOAD".equalsIgnoreCase(operation) && !downloadAllowed) {
+            throw new OverstepAuthorityException("该分享仅允许在线浏览");
+        }
+        return new ShareResourceAccess(
+                file.getId().toString(),
+                spaceId == null ? "" : spaceId.toString(),
+                file.getName(),
+                file.getSize(),
+                file.getType(),
+                file.getStorage_path(),
+                shareResourceId,
+                downloadAllowed
+        );
     }
 
     @Override
@@ -486,10 +594,21 @@ public class ShareServiceImpl implements ShareService {
 
         UUID nodeId = UUID.fromString(internalId);
         UUID ownerId = share.getShare_owner_id();
+        UUID shareSpaceId = share.getShare_space_id();
+        if (shareResourceMapper.countNodeInShare(
+                share.getShare_id(), nodeId, shareSpaceId, ownerId) != 1) {
+            throw new OverstepAuthorityException("该目录不在分享范围内");
+        }
+        FolderNodeEntity sharedFolder = folderNodeMapper.findFolderNodeByIdAndUserAndSpace(
+                nodeId, ownerId, shareSpaceId);
+        if (sharedFolder == null) {
+            throw new OverstepAuthorityException("分享目录不存在或已失效");
+        }
         List<SharedItem> items = new ArrayList<>();
 
         // 查询子文件夹
-        List<FolderNodeEntity> subFolders = folderNodeMapper.findFolderNodesByIdAndUserId(nodeId, ownerId);
+        List<FolderNodeEntity> subFolders = folderNodeMapper.findShareFolderNodesByParentId(
+                nodeId, shareSpaceId, ownerId);
         if (subFolders != null) {
             for (FolderNodeEntity folder : subFolders) {
                 items.add(SharedItem.ofFolder(folder));
@@ -497,7 +616,8 @@ public class ShareServiceImpl implements ShareService {
         }
 
         // 查询子文件
-        List<FileEntity> subFiles = fileMapper.findUserActiveFilesByNodeId(nodeId, ownerId);
+        List<FileEntity> subFiles = fileMapper.findShareActiveFilesByNodeId(
+                nodeId, shareSpaceId, ownerId);
         if (subFiles != null) {
             for (FileEntity file : subFiles) {
                 items.add(SharedItem.ofFile(file));

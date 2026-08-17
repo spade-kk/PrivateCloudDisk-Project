@@ -27,6 +27,9 @@ public class ShareAccessInfoVO {
     /** 是否有密码保护 */
     private Boolean has_password;
 
+    /** 公开分享是否允许获取实际文件内容。 */
+    private Boolean allow_download;
+
     /** 是否已过期 */
     private Boolean is_expired;
 

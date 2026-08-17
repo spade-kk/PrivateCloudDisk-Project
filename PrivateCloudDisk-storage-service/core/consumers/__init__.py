@@ -3,13 +3,15 @@ from .file_delete_consumer import on_file_delete_message
 from .uploads_session_delete_consumer import UploadsSessionDeleteConsumer
 from .dlq.uploads_event_dlq_consumer import on_uploads_event_dlq_message
 
-# ===== Backend — 顺序流水线（每阶段独立队列） =====
+# ===== Backend Task Bus — 顺序流水线（每阶段独立任务队列） =====
 from .backend import (
     on_backend_merge_message,
     on_backend_hash_message,
     on_backend_virus_message,
     on_backend_mark_active_message,
 )
+from .dlq.backend_dlq_consumer import on_backend_dlq_message
+from .dlq.enhance_dlq_consumer import on_enhance_dlq_message
 # Enhancement — 并发流水线（各阶段独立并行） =====
 from .enhancement import (
     on_enhance_thumbnail_message,
@@ -19,9 +21,19 @@ from .enhancement import (
     on_enhance_office_to_pdf_message,
     on_enhance_archive_parse_message,
 )
-# DLQ — Backend + Enhancement =====
-from .dlq.backend_dlq_consumer import on_backend_dlq_message
-from .dlq.enhance_dlq_consumer import on_enhance_dlq_message
+# DLQ — Task Bus / lifecycle / domain queues =====
+from .dlq.dedicated_dlq_consumers import (
+    on_file_content_ready_dlq_message,
+    on_file_content_processed_dedicated_dlq_message,
+    on_file_delete_dlq_message,
+    on_file_event_dlq_message,
+    on_security_quarantine_message,
+)
+from .lifecycle import (
+    on_file_content_processed_message,
+    on_file_content_timeout_message,
+    on_file_content_processed_dlq_message,
+)
 
 on_uploads_session_delete_message = UploadsSessionDeleteConsumer().handle
 
@@ -30,11 +42,17 @@ __all__ = [
     "on_file_delete_message",
     "on_uploads_session_delete_message",
     "on_uploads_event_dlq_message",
-    # Backend
+    # Backend Task Bus
     "on_backend_merge_message",
     "on_backend_hash_message",
     "on_backend_virus_message",
     "on_backend_mark_active_message",
+    "on_backend_dlq_message",
+    "on_enhance_dlq_message",
+    # 内容预处理生命周期
+    "on_file_content_processed_message",
+    "on_file_content_timeout_message",
+    "on_file_content_processed_dlq_message",
     # Enhancement
     "on_enhance_thumbnail_message",
     "on_enhance_transcode_message",
@@ -43,6 +61,9 @@ __all__ = [
     "on_enhance_office_to_pdf_message",
     "on_enhance_archive_parse_message",
     # DLQ
-    "on_backend_dlq_message",
-    "on_enhance_dlq_message",
+    "on_file_content_ready_dlq_message",
+    "on_file_content_processed_dedicated_dlq_message",
+    "on_file_delete_dlq_message",
+    "on_file_event_dlq_message",
+    "on_security_quarantine_message",
 ]

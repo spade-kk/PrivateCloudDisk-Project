@@ -10,38 +10,129 @@
         <result column="node_user_id" property="user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="node_create_time" property="create_time"/>
         <result column="node_status" property="status"/>
+        <result column="node_space_id" property="space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
     </resultMap>
 
     <select id="findFolderNodeByIdAndUserId"  resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        select * from pcd_directory_tree_table
+        where node_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </select>
 
     <select id="findRootFolderNodeByUserId" resultMap="FolderNodeEntityMap">
-        select * from pcd_directory_tree_table where node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_parent_id is null;
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        select * from pcd_directory_tree_table
+        where node_parent_id is null
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
+        order by node_create_time asc
+        limit 1;
+    </select>
+
+    <!-- 公开仓库只读接口：禁止回退到 user_id，避免同一 node_id 跨空间泄漏。 -->
+    <select id="findRootFolderNodeBySpaceId" resultMap="FolderNodeEntityMap">
+        SELECT * FROM pcd_directory_tree_table
+        WHERE node_parent_id IS NULL
+          AND node_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_status IN ('active', 'lock')
+        ORDER BY node_create_time ASC
+        LIMIT 1;
+    </select>
+
+    <select id="findFolderNodeByIdAndSpaceId" resultMap="FolderNodeEntityMap">
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        SELECT * FROM pcd_directory_tree_table
+        WHERE node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (node_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               OR (#{personalSpace}=true AND node_space_id IS NULL))
+          AND node_status IN ('active', 'lock')
+        LIMIT 1;
+    </select>
+
+    <!--
+        公开分享目录读取补充 user_id 维度。
+        原行为只按 node_id + space_id 查询，历史个人空间 NULL 记录无法安全区分所有者。
+    -->
+    <select id="findFolderNodeByIdAndUserAndSpace" resultMap="FolderNodeEntityMap">
+        SELECT *
+        FROM pcd_directory_tree_table
+        WHERE node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+              node_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+                  AND node_space_id IS NULL)
+          )
+          AND node_status IN ('active', 'lock')
+        LIMIT 1;
+    </select>
+
+    <select id="findFolderNodesBySpaceId" resultMap="FolderNodeEntityMap">
+        SELECT * FROM pcd_directory_tree_table
+        WHERE node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_status IN ('active', 'lock')
+        ORDER BY node_name ASC;
+    </select>
+
+    <!-- 分享目录子文件夹的严格空间查询，兼容历史个人空间 NULL。 -->
+    <select id="findShareFolderNodesByParentId" resultMap="FolderNodeEntityMap">
+        SELECT *
+        FROM pcd_directory_tree_table
+        WHERE node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (
+              node_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+                  AND node_space_id IS NULL)
+          )
+          AND node_status IN ('active', 'lock')
+        ORDER BY node_name ASC;
     </select>
 
     <select id="findFolderNodesByIdAndUserId"  resultMap="FolderNodeEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         select * from pcd_directory_tree_table
         where node_parent_id=#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
           and node_status not in ('trashed', 'deleted');
     </select>
 
     <select id="isFolderDeleted" resultType="boolean">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT EXISTS (
             SELECT 1
             FROM pcd_directory_closure_table c
                      JOIN pcd_directory_tree_table n
                           ON  n.node_user_id = c.user_id
                             AND n.node_id = c.ancestor_id
-            WHERE c.user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
-              AND c.descendant_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            WHERE c.descendant_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+                    AND c.user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                   OR c.closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                   OR (#{personalSpace}=true AND c.closure_space_id IS NULL
+                       AND c.user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
               AND n.node_status IN ('TRASHED', 'DELETED')
             LIMIT 1
         )
     </select>
 
     <select id="selectFolderEffectiveStatus" resultType="string">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             CASE MIN(
                     CASE n.node_status
@@ -57,36 +148,66 @@
                  JOIN pcd_directory_tree_table n
                       ON  n.node_user_id = c.user_id
                          AND  n.node_id = c.ancestor_id
-        WHERE c.user_id = #{user_id, typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND c.descendant_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        WHERE c.descendant_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+                AND c.user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+               OR c.closure_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               OR (#{personalSpace}=true AND c.closure_space_id IS NULL
+                   AND c.user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
           AND n.node_status IN ('TRASHED', 'DELETED')
     </select>
 
     <insert id="insertFolderNode" useGeneratedKeys="true" keyProperty="node_id" parameterType="org.project.model.entity.FolderNodeEntity">
-        insert into pcd_directory_tree_table (node_id, node_user_id, node_parent_id, node_name, node_create_time, node_status)
-        values(#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{create_time}, #{status});
+        insert into pcd_directory_tree_table (node_id, node_user_id, node_parent_id, node_name, node_create_time, node_status, node_space_id)
+        values(#{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{name}, #{create_time}, #{status}, #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler});
     </insert>
 
     <update id="updateFolderNodeNameByIdAndUserId">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         update pcd_directory_tree_table
         set node_name = #{new_name}
-        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <update id="updateFolderNodeStatusByIdAndUserId">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         update pcd_directory_tree_table
         set node_status = #{new_status}
-        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <update id="updateFolderNodeParentIdByIdAndUserId">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         update pcd_directory_tree_table
         set node_parent_id = #{new_parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            or (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </update>
 
     <delete id="deleteFolderNodeByIdAndUserId">
-        delete from pcd_directory_tree_table where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler};
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
+        delete from pcd_directory_tree_table
+        where node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          and ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null
+                and node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+               or node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               or (#{personalSpace}=true and node_space_id is null
+                   and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}));
     </delete>
 
     <select id="countUserFolders" resultType="int">
@@ -97,33 +218,51 @@
     </select>
 
     <select id="countChildrenByNodeId" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT (
             (SELECT COUNT(1) FROM pcd_directory_tree_table
              WHERE node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-               AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                 OR node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                 OR (#{personalSpace}=true and node_space_id is null
+                     and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
                AND node_status IN ('active', 'pending'))
             +
             (SELECT COUNT(1) FROM pcd_file_info_table
              WHERE file_node_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-               AND file_author_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and file_author_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+                 OR file_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                 OR (#{personalSpace}=true and file_space_id is null
+                     and file_author_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
                AND file_status = 'active')
         ) AS total;
     </select>
 
     <select id="findFolderNodeByParentIdAndName" resultMap="FolderNodeEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_directory_tree_table
         WHERE node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND node_name = #{name}
-          AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            OR node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
           AND node_status IN ('active', 'pending')
         LIMIT 1;
     </select>
 
     <select id="findFolderNodeByNameAndParentId" resultMap="FolderNodeEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_directory_tree_table
         WHERE node_name = #{name}
           AND node_parent_id = #{parent_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
-          AND node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND ((#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} is null and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler})
+            OR node_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true and node_space_id is null
+                and node_user_id=#{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}))
           AND node_status NOT IN ('trashed', 'deleted')
         LIMIT 1;
     </select>

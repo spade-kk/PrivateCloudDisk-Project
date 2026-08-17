@@ -19,6 +19,8 @@ volumes:
   opensearch-data:
   minio-data:
   ai-models:
+  # 插件包只由 Plugin Service 读写，Runtime 通过受信内部接口按摘要下载。
+  plugin-repo:
   # 下载文件卷（与 uploader 共享，可选 bind mount 替代）
   # 若使用 bind mount 方式（CI/CD 直接 rsync），取消下面注释：
   #   frontend 和 uploader 均改为 bind mount 到 ./downloads/binaries
@@ -38,10 +40,17 @@ services:
     expose:
       - "3306"
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: private_cloud_disk
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MySQL root 密码}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-private_cloud_disk}
+      PLUGIN_DATASOURCE_PASSWORD: ${PLUGIN_DATASOURCE_PASSWORD:?必须设置插件数据库密码}
+      AUTOMATION_DATASOURCE_PASSWORD: ${AUTOMATION_DATASOURCE_PASSWORD:?必须设置自动化数据库密码}
+      WORKFLOW_DATASOURCE_PASSWORD: ${WORKFLOW_DATASOURCE_PASSWORD:?必须设置工作流数据库密码}
+      SCHEDULER_DATASOURCE_PASSWORD: ${SCHEDULER_DATASOURCE_PASSWORD:?必须设置调度数据库密码}
+      CLIENT_REGISTRATION_DB_PASSWORD: ${CLIENT_REGISTRATION_DB_PASSWORD:?必须设置客户端注册数据库密码}
     volumes:
       - mysql-data:/var/lib/mysql
+      # 新部署自动创建生命周期闸门表；存量部署需按发布说明单独执行该迁移。
+      - ./PrivateCloudDisk-db/008_file_preprocess_lifecycle.sql:/docker-entrypoint-initdb.d/30-file-preprocess-lifecycle.sql:ro
     command: --default-authentication-plugin=mysql_native_password
     restart: always
     healthcheck:
@@ -77,8 +86,8 @@ services:
       - "5672"
       - "15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     restart: always
@@ -98,8 +107,8 @@ services:
       - "9000"
       - "9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?必须设置 MinIO 管理用户名}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?必须设置 MinIO 管理密码}
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
@@ -119,7 +128,7 @@ services:
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true    # 完全禁用安全
-      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=MySecureP@ssw0rd
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?必须设置 OpenSearch 管理密码}
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
@@ -134,7 +143,7 @@ services:
     restart: always
     # 添加健康检查
     healthcheck:
-      test: ["CMD-SHELL", "curl -k -u admin:MySecureP@ssw0rd -f http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 30
@@ -213,6 +222,9 @@ services:
     environment:
       BUSINESS_SERVICE_URL: http://platform-service-backend:8081
       FILE_SERVICE_URL: http://file-service-backend:8000
+      PLUGIN_SERVICE_URL: http://plugin-service-backend:8085
+      WORKFLOW_SERVICE_URL: http://workflow-service-backend:8087
+      CLIENT_REGISTRATION_SERVICE_URL: http://client-registration-service:8089
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
       # SkyWalking Agent
@@ -222,6 +234,43 @@ services:
       SW_LOGGING_LEVEL: INFO
       SW_SAMPLE_RATE: "-1"
     restart: always
+
+  # -------------------- Client Registration 设备身份与本地插件绑定 --------------------
+  client-registration-service:
+    build: ./PrivateCloudDisk-client-registration-service
+    container_name: backend-client-registration-service
+    networks:
+      - app-networks
+    expose:
+      - "8089"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      CONFIG_PATH: /app/config/config.yaml
+      SERVER_PORT: 8089
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: pcd_client
+      DB_PASSWORD: ${CLIENT_REGISTRATION_DB_PASSWORD:?必须设置客户端注册数据库密码}
+      DB_NAME: private_cloud_disk
+      REDIS_ADDR: redis:6379
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      GIN_MODE: release
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8089/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
 
   # -------------------- SpringBoot 业务服务 --------------------
   platform-service-backend:
@@ -242,13 +291,15 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MySQL root 密码}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
+      # Sprint 0：所有 /business/internal/** 调用必须携带同一份服务凭证。
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
       SECURITY_CAPTCHA_TURNSTILE_ENABLED: ${SECURITY_CAPTCHA_TURNSTILE_ENABLED:-false}
       SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY: ${SECURITY_CAPTCHA_TURNSTILE_SECRET_KEY:-0x4AAAAAADf7Z-kpJMtKhi_3xlpjOjBm42w}
       SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME: ${SECURITY_CAPTCHA_TURNSTILE_EXPECTED_HOSTNAME:-www.hellomyservice.xyz}
@@ -281,14 +332,15 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/private_cloud_disk?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: 123456
+      # Sprint 0 安全基线：生产密钥只允许由部署环境注入，不再把数据库口令写入编排文件。
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在部署环境配置 MYSQL_ROOT_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_DATABASE: 1
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?请在部署环境配置 RABBITMQ_PASSWORD}
       # SkyWalking Agent
       SW_AGENT_NAME: PrivateCloudDisk-billing-service
       SW_AGENT_BACKEND: skywalking-oap:11800
@@ -362,12 +414,14 @@ services:
       FILE_UPLOAD_DIR: /data/uploads
       QUARANTINE_DIR: /data/uploads/quarantine
       REDIS_URL: redis://redis:6379/0
-      BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
+      # Sprint 0：内部存储回调走容器私网直连，不再经过公网 Gateway。
+      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
       # AUDIT FIX [8.3]: 预览资源元数据、播放进度和死信台账持久化连接。
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: 123456
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MySQL root 密码}
       MYSQL_DATABASE: private_cloud_disk
       OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
 
@@ -376,8 +430,8 @@ services:
 
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
 
       OPENSEARCH_HOST: http://opensearch:9200
       OPENSEARCH_USE_SSL: "false"
@@ -432,16 +486,18 @@ services:
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
 
       FILE_UPLOAD_DIR: /data/uploads
       REDIS_URL: redis://redis:6379/0
-      BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
+      # Sprint 0：Worker 与业务服务通过 Docker 私网通信。
+      BUSINESS_SERVICE_URL: http://platform-service-backend:8081
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: 123456
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?必须设置 MySQL root 密码}
       MYSQL_DATABASE: private_cloud_disk
       # 需求一-3：可选的企业运维告警入口，未配置时降级为日志 + MySQL 死信台账。
       OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
@@ -457,6 +513,13 @@ services:
 
       MAX_CONCURRENT: 3
       OPERATION_TOKEN_EXPIRE_SECONDS: 3600
+      # Sprint 0：Worker 由单一管理进程负责多进程/协程并发与优雅关闭。
+      WORKER_PROCESSES: ${WORKER_PROCESSES:-1}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-}
+      WORKER_SHUTDOWN_TIMEOUT_SECONDS: ${WORKER_SHUTDOWN_TIMEOUT_SECONDS:-30}
+      WORKER_HEALTH_HOST: 0.0.0.0
+      WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-8719}
+      WORKER_ADMIN_TOKEN: ${WORKER_ADMIN_TOKEN:-}
       # SkyWalking Python Agent
       SW_AGENT_NAME: PrivateCloudDisk-storage-worker
       SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
@@ -465,6 +528,218 @@ services:
     volumes:
       - uploads-data:/data/uploads
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8719/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # -------------------- Plugin Service 插件生命周期与包仓库 --------------------
+  plugin-service-backend:
+    profiles: ["automation"]
+    build: ./PrivateCloudDisk-plugin-service
+    container_name: backend-plugin-service
+    networks:
+      - app-networks
+    expose:
+      - "8085"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      platform-service-backend:
+        condition: service_started
+      client-registration-service:
+        condition: service_healthy
+    environment:
+      PLUGIN_DATASOURCE_URL: jdbc:mysql://mysql:3306/pcd_plugin?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      PLUGIN_DATASOURCE_USERNAME: pcd_plugin
+      PLUGIN_DATASOURCE_PASSWORD: ${PLUGIN_DATASOURCE_PASSWORD:?必须设置插件数据库密码}
+      PLUGIN_STORAGE_PATH: /data/plugin-repo
+      PLUGIN_STORAGE_BACKEND: local
+      PLUGIN_RUNTIME_URL: ${PLUGIN_RUNTIME_URL:?必须配置专用沙箱节点 Runtime 地址}
+      PLATFORM_SERVICE_URL: http://platform-service-backend:8081
+      WORKFLOW_SERVICE_URL: http://workflow-service-backend:8087
+      CLIENT_REGISTRATION_SERVICE_URL: http://client-registration-service:8089
+      PLUGIN_SIGNING_PRIVATE_KEY_BASE64: ${PLUGIN_SIGNING_PRIVATE_KEY_BASE64:?必须设置本地插件 Ed25519 私钥}
+      PLUGIN_SIGNING_PUBLIC_KEY_BASE64: ${PLUGIN_SIGNING_PUBLIC_KEY_BASE64:?必须设置本地插件 Ed25519 公钥}
+      PLUGIN_SIGNING_KEY_ID: ${PLUGIN_SIGNING_KEY_ID:?必须设置本地插件签名密钥标识}
+      PLUGIN_LOCAL_DOWNLOAD_GRANT_TTL_SECONDS: ${PLUGIN_LOCAL_DOWNLOAD_GRANT_TTL_SECONDS:-120}
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+    volumes:
+      - plugin-repo:/data/plugin-repo
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  # -------------------- Automation Service 事件匹配与可靠调度 --------------------
+  automation-service-backend:
+    profiles: ["automation"]
+    build: ./PrivateCloudDisk-automation-service
+    container_name: backend-automation-service
+    networks:
+      - app-networks
+    expose:
+      - "8084"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      plugin-service-backend:
+        condition: service_healthy
+    environment:
+      AUTOMATION_DATASOURCE_URL: jdbc:mysql://mysql:3306/pcd_automation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      AUTOMATION_DATASOURCE_USERNAME: pcd_automation
+      AUTOMATION_DATASOURCE_PASSWORD: ${AUTOMATION_DATASOURCE_PASSWORD:?必须设置自动化数据库密码}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
+      PLUGIN_SERVICE_URL: http://plugin-service-backend:8085
+      PLUGIN_RUNTIME_URL: ${PLUGIN_RUNTIME_URL:?必须配置专用沙箱节点 Runtime 地址}
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      PLUGIN_RUNTIME_TIMEOUT_SECONDS: ${PLUGIN_RUNTIME_TIMEOUT_SECONDS:-120}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  # -------------------- Workflow Service DSL、能力中心与执行状态机 --------------------
+  workflow-service-backend:
+    profiles: ["automation"]
+    build: ./PrivateCloudDisk-workflow-service
+    container_name: backend-workflow-service
+    networks:
+      - app-networks
+    expose:
+      - "8087"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      platform-service-backend:
+        condition: service_started
+      plugin-service-backend:
+        condition: service_healthy
+    environment:
+      WORKFLOW_DATASOURCE_URL: jdbc:mysql://mysql:3306/pcd_workflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      WORKFLOW_DATASOURCE_USERNAME: pcd_workflow
+      WORKFLOW_DATASOURCE_PASSWORD: ${WORKFLOW_DATASOURCE_PASSWORD:?必须设置工作流数据库密码}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
+      PLATFORM_SERVICE_URL: http://platform-service-backend:8081
+      PLUGIN_SERVICE_URL: http://plugin-service-backend:8085
+      PLUGIN_RUNTIME_URL: ${PLUGIN_RUNTIME_URL:?必须配置专用沙箱节点 Runtime 地址}
+      CLOUDFLOW_RUNTIME_URL: ${CLOUDFLOW_RUNTIME_URL:?必须配置 CloudFlow Runtime 地址}
+      SCHEDULER_SERVICE_URL: http://scheduler-service-backend:8088
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  # -------------------- CloudFlow Rust 执行面 --------------------
+  # 只加入 automation profile 和内部网络；Gateway 不暴露该端口，控制面通过内部令牌调用。
+  cloudflow-runtime:
+    profiles: ["automation"]
+    build: ./PrivateCloudDisk-cloudflow-runtime
+    container_name: backend-cloudflow-runtime
+    networks:
+      - app-networks
+    expose:
+      - "8091"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # Tokio SocketAddr 需要显式 host；旧的 ":8091" 只适用于部分框架，Rust Runtime 使用 0.0.0.0。
+      CLOUDFLOW_LISTEN_ADDRESS: 0.0.0.0:8091
+      CLOUDFLOW_DATASOURCE_URL: mysql://mysql:3306/pcd_cloudflow
+      CLOUDFLOW_DATASOURCE_USERNAME: pcd_cloudflow
+      CLOUDFLOW_DATASOURCE_PASSWORD: ${CLOUDFLOW_DATASOURCE_PASSWORD:?必须设置 CloudFlow 数据库密码}
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      RUST_LOG: ${LOG_LEVEL:-INFO}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/cloudflow-runtime", "--healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+  # -------------------- Scheduler Service 分布式 cron 与幂等 fire --------------------
+  scheduler-service-backend:
+    profiles: ["automation"]
+    build: ./PrivateCloudDisk-scheduler-service
+    container_name: backend-scheduler-service
+    networks:
+      - app-networks
+    expose:
+      - "8088"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      workflow-service-backend:
+        condition: service_healthy
+    environment:
+      SCHEDULER_DATASOURCE_URL: jdbc:mysql://mysql:3306/pcd_scheduler?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SCHEDULER_DATASOURCE_USERNAME: pcd_scheduler
+      SCHEDULER_DATASOURCE_PASSWORD: ${SCHEDULER_DATASOURCE_PASSWORD:?必须设置调度数据库密码}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8088/actuator/health/readiness"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
 
   # ============================================================
   #                       IM 实时通信服务层
@@ -496,7 +771,8 @@ services:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      MYSQL_PASSWORD: 123456
+      # Sprint 0 安全基线：IM 服务复用同一部署密钥，避免仓库内出现可直接使用的口令。
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在部署环境配置 MYSQL_ROOT_PASSWORD}
 
       # Redis
       REDIS_HOST: redis
@@ -507,7 +783,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_PASS: ${RABBITMQ_PASSWORD:?请在部署环境配置 RABBITMQ_PASSWORD}
 
       # JVM 内存限制
       JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/"

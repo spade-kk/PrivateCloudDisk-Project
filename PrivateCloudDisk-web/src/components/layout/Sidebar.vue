@@ -147,6 +147,7 @@ const menuGroups = [
       { path: '/app', name: '我的网盘', icon: 'fa fa-cloud' },
       { path: '/app/spaces', name: '空间管理', icon: 'fa fa-cubes' },
       { path: '/app/search', name: '文件搜索', icon: 'fa fa-search' },
+      { path: '/explore', name: '探索公开仓库', icon: 'fa fa-compass' },
       { path: '/app/starred', name: '收藏夹', icon: 'fa fa-star' },
       { path: '/app/tagged', name: '标签管理', icon: 'fa fa-tags' },
       { path: '/app/recent', name: '最近访问', icon: 'fa fa-clock-o' },
@@ -165,7 +166,17 @@ const menuGroups = [
   {
     label: '协作',
     items: [
-      { path: '/app/team', name: '团队协作', icon: 'fa fa-users' },
+      { path: '/teamwork', name: '团队协作', icon: 'fa fa-users' },
+    ],
+  },
+  {
+    label: '自动化',
+    items: [
+      { path: '/app/plugins', name: '插件管理', icon: 'fa fa-puzzle-piece' },
+      { path: '/app/workflows', name: '工作流', icon: 'fa fa-random' },
+      { path: '/app/space-tools', name: '空间工具', icon: 'fa fa-briefcase' },
+      { path: '/app/plugin-market', name: '插件市场', icon: 'fa fa-shopping-bag' },
+      { path: '/app/workflow-market', name: '工作流市场', icon: 'fa fa-sitemap' },
     ],
   },
   {

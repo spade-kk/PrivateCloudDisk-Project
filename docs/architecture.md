@@ -1,162 +1,70 @@
-# 系统架构设计文档
+# 系统架构设计
 
-## 1. 架构概览
+## 1. 总体架构
 
-PrivateCloudDisk 采用 **微服务 + 前后端分离** 架构，支持多客户端接入（Web、桌面、移动端），后端通过 API 网关统一鉴权和路由分发。
+PrivateCloudDisk 采用前后端分离的微服务架构：
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                      客户端层 (Multi-Client)                   │
-│  Web (Vue 3) │ 管理后台 (React) │ 桌面端 (Electron)             │
-│  Android (Kotlin) │ iOS (SwiftUI) │ macOS (SwiftUI)            │
-│  Windows (WPF) │ 小程序 (uni-app) │ H5 (uni-app)               │
-└──────────────────────────┬───────────────────────────────────┘
-                           │ HTTPS
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│                   Nginx 反向代理 (TLS 终止)                     │
-│              静态资源托管  │  Gzip  │  Rate Limiting             │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│              Gateway Service (Spring Cloud Gateway)           │
-│              :8080  │  JWT 鉴权  │  路由分发  │  限流             │
-└──────┬──────────────────────────────────┬────────────────────┘
-       │ /api/v1/business/*               │ /api/v1/files/*
-       ▼                                  ▼
-┌──────────────────────┐    ┌──────────────────────────────────┐
-│  Platform Service    │    │  File Service (FastAPI)           │
-│  Spring Boot         │    │  :8000                           │
-│  :8081               │    │  分片上传  │  流式下载  │  缩略图    │
-│  用户/文件/目录/配额    │    │  操作凭证  │  全文检索              │
-└──────┬───────────────┘    └──────────────┬───────────────────┘
-       │                                   │
-       │         ┌─────────────────────────┤
-       │         │                         │
-       ▼         ▼                         ▼
-┌──────────────────────────────────────────────────────────────┐
-│                       中间件层                                 │
-│  MySQL 8.0 │ Redis 7 │ RabbitMQ │ MinIO │ OpenSearch          │
-│  Nacos │ Sentinel │ Seata │ Canal │ SkyWalking               │
-└──────────────────────────────────────────────────────────────┘
-       │                                   │
-       ▼                                   ▼
-┌──────────────────────┐    ┌──────────────────────────────────┐
-│  IM Service          │    │  File Worker (Python)             │
-│  Spring Boot + Netty │    │  病毒扫描  │  转码  │  内容提取      │
-│  消息推送/音视频通话   │    │  缩略图  │  全文索引               │
-└──────────────────────┘    └──────────────────────────────────┘
-```
+- Web/桌面/移动/原生客户端通过 Nginx 和 Gateway 进入系统。
+- Gateway 负责认证、路由、限流、请求头治理和 WebSocket 转发。
+- Platform Service 负责用户、目录、文件元数据、空间、成员权限、分享、标签、收藏、回收站和配额。
+- Storage Service 与 Worker 负责文件内容、分片、下载、预览资源和生命周期处理。
+- Notification、IM、Billing、Client Registration 提供外围业务能力。
+- Plugin、Runtime、Automation、Workflow、Scheduler 组成扩展和自动化平台。
+- MySQL、Redis、RabbitMQ、MinIO、OpenSearch 和 SkyWalking 提供数据、消息、对象、搜索和观测基础。
 
-## 2. 微服务拓扑
+## 2. 服务清单与边界
 
-### 2.1 服务清单
+| 服务 | 技术/端口 | 负责内容 |
+| --- | --- | --- |
+| Gateway | Spring Cloud Gateway / 8080 | 统一 API 入口、JWT、路由、限流和 WebSocket |
+| Platform | Spring Boot + MyBatis / 8081 | 用户、文件元数据、目录树、空间、权限、分享、标签、收藏、回收站、配额 |
+| Storage API | FastAPI / 8000 | 上传、下载、Range、预览令牌、缩略图、内容和对象访问 |
+| Storage Worker | Python + RabbitMQ | 文件合并、扫描、派生资源、索引和生命周期消费者 |
+| Billing | Spring Boot / 8083 | 订单、订阅、支付回调、发票和退款，按配置启用 |
+| Notification | Go | 验证码、通知模板、邮件、短信、系统推送 |
+| IM Platform/Server | Spring Boot + Netty | IM 业务与实时长连接 |
+| Client Registration | Go / 8089 | 客户端挑战、身份绑定、签名证明和扩展分发 |
+| Plugin Service | Spring Boot / 8085 | 插件控制面、包、版本、权限、安装、执行和市场 |
+| Plugin Runtime | Go / 8090 | 运行时、沙箱、Broker、资源限制和回收 |
+| Automation | Spring Boot + RabbitMQ / 8084 | 文件事件匹配、插件执行持久化、Inbox/Outbox 和恢复 |
+| Workflow | Spring Boot + RabbitMQ / 8087 | DSL、能力中心、工作流版本、执行和市场 |
+| Scheduler | Spring Boot + RabbitMQ / 8088 | Cron、租约、幂等触发和调度消息 |
+| AI | FastAPI / 8001 | 可选 AI 任务和异步模型处理 |
 
-| 服务 | 技术栈 | 端口 | 职责 |
-|------|--------|------|------|
-| **gateway-service** | Spring Cloud Gateway + WebFlux | 8080 | 统一入口、JWT 鉴权、路由分发、限流 |
-| **platform-service** | Spring Boot 4.0.6 + MyBatis | 8081 | 核心业务：用户/文件/目录树/配额/收藏/回收站 |
-| **shortage-service** | FastAPI + Uvicorn (Python) | 8000 | 文件 I/O：分片上传/流式下载/缩略图/凭证 |
-| **im-platform** | Spring Boot + MyBatis | - | IM 业务：消息/会话/群组管理 |
-| **im-server** | Netty WebSocket | - | 长连接推送：万级并发、多端登录 |
-| **file-worker** | Python (RabbitMQ Consumer) | - | 异步任务：病毒扫描/转码/缩略图/内容提取 |
+## 3. 数据流与一致性
 
-### 2.2 服务间通信
+### 3.1 文件上传
 
-| 通信方式 | 适用场景 | 示例 |
-|----------|----------|------|
-| HTTP REST | 同步调用 | Gateway → Platform Service |
-| 内部 API (X-Internal) | 服务间内部调用 | Platform → File Service |
-| RabbitMQ | 异步消息 | 文件处理任务、欢迎邮件 |
-| WebSocket | 实时推送 | IM 消息推送 |
-| WebRTC | 音视频通话 | P2P 音视频传输 |
+1. Platform 创建上传会话并保存元数据。
+2. Storage 签发短期操作凭证，客户端上传分片。
+3. Storage 记录分片状态并通知 Platform。
+4. Platform 收到完成请求后发布处理事件。
+5. Worker 合并、校验、生成派生资源并回写状态。
+6. 内容就绪/可用事件继续触发搜索、通知或自动化。
 
-### 2.3 中间件依赖
+### 3.2 文件访问
 
-| 中间件 | 用途 | 消费方 |
-|--------|------|--------|
-| MySQL 8.0 | 业务数据存储 | platform-service, im-platform |
-| Redis 7 | 缓存/限流/会话/分布式锁 | gateway-service, platform-service, shortage-service |
-| RabbitMQ | 异步任务/事件驱动 | platform-service, shortage-service, im-service |
-| MinIO | 对象存储 (S3) | shortage-service |
-| OpenSearch | 全文检索 | shortage-service (索引), platform-service (查询) |
-| Nacos | 服务发现/配置中心 | gateway-service, platform-service |
-| Sentinel | 流量控制/熔断 | gateway-service, platform-service |
-| Seata | 分布式事务 | platform-service |
+文件列表和权限由 Platform 决定；文件内容、预览和下载由 Storage 执行。预览/下载通过短期操作凭证、Range 和大小/并发边界控制，避免把业务权限和物理存储路径直接暴露给客户端。
 
-## 3. 技术选型
+### 3.3 扩展执行
 
-### 3.1 后端技术栈
+Plugin Service 保存插件包和安装关系，Automation 匹配文件事件，Workflow 负责流程定义和能力解析，Scheduler 负责定时触发，Runtime 在隔离环境中执行。插件只通过 Broker 使用声明过的能力。
 
-| 技术 | 选型 | 理由 |
-|------|------|------|
-| 微服务框架 | Spring Boot 4.0.6 + Spring Cloud | 生态成熟，社区活跃 |
-| API 网关 | Spring Cloud Gateway (WebFlux) | 响应式非阻塞，高性能 |
-| ORM | MyBatis 3.0.4 | SQL 可控，复杂查询灵活 |
-| 文件处理 | FastAPI + Python 3.11 | 异步 I/O 性能优异，文件处理生态好 |
-| 实时通信 | Netty 4.1 + WebSocket | 高性能 NIO，万级并发 |
-| 认证 | JWT (RSA-256) | 无状态，适合微服务 |
-| 密码加密 | PBKDF2-SHA256 + BCrypt | 双层哈希，防彩虹表 |
+## 4. 通信方式
 
-### 3.2 前端技术栈
+| 方式 | 用途 |
+| --- | --- |
+| HTTP REST | Gateway 到业务服务、服务间同步 API |
+| 内部 API + 服务凭证 | Platform、Storage、Plugin、Workflow 等受信调用 |
+| RabbitMQ | 文件生命周期、通知、插件自动化和工作流执行 |
+| Redis | 会话、限流、临时授权、幂等和缓存 |
+| WebSocket | IM 与系统通知 |
+| WebRTC | 音视频通话 |
 
-| 客户端 | 技术 | 理由 |
-|--------|------|------|
-| Web 用户端 | Vue 3 + Vite + Tailwind CSS | 开发效率高，生态丰富 |
-| Web 管理端 | React 19 + Ant Design 6 | 后台管理场景成熟方案 |
-| 桌面端 | Electron + React | 跨平台，虚拟磁盘集成 |
-| 跨端移动端 | uni-app (Vue 3) | 一套代码多端部署 |
-| iOS 原生 | SwiftUI | Apple 生态原生体验 |
-| Android 原生 | Kotlin + Jetpack Compose | Google 推荐现代方案 |
-| macOS 原生 | SwiftUI + AppKit | 深度系统集成 |
-| Windows 原生 | WPF + .NET 8.0 | Windows 生态最佳实践 |
+## 5. 性能与可靠性
 
-## 4. 部署架构
+项目包含分片上传、断点续传、Range 下载、并发控制、异步 Worker、缓存、健康检查、指标和链路追踪基础。性能不以静态页面数字承诺；生产环境需针对文件大小、并发用户、消息堆积、数据库索引、对象存储吞吐和网络带宽压测。
 
-### 4.1 Docker Compose 部署
+## 6. 部署边界
 
-所有服务通过 Docker Compose 统一编排，支持一键部署：
-
-```bash
-docker compose up -d
-```
-
-### 4.2 容器网络
-
-| 网络 | 用途 | 暴露 |
-|------|------|------|
-| `frontend-net` | 前端服务 | 对外暴露 80/443 |
-| `backend-net` | 后端服务 | 内部通信 |
-
-### 4.3 数据卷
-
-| 数据卷 | 用途 |
-|--------|------|
-| `mysql-data` | MySQL 数据持久化 |
-| `redis-data` | Redis 持久化 |
-| `rabbitmq-data` | RabbitMQ 数据 |
-| `uploads-data` | 用户上传文件 |
-| `thumbnails-data` | 缩略图缓存 |
-| `minio-data` | 对象存储数据 |
-| `opensearch-data` | 全文索引数据 |
-
-## 5. 高可用设计
-
-### 5.1 网关层
-
-- Nginx 反向代理 + 多实例部署
-- 健康检查自动摘除故障节点
-
-### 5.2 服务层
-
-- 无状态设计，支持水平扩展
-- Sentinel 熔断降级，防止雪崩
-- Nacos 服务发现，动态路由
-
-### 5.3 数据层
-
-- MySQL 主从复制 + 读写分离
-- Redis 哨兵/集群模式
-- RabbitMQ 镜像队列
-- MinIO 纠删码模式
+Compose 使用单一 `app-networks`。中间件和内部服务使用 `expose`，前端/Nginx 是公开入口；容器间使用服务 DNS 名称。自动化服务位于 `automation` profile，并要求独立数据库、Runtime 地址和插件签名配置。

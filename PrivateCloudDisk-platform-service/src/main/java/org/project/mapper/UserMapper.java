@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Param;
 import org.project.model.entity.UserEntity;
 
 import java.util.UUID;
+import java.util.List;
 
 @Mapper
 public interface UserMapper {
@@ -27,6 +28,11 @@ public interface UserMapper {
      * @return 用户数据
      */
     UserEntity findUserById(@Param("user_id") UUID user_id);
+
+    UserEntity findUserByNameOrAccount(@Param("username") String username);
+
+    /** [SPACE-COLLAB-USER-01] 仅用于邀请搜索，返回最小公开资料所需的用户行。 */
+    List<UserEntity> searchPublicUsers(@Param("keyword") String keyword, @Param("limit") int limit);
 
     /**
      * 插入用户数据

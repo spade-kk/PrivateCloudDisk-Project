@@ -53,6 +53,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'docs/security', name: 'DocsSecurity', component: () => import('@/views/website/DocsSecurityView.vue'), meta: { title: '文档 - 安全' } },
       { path: 'docs/database', name: 'DocsDatabase', component: () => import('@/views/website/DocsDatabaseView.vue'), meta: { title: '文档 - 数据库' } },
       { path: 'docs/customize', name: 'DocsCustomize', component: () => import('@/views/website/DocsCustomizeView.vue'), meta: { title: '文档 - 定制化' } },
+      // 插件生态开发者文档中心：公开展示 SDK、生命周期、工作流 DSL 与安全边界。
+      { path: 'docs/plugins', name: 'PluginDocs', component: () => import('@/views/website/PluginDocsView.vue'), meta: { title: '插件与自动化开发文档' } },
       { path: 'solutions', name: 'Solutions', component: () => import('@/views/website/SolutionsView.vue'), meta: { title: '解决方案' } },
       { path: 'case-studies', name: 'CaseStudies', component: () => import('@/views/website/CaseStudiesView.vue'), meta: { title: '客户案例' } },
       { path: 'blog', name: 'Blog', component: () => import('@/views/website/BlogView.vue'), meta: { title: '博客' } },
@@ -101,8 +103,23 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '分享文件' },
   },
 
+  // 公开空间（仓库）独立工作区：必须登录，且不复用控制台 Layout/文件浏览器。
+  { path: '/repo/:spaceId', name: 'PublicSpaceRepository', component: () => import('@/views/public-space/PublicSpaceView.vue'), meta: { title: '公开仓库', requiresAuth: true, publicRepository: true } },
+  { path: '/repo/:spaceId/settings', name: 'PublicSpaceRepositorySettings', component: () => import('@/views/public-space/PublicSpaceSettingsView.vue'), meta: { title: '仓库设置', requiresAuth: true, publicRepository: true } },
+  { path: '/user/:username', name: 'PublicUserProfile', component: () => import('@/views/public-space/UserProfileView.vue'), meta: { title: '用户主页', requiresAuth: true, publicRepository: true } },
+  { path: '/explore', name: 'ExplorePublicSpaces', component: () => import('@/views/public-space/ExplorePublicSpacesView.vue'), meta: { title: '探索公开仓库', requiresAuth: true, publicRepository: true } },
+
+  // 空间协作中心独立路由：与控制台文件浏览区隔离，所有页面仍需要登录。
+  { path: '/teamwork', name: 'Teamwork', component: () => import('@/views/team/TeamworkView.vue'), meta: { title: '团队协作', requiresAuth: true, collaborationWorkspace: true } },
+  { path: '/teamwork/space/:spaceId', name: 'TeamworkSpacePreview', component: () => import('@/views/team/TeamworkSpacePreviewView.vue'), meta: { title: '空间详情', requiresAuth: true, collaborationWorkspace: true } },
+  { path: '/space/manage', name: 'SpaceManage', component: () => import('@/views/SpaceManagementView.vue'), meta: { title: '空间管理', requiresAuth: true, collaborationWorkspace: true } },
+  { path: '/space/:spaceId/members', name: 'SpaceMembers', component: () => import('@/views/space/SpaceMembersView.vue'), meta: { title: '空间成员', requiresAuth: true, collaborationWorkspace: true } },
+  { path: '/space/:spaceId/settings', name: 'SpaceSettings', component: () => import('@/views/space/SpaceSettingsView.vue'), meta: { title: '空间设置', requiresAuth: true, collaborationWorkspace: true } },
+  { path: '/space/:spaceId/members/approvals', name: 'SpaceApprovals', component: () => import('@/views/space/SpaceApprovalsView.vue'), meta: { title: '加入审批', requiresAuth: true, collaborationWorkspace: true } },
+  { path: '/space/:spaceId/plugins', name: 'SpacePlugins', component: () => import('@/views/plugins/SpacePluginManagementView.vue'), meta: { title: '空间插件管理', requiresAuth: true, collaborationWorkspace: true } },
+
   // ============================================================
-  // AUDIT FIX [2.2]: 独立文件预览工作区
+  // 独立文件预览工作区
   // 预览路由位于 /app Layout 之外，不渲染控制台侧栏和菜单，为播放器、文档工具栏
   // 与后续协作能力保留完整视口。所有页面通过 fileId 路由参数识别资源。
   // ============================================================
@@ -115,6 +132,13 @@ const routes: RouteRecordRaw[] = [
   { path: '/preview/code/:fileId', name: 'CodePreview', component: () => import('@/views/preview/CodePreviewView.vue'), meta: { title: '代码预览', requiresAuth: true, previewWorkspace: true } },
   { path: '/preview/markdown/:fileId', name: 'MarkdownPreview', component: () => import('@/views/preview/MarkdownPreviewView.vue'), meta: { title: 'Markdown 预览', requiresAuth: true, previewWorkspace: true } },
   { path: '/preview/archive/:fileId', name: 'ArchivePreview', component: () => import('@/views/preview/ArchivePreviewView.vue'), meta: { title: '压缩包预览', requiresAuth: true, previewWorkspace: true } },
+
+  // 插件/工作流独立开发工作区：不渲染控制台侧栏，适合桌面端多面板 IDE；旧 /app 路由继续保留兼容。
+  { path: '/developer/plugins/new/:type(cloud|local)', name: 'DeveloperPluginCreate', component: () => import('@/views/plugins/PluginIdeView.vue'), meta: { title: '插件开发工作区', requiresAuth: true, ideWorkspace: true } },
+  { path: '/developer/plugins/:pluginId/edit', name: 'DeveloperPluginEdit', component: () => import('@/views/plugins/PluginIdeView.vue'), meta: { title: '编辑插件', requiresAuth: true, ideWorkspace: true } },
+  { path: '/developer/marketplace/plugins/:pluginId', name: 'DeveloperPluginMarketplaceDetail', component: () => import('@/views/plugins/PluginMarketplaceDetailView.vue'), meta: { title: '插件详情', requiresAuth: true } },
+  { path: '/developer/workflows/new', name: 'DeveloperWorkflowCreate', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '工作流开发工作区', requiresAuth: true, ideWorkspace: true } },
+  { path: '/developer/workflows/:workflowId/edit', name: 'DeveloperWorkflowEdit', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '编辑工作流', requiresAuth: true, ideWorkspace: true } },
 
   // ============================================================
   // 控制台 — 需要登录认证
@@ -138,7 +162,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'transfers', name: 'Transfers', component: () => import('@/views/TransfersView.vue'), meta: { title: '传输管理', requiresAuth: true } },
       { path: 'trash', name: 'Trash', component: () => import('@/views/TrashView.vue'), meta: { title: '回收站', requiresAuth: true } },
       { path: 'storage', name: 'Storage', component: () => import('@/views/StorageView.vue'), meta: { title: '存储空间', requiresAuth: true } },
-      { path: 'team', name: 'Team', component: () => import('@/views/team/TeamView.vue'), meta: { title: '团队管理', requiresAuth: true } },
+      // 旧路径保留，页面主体迁移至独立团队协作中心。
+      { path: 'team', name: 'Team', component: () => import('@/views/team/TeamworkView.vue'), meta: { title: '团队协作', requiresAuth: true } },
       { path: 'security', name: 'Security', component: () => import('@/views/security/SecurityView.vue'), meta: { title: '安全设置', requiresAuth: true } },
       { path: 'security/api-keys', name: 'ApiKeys', component: () => import('@/views/security/ApiKeysView.vue'), meta: { title: 'API 密钥', requiresAuth: true } },
       { path: 'security/change-password', name: 'ChangePassword', component: () => import('@/views/security/ChangePasswordView.vue'), meta: { title: '修改密码', requiresAuth: true } },
@@ -156,6 +181,19 @@ const routes: RouteRecordRaw[] = [
       { path: 'profile', name: 'Profile', component: () => import('@/views/ProfileView.vue'), meta: { title: '个人信息', requiresAuth: true } },
       // 空间管理
       { path: 'spaces', name: 'Spaces', component: () => import('@/views/SpaceManagementView.vue'), meta: { title: '空间管理', requiresAuth: true } },
+      // 插件生态与自动化工作流：均复用全局空间上下文和 X-Space-Id 请求头。
+      { path: 'plugins', name: 'PluginManagement', component: () => import('@/views/plugins/PluginManagementView.vue'), meta: { title: '插件管理', requiresAuth: true } },
+      // 旧的插件创建页面组件是 PluginEditorView 已经保留
+      { path: 'plugins/new/:type(cloud|local)', name: 'PluginCreate', component: () => import('@/views/plugins/PluginIdeView.vue'), meta: { title: '创建插件', requiresAuth: true } },
+      { path: 'plugins/:pluginId/executions', name: 'PluginExecutions', component: () => import('@/views/plugins/PluginExecutionsView.vue'), meta: { title: '插件执行记录', requiresAuth: true } },
+      { path: 'plugin-market', name: 'PluginMarketplace', component: () => import('@/views/plugins/PluginMarketplaceView.vue'), meta: { title: '插件市场', requiresAuth: true } },
+      { path: 'space-tools', name: 'SpacePluginManagement', component: () => import('@/views/plugins/SpacePluginManagementView.vue'), meta: { title: '空间工具', requiresAuth: true } },
+      { path: 'spaces/:spaceId/automation', name: 'SpaceAutomation', component: () => import('@/views/plugins/SpacePluginManagementView.vue'), meta: { title: '空间插件管理', requiresAuth: true } },
+      { path: 'workflows', name: 'WorkflowManagement', component: () => import('@/views/workflows/WorkflowManagementView.vue'), meta: { title: '工作流管理', requiresAuth: true } },
+      { path: 'workflows/new', name: 'WorkflowCreate', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '创建工作流', requiresAuth: true } },
+      { path: 'workflows/:workflowId/edit', name: 'WorkflowEdit', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '编辑工作流', requiresAuth: true } },
+      { path: 'workflow-market', name: 'WorkflowMarketplace', component: () => import('@/views/workflows/WorkflowMarketplaceView.vue'), meta: { title: '工作流市场', requiresAuth: true } },
+      { path: 'workflow-market/:workflowId', name: 'WorkflowMarketplaceDetail', component: () => import('@/views/workflows/WorkflowMarketplaceDetailView.vue'), meta: { title: '工作流模板详情', requiresAuth: true } },
       // 视频/语音通话页面
       { path: 'call', name: 'Call', component: () => import('@/views/CallView.vue'), meta: { title: '通话', requiresAuth: true } },
       // 控制台 404 兜底
@@ -190,25 +228,40 @@ const router = createRouter({
  * 需要认证但未登录时，重定向到 /login 页面。
  * 不需要认证的路由（官网、登录页、注册页）直接放行。
  */
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   // 目标路由需要认证但用户未登录 → 跳转登录页
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
-    next('/login')
-    return
+    return '/login'
   }
 
-  // 同步 URL 参数 ?space=xxx 到 spaceStore
+  // 统一同步 URL 参数 ?space=xxx 到 spaceStore。
+  // 原行为：仅写入任意 space 参数，未校验、未回退、未规范化历史参数。
+  // 新行为：初始化优先读取 URL，校验无效空间后回退个人空间并 replace URL，保证前进/后退可恢复。
   if (to.meta.requiresAuth && authStore.isLoggedIn) {
     const spaceStore = useSpaceStore()
-    const spaceParam = to.query.space as string | undefined
-    if (spaceParam && spaceParam !== spaceStore.currentSpaceId) {
-      spaceStore.setCurrentSpaceFromUrl(spaceParam)
+    // 公开仓库/独立预览通过页面 API 显式携带 spaceId，不能污染控制台当前工作空间。
+    if (!to.meta.publicRepository && !to.meta.previewWorkspace && !to.meta.collaborationWorkspace) {
+      const requested = (to.query.space_id || to.query.space) as string | undefined
+      if (!spaceStore.initialized) await spaceStore.initSpaces(requested)
+      const resolved = spaceStore.setCurrentSpaceFromUrl(requested || null)
+      const canonical = { ...to.query } as Record<string, string | string[] | undefined>
+      delete canonical.space_id
+      if (resolved) canonical.space = resolved
+      const currentQuery = JSON.stringify(to.query)
+      const canonicalQuery = JSON.stringify(canonical)
+      if (currentQuery !== canonicalQuery) {
+        return { path: to.path, query: canonical, hash: to.hash }
+      }
+    } else if (!to.meta.publicRepository && !to.meta.previewWorkspace && to.params.spaceId) {
+      // 成员/设置/审批页以 path spaceId 作为请求上下文，
+      // 先校验已加入空间，再让拦截器注入同一个 X-Space-Id，防止旧空间头污染写操作。
+      const spaceStore = useSpaceStore()
+      if (!spaceStore.initialized) await spaceStore.initSpaces()
+      spaceStore.setCurrentSpaceFromUrl(String(to.params.spaceId))
     }
   }
-
-  next()
 })
 
 /**

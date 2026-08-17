@@ -25,14 +25,20 @@ USE private_cloud_disk;
 CREATE TABLE IF NOT EXISTS pcd_space_table (
     space_id            BINARY(16)      NOT NULL PRIMARY KEY                  COMMENT '空间唯一ID',
     space_name          VARCHAR(200)     NOT NULL                              COMMENT '空间名称',
-    space_type          ENUM('personal', 'enterprise', 'public', 'team')
+    space_type          ENUM('personal', 'private', 'enterprise', 'public', 'team')
                                         NOT NULL                              COMMENT '空间类型',
     space_owner_id      BINARY(16)      NOT NULL                              COMMENT '空间创建者/所有者',
     space_quota         BIGINT          NOT NULL DEFAULT 10737418240          COMMENT '空间配额（字节），默认10GB',
     space_used          BIGINT          NOT NULL DEFAULT 0                    COMMENT '已用容量（字节）',
+    space_reserved      BIGINT          NOT NULL DEFAULT 0                    COMMENT '上传中预占容量（字节）',
     space_file_count    INT             NOT NULL DEFAULT 0                    COMMENT '文件数量',
-    space_visibility    ENUM('private', 'public', 'whitelist', 'blacklist')
+    space_visibility    ENUM('private', 'public', 'visible', 'hidden', 'whitelist', 'blacklist')
                                         NOT NULL DEFAULT 'private'            COMMENT '可见性控制',
+    join_policy        ENUM('open', 'approval_required', 'invite_only')
+                                        NOT NULL DEFAULT 'invite_only'        COMMENT '加入策略',
+    allow_public_browse TINYINT(1)      NOT NULL DEFAULT 1                    COMMENT '公开仓库是否允许浏览',
+    allow_public_download TINYINT(1)   NOT NULL DEFAULT 1                    COMMENT '公开仓库是否允许下载',
+    allow_public_upload TINYINT(1)     NOT NULL DEFAULT 0                    COMMENT '公开仓库是否允许登录用户上传',
     space_description   TEXT                                                    COMMENT '空间描述',
     space_avatar_path   VARCHAR(512)                                            COMMENT '空间头像路径',
     space_im_group_id   VARCHAR(100)                                            COMMENT '关联IM群组ID（企业/团队空间自动创建）',
@@ -57,7 +63,7 @@ CREATE TABLE IF NOT EXISTS pcd_space_member_table (
     member_id           BIGINT          PRIMARY KEY AUTO_INCREMENT            COMMENT '成员记录ID',
     space_id            BINARY(16)      NOT NULL                              COMMENT '空间ID',
     user_id             BINARY(16)      NOT NULL                              COMMENT '用户ID',
-    role                ENUM('owner', 'admin', 'editor', 'viewer')
+    role                ENUM('owner', 'admin', 'editor', 'viewer', 'custom')
                                         NOT NULL DEFAULT 'viewer'             COMMENT '成员角色',
     joined_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '加入时间',
     invited_by          BINARY(16)                                              COMMENT '邀请人ID',
@@ -84,6 +90,13 @@ CREATE TABLE IF NOT EXISTS pcd_space_permission_table (
     can_share           TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '分享权限',
     can_invite          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '邀请成员权限',
     can_manage          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '管理权限（修改空间设置）',
+    can_view            TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '浏览空间权限',
+    can_download        TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '下载原始文件权限',
+    can_upload          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '上传文件权限',
+    can_edit            TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '编辑文件元数据权限',
+    can_manage_members  TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '成员管理权限',
+    can_manage_plugins  TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '插件管理权限',
+    can_manage_settings TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '空间设置权限',
     granted_by          BINARY(16)                                              COMMENT '授权人ID',
     granted_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '授权时间',
     FOREIGN KEY (space_id) REFERENCES pcd_space_table(space_id) ON DELETE CASCADE,
@@ -134,20 +147,14 @@ CREATE TABLE IF NOT EXISTS pcd_space_visibility_table (
 -- =====================================================================
 -- 6. 为现有文件表和目录树表添加空间隔离字段
 -- =====================================================================
-ALTER TABLE pcd_file_info_table
-    ADD COLUMN file_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
-    ADD INDEX idx_file_space (file_space_id, file_status);
-
-ALTER TABLE pcd_directory_tree_table
-    ADD COLUMN node_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
-    ADD INDEX idx_node_space (node_space_id, node_status);
+-- 空间管理能力全量集成（需求六）：
+-- 新安装由 database_init.sql 直接创建空间字段；存量库统一执行
+-- 007_space_context_full_integration.sql，以幂等方式补列、回填和创建索引。
 
 -- =====================================================================
 -- 7. 为现有上传会话表添加空间隔离字段
 -- =====================================================================
-ALTER TABLE pcd_uploads_session_table
-    ADD COLUMN uploads_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
-    ADD INDEX idx_uploads_space (uploads_space_id, uploads_status);
+-- uploads_space_id 同样由主初始化脚本或 007 迁移维护，避免重复执行本脚本时加列失败。
 
 -- =====================================================================
 -- 8. 触发器：自动创建个人空间（用户注册时）
@@ -165,7 +172,7 @@ BEGIN
 
     -- 创建个人空间
     INSERT INTO pcd_space_table (space_id, space_name, space_type, space_owner_id, space_visibility)
-    VALUES (space_id_bin, CONCAT(NEW.user_account, '的个人空间'), 'personal', NEW.user_id, 'private');
+    VALUES (space_id_bin, '我的网盘', 'personal', NEW.user_id, 'private');
 
     -- 自动将用户添加为空间所有者
     INSERT INTO pcd_space_member_table (space_id, user_id, role)

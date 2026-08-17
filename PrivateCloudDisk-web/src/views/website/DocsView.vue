@@ -48,7 +48,7 @@
           <!-- Version Badge -->
           <div class="mt-4 inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-500">
             <span class="h-2 w-2 rounded-full bg-success"></span>
-            当前版本 v3.0.0 · 生产就绪
+            当前版本以仓库构建与部署配置为准 · 文档持续更新
           </div>
 
           <!-- Search -->
@@ -111,7 +111,7 @@
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center mb-12">
           <h2 class="text-3xl font-bold tracking-tight text-neutral-900">核心特性</h2>
-          <p class="mt-4 text-neutral-500">PrivateCloudDisk 为企业级应用场景打造的六大核心能力</p>
+          <p class="mt-4 text-neutral-500">PrivateCloudDisk 的文件、空间、预览、扩展、部署和开发文档</p>
         </div>
 
         <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -414,23 +414,23 @@ const docNavigation = [
 const coreFeatures = [
   {
     title: '断点续传与分片上传',
-    desc: '支持超大文件（最高50GB）分片上传，网络中断后可无缝续传',
+    desc: '支持分片上传与断点续传，具体大小限制以部署配置和服务校验为准',
     icon: 'fa fa-cloud-upload',
     iconClass: 'text-primary',
     bgClass: 'bg-primary/10',
-    items: ['5MB分片策略', 'SHA-256完整性校验', '并发上传加速', '断点自动续传'],
+    items: ['分片上传会话', '上传状态查询', '合并后异步处理', '失败状态可追踪'],
   },
   {
     title: '企业级安全防护',
-    desc: '四层安全防线，银行级加密标准，保障数据安全',
+    desc: '认证、空间上下文、操作凭证和内部服务校验共同构成访问边界',
     icon: 'fa fa-shield',
     iconClass: 'text-success',
     bgClass: 'bg-success/10',
-    items: ['JWT双令牌认证', 'AES-256文件加密', 'BCrypt密码哈希', '登录失败锁定'],
+    items: ['网关 JWT 认证', '空间成员与资源范围', '预览/下载操作凭证', '内部服务令牌校验'],
   },
   {
     title: '智能文件预览',
-    desc: '支持100+文件格式在线预览，无需下载即可查看',
+    desc: '支持多类文件在线预览，无需下载即可查看；实际格式以服务配置和文件类型为准',
     icon: 'fa fa-eye',
     iconClass: 'text-info',
     bgClass: 'bg-info/10',
@@ -438,37 +438,37 @@ const coreFeatures = [
   },
   {
     title: '高效目录树管理',
-    desc: '基于闭包表的目录树设计，支持无限层级嵌套',
+    desc: '围绕文件夹节点和资源关系提供目录树管理',
     icon: 'fa fa-folder-tree',
     iconClass: 'text-warning',
     bgClass: 'bg-warning/10',
-    items: ['O(1)子树查询', '无限层级嵌套', '批量移动目录', '路径导航'],
+    items: ['文件夹 CRUD', '目录节点查询', '移动与复制', '路径导航'],
   },
   {
     title: '团队协作与分享',
-    desc: '灵活的分享链接和权限管理，团队协作更高效',
+    desc: '空间、角色、分享链接和回收站共同支撑协作边界',
     icon: 'fa fa-users',
     iconClass: 'text-purple-500',
     bgClass: 'bg-purple-50',
-    items: ['链接密码保护', '过期时间设置', '权限精细控制', '操作审计日志'],
+    items: ['空间成员管理', '分享资源控制', '收藏与标签', '回收站恢复'],
   },
   {
     title: '分布式限流与高可用',
-    desc: '多维度限流策略，支持水平扩展的高可用架构',
+    desc: '通过异步队列、任务状态和部署配置组织文件处理链路',
     icon: 'fa fa-server',
     iconClass: 'text-danger',
     bgClass: 'bg-danger/10',
-    items: ['7维度限流规则', '熔断降级保护', '健康检查机制', '水平扩展支持'],
+    items: ['RabbitMQ 异步任务', '文件处理 Worker', '健康检查接口', '监控与链路接入'],
   },
 ]
 
 const techStack = [
   { category: '前端技术', icon: 'fa fa-desktop', items: 'Vue 3 + Vite + Tailwind CSS + Pinia' },
   { category: '后端网关', icon: 'fa fa-gateway', items: 'Spring Cloud Gateway + WebFlux + JWT' },
-  { category: '业务服务', icon: 'fa fa-cogs', items: 'Spring Boot 4.0 + MyBatis + MySQL' },
+  { category: '业务服务', icon: 'fa fa-cogs', items: 'Spring Boot 3.4.7 + MyBatis + MySQL' },
   { category: '文件服务', icon: 'fa fa-file', items: 'FastAPI + Uvicorn + Python 3.11' },
   { category: '即时通讯', icon: 'fa fa-comments', items: 'Spring Boot + Netty + WebRTC' },
-  { category: '通知订阅', icon: 'fa fa-bell', items: 'Notification Service + Subscription Service' },
+  { category: '通知与扩展', icon: 'fa fa-bell', items: 'Notification Service + Plugin / Workflow Services' },
   { category: '数据存储', icon: 'fa fa-database', items: 'MySQL 8.0 + Redis 7 + MinIO' },
   { category: '消息队列', icon: 'fa fa-envelope', items: 'RabbitMQ + OpenSearch' },
   { category: '监控链路', icon: 'fa fa-chart-line', items: 'Prometheus + Grafana + SkyWalking' },
@@ -476,7 +476,7 @@ const techStack = [
 
 const techLayers = [
   {
-    name: '客户端层 (10+)',
+    name: '客户端层',
     color: 'bg-blue-500',
     techs: ['Vue 3 Web', 'React 19 Admin', 'Electron Desktop', 'uni-app Mobile', 'SwiftUI iOS', 'SwiftUI macOS', 'Kotlin Android', 'WPF .NET Windows', 'Go CLI'],
   },
@@ -488,7 +488,7 @@ const techLayers = [
   {
     name: '业务服务层',
     color: 'bg-green-500',
-    techs: ['Platform Service', 'Notification Service', 'Subscription Service', 'IM Platform'],
+    techs: ['Platform Service', 'Notification Service', 'Billing Service', 'IM Platform', 'Plugin Service', 'Workflow Service'],
   },
   {
     name: '文件服务层',
@@ -508,7 +508,7 @@ const techLayers = [
   {
     name: '治理与监控',
     color: 'bg-cyan-500',
-    techs: ['Nacos', 'Sentinel', 'Seata', 'SkyWalking', 'SkyWalking UI', 'Prometheus', 'Grafana'],
+    techs: ['Docker Compose', '健康检查', 'Prometheus', 'Grafana', 'SkyWalking'],
   },
 ]
 
@@ -576,35 +576,35 @@ const quickStartSteps = [
   {
     title: '启动后端服务',
     desc: '分别启动网关服务、平台服务、文件服务',
-    code: './gradlew bootRun # Java服务\nuvicorn server:app --reload # Python服务',
+    code: './gradlew bootRun # Java 服务\nuvicorn app.main:app --reload # storage-service',
   },
   {
     title: '访问 Web 控制台',
-    desc: '打开浏览器访问 http://localhost:80，使用测试账号登录体验',
-    code: '默认账号: superadmin / admin123',
+    desc: '打开浏览器访问部署方配置的 Web 地址，使用部署初始化的账户登录',
+    code: '账号与密码：由部署初始化或测试环境配置提供',
   },
 ]
 
 const faqs = [
   {
     q: 'PrivateCloudDisk 支持哪些操作系统？',
-    a: '系统本身支持在 Linux、macOS、Windows 等主流操作系统上部署。前端 Web 应用支持所有现代浏览器，移动端支持 iOS 和 Android，桌面客户端支持 Windows、macOS、Linux 三大平台。',
+    a: '系统服务主要通过 Docker Compose 组织，客户端包含 Web、桌面端、移动端和原生客户端目录；具体平台支持以对应子项目 README 和实际构建结果为准。',
   },
   {
     q: '如何获取技术支持？',
-    a: '您可以通过以下方式获取技术支持：1) 提交 GitHub Issue 描述您的问题 2) 加入社区讨论群组 3) 联系官方技术支持邮箱。对于企业级客户，我们提供付费的专属技术支持服务。',
+    a: '请先阅读根 README、docs 目录和对应子项目 README；遇到问题时提交包含服务、请求路径、日志和复现步骤的 Issue。',
   },
   {
     q: '数据存储在哪里？是否安全？',
-    a: '数据默认存储在部署服务器的本地磁盘或配置的 MinIO 对象存储中。所有数据通过 AES-256-GCM 加密存储，传输过程使用 TLS 1.3 加密。我们还提供异地备份功能，确保数据安全可靠。',
+    a: '数据由平台业务元数据、文件存储、缓存和消息队列共同承载，具体使用本地存储或对象存储取决于部署配置；加密、备份和网络隔离需要结合生产环境验证。',
   },
   {
     q: '支持横向扩展吗？',
-    a: '是的，系统采用微服务架构，支持水平扩展。网关服务、平台服务、文件服务都可以部署多个实例，通过负载均衡分发请求。Redis 和 MySQL 支持集群模式，满足高并发场景需求。',
+    a: '服务按网关、平台业务、文件处理、通知、即时通讯、插件、工作流、自动化和调度等边界拆分，部分服务可以按部署拓扑扩展；扩展能力需结合数据库、消息队列和存储的实际配置验证。',
   },
   {
     q: '开源版本和商业版本有什么区别？',
-    a: '开源版本（MIT协议）包含完整的基础功能，包括文件管理、团队协作、安全防护等。商业版本额外提供高级审计、VIP技术支持、定制化开发等服务。',
+    a: '仓库当前重点提供文件管理、空间协作、预览、分享、插件和工作流等代码能力。授权、商业支持、SLA 和定制服务不在本页面作未经确认的承诺。',
   },
 ]
 const communityLinks = [

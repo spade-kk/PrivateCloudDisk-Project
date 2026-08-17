@@ -57,9 +57,9 @@ export class ApiError extends Error {
   /** 原始 Axios 错误对象 */
   originalError?: Error
   /** 是否为网络连接错误（Network Error） */
-  isNetworkError: boolean
+  isNetworkError = false
   /** 是否为请求超时 */
-  isTimeout: boolean
+  isTimeout = false
 
   constructor(message: string, options: Partial<ApiError> = {}) {
     super(message)
@@ -237,7 +237,7 @@ service.interceptors.response.use(
            * 原行为对任意 401 都清除登录态；新行为允许明确标记 skipAuthRedirect 的请求自行刷新业务令牌。
            */
           if ((error.config as any)?.skipAuthRedirect) {
-            message = '预览授权已过期，请重新加载'
+            message = (error.config as any)?.authErrorMessage || '临时授权已过期，请重新加载'
           } else {
             // 未授权：清除 Token 并跳转登录页
             message = '登录已过期，请重新登录'

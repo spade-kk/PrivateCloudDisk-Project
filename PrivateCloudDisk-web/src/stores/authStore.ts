@@ -10,6 +10,8 @@ const TOKEN_COOKIE_KEY = 'cloud_drive_token'
 const REFRESH_TOKEN_KEY = 'cloud_drive_refresh_token'
 
 export interface UserProfile {
+  /** 后端用户 UUID；公开仓库所有者判断优先使用该稳定标识。 */
+  id?: string
   name: string
   account: string
   email: string
@@ -27,6 +29,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!token.value)
 
   const user = ref<UserProfile>({
+    id: '',
     name: '',
     account: '',
     email: '',
@@ -48,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await getMyUserInfoApi()
       if (res.code === 200 && res.data) {
         user.value = {
+          id: res.data.id || res.data.user_id || res.data.userId || '',
           name: res.data.name || '',
           account: res.data.account || '',
           email: res.data.email || '',
@@ -166,7 +170,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function logout(): void {
     token.value = ''
-    user.value = { name: '', account: '', email: '', phone_number: '', image_path: '' }
+    user.value = { id: '', name: '', account: '', email: '', phone_number: '', image_path: '' }
     cookie.remove(TOKEN_COOKIE_KEY)
     localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem('cloudDriveToken')

@@ -67,22 +67,27 @@ _CLIENT_LIMITS = httpx.Limits(
 
 class BusinessServicePaths:
     """业务服务内部 API 路径"""
+    # Sprint 0：原路径包含网关前缀 /api/v1；新路径用于容器私网直连业务服务。
     # 文件相关
-    FILE_METADATA = "/api/v1/business/internal/storage/files/{file_id}"        # GET 获取文件元数据
-    FILE_BY_NODE = "/api/v1/business/internal/storage/files/{node_id}/{file_name}"  # GET 按节点+文件名获取
-    FILE_MERGED = "/api/v1/business/internal/storage/files"                    # POST 通知文件合并完成
-    FILE_ACTIVATE = "/api/v1/business/internal/storage/files/{file_id}/activate"       # POST 标记文件活跃
-    FILE_STATUS = "/api/v1/business/internal/storage/files/{file_id}/status"           # PATCH 更新文件状态
-    FILE_DELETE_COMPLETE = "/api/v1/business/internal/storage/files/{file_id}/delete-complete"  # POST 删除完成回调
-    FILE_HLS_READY = "/api/v1/business/internal/storage/files/{file_id}/hls-ready"     # POST HLS 转码完成
+    FILE_METADATA = "/business/internal/storage/files/{file_id}"        # GET 获取文件元数据
+    FILE_BY_NODE = "/business/internal/storage/files/{node_id}/{file_name}"  # GET 按节点+文件名获取
+    FILE_MERGED = "/business/internal/storage/files"                    # POST 通知文件合并完成
+    FILE_ACTIVATE = "/business/internal/storage/files/{file_id}/activate"       # POST 标记文件活跃
+    FILE_STATUS = "/business/internal/storage/files/{file_id}/status"           # PATCH 更新文件状态
+    FILE_DELETE_COMPLETE = "/business/internal/storage/files/{file_id}/delete-complete"  # POST 删除完成回调
+    FILE_HLS_READY = "/business/internal/storage/files/{file_id}/hls-ready"     # POST HLS 转码完成
+
+    # 需求一/二：分享资源授权必须由主业务服务验证 share token、虚拟资源 ID
+    # 与资源归属；文件服务只接收脱敏后的内部元数据，不直接查询分享库。
+    SHARE_RESOURCE_ACCESS = "/business/internal/storage/shares/{share_token}/resources/{share_resource_id}"
 
     # 上传会话相关
-    UPLOAD_SESSION = "/api/v1/business/internal/storage/uploads/{uploads_id}"                  # GET 获取上传会话
-    UPLOAD_CHUNK_STATUS = "/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}"  # GET 分片状态
-    UPLOAD_CHUNK_COMPLETE = "/api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete"  # POST 分片完成
-    UPLOAD_MERGE = "/api/v1/business/internal/storage/uploads/{uploads_id}/merge"              # POST 合并分片
-    UPLOAD_MERGING = "/api/v1/business/internal/storage/uploads/{uploads_id}/merging"          # POST 标记合并中
-    UPLOAD_DELETE_COMPLETE = "/api/v1/business/internal/storage/uploads/{uploads_id}/delete-complete"  # POST 删除会话完成
+    UPLOAD_SESSION = "/business/internal/storage/uploads/{uploads_id}"                  # GET 获取上传会话
+    UPLOAD_CHUNK_STATUS = "/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}"  # GET 按分片状态
+    UPLOAD_CHUNK_COMPLETE = "/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete"  # POST 分片完成
+    UPLOAD_MERGE = "/business/internal/storage/uploads/{uploads_id}/merge"              # POST 合并分片
+    UPLOAD_MERGE_CLEANUP = "/business/internal/storage/uploads/{uploads_id}/merge-cleanup"  # POST 合并后清理会话
+    UPLOAD_DELETE_COMPLETE = "/business/internal/storage/uploads/{uploads_id}/delete-complete"  # POST 删除会话完成
 
 
 # ============================
@@ -129,11 +134,15 @@ class BusinessServiceClient:
         loop_id = id(loop)
 
         if loop_id not in self._clients or self._clients[loop_id].is_closed:
+            default_headers = {}
+            if settings.pcd_internal_service_token:
+                default_headers["X-PCD-Service-Token"] = settings.pcd_internal_service_token
             self._clients[loop_id] = httpx.AsyncClient(
                 base_url=self._base_url,
                 timeout=_CLIENT_TIMEOUT,
                 limits=_CLIENT_LIMITS,
                 trust_env=False,  # 不信任系统代理环境变量
+                headers=default_headers,
             )
             logger.debug("BusinessServiceClient: 创建新 AsyncClient (loop_id=%s)", loop_id)
 
@@ -151,7 +160,12 @@ class BusinessServiceClient:
     # 内部辅助方法
     # ============================
 
-    async def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _get(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         内部 GET 请求封装
 
@@ -168,7 +182,7 @@ class BusinessServiceClient:
         client = await self._get_client()
         logger.debug("BusinessServiceClient GET %s params=%s", path, params)
         try:
-            resp = await client.get(path, params=params)
+            resp = await client.get(path, params=params, headers=headers)
             resp.raise_for_status()
             return resp.json()
         except httpx.TimeoutException:
@@ -184,7 +198,13 @@ class BusinessServiceClient:
             logger.error("BusinessServiceClient GET %s 网络异常: %s", path, e)
             raise BusinessServiceError("无法连接业务服务", status_code=502)
 
-    async def _post(self, path: str, params: dict[str, Any] | None = None, json_data: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _post(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json_data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         内部 POST 请求封装
 
@@ -199,7 +219,9 @@ class BusinessServiceClient:
         client = await self._get_client()
         logger.debug("BusinessServiceClient POST %s params=%s json=%s", path, params, json_data)
         try:
-            resp = await client.post(path, params=params, json=json_data)
+            resp = await client.post(
+                path, params=params, json=json_data, headers=headers
+            )
             resp.raise_for_status()
             return resp.json()
         except httpx.TimeoutException:
@@ -215,7 +237,12 @@ class BusinessServiceClient:
             logger.error("BusinessServiceClient POST %s 网络异常: %s", path, e)
             raise BusinessServiceError("无法连接业务服务", status_code=502)
 
-    async def _patch(self, path: str, params: dict[str, Any] | None = None, json_data: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _patch(
+        self, path: str, 
+        params: dict[str, Any] | None = None, 
+        json_data: dict[str, Any] | None = None,  
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         内部 PATCH 请求封装
 
@@ -230,7 +257,7 @@ class BusinessServiceClient:
         client = await self._get_client()
         logger.debug("BusinessServiceClient PATCH %s params=%s json=%s", path, params, json_data)
         try:
-            resp = await client.patch(path, params=params, json=json_data)
+            resp = await client.patch(path, params=params, json=json_data, headers=headers)
             resp.raise_for_status()
             return resp.json()
         except httpx.TimeoutException:
@@ -250,11 +277,17 @@ class BusinessServiceClient:
     # 文件相关 API
     # ============================
 
-    async def get_file_metadata(self, file_id: str, user_id: str) -> dict[str, Any]:
+    async def get_file_metadata(
+        self,
+        file_id: str,
+        user_id: str,
+        space_id: str | None = None,
+        space_operation: str = "READ",
+    ) -> dict[str, Any]:
         """
         获取文件元数据
 
-        GET /api/v1/business/internal/storage/files/{file_id}?uid={user_id}
+        GET business/internal/storage/files/{file_id}?uid={user_id}
 
         Args:
             file_id: 文件 ID
@@ -274,8 +307,17 @@ class BusinessServiceClient:
         """
         path = BusinessServicePaths.FILE_METADATA.format(file_id=file_id)
         params = {"uid": user_id}
-        logger.info("获取文件元数据: file_id=%s, user_id=%s", file_id, user_id)
-        result = await self._get(path, params=params)
+        # 需求五-8：内部调用由被调用方执行空间权限校验，不能只信任网关调用方。
+        from app.core.space_context import get_current_space_id
+        resolved_space_id = space_id or get_current_space_id()
+        headers = {"X-Space-Operation": space_operation.upper()}
+        if resolved_space_id:
+            headers["X-Space-Id"] = resolved_space_id
+        logger.info(
+            "获取文件元数据: file_id=%s, user_id=%s, space_id=%s",
+            file_id, user_id, resolved_space_id or "personal-default",
+        )
+        result = await self._get(path, params=params, headers=headers)
         if result.get("code") != 200:
             raise BusinessServiceError(
                 "文件不存在或无权访问",
@@ -284,11 +326,38 @@ class BusinessServiceClient:
             )
         return result
 
+    async def resolve_share_resource(
+        self,
+        share_token: str,
+        share_resource_id: str,
+        share_access_token: str,
+        *,
+        operation: str = "READ",
+    ) -> dict[str, Any]:
+        """
+        解析并校验分享资源，返回仅供文件服务内部使用的文件元数据。
+
+        需求二-1/2、三-4：分享虚拟 ID 不在文件服务侧自行解密或猜测，
+        由主业务服务校验访问令牌、分享生命周期、资源归属和下载权限；
+        这样可避免两个服务实现不同步导致跨分享/跨空间越权。
+        """
+        path = BusinessServicePaths.SHARE_RESOURCE_ACCESS.format(
+            share_token=share_token,
+            share_resource_id=share_resource_id,
+        )
+        result = await self._get(
+            path,
+            params={"access_token": share_access_token, "operation": operation.upper()},
+        )
+        if result.get("code") != 200 or not result.get("data"):
+            raise BusinessServiceError("分享资源不存在或访问令牌无效", status_code=403, response_body=result)
+        return result
+
     async def get_file_by_node(self, node_id: str, file_name: str, user_id: str) -> dict[str, Any]:
         """
         按节点 ID + 文件名获取文件元数据
 
-        GET /api/v1/business/internal/storage/files/{node_id}/{file_name}?uid={user_id}
+        GET business/internal/storage/files/{node_id}/{file_name}?uid={user_id}
 
         Args:
             node_id: 文件节点 ID
@@ -319,7 +388,7 @@ class BusinessServiceClient:
         """
         通知业务服务：文件合并完成，更新文件状态记录
 
-        POST /api/v1/business/internal/storage/files
+        POST business/internal/storage/files
 
         Args:
             uploads_id: 上传会话 ID
@@ -343,11 +412,23 @@ class BusinessServiceClient:
         logger.info("通知文件合并完成: uploads_id=%s, file_id=%s", uploads_id, file_id)
         return await self._post(path, params=params)
 
-    async def notify_file_activate(self, file_id: str, user_id: str) -> dict[str, Any]:
+    async def notify_file_activate(
+        self,
+        file_id: str,
+        user_id: str,
+        *,
+        storage_path: str | None = None,
+        checksum: str | None = None,
+        file_size: int | None = None,
+        content_revision: int = 0,
+        content_modified: bool = False,
+        preprocess_status: str = "",
+        space_id: str = "",
+    ) -> dict[str, Any]:
         """
         通知业务服务：文件处理完毕，标记为活跃状态
 
-        POST /api/v1/business/internal/storage/files/{file_id}/activate
+        POST business/internal/storage/files/{file_id}/activate
 
         Args:
             file_id: 文件 ID
@@ -362,7 +443,20 @@ class BusinessServiceClient:
         path = BusinessServicePaths.FILE_ACTIVATE.format(file_id=file_id)
         params = {"uid": user_id}
         logger.info("通知文件标记活跃: file_id=%s", file_id)
-        return await self._post(path, params=params)
+        headers = {"X-Space-Id": space_id} if space_id else None
+        return await self._post(
+            path,
+            params=params,
+            headers=headers,
+            json_data={
+                "storage_path": storage_path,
+                "checksum": checksum,
+                "size": file_size,
+                "content_revision": content_revision,
+                "content_modified": content_modified,
+                "preprocess_status": preprocess_status,
+            },
+        )
 
     async def notify_file_status(
         self, file_id: str, status: str, user_id: str, error_message: str = ""
@@ -370,7 +464,7 @@ class BusinessServiceClient:
         """
         通知业务服务更新文件状态
 
-        PATCH /api/v1/business/internal/storage/files/{file_id}/status
+        PATCH business/internal/storage/files/{file_id}/status
 
         Args:
             file_id: 文件 ID
@@ -399,7 +493,7 @@ class BusinessServiceClient:
         """
         通知业务服务：文件删除完成
 
-        POST /api/v1/business/internal/storage/files/{file_id}/delete-complete
+        POST business/internal/storage/files/{file_id}/delete-complete
 
         Args:
             file_id: 文件 ID
@@ -424,7 +518,7 @@ class BusinessServiceClient:
         """
         通知业务服务：HLS 转码完成
 
-        POST /api/v1/business/internal/storage/files/{file_id}/hls-ready
+        POST business/internal/storage/files/{file_id}/hls-ready
 
         Args:
             file_id: 文件 ID
@@ -456,7 +550,7 @@ class BusinessServiceClient:
         """
         获取上传会话详情
 
-        GET /api/v1/business/internal/storage/uploads/{uploads_id}
+        GET business/internal/storage/uploads/{uploads_id}
 
         Args:
             uploads_id: 上传会话 ID
@@ -482,7 +576,7 @@ class BusinessServiceClient:
         """
         获取分片上传状态
 
-        GET /api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}
+        GET business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}
 
         Args:
             uploads_id: 上传会话 ID
@@ -507,7 +601,7 @@ class BusinessServiceClient:
         """
         通知业务服务：分片上传完成
 
-        POST /api/v1/business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete
+        POST business/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete
 
         Args:
             uploads_id: 上传会话 ID
@@ -531,7 +625,7 @@ class BusinessServiceClient:
         """
         合并上传分片
 
-        POST /api/v1/business/internal/storage/uploads/{uploads_id}/merge
+        POST business/internal/storage/uploads/{uploads_id}/merge
 
         Args:
             uploads_id: 上传会话 ID
@@ -546,30 +640,22 @@ class BusinessServiceClient:
         logger.info("合并上传分片: uploads_id=%s", uploads_id)
         return await self._post(path)
 
-    async def mark_upload_merging(self, uploads_id: str) -> dict[str, Any]:
-        """
-        标记上传会话为「合并中」状态（逻辑锁）
-
-        POST /api/v1/business/internal/storage/uploads/{uploads_id}/merging
-
-        Args:
-            uploads_id: 上传会话 ID
-
-        Returns:
-            {"code": 200, "data": file_id} 或 {"code": !200, ...}
-
-        Raises:
-            BusinessServiceError: 标记失败或服务不可用
-        """
-        path = BusinessServicePaths.UPLOAD_MERGING.format(uploads_id=uploads_id)
-        logger.info("标记上传合并中: uploads_id=%s", uploads_id)
-        return await self._post(path)
+    async def cleanup_upload_session_after_merge(self, uploads_id: str) -> bool:
+        """分块清理完成后删除已完成上传会话及分块元数据，不触发配额回滚。"""
+        path = BusinessServicePaths.UPLOAD_MERGE_CLEANUP.format(uploads_id=uploads_id)
+        logger.info("通知业务服务清理已完成上传会话: uploads_id=%s", uploads_id)
+        try:
+            await self._post(path)
+            return True
+        except BusinessServiceError as e:
+            logger.error("清理上传会话失败: uploads_id=%s, error=%s", uploads_id, e)
+            return False
 
     async def notify_upload_delete_complete(self, uploads_id: str) -> bool:
         """
         通知业务服务：上传会话删除完成
 
-        POST /api/v1/business/internal/storage/uploads/{uploads_id}/delete-complete
+        POST business/internal/storage/uploads/{uploads_id}/delete-complete
 
         Args:
             uploads_id: 上传会话 ID

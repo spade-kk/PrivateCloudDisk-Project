@@ -1,0 +1,94 @@
+workflow "weekly_sales_report" {
+    metadata {
+        display_name = "销售周报"
+        description = "每周一自动生成销售周报"
+        version = "1.0"
+    }
+    trigger {
+        schedule {
+            cron = "0 8 * * 1"
+            timezone = "Asia/Shanghai"
+        }
+    }
+    runtime {
+        timeout = 30m
+        max_parallel = 4
+        retry_policy {
+            max_attempts = 3
+            strategy = "exponential"
+        }
+    }
+    variables {
+        sales_node_id = input.string(required = true)
+        template_file_id = input.string(required = true)
+        report_node_id = input.string(required = true)
+    }
+    step collect_files {
+        name = "收集销售文件"
+        action file.list {
+            node = vars.sales_node_id
+            filter { extension = "xlsx" }
+        }
+        output excel_files
+    }
+    step aggregate_data {
+        name = "销售数据统计"
+        depends_on collect_files
+        action data.aggregate_excel {
+            input { files = collect_files.output }
+            group_by = "region"
+            metrics { sum("sales") average("profit") }
+        }
+        output report_data
+    }
+    step generate_report {
+        name = "生成销售报告"
+        depends_on aggregate_data
+        condition { aggregate_data.output.row_count > 0 }
+        action plugin {
+            id = "8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7"
+            function = "generate_report"
+            version = "1"
+            input { data = aggregate_data.output template = vars.template_file_id }
+        }
+        retry { max_attempts = 2 backoff = exponential }
+        output report_file
+    }
+    step save_report {
+        name = "保存报告"
+        depends_on generate_report
+        action file.s {
+            source = generate_report.output.file_id
+            target = vars.report_node_id
+        }    if report_data.total_sales > 100000 {
+
+
+        step approve {
+
+
+            action approval.request {
+
+                users=[
+                    "manager"
+                ]
+
+            }
+
+        }
+
+
+    }
+    }
+
+    on_failure {
+        step notify_failure {
+            action notification.send {
+                channel = "user"
+                title = "销售周报生成失败"
+                message = "失败步骤：${workflow.failed_step}"
+            }
+        }
+    } 
+    a { step {} h{ h = 9 }  }
+    
+}

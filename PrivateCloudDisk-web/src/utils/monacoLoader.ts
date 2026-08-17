@@ -15,10 +15,17 @@
 //   const editor = monaco.editor.create(container, { ... })
 // ============================================================
 
+/*
+ * 插件生态 Sprint 0 改动说明：
+ * 原行为从 CDN 注入 AMD loader，在网络受限或 Content-Type/nosniff 配置异常时会永久加载。
+ * 新行为使用 Vite 打包的本地 ESM 与独立 Worker；下方原 CDN 辅助代码保留作历史回溯，
+ * loadMonaco 已不再调用任何 CDN 地址。
+ */
 // CDN 配置 — 使用 jsdelivr CDN，与 index.html 中预连接的域名保持一致
 // 如需切换 CDN（如 unpkg/cdnjs），只需修改以下常量
-const MONACO_CDN_VERSION = '0.55.1'
-const MONACO_CDN_BASE = `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_CDN_VERSION}/min/vs`
+const MONACO_CDN_VERSION = '0.56.0'
+// Sprint 0 安全基线：保持原常量名以降低现有组件改动面，但资源已改为同源自托管。
+const MONACO_CDN_BASE = '/vendor/monaco/vs'
 const MONACO_LOADER_URL = `${MONACO_CDN_BASE}/loader.js`
 
 // 加载超时（毫秒）— 首次加载 Monaco 主体 + 语言 Workers 需要较长时间
@@ -35,6 +42,7 @@ interface AMDRequire {
 
 // 单例 Promise — 保证多组件并发调用 loadMonaco 只触发一次 CDN 加载
 let monacoLoadPromise: Promise<typeof import('monaco-editor')> | null = null
+let loadedMonaco: typeof import('monaco-editor') | null = null
 
 /**
  * 动态注入 <script> 标签加载 JS 资源
@@ -86,11 +94,8 @@ function setupMonacoEnvironment(): void {
      * 使用 data: URI 创建代理脚本，再通过 importScripts 引入 CDN Worker
      */
     getWorkerUrl(_workerId: string, _label: string): string {
-      const workerProxy = `
-        self.MonacoEnvironment = { baseUrl: '${MONACO_CDN_BASE}/' };
-        importScripts('${MONACO_CDN_BASE}/base/worker/workerMain.js');
-      `
-      return `data:text/javascript;charset=utf-8,${encodeURIComponent(workerProxy)}`
+      // 资源与页面同源，直接返回 Worker 入口，兼容严格 CSP 且无需 data/blob 代理。
+      return `${MONACO_CDN_BASE}/base/worker/workerMain.js`
     },
   }
 }
@@ -171,17 +176,20 @@ function loadMonacoFromCDN(): Promise<typeof import('monaco-editor')> {
  * const editor = monaco.editor.create(container, { language: 'typescript' })
  */
 export function loadMonaco(): Promise<typeof import('monaco-editor')> {
-  // 已加载则直接返回全局 monaco
-  if (window.monaco) {
-    return Promise.resolve(window.monaco)
+  // 已加载则直接返回本地 ESM 实例
+  if (loadedMonaco) {
+    return Promise.resolve(loadedMonaco)
   }
 
-  // 单例 Promise：避免并发调用触发重复加载
+  // 单例 Promise：避免并发调用触发重复打包模块初始化
   if (!monacoLoadPromise) {
     monacoLoadPromise = withTimeout(
-      loadMonacoFromCDN(),
+      loadMonacoFromCDN().then((monaco) => {
+        loadedMonaco = monaco
+        return monaco
+      }),
       MONACO_LOAD_TIMEOUT,
-      `Monaco Editor 加载超时（${MONACO_LOAD_TIMEOUT / 1000}s）— 请检查网络连接`
+      `Monaco Editor 初始化超时（${MONACO_LOAD_TIMEOUT / 1000}s）`
     ).catch((err) => {
       // 加载失败时清空单例，允许后续重试
       monacoLoadPromise = null
@@ -208,7 +216,7 @@ export function preloadMonaco(): void {
  * 若尚未加载则返回 null
  */
 export function getMonacoSync(): typeof import('monaco-editor') | null {
-  return window.monaco ?? null
+  return loadedMonaco
 }
 
 /**

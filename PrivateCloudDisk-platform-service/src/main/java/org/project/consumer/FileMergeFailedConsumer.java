@@ -4,7 +4,9 @@ import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
+import org.project.context.SpaceContextHolder;
 import org.project.model.dto.message.FileMergeFailedEvent;
+import org.project.service.SpacePermissionService;
 import org.project.service.UserQuotaService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
@@ -35,6 +37,7 @@ public class FileMergeFailedConsumer {
     private static final long IDEMPOTENT_TTL_HOURS = 72;
 
     private final UserQuotaService userQuotaService;
+    private final SpacePermissionService spacePermissionService;
     private final RedisTemplate<String, String> redisTemplate;
 
     @RabbitListener(queues = RabbitMQConifgure.QUEUE_FILE_MERGE_FAILED,
@@ -42,8 +45,8 @@ public class FileMergeFailedConsumer {
     public void handleFileMergeFailed(FileMergeFailedEvent event,
                                        Channel channel,
                                        @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
-        log.info("收到文件合并失败事件: eventId={}, fileId={}, fileName={}, fileSize={}, reason={}",
-                event.getEventId(), event.getFileId(), event.getFileName(),
+        log.info("收到文件合并失败事件: eventId={}, spaceId={}, fileId={}, fileName={}, fileSize={}, reason={}",
+                event.getEventId(), event.getSpaceId(), event.getFileId(), event.getFileName(),
                 event.getFileSize(), event.getFailReason());
 
         try {
@@ -58,7 +61,16 @@ public class FileMergeFailedConsumer {
             }
 
             UUID userId = UUID.fromString(event.getUserId());
-            userQuotaService.rollbackQuota(userId, event.getFileSize());
+            /*
+             * 空间管理能力全量集成（需求五-9/10）：
+             * 原失败事件只按 userId 回滚个人配额；新事件恢复 spaceId 后复用同一配额服务。
+             */
+            SpaceContextHolder.set(spacePermissionService.resolveContext(userId, event.getSpaceId()));
+            try {
+                userQuotaService.rollbackQuota(userId, event.getFileSize());
+            } finally {
+                SpaceContextHolder.clear();
+            }
 
             log.info("文件合并失败事件处理完成（配额已回滚）: eventId={}, fileId={}, reason={}",
                     event.getEventId(), event.getFileId(), event.getFailReason());

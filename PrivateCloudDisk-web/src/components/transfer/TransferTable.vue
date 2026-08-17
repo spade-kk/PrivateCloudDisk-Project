@@ -7,7 +7,8 @@
         <div class="col-span-1">类型</div>
         <div class="col-span-1">大小</div>
         <div class="col-span-1">时间</div>
-        <div class="col-span-4">进度 / 状态</div>
+        <div class="col-span-3">进度 / 状态</div>
+        <div class="col-span-1 text-right">操作</div>
       </div>
       <div v-for="record in records" :key="record.id" class="grid grid-cols-12 items-center border-b px-4 py-3 text-sm transition hover:bg-neutral-50/60">
         <!-- 文件名 -->
@@ -30,7 +31,7 @@
           {{ formatRelativeTime(record.startTime) }}
         </div>
         <!-- 进度 / 状态 -->
-        <div class="col-span-4">
+        <div class="col-span-3">
           <!-- 上传/下载进度 -->
           <div v-if="record.status === 'uploading' || record.status === 'downloading'" class="flex items-center gap-3">
             <div class="h-1.5 flex-1 rounded-full bg-neutral-200 overflow-hidden min-w-0">
@@ -64,6 +65,17 @@
           <span v-else-if="record.status === 'cancelled'" class="inline-flex items-center gap-1 text-xs font-medium text-neutral-400">
             <i class="fa fa-ban"></i>已取消
           </span>
+        </div>
+        <div class="col-span-1 text-right">
+          <button
+            v-if="canRetry(record)"
+            type="button"
+            class="retry-button"
+            title="重新上传（从头开始）"
+            @click="retry(record.id)"
+          >
+            <i class="fa fa-refresh mr-1"></i>重试
+          </button>
         </div>
       </div>
     </div>
@@ -111,6 +123,15 @@
             <span v-else class="inline-flex items-center gap-1 text-xs font-medium text-neutral-400 mt-1">
               <i class="fa fa-ban"></i>已取消
             </span>
+            <button
+              v-if="canRetry(record)"
+              type="button"
+              class="retry-button mt-2"
+              title="重新上传（从头开始）"
+              @click="retry(record.id)"
+            >
+              <i class="fa fa-refresh mr-1"></i>重试上传
+            </button>
           </div>
         </div>
       </div>
@@ -119,20 +140,31 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { formatFileSize } from '@/utils/helpers'
+import { useTransferStore, type TransferRecord } from '@/stores/transferStore'
 
-defineProps({
-  records: { type: Array, default: () => [] },
-})
+const props = defineProps<{ records: TransferRecord[] }>()
+const records = computed(() => props.records)
 
-function typeIconClass(record) {
+const transferStore = useTransferStore()
+
+function canRetry(record: TransferRecord): boolean {
+  return record.type === 'upload' && record.status === 'failed'
+}
+
+function retry(id: number): void {
+  void transferStore.retryRecord(id)
+}
+
+function typeIconClass(record: TransferRecord): string {
   if (record.status === 'completed') return 'icon-completed'
   if (record.status === 'failed' || record.status === 'cancelled') return 'icon-error'
   if (record.status === 'processing') return 'icon-processing'
   return record.type === 'upload' ? 'icon-upload' : 'icon-download'
 }
 
-function formatRelativeTime(timestamp) {
+function formatRelativeTime(timestamp: number): string {
   if (!timestamp) return '--'
   const now = Date.now()
   const diff = now - timestamp
@@ -169,4 +201,10 @@ function formatRelativeTime(timestamp) {
 .icon-processing { background: #fffbeb; color: #f59e0b; }
 .icon-completed { background: #f0fdf4; color: #22c55e; }
 .icon-error { background: #fef2f2; color: #ef4444; }
+.retry-button {
+  color: #165dff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.retry-button:hover { color: #0f46c9; text-decoration: underline; }
 </style>

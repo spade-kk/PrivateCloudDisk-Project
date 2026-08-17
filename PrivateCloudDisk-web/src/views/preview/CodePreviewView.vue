@@ -217,7 +217,7 @@ const loadFileContent = async (): Promise<void> => {
 
   try {
     // 1. 获取文件元数据
-    const fileInfoRes = await getFileInfoApi(fileId.value)
+    const fileInfoRes = await getFileInfoApi(fileId.value, String(route.query.space || '') || undefined)
     const fileInfo = fileInfoRes.data || fileInfoRes
     if (fileInfo) {
       fileName.value = fileInfo.file_name || fileInfo.node_name || fileName.value
@@ -229,7 +229,7 @@ const loadFileContent = async (): Promise<void> => {
      * 原行为复用下载授权与下载接口，可能产生错误的下载审计；
      * 新行为由共享工具完成 Preview Token 申请、源内容读取和释放。
      */
-    const blob = await fetchPreviewContentBlob(fileId.value)
+    const blob = await fetchPreviewContentBlob(fileId.value, String(route.query.space || '') || undefined)
 
     // 4. 将 Blob 转换为文本
     const text = await blobToText(blob)

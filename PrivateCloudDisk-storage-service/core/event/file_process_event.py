@@ -24,9 +24,14 @@ class FileDeleteEvent:
     thumbnail_paths: list = field(default_factory=list)
     transcoded_paths: list = field(default_factory=list)
     user_id: str = ""
+    space_id: str = ""            # 需求五-9：永久删除必须限定文件和派生资源所属空间
     retry_count: int = 0
     failure_reason: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def __post_init__(self):
+        if not self.message_id:
+            self.message_id = f"delete:{self.file_id}:{self.space_id or 'personal'}"
 
     @classmethod
     def from_dict(cls, data: dict) -> "FileDeleteEvent":

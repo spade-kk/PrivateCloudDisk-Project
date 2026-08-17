@@ -161,7 +161,7 @@ async def complete_uploads_internal(
     1. 调用业务服务验证上传会话
     2. 验证用户身份匹配
     3. 验证会话状态为 uploading
-    4. 提交合并状态申请（逻辑锁防止并发）
+    4. 调用业务服务完成会话边界校验并将上传会话置为 completed
     5. 生成任务ID并初始化任务状态
     6. 发送合并任务消息到消息队列
     7. 返回任务ID供客户端查询进度
@@ -233,13 +233,14 @@ async def complete_uploads_internal(
             detail="会话状态错误"
         )
     
-    # 2. 提交合并状态申请（逻辑锁，通过 SDK 异步调用）
-    merging_result = await business_service_client.mark_upload_merging(uploads_id)
+    # 2. 完成上传会话边界：业务服务校验分块并将会话置为 completed。
+    # REQ-UPLOAD-SESSION-STATE-2026-07：不再存在“合并中”会话状态，后续只由后台任务跟踪文件状态。
+    merging_result = await business_service_client.merge_upload(uploads_id)
 
     if merging_result["code"] != 200:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="合并状态申请失败"
+            detail="上传会话完成申请失败"
         )
 
     file_id = merging_result["data"]
@@ -252,6 +253,8 @@ async def complete_uploads_internal(
     total_chunks = upload_session.get("total_chunks")
     file_checksum = upload_session.get("file_checksum")
     node_id = upload_session.get("node_id")
+    space_id = upload_session.get("space_id") or upload_session.get("uploads_space_id") or ""
+    space_type = upload_session.get("space_type") or ""
 
     # 4. 生成后台任务 ID（整个文件后台处理流水线共享同一个 backend_task_id）
     from core.event.file_backend_event import FileBackendEvent
@@ -268,12 +271,15 @@ async def complete_uploads_internal(
         "user_id": user_id,
         "file_name": file_name,
         "uploads_id": uploads_id,
+        "space_id": space_id,
+        "space_type": space_type,
         "created_at": now_iso,
         "updated_at": now_iso,
     })
     await redis_client.expire(master_key, MASTER_TASK_TTL)
 
-    # 6. 发送合并任务消息到后台处理交换机
+    # REQ-WORKER-TASKBUS-2026-07：恢复原有任务总线编排。合并入口发布 merge task 到 backend
+    # exchange，后续阶段由 Backend Consumer 按任务 routing key 继续投递；业务数据和处理逻辑不变。
     merge_event = FileBackendEvent(
         backend_task_id=backend_task_id,
         stage=TaskTypes.MERGE,
@@ -286,7 +292,11 @@ async def complete_uploads_internal(
         uploads_id=uploads_id,
         total_chunks=total_chunks,
         file_checksum=file_checksum,
+        # 内容预处理仍使用独立的候选摘要校验；Task Bus 只改变消息编排，不改变该安全字段。
+        upload_checksum=file_checksum,
         node_id=node_id,
+        space_id=space_id,
+        space_type=space_type,
     )
 
     await rabbitmq_service.publish_message(

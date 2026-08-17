@@ -53,6 +53,11 @@ public interface ShareLinkMapper {
      */
     int updateShare(ShareLinkEntity share);
 
+    /** 更新分享是否允许获取实际文件内容。 */
+    int updateShareDownloadPermission(@Param("share_id") UUID shareId,
+                                      @Param("owner_id") UUID ownerId,
+                                      @Param("allow_download") boolean allowDownload);
+
     /**
      * 删除指定候选集合中已不包含任何资源的分享链接。
      *

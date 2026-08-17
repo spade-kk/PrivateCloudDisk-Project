@@ -67,6 +67,8 @@ FILE_BASIC_INDEX_BODY = {
             "user_id": {"type": "keyword"},
             "node_id": {"type": "keyword"},
             "tenant_id": {"type": "keyword"},
+            # 需求五-9：空间维度用于服务端过滤，避免协作空间全文检索串读。
+            "space_id": {"type": "keyword"},
 
             # === 文件名（多字段索引，支持多种搜索方式） ===
             "filename": {
@@ -231,6 +233,8 @@ FILE_CONTENT_INDEX_BODY = {
             "user_id": {"type": "keyword"},
             "node_id": {"type": "keyword"},
             "tenant_id": {"type": "keyword"},
+            # 需求五-9：与基础索引保持同一空间字段，支持双索引联合过滤。
+            "space_id": {"type": "keyword"},
 
             "filename": {
                 "type": "text",

@@ -1,0 +1,62 @@
+server:
+  port: ${SERVER_PORT:8087}
+  shutdown: graceful
+
+spring:
+  application:
+    name: PrivateCloudDisk-workflow-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${WORKFLOW_DATASOURCE_URL:jdbc:mysql://localhost:3306/pcd_workflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${WORKFLOW_DATASOURCE_USERNAME:root}
+    # [SEC-CONFIG-001] 密码只能由部署环境注入，禁止在源码默认值中保留开发凭证。
+    password: ${WORKFLOW_DATASOURCE_PASSWORD:20070315mwz}
+    hikari:
+      maximum-pool-size: ${WORKFLOW_DB_POOL_MAX:12}
+      minimum-idle: ${WORKFLOW_DB_POOL_MIN:2}
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+  task:
+    scheduling:
+      pool:
+        size: ${WORKFLOW_SCHEDULING_POOL_SIZE:2}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 8
+        default-requeue-rejected: false
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pcd:
+  platform-url: ${PLATFORM_SERVICE_URL:http://localhost:8081}
+  plugin-service-url: ${PLUGIN_SERVICE_URL:http://localhost:8085}
+  plugin-runtime-url: ${PLUGIN_RUNTIME_URL:http://localhost:8090}
+  cloudflow-runtime-url: ${CLOUDFLOW_RUNTIME_URL:http://localhost:8091}
+  scheduler-url: ${SCHEDULER_SERVICE_URL:http://localhost:8088}
+  internal-service-token: ${PCD_INTERNAL_SERVICE_TOKEN:test}
+  worker:
+    enabled: ${WORKFLOW_WORKER_ENABLED:true}
+    poll-delay-ms: ${WORKFLOW_WORKER_POLL_DELAY_MS:1000}
+    stale-seconds: ${WORKFLOW_WORKER_STALE_SECONDS:180}
+    max-step-output-bytes: ${WORKFLOW_MAX_STEP_OUTPUT_BYTES:16384}

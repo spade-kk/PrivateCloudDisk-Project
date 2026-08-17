@@ -1,6 +1,6 @@
 # PrivateCloudDisk-infra
 
-企业级私有云盘基础设施配置，包含所有中间件的 Docker 镜像构建、配置文件和数据初始化脚本。通过 Docker Compose 统一编排管理。
+PrivateCloudDisk 基础设施目录，提供 Docker Compose 所需的数据库、缓存、消息、对象存储、搜索和观测组件镜像与配置。服务是否启用、端口、账号和持久化策略以根目录 `docker-compose.yml` 与环境变量为准。
 
 ---
 
@@ -14,20 +14,9 @@
 | **MinIO** | latest | 9000, 9001 | 对象存储 (S3 兼容) |
 | **OpenSearch** | 2.10 | 9200 | 全文检索引擎 |
 | **OpenSearch Dashboards** | 2.10 | 5601 | 可视化查询界面 |
-| **Nacos** | latest | 8848 | 服务发现 + 配置中心 |
-| **Sentinel** | latest | 8080 | 流量控制 + 熔断降级 |
-| **Seata** | latest | 8091 | 分布式事务 |
-| **Canal** | latest | 11111 | MySQL Binlog 同步 |
-| **APISIX** | latest | 9080 | API 网关 (可选，生产环境) |
-| **Elasticsearch** | 7.x | 9200 | 日志存储 (可选) |
-| **Kibana** | 7.x | 5601 | 日志可视化 (可选) |
-| **Logstash** | 7.x | 5044 | 日志采集 (可选) |
-| **Grafana** | latest | 3000 | 监控可视化 |
-| **Prometheus** | latest | 9090 | 指标采集 |
-| **Loki** | latest | 3100 | 日志聚合 |
-| **SkyWalking** | latest | 11800, 12800 | 分布式链路追踪 |
-| **SkyWalking UI** | latest | 8080 | 链路追踪可视化 |
-| **XXL-Job** | latest | 8080 | 分布式任务调度 |
+| **Grafana** | 按配置 | 3000 | 监控可视化 |
+| **Prometheus** | 按配置 | 9090 | 指标采集 |
+| **SkyWalking** | 按配置 | 11800, 12800 | 分布式链路追踪 |
 
 ---
 
@@ -52,42 +41,14 @@ PrivateCloudDisk-infra/
 ├── opensearch-dashboards/
 │   ├── Dockerfile
 │   └── opensearch_dashboards.yml
-├── nacos/
-│   └── Dockerfile
-├── sentinel/
-│   └── Dockerfile
-├── seata/
-│   ├── Dockerfile
-│   ├── application.yml
-│   └── seata_init.sql
-├── canal/
-│   ├── Dockerfile
-│   └── canal.properties
-├── apisix/
-│   ├── Dockerfile
-│   ├── apisix.yaml
-│   └── config.yaml
-├── elasticsearch/
-│   └── Dockerfile
-├── kibana/
-│   └── Dockerfile
-├── logstash/
-│   └── logstash.conf
 ├── grafana/
 │   └── datasources.yml
 ├── prometheus/
 │   ├── prometheus.yml
 │   └── alert_rules.yml
-├── loki/
-│   └── loki-config.yaml
 ├── skywalking/
 │   ├── Dockerfile
 │   └── agent.config
-├── skywalking-ui/
-│   └── Dockerfile
-├── xxl-job/
-│   ├── Dockerfile
-│   └── xxl_job_init.sql
 └── README.md
 ```
 

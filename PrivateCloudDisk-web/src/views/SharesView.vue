@@ -4,6 +4,7 @@
       <div>
         <h1 class="text-xl font-bold sm:text-2xl">分享管理</h1>
         <p class="mt-1 text-sm text-neutral-500">管理您创建的所有分享链接</p>
+        <CurrentSpaceBadge class="mt-2" />
       </div>
       <button
         @click="showCreateDialog = true"
@@ -234,11 +235,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import ShareLinkItem from '@/components/share/ShareLinkItem.vue'
 import CreateShareDialog from '@/components/share/CreateShareDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useShareStore } from '@/stores/shareStore'
+import { useSpaceStore } from '@/stores/spaceStore'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 import {
   getShareDetailApi,
   updateSharePasswordApi,
@@ -250,6 +253,7 @@ import {
 } from '@/api/modules/shares'
 
 const shareStore = useShareStore()
+const spaceStore = useSpaceStore()
 const showCreateDialog = ref(false)
 
 // 详情弹窗
@@ -328,5 +332,11 @@ const cancelEditPassword = () => {
 
 onMounted(() => {
   shareStore.fetchMyShares()
+})
+
+watch(() => spaceStore.revision, () => {
+  showDetailDialog.value = false
+  detailData.value = null
+  void shareStore.fetchMyShares()
 })
 </script>

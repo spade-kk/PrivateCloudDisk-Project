@@ -1,6 +1,9 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
-    <h1 class="text-xl font-bold sm:text-2xl">回收站</h1>
+    <div>
+      <h1 class="text-xl font-bold sm:text-2xl">回收站</h1>
+      <CurrentSpaceBadge class="mt-2" />
+    </div>
     <div v-if="loading" class="flex justify-center py-10"><LoadingSpinner /></div>
     <div v-else-if="items.length === 0" class="responsive-panel p-8 text-center text-neutral-400 sm:p-10">
       <i class="fa fa-trash text-4xl mb-2"></i><p>回收站为空</p>
@@ -18,12 +21,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import TrashItem from '@/components/trash/TrashItem.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useTrashStore } from '@/stores/trashStore'
+import { useSpaceStore } from '@/stores/spaceStore'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 
 const trashStore = useTrashStore()
+const spaceStore = useSpaceStore()
 const items = ref([])
 const loading = ref(false)
 
@@ -38,4 +44,5 @@ const loadTrash = async () => {
 const restoreItem = async (trashId) => { await trashStore.restore(trashId); await loadTrash() }
 const deletePermanently = async (trashId) => { await trashStore.permanentDelete(trashId); await loadTrash() }
 onMounted(loadTrash)
+watch(() => spaceStore.revision, () => void loadTrash())
 </script>

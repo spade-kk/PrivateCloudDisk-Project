@@ -1,6 +1,6 @@
 # PrivateCloudDisk-admin-web
 
-企业级私有云盘后台管理系统前端，基于 React 19 + TypeScript + Ant Design 6 构建，提供超级管理员后台管理功能。
+管理端前端，基于 React 19 + TypeScript + Ant Design 6 构建，用于按后端权限开放用户、空间、文件和系统管理能力。实际菜单和接口以当前代码与 Gateway 路由为准。
 
 ---
 
@@ -126,6 +126,6 @@ npm run preview
 
 | 账号 | 密码 | 角色 |
 |------|------|------|
-| `superadmin` | `admin123` | SUPER_ADMIN |
+| 管理员账户 | 不在文档中固化默认密码 | 由部署初始化与权限配置决定 |
 
 > 密码经过前端 PBKDF2 预哈希 + 后端 BCrypt 二次加密存储。如需创建新管理员，请使用 `scripts/generate_admin_password.py` 生成密码哈希。详见 [scripts/README.md](../scripts/README.md)。

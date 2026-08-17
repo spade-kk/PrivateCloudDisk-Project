@@ -8,7 +8,9 @@
         <id column="share_resource_id" property="share_resource_id"
             typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="share_id" property="share_id"
-            typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+                typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="space_id" property="space_id"
+                typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="resource_type" property="resource_type"/>
         <result column="file_id" property="file_id"
             typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
@@ -22,7 +24,7 @@
     </resultMap>
 
     <!--
-        AUDIT FIX [3.1] 分享资源查询统一采用文件节点的有效状态。
+        分享资源查询统一采用文件节点的有效状态。
         原行为会把回收站、软删除或位于已删除祖先目录下的资源暴露给公开分享；
         新行为仅隐藏关联，不删除分享数据，恢复文件后无需重建分享。
     -->
@@ -60,12 +62,13 @@
 
     <insert id="insertBatch" parameterType="list">
         INSERT INTO pcd_share_resource_table (
-            share_resource_id, share_id, resource_type, file_id, node_id
+            share_resource_id, share_id, space_id, resource_type, file_id, node_id
         ) VALUES
         <foreach collection="resources" item="item" separator=",">
         (
             #{item.share_resource_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{item.share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{item.space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{item.resource_type},
             #{item.file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{item.node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
@@ -79,6 +82,7 @@
         SELECT
             r.share_resource_id,
             r.share_id,
+            r.space_id,
             r.resource_type,
             r.file_id,
             r.node_id,
@@ -88,9 +92,13 @@
             f.file_type AS file_type
         FROM pcd_share_resource_table r
         LEFT JOIN pcd_file_info_table f
-            ON r.file_id = f.file_id AND r.resource_type = 'file'
+            ON r.file_id = f.file_id
+            AND r.resource_type = 'file'
+            AND (r.space_id = f.file_space_id OR (r.space_id IS NULL AND f.file_space_id IS NULL))
         LEFT JOIN pcd_directory_tree_table d
-            ON r.node_id = d.node_id AND r.resource_type = 'folder'
+            ON r.node_id = d.node_id
+            AND r.resource_type = 'folder'
+            AND (r.space_id = d.node_space_id OR (r.space_id IS NULL AND d.node_space_id IS NULL))
         WHERE r.share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND (<include refid="VisibleShareResourcePredicate"/>)
         ORDER BY r.created_at ASC
@@ -100,6 +108,7 @@
         SELECT
             r.share_resource_id,
             r.share_id,
+            r.space_id,
             r.resource_type,
             r.file_id,
             r.node_id,
@@ -109,11 +118,83 @@
             f.file_type AS file_type
         FROM pcd_share_resource_table r
         LEFT JOIN pcd_file_info_table f
-            ON r.file_id = f.file_id AND r.resource_type = 'file'
+            ON r.file_id = f.file_id
+            AND r.resource_type = 'file'
+            AND (r.space_id = f.file_space_id OR (r.space_id IS NULL AND f.file_space_id IS NULL))
         LEFT JOIN pcd_directory_tree_table d
-            ON r.node_id = d.node_id AND r.resource_type = 'folder'
+            ON r.node_id = d.node_id
+            AND r.resource_type = 'folder'
+            AND (r.space_id = d.node_space_id OR (r.space_id IS NULL AND d.node_space_id IS NULL))
         WHERE r.share_resource_id = #{share_resource_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND (<include refid="VisibleShareResourcePredicate"/>)
+    </select>
+
+    <!--
+        需求二-1/三-4：虚拟 share_resource_id 解码后必须再次确认文件属于当前分享。
+        直接文件和文件夹后代均受 share_id + space_id 双重边界约束，防止仅凭
+        加密虚拟 ID 猜测/复用其他分享中的文件。
+    -->
+    <select id="countFileInShare" resultType="int">
+        SELECT COUNT(1)
+        FROM pcd_file_info_table f
+        WHERE f.file_id = #{file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (f.file_space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL AND f.file_space_id IS NULL))
+          AND f.file_status = 'active'
+          AND EXISTS (
+              SELECT 1
+              FROM pcd_share_resource_table r
+              WHERE r.share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                AND (r.space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                     OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL AND r.space_id IS NULL))
+                AND (
+                    (r.resource_type = 'file' AND r.file_id = f.file_id)
+                    OR (
+                        r.resource_type = 'folder'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM pcd_directory_closure_table c
+                            WHERE c.ancestor_id = r.node_id
+                              AND c.descendant_id = f.file_node_id
+                              AND (c.closure_space_id = r.space_id
+                                   OR (r.space_id IS NULL AND c.closure_space_id IS NULL))
+                        )
+                    )
+                )
+          )
+    </select>
+
+    <!--
+        虚拟文件夹 ID 也必须校验分享范围。
+        仅解密出 node_id 并检查空间仍不足以证明它是该分享的根目录后代；
+        这里使用目录闭包表绑定 share_id + space_id + owner_id。
+    -->
+    <select id="countNodeInShare" resultType="int">
+        SELECT COUNT(1)
+        FROM pcd_directory_tree_table d
+        WHERE d.node_id = #{node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND d.node_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND d.node_status NOT IN ('trashed', 'deleted')
+          AND EXISTS (
+              SELECT 1
+              FROM pcd_share_resource_table r
+              WHERE r.share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                AND r.resource_type = 'folder'
+                AND (r.space_id = #{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+                     OR (#{space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+                         AND r.space_id IS NULL))
+                AND (
+                    r.node_id = d.node_id
+                    OR EXISTS (
+                        SELECT 1
+                        FROM pcd_directory_closure_table c
+                        WHERE c.ancestor_id = r.node_id
+                          AND c.descendant_id = d.node_id
+                          AND (c.closure_space_id = r.space_id
+                               OR (r.space_id IS NULL AND c.closure_space_id IS NULL))
+                    )
+                )
+          )
     </select>
 
     <!-- ==================== 删除 ==================== -->

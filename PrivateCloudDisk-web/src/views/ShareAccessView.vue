@@ -224,8 +224,8 @@
                           v-for="item in currentList"
                           :key="getItemId(item)"
                           :class="{ 'folder-row': isFolderItem(item) }"
-                          @click="isFolderItem(item) && handleItemClick(item)"
-                          @keydown.enter="isFolderItem(item) && handleItemClick(item)"
+                          @click="isFolderItem(item) ? handleItemClick(item) : previewSharedFileItem(getItemId(item))"
+                          @keydown.enter="isFolderItem(item) ? handleItemClick(item) : previewSharedFileItem(getItemId(item))"
                         >
                           <td data-label="名称">
                             <div class="file-name-cell">
@@ -309,9 +309,12 @@ import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
 import { resolveShareBreadcrumb, type ShareBreadcrumbItem, type ShareDirectoryChild } from '@/utils/shareNavigation'
 import {
+  createShareDownloadGrantApi,
+  createSharePreviewGrantApi,
   formatFileSize,
   getShareContentApi,
-  getSharedFileDownloadApi,
+  getShareDownloadContentApi,
+  getSharePreviewContentApi,
   getSharedFolderChildrenApi,
   getShareInfoApi,
   validatePassword,
@@ -320,6 +323,8 @@ import {
   type ShareContentItem,
   type ShareResourceVO,
 } from '@/api/modules/shares'
+import { releaseDownloadGrantApi } from '@/api/modules/downloads'
+import { releasePreviewGrantApi } from '@/api/modules/previewContent'
 
 type ShareListItem = ShareResourceVO | ShareContentItem
 
@@ -665,14 +670,33 @@ async function navigateIntoChildFolder(item: ShareDirectoryChild) {
 
 async function downloadSharedFileItem(shareResourceId: string, retried = false) {
   if (downloadingId.value) return
+  if (!authStore.isLoggedIn) {
+    toastStore.showToast('下载分享文件前请先登录', 'info', 3500)
+    await router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (shareInfo.value?.allow_download === false) {
+    toastStore.showToast('分享者已关闭下载，仅可浏览目录和文件信息', 'info', 4000)
+    return
+  }
   downloadingId.value = shareResourceId
+  let downloadGrant = ''
   try {
-    const response = await getSharedFileDownloadApi(shareToken, shareResourceId, accessToken.value)
-    const payload = response?.data || response
-    const url = payload?.download_url || payload?.storage_path
-    if (!url) throw new Error('下载地址不可用')
-    const opened = window.open(url, '_blank', 'noopener,noreferrer')
-    if (opened) opened.opener = null
+    const grantResponse = await createShareDownloadGrantApi(shareToken, shareResourceId, accessToken.value)
+    if (grantResponse.code !== 200 || !grantResponse.data?.download_grant) {
+      throw new Error(grantResponse.message || '无法获取下载授权')
+    }
+    downloadGrant = grantResponse.data.download_grant
+    const content = await getShareDownloadContentApi(shareToken, shareResourceId, downloadGrant)
+    const blobUrl = URL.createObjectURL(content instanceof Blob ? content : new Blob([content as any]))
+    const anchor = document.createElement('a')
+    anchor.href = blobUrl
+    anchor.download = grantResponse.data.file_name || 'download'
+    anchor.rel = 'noopener'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
     toastStore.showToast('已开始下载文件', 'success')
   } catch (error) {
     if (!retried && isTokenExpiredError(error)) {
@@ -683,7 +707,48 @@ async function downloadSharedFileItem(shareResourceId: string, retried = false) 
     }
     toastStore.showToast(getReadableError(error, '下载失败，请稍后重试'), 'error', 4500)
   } finally {
+    if (downloadGrant) await releaseDownloadGrantApi(downloadGrant).catch(() => undefined)
     downloadingId.value = ''
+  }
+}
+
+/**
+ * 需求 2.1/2.2：文件行点击使用分享专用 Preview Grant，避免旧接口返回 storage_path。
+ * 预览失败不会影响目录浏览或下载流程，用户可再次点击重试。
+ */
+async function previewSharedFileItem(shareResourceId: string, retried = false) {
+  if (!authStore.isLoggedIn) {
+    toastStore.showToast('在线预览分享文件前请先登录', 'info', 3500)
+    await router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  const opened = window.open('', '_blank', 'noopener,noreferrer')
+  let previewGrant = ''
+  try {
+    const grantResponse = await createSharePreviewGrantApi(shareToken, shareResourceId, accessToken.value)
+    if (grantResponse.code !== 200 || !grantResponse.data?.preview_grant) {
+      throw new Error(grantResponse.message || '无法获取预览授权')
+    }
+    previewGrant = grantResponse.data.preview_grant
+    const content = await getSharePreviewContentApi(shareToken, shareResourceId, previewGrant)
+    const blobUrl = URL.createObjectURL(content instanceof Blob ? content : new Blob([content as any]))
+    if (opened) {
+      opened.location.href = blobUrl
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } else {
+      URL.revokeObjectURL(blobUrl)
+      throw new Error('浏览器阻止了新窗口，请允许弹窗后重试')
+    }
+  } catch (error) {
+    opened?.close()
+    if (!retried && isTokenExpiredError(error)) {
+      await refreshToken()
+      await previewSharedFileItem(shareResourceId, true)
+      return
+    }
+    toastStore.showToast(getReadableError(error, '预览失败，请稍后重试'), 'error', 4500)
+  } finally {
+    if (previewGrant) await releasePreviewGrantApi(previewGrant).catch(() => undefined)
   }
 }
 

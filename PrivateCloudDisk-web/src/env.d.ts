@@ -14,8 +14,13 @@ interface ImportMetaEnv {
   readonly VITE_TURNSTILE_SITE_KEY: string
   readonly VITE_CHUNK_SIZE: string
   readonly VITE_MAX_CONCURRENT_UPLOADS: string
+  readonly VITE_MAX_CONCURRENT_FILES: string
   readonly VITE_MAX_CONCURRENT_DOWNLOADS: string
   readonly VITE_UPLOAD_THRESHOLD: string
+  /** Web 本地插件客户端注册白名单标识，生产环境应与注册服务配置一致。 */
+  readonly VITE_WEB_PLUGIN_APP_ID?: string
+  /** Web 客户端版本，用于本地插件兼容性分发。 */
+  readonly VITE_APP_VERSION?: string
 }
 
 interface ImportMeta {

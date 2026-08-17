@@ -8,10 +8,12 @@
         <id column="share_id" property="share_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="share_token" property="share_token"/>
         <result column="share_owner_id" property="share_owner_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="share_space_id" property="share_space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="share_name" property="share_name"/>
         <result column="share_description" property="share_description"/>
         <result column="share_password" property="share_password"/>
         <result column="share_has_password" property="share_has_password"/>
+        <result column="share_allow_download" property="share_allow_download"/>
         <result column="share_expires_at" property="share_expires_at"/>
         <result column="share_view_count" property="share_view_count"/>
         <result column="share_status" property="share_status"/>
@@ -33,6 +35,8 @@
                 SELECT 1
                 FROM pcd_file_info_table f
                 WHERE f.file_id = r.file_id
+                  AND f.file_author_id = s.share_owner_id
+                  AND (f.file_space_id = r.space_id OR (f.file_space_id IS NULL AND r.space_id IS NULL))
                   AND f.file_status = 'active'
                   AND NOT EXISTS (
                       SELECT 1
@@ -41,6 +45,8 @@
                           ON ancestor_node.node_id = c.ancestor_id
                       WHERE c.descendant_id = f.file_node_id
                         AND c.user_id = f.file_author_id
+                        AND (c.closure_space_id = f.file_space_id
+                             OR (c.closure_space_id IS NULL AND f.file_space_id IS NULL))
                         AND ancestor_node.node_status IN ('trashed', 'deleted')
                   )
             )
@@ -52,6 +58,8 @@
                 SELECT 1
                 FROM pcd_directory_tree_table d
                 WHERE d.node_id = r.node_id
+                  AND d.node_user_id = s.share_owner_id
+                  AND (d.node_space_id = r.space_id OR (d.node_space_id IS NULL AND r.space_id IS NULL))
                   AND d.node_status NOT IN ('trashed', 'deleted')
                   AND NOT EXISTS (
                       SELECT 1
@@ -60,6 +68,8 @@
                           ON ancestor_node.node_id = c.ancestor_id
                       WHERE c.descendant_id = d.node_id
                         AND c.user_id = d.node_user_id
+                        AND (c.closure_space_id = d.node_space_id
+                             OR (c.closure_space_id IS NULL AND d.node_space_id IS NULL))
                         AND ancestor_node.node_status IN ('trashed', 'deleted')
                   )
             )
@@ -70,17 +80,19 @@
 
     <insert id="insertShare" parameterType="org.project.model.entity.ShareLinkEntity">
         INSERT INTO pcd_share_link_table (
-            share_id, share_token, share_owner_id,
-            share_name, share_description, share_password, share_has_password,
+            share_id, share_token, share_owner_id, share_space_id,
+            share_name, share_description, share_password, share_has_password, share_allow_download,
             share_expires_at, share_status
         ) VALUES (
             #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{share_token},
             #{share_owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+            #{share_space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
             #{share_name},
             #{share_description},
             #{share_password},
             #{share_has_password},
+            #{share_allow_download},
             #{share_expires_at},
             'active'
         )
@@ -89,6 +101,8 @@
     <!-- ==================== 查询 ==================== -->
 
     <select id="findById" resultMap="ShareLinkEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             s.*,
             u.user_name AS owner_name,
@@ -101,6 +115,9 @@
         FROM pcd_share_link_table s
         LEFT JOIN pcd_user_info_table u ON s.share_owner_id = u.user_id
         WHERE s.share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NULL
+            OR s.share_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND s.share_space_id IS NULL))
     </select>
 
     <select id="findByToken" resultMap="ShareLinkEntityMap">
@@ -108,10 +125,12 @@
             s.share_id,
             s.share_token,
             s.share_owner_id,
+            s.share_space_id,
             s.share_name,
             s.share_description,
             s.share_password,
             s.share_has_password,
+            s.share_allow_download,
             s.share_expires_at,
             s.share_view_count,
             s.share_status,
@@ -136,14 +155,18 @@
     </select>
 
     <select id="findByOwnerId" resultMap="ShareLinkEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT
             s.share_id,
             s.share_token,
             s.share_owner_id,
+            s.share_space_id,
             s.share_name,
             s.share_description,
             s.share_password,
             s.share_has_password,
+            s.share_allow_download,
             s.share_expires_at,
             s.share_view_count,
             s.share_status,
@@ -157,6 +180,8 @@
             ) AS resource_count
         FROM pcd_share_link_table s
         WHERE s.share_owner_id = #{owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (s.share_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+            OR (#{personalSpace}=true AND s.share_space_id IS NULL))
           AND EXISTS (
               SELECT 1
               FROM pcd_share_resource_table r
@@ -195,6 +220,17 @@
         SET share_password = #{share_password},
             share_has_password = #{share_has_password}
         WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+
+    <!--
+        AUDIT FIX [2.3] 分享资源下载权限独立更新。
+        保留原有密码更新接口，新增字段只影响分享下载授权，不改变浏览/目录权限。
+    -->
+    <update id="updateShareDownloadPermission">
+        UPDATE pcd_share_link_table
+        SET share_allow_download = #{allow_download}
+        WHERE share_id = #{share_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND share_owner_id = #{owner_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
     </update>
 
     <!--

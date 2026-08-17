@@ -31,3 +31,22 @@ CREATE TABLE IF NOT EXISTS pcd_client_identities (
     INDEX idx_registered_at (registered_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 COMMENT='客户端设备身份注册表';
+
+-- 第二阶段本地插件：设备注册后还需在已登录、已签名请求中绑定用户。
+CREATE TABLE IF NOT EXISTS pcd_client_user_bindings (
+    client_id         VARCHAR(64) NOT NULL,
+    user_id           CHAR(36) NOT NULL,
+    client_type       VARCHAR(16) NOT NULL,
+    platform          VARCHAR(16) NOT NULL,
+    app_version       VARCHAR(32) NOT NULL,
+    capabilities_json JSON NOT NULL,
+    status            VARCHAR(16) NOT NULL DEFAULT 'active',
+    bound_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+        ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (client_id),
+    INDEX idx_client_binding_user (user_id, status),
+    CONSTRAINT fk_client_binding_identity FOREIGN KEY (client_id)
+        REFERENCES pcd_client_identities(client_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='客户端身份与登录用户绑定，用于本地插件可信分发';

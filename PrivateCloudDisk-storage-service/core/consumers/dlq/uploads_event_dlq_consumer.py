@@ -110,6 +110,7 @@ class UploadsEventDLQConsumer(BaseDLQConsumer):
             )
             # 更新重试计数后重新入队
             data["dlq_retry_count"] = retry_count + 1
+            data["dlq_retry_delay_seconds"] = min(300, 5 * (2 ** retry_count))
             data["failure_reason"] = FailureReason.UPLOADS_DELETE_IO_ERROR
             data["error"] = error_msg
             await self._republish_to_dlq(data)
@@ -193,8 +194,6 @@ class UploadsEventDLQConsumer(BaseDLQConsumer):
             f"attempt={retry_count + 1}/{DLQ_MAX_RETRIES}, "
             f"delay_s={delay}"
         )
-        await asyncio.sleep(delay)
-
         success = await self._notify_business_service(uploads_session_id)
         if success:
             logger.info(
@@ -211,6 +210,7 @@ class UploadsEventDLQConsumer(BaseDLQConsumer):
         else:
             # 重试失败 → 递增计数，重新入队
             data["dlq_retry_count"] = retry_count + 1
+            data["dlq_retry_delay_seconds"] = delay
             data["failure_reason"] = FailureReason.UPLOADS_SESSION_NOTIFY_BS_ERROR
             await self._republish_to_dlq(data)
             return True
@@ -304,16 +304,19 @@ class UploadsEventDLQConsumer(BaseDLQConsumer):
 
     async def _notify_business_service(self, uploads_session_id: str) -> bool:
         """
-        调用业务服务内部接口标记上传会话为 deleted
+        调用业务服务内部接口清理 canceled 上传会话记录；不再写入 deleted 状态
 
         POST api/v1/business/internal/storage/uploads/{uploads_id}/delete-complete
         """
         url = (
             f"{settings.business_service_url}"
-            f"/api/v1/business/internal/storage/uploads/{uploads_session_id}/delete-complete"
+            f"/business/internal/storage/uploads/{uploads_session_id}/delete-complete"
         )
         try:
-            async with aiohttp.ClientSession() as session:
+            headers = {}
+            if settings.pcd_internal_service_token:
+                headers["X-PCD-Service-Token"] = settings.pcd_internal_service_token
+            async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.post(
                     url, timeout=aiohttp.ClientTimeout(total=30)
                 ) as resp:
@@ -349,8 +352,9 @@ class UploadsEventDLQConsumer(BaseDLQConsumer):
         try:
             await rabbitmq_service.publish_message(
                 settings.uploads_event_dlx,
-                settings.uploads_event_dlq_routing_key,
+                settings.uploads_event_retry_routing_key,
                 data,
+                delay_seconds=max(1, int(data.get("dlq_retry_delay_seconds") or 5)),
             )
             logger.info(
                 f"[DLQ-UPLOADS] 消息已重新发布到 DLQ: "

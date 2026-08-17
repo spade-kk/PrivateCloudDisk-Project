@@ -4,7 +4,9 @@ import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
+import org.project.context.SpaceContextHolder;
 import org.project.model.dto.message.FileScanFailedEvent;
+import org.project.service.SpacePermissionService;
 import org.project.service.UserQuotaService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
@@ -35,6 +37,7 @@ public class FileScanFailedConsumer {
     private static final long IDEMPOTENT_TTL_HOURS = 72;
 
     private final UserQuotaService userQuotaService;
+    private final SpacePermissionService spacePermissionService;
     private final RedisTemplate<String, String> redisTemplate;
 
     @RabbitListener(queues = RabbitMQConifgure.QUEUE_FILE_SCAN_FAILED,
@@ -42,8 +45,8 @@ public class FileScanFailedConsumer {
     public void handleFileScanFailed(FileScanFailedEvent event,
                                       Channel channel,
                                       @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
-        log.info("收到文件扫毒失败事件: eventId={}, fileId={}, fileName={}, fileSize={}, threat={}",
-                event.getEventId(), event.getFileId(), event.getFileName(),
+        log.info("收到文件扫毒失败事件: eventId={}, spaceId={}, fileId={}, fileName={}, fileSize={}, threat={}",
+                event.getEventId(), event.getSpaceId(), event.getFileId(), event.getFileName(),
                 event.getFileSize());
 
         try {
@@ -58,7 +61,13 @@ public class FileScanFailedConsumer {
             }
 
             UUID userId = UUID.fromString(event.getUserId());
-            userQuotaService.rollbackQuota(userId, event.getFileSize());
+            // 需求五-9/10：从 MQ 恢复空间上下文，失败资源回滚其所属空间而非上传者个人空间。
+            SpaceContextHolder.set(spacePermissionService.resolveContext(userId, event.getSpaceId()));
+            try {
+                userQuotaService.rollbackQuota(userId, event.getFileSize());
+            } finally {
+                SpaceContextHolder.clear();
+            }
 
             log.info("文件扫毒失败事件处理完成（配额已回滚）: eventId={}, fileId={}, threat={}",
                     event.getEventId(), event.getFileId());

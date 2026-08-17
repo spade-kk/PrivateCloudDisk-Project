@@ -1,6 +1,6 @@
 # Scripts
 
-项目脚本工具集，包含数据库初始化、密码哈希生成、部署与备份等运维脚本。
+项目脚本工具集，包含数据库初始化、测试 JWT 生成、客户端构建、下载部署、部署、备份、回滚和签名校验。脚本默认不替代生产发布流程，执行前请检查目标环境和环境变量。
 
 ---
 
@@ -8,8 +8,11 @@
 
 | 脚本 | 用途 | 语言 |
 |------|------|------|
-| `init_database.sql` | 完整数据库初始化 (建表 + 默认数据) | SQL |
-| `generate_admin_password.py` | 密码哈希生成工具 (二次哈希) | Python 3 |
+| `init_database.sql` | 本地数据库初始化参考 | SQL |
+| `gen_test_user_login_jwt.py` | 测试用户 JWT 生成 | Python 3 |
+| `generate_admin_password.py` | 密码哈希生成工具 | Python 3 |
+| `build-all-clients.sh` | 多客户端构建入口 | Bash |
+| `deploy-downloads.sh` | 下载产物部署入口 | Bash |
 | `deploy.sh` | 一键部署脚本 | Bash |
 | `backup.sh` | 数据库与文件备份 | Bash |
 | `rollback.sh` | 备份回滚脚本 | Bash |
@@ -24,11 +27,7 @@
 # 创建数据库并导入所有表结构和默认数据
 mysql -u root -p < scripts/init_database.sql
 
-# 脚本包含:
-# - 19 张业务表完整建表语句
-# - 超级管理员账号 (superadmin / admin123)
-# - 测试用户账号 (pcd_test001 / test123456)
-# - 测试用户根目录、闭包表、配额数据
+# 脚本内容和迁移顺序以当前 SQL 文件为准，不在 README 中固化默认账号或密码
 ```
 
 ### 2. 密码哈希生成

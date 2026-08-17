@@ -24,6 +24,7 @@ public final class VoMapper {
         vo.setShare_name(entity.getShare_name());
         vo.setShare_description(entity.getShare_description());
         vo.setShare_has_password(entity.getShare_has_password());
+        vo.setShare_allow_download(entity.getShare_allow_download());
         vo.setShare_expires_at(entity.getShare_expires_at());
         vo.setShare_view_count(entity.getShare_view_count());
         vo.setShare_status(entity.getShare_status().name());
@@ -70,6 +71,7 @@ public final class VoMapper {
         vo.setShare_description(entity.getShare_description());
         vo.setOwner_name(entity.getOwner_name());
         vo.setHas_password(entity.getShare_has_password());
+        vo.setAllow_download(!Boolean.FALSE.equals(entity.getShare_allow_download()));
         vo.setIs_expired(entity.getShare_status() == ShareLinkEntity.ShareStatus.expired ||
                 (entity.getShare_expires_at() != null && entity.getShare_expires_at().isBefore(LocalDateTime.now())));
         vo.setIs_revoked(entity.getShare_status() == ShareLinkEntity.ShareStatus.revoked);
@@ -95,6 +97,7 @@ public final class VoMapper {
         vo.setShare_description(entity.getShare_description());
         vo.setOwner_name(entity.getOwner_name());
         vo.setShare_has_password(entity.getShare_has_password());
+        vo.setShare_allow_download(entity.getShare_allow_download());
         vo.setShare_password(decryptedPassword);
         vo.setShare_expires_at(entity.getShare_expires_at());
         vo.setShare_view_count(entity.getShare_view_count());
@@ -239,6 +242,7 @@ public final class VoMapper {
         vo.setNode_id(entity.getNode_id().toString());
         vo.setTotal_chunks(entity.getTotal_chunks());
         vo.setStorage_path(entity.getStorage_path());
+        vo.setSpace_id(entity.getSpace_id() == null ? null : entity.getSpace_id().toString());
         return vo;
     }
 
@@ -259,6 +263,8 @@ public final class VoMapper {
         vo.setFile_type(entity.getFile_type());
         vo.setNode_id(entity.getNode_id().toString());
         vo.setStatus(entity.getStatus());
+        vo.setSpace_id(entity.getSpace_id() == null ? null : entity.getSpace_id().toString());
+        vo.setSpace_type(entity.getSpace_type());
         return vo;
     }
 

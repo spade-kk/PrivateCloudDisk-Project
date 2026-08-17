@@ -2,6 +2,7 @@ package org.project.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.project.context.SpaceContextHolder;
 import org.project.config.RabbitMQConifgure;
 import org.project.mapper.FileMapper;
 import org.project.mapper.FolderNodeMapper;
@@ -13,6 +14,7 @@ import org.project.model.entity.TrashTargetEntity;
 import org.project.service.DirectoryTreeService;
 import org.project.service.FileService;
 import org.project.service.TrashService;
+import org.project.service.UserQuotaService;
 import org.project.service.ex.DeleteException;
 import org.project.service.ex.FileNotExistException;
 import org.project.service.ex.InsertException;
@@ -41,6 +43,7 @@ public class TrashServiceImpl implements TrashService {
     private final DirectoryTreeService directoryTreeService;
     private final FolderNodeMapper folderNodeMapper;
     private final RabbitTemplate rabbitTemplate;
+    private final UserQuotaService userQuotaService;
     
     @Override
     @Transactional
@@ -192,6 +195,7 @@ public class TrashServiceImpl implements TrashService {
         TrashTargetEntity trashTarget = new TrashTargetEntity();
         trashTarget.setTarget_id(target_id);
         trashTarget.setUser_id(user_id);
+        trashTarget.setSpace_id(SpaceContextHolder.getSpaceId());
         trashTarget.setTarget_type(target_type);
         trashTarget.setDeleted_at(LocalDateTime.now());
         trashTarget.setExpires_at(LocalDateTime.now().plusDays(30));
@@ -206,11 +210,18 @@ public class TrashServiceImpl implements TrashService {
         if (rows != 1) {
             throw new DeleteException("彻底删除文件失败");
         }
+        /*
+         * 空间管理能力全量集成
+         * 原行为永久删除只变更文件状态，空间配额账面 used/file_count 不回落；
+         * 新行为在同一事务中复用配额服务，个人空间仍走原用户配额表，自定义空间更新空间配额。
+         */
+        userQuotaService.decreaseUserUsedQuotaBySize(trashTarget.getTarget_size(), user_id);
 
         FileDeleteMessageDTO message = FileDeleteMessageDTO.builder()
                 .message_id(UUID.randomUUID().toString())
                 .file_id(trashTarget.getTarget_id().toString())
                 .user_id(user_id.toString())
+                .space_id(trashTarget.getSpace_id() == null ? null : trashTarget.getSpace_id().toString())
                 .storage_path(storagePath)
                 .file_size(trashTarget.getTarget_size())
                 .from_trash(true)

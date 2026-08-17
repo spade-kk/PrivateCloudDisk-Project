@@ -21,7 +21,7 @@ type ClientIdentity struct {
 	// DeviceID 设备硬件指纹（SHA-256 哈希）
 	DeviceID string `json:"device_id" db:"device_id"`
 
-	// Platform 平台标识（固定 "macOS"）
+	// Platform 平台标识（macOS 原生客户端或受限 Web 本地插件运行时）
 	Platform string `json:"platform" db:"platform"`
 
 	// AppID 应用标识（Bundle ID）
@@ -63,11 +63,12 @@ type ClientIdentity struct {
 // AttestationObject 设备信任证明对象。
 //
 // 客户端提交的完整证明数据结构，包含三层证明：
-//   1. 硬件证明（Secure Enclave 密钥生成）
-//   2. APP 证明（Apple App Attestation）
-//   3. 业务实例签名（ECDSA 签名）
+//  1. 硬件证明（Secure Enclave 密钥生成）
+//  2. APP 证明（Apple App Attestation）
+//  3. 业务实例签名（ECDSA 签名）
 //
-// 对应 macOS 客户端 DeviceAttestationService.AttestationObject。
+// 对应 macOS 客户端 DeviceAttestationService.AttestationObject；
+// Web 客户端复用业务签名字段，但不声明 Apple 证明，完整性等级固定为 low。
 type AttestationObject struct {
 	// Version 证明版本号
 	Version string `json:"version"`
@@ -173,6 +174,27 @@ type RegisterResponse struct {
 
 	// RegisteredAt 注册时间戳（Unix 秒）
 	RegisteredAt int64 `json:"registered_at"`
+}
+
+// BindUserRequest 由已完成设备签名校验且已登录的客户端提交。
+type BindUserRequest struct {
+	ClientType   string   `json:"client_type" binding:"required,oneof=web desktop mobile"`
+	Platform     string   `json:"platform" binding:"required,oneof=web windows macos linux ios android"`
+	AppVersion   string   `json:"app_version" binding:"required,max=32"`
+	Capabilities []string `json:"capabilities" binding:"max=128"`
+}
+
+// ClientUserBinding 是 Plugin Service 进行本地插件分发前的可信客户端投影。
+type ClientUserBinding struct {
+	ClientID         string    `json:"client_id" db:"client_id"`
+	UserID           string    `json:"user_id" db:"user_id"`
+	ClientType       string    `json:"client_type" db:"client_type"`
+	Platform         string    `json:"platform" db:"platform"`
+	AppVersion       string    `json:"app_version" db:"app_version"`
+	CapabilitiesJSON string    `json:"-" db:"capabilities_json"`
+	Capabilities     []string  `json:"capabilities" db:"-"`
+	Status           string    `json:"status" db:"status"`
+	BoundAt          time.Time `json:"bound_at" db:"bound_at"`
 }
 
 // ─── 公钥查询 ──────────────────────────────────────────────────────────────────

@@ -32,6 +32,16 @@
         ORDER BY created_at DESC LIMIT 1
     </select>
 
+    <select id="findByUserId" resultMap="SpaceJoinRequestEntityMap">
+        SELECT * FROM pcd_space_join_request_table
+        WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findById" resultMap="SpaceJoinRequestEntityMap">
+        SELECT * FROM pcd_space_join_request_table WHERE request_id = #{requestId}
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="requestId">
         INSERT INTO pcd_space_join_request_table (space_id, user_id, request_message, status)
         VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler},
@@ -46,4 +56,10 @@
             reviewed_at = CURRENT_TIMESTAMP
         WHERE request_id = #{requestId}
     </update>
+
+    <delete id="deletePending">
+        DELETE FROM pcd_space_join_request_table
+        WHERE request_id = #{requestId} AND user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND status = 'pending'
+    </delete>
 </mapper>

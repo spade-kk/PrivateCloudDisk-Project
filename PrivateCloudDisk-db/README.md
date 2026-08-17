@@ -14,7 +14,11 @@
 
 ---
 
-## 表结构总览 (15 张表)
+## 表结构总览
+
+数据库结构由基础初始化脚本和增量迁移共同组成，当前包含用户认证、文件目录、上传、分享、回收站、收藏、标签、配额、空间、预览资源、文件处理生命周期及自动化相关表。不要在文档中固化表数量；请以本目录 SQL 文件的执行顺序和实际迁移结果为准。
+
+本次授权安全增量：`011_share_download_permission.sql` 为分享链接增加 `share_allow_download`（历史数据默认允许）；`012_recent_share_access.sql` 为最近访问增加 `ra_access_source` 与 `ra_share_resource_id`，用于区分普通空间下载和分享资源下载，且不把分享虚拟 ID 当作真实 file_id。
 
 ### 用户与认证
 
@@ -170,19 +174,13 @@ CREATE TABLE pcd_uploads_session_table (
     uploads_file_name       VARCHAR(150)    NOT NULL,
     uploads_file_type       VARCHAR(60)     NOT NULL,
     uploads_node_id         BINARY(16)     NOT NULL,
-    uploads_status          ENUM('uploading','merging','completed',
-                                 'merge_failed','scan_failed',
-                                 'process_failed','scaning','processing')
+    uploads_status          ENUM('uploading','completed','canceled')
+                            DEFAULT 'uploading'
+                            COMMENT '仅跟踪分块接收与合并任务触发，不表示后处理状态'
 );
 ```
 
-**状态流转**：
-```
-uploading → merging → scaning → processing → completed
-                  → merge_failed
-                              → scan_failed
-                                        → process_failed
-```
+上传会话只覆盖客户端到服务端的传输生命周期：创建会话后为 `uploading`；客户端调用合并接口成功、合并任务已发布后立即为 `completed`；用户取消或过期清理时为 `canceled`。文件合并、病毒扫描、内容预处理和增强状态由文件元数据及其任务流水线独立记录，不再写回上传会话。
 
 ### 回收站表 `pcd_trash_target_table`
 
@@ -563,7 +561,7 @@ erDiagram
 | `uploads_file_name` | VARCHAR(150) | NOT NULL | 文件名称 |
 | `uploads_file_type` | VARCHAR(60) | NOT NULL | MIME 类型 |
 | `uploads_node_id` | BINARY(16) | FK, NOT NULL | 目标目录节点 ID |
-| `uploads_status` | ENUM | DEFAULT 'uploading' | 见下方状态机 |
+| `uploads_status` | ENUM(`uploading`,`completed`,`canceled`) | DEFAULT 'uploading' | 仅跟踪传输与合并任务触发 |
 
 ### 8. `pcd_upload_chunks_table` — 文件切片表
 
@@ -729,40 +727,13 @@ stateDiagram-v2
 
 ### 上传会话状态机 `uploads_status`
 
-```mermaid
-stateDiagram-v2
-    [*] --> uploading : POST /uploads/<br/>创建上传会话
+| 状态 | 含义 | 触发条件 |
+|------|------|----------|
+| `uploading` | 正在接收分块 | 创建会话、分块上传期间 |
+| `completed` | 分块已保存且合并任务已触发 | `POST /business/uploads/{id}/complete` 成功返回后立即设置 |
+| `canceled` | 用户取消或过期清理 | 取消接口、过期会话清理或合并失败后的分块清理 |
 
-    uploading --> uploading : 分片持续上传
-    uploading --> merging : 所有分片上传完毕<br/>POST /uploads/{id}/complete
-
-    merging --> scaning : 文件合并成功
-    merging --> merge_failed : 合并失败<br/>(SHA-256 不匹配)
-
-    scaning --> processing : 病毒扫描通过
-    scaning --> scan_failed : 扫描不通过<br/>(恶意文件)
-
-    processing --> completed : 处理完成<br/>(缩略图/转码)
-    processing --> process_failed : 处理异常
-
-    merge_failed --> [*] : 清理
-    scan_failed --> [*] : 清理
-    process_failed --> [*] : 清理
-    completed --> [*] : 归档
-
-    note right of merging : RabbitMQ 消费者<br/>异步处理
-```
-
-| 状态 | 含义 | 下一步 |
-|------|------|--------|
-| `uploading` | 分片接收中 | → merging (所有分片完成) |
-| `merging` | 文件合并中 (MQ 消费者) | → scaning (成功) / merge_failed (失败) |
-| `scaning` | 病毒扫描中 (MQ 消费者) | → processing (通过) / scan_failed (不通过) |
-| `processing` | 后处理中 (缩略图/转码) | → completed (成功) / process_failed (失败) |
-| `completed` | 上传成功 | 终端状态 |
-| `merge_failed` | 合并失败 (SHA-256 不匹配) | 终端状态-失败 |
-| `scan_failed` | 病毒扫描不通过 | 终端状态-失败 |
-| `process_failed` | 处理异常 | 终端状态-失败 |
+合并、扫描、内容预处理和增强失败不再写入上传会话状态；文件后处理状态由文件元数据接口/任务事件提供。合并成功或最终失败且分块已清理后，平台删除上传会话及其分块元数据记录。
 
 ### 文件状态机 `file_status`
 
@@ -912,6 +883,10 @@ pcd_user_info_table (用户)
 ---
 
 ## 初始化方法
+
+### 空间协作增量迁移
+
+已初始化环境请按顺序执行 `010_space_collaboration.sql`。脚本会保留旧空间可见性、旧权限字段和旧接口兼容性，并新增加入策略、细粒度权限及哈希邀请链接表；上线前必须在生产数据副本演练。
 
 ### 完整初始化
 ```bash

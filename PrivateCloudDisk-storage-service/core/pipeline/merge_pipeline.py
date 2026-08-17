@@ -37,6 +37,8 @@ class MergePipeline:
         total_chunks: int,
         file_name: str,
         expected_checksum: str,
+        space_id: str = "",
+        space_type: str = "",
     ) -> MergeResult:
         """
         执行文件合并
@@ -55,7 +57,13 @@ class MergePipeline:
         final_dir = os.path.join(session_dir, "storage")
         os.makedirs(final_dir, exist_ok=True)
 
-        final_path = os.path.join(final_dir, f"{uploads_id}-{total_chunks}.cloud")
+        # 需求五-9：非个人空间物理文件名增加 space_id，便于运维定位与隔离；
+        # personal/历史事件保留原命名，确保旧路径与备份恢复流程不受影响。
+        safe_space_id = "".join(ch for ch in space_id if ch.isalnum() or ch == "-")
+        space_prefix = f"{safe_space_id}-" if safe_space_id and space_type != "personal" else ""
+        final_path = os.path.join(
+            final_dir, f"{space_prefix}{uploads_id}-{total_chunks}.cloud"
+        )
 
         try:
             # 1. 检查磁盘空间
@@ -120,6 +128,11 @@ class MergePipeline:
 
             # 5. 清理分片文件
             MergePipeline._cleanup_chunks(session_dir, uploads_id, total_chunks)
+
+            # REQ-UPLOAD-SESSION-STATE-2026-07：原行为在文件合并回调中提前删除会话；
+            # 新行为严格在物理分块清理完成后删除已完成会话，且不触发配额回滚。
+            # 影响范围仅为上传会话元数据生命周期，文件后处理状态继续由 File Worker/文件表维护。
+            await NotificationService.notify_upload_session_merge_cleanup(uploads_id)
 
             logger.info(
                 f"文件合并完成: file_id={file_id}, file_name={file_name}, "

@@ -16,6 +16,9 @@ export const CHUNK_SIZE: number = parseInt(import.meta.env.VITE_CHUNK_SIZE) || 5
 /** 最大并发上传数，默认 3 个分片同时上传 */
 export const MAX_CONCURRENT_UPLOADS: number = parseInt(import.meta.env.VITE_MAX_CONCURRENT_UPLOADS) || 3
 
+/** 文件夹上传同时进行的文件数，默认 3 个文件；与分块并发独立配置。 */
+export const MAX_CONCURRENT_FILES: number = parseInt(import.meta.env.VITE_MAX_CONCURRENT_FILES) || 3
+
 /** 最大并发下载数，默认 4 个文件同时下载 */
 export const MAX_CONCURRENT_DOWNLOADS: number = parseInt(import.meta.env.VITE_MAX_CONCURRENT_DOWNLOADS) || 4
 

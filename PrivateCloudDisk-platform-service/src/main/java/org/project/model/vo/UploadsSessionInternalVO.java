@@ -19,4 +19,7 @@ public class UploadsSessionInternalVO {
     private String file_type;
     private String node_id;
     private UploadsSessionEntity.UploadsSessionStatus status;
+    /** 需求五-2/9：上传合并与增强流水线恢复目标空间。 */
+    private String space_id;
+    private String space_type;
 }

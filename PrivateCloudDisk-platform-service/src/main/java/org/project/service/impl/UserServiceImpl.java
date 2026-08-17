@@ -3,6 +3,7 @@ package org.project.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.event.UserRegisteredEvent;
+import org.project.context.SpaceContextHolder;
 import org.project.model.dto.LoginRequest;
 import org.project.model.entity.FolderNodeEntity;
 import org.project.model.entity.UserEntity;
@@ -16,6 +17,7 @@ import org.project.util.JwtUtil;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.SecureRandom;
@@ -65,6 +67,7 @@ public class UserServiceImpl implements UserService {
     private final ApiAbuseProtectionService apiAbuseProtectionService;
     private final CaptchaVerifier captchaVerifier;
     private final JwtUtil jwtUtil;
+    private final SpacePermissionService spacePermissionService;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Override
@@ -137,6 +140,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public String register(String phoneNumber, String email, String password, String code, String name, String clientIp) {
 
         // 1. 业务层限流：注册频率检查
@@ -208,7 +212,17 @@ public class UserServiceImpl implements UserService {
             }
 
             // 8. 创建用户根目录节点
-            directoryTreeService.createFolderNode(userData.getId(), null, "#root");
+            /*
+             * 空间管理能力全量集成（需求二/四-1）：
+             * 原行为注册后创建的根节点 space_id 为 NULL；新行为先解析触发器创建的 personal
+             * 空间并绑定上下文，使根节点直接写入该空间。事务保证用户、空间与根节点不会部分成功。
+             */
+            SpaceContextHolder.set(spacePermissionService.resolveContext(userData.getId(), null));
+            try {
+                directoryTreeService.createFolderNode(userData.getId(), null, "#root");
+            } finally {
+                SpaceContextHolder.clear();
+            }
 
             // 9. 发布用户注册事件（异步发送欢迎邮件/短信）
             UserRegisteredEvent registeredEvent = UserRegisteredEvent.builder()
@@ -237,7 +251,14 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    @Cacheable(cacheNames = "rootFolderNode", key = "#user_id")
+    /*
+     * 空间管理能力全量集成（需求四-2）：
+     * 原缓存键只有 user_id，切换空间后可能命中上一个空间的根目录；
+     * 新缓存键增加当前 space_id，未携带空间头的旧调用仍以 null 后缀保持稳定。
+     */
+    @Cacheable(
+            cacheNames = "rootFolderNode",
+            key = "#user_id.toString() + ':' + T(org.project.context.SpaceContextHolder).getSpaceId()")
     @Override
     public FolderNodeEntity findRootFolderNodeByUserId(UUID user_id) {
         // 检查用户是否存在

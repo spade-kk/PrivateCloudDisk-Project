@@ -11,7 +11,7 @@
             <span class="dot bg-danger"></span>
             <span class="dot bg-warning"></span>
             <span class="dot bg-success"></span>
-            <span class="ml-auto text-[10px] font-semibold text-neutral-400">CloudDrive Desktop</span>
+            <span class="ml-auto text-[10px] font-semibold text-neutral-400">PrivateCloudDisk Desktop</span>
           </div>
           <div class="desktop-body">
             <aside class="desktop-sidebar">
@@ -62,7 +62,7 @@
           <h1 class="mt-5 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">
             全平台客户端
           </h1>
-          <p class="mt-4 max-w-2xl text-lg leading-8 text-neutral-500">选择适合您设备的客户端，开始体验 CloudDrive。Windows、macOS、Linux、iOS 与 Android 保持一致的企业级同步、预览和加密传输体验。</p>
+          <p class="mt-4 max-w-2xl text-lg leading-8 text-neutral-500">选择仓库中对应的客户端入口。不同客户端的文件访问、上传下载、预览与扩展能力，以各子项目代码和构建结果为准。</p>
           <div class="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href="#desktop-clients" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition hover:bg-primary/90">
               <i class="fa fa-desktop"></i> 下载桌面端
@@ -209,18 +209,18 @@
               </div>
               <div>
                 <h3 class="text-lg font-semibold text-neutral-800">CLI 命令行工具</h3>
-                <p class="text-xs text-neutral-400">版本 v2.1.0</p>
+                <p class="text-xs text-neutral-400">版本以当前发布包为准</p>
               </div>
             </div>
             <p class="mt-4 text-sm text-neutral-500">通过命令行管理文件、同步目录、自动化操作。支持 Bash/Zsh 自动补全。</p>
             <div class="mt-4 rounded-xl bg-neutral-900 p-4 font-mono text-xs text-green-400">
               <p class="text-neutral-500"># macOS / Linux</p>
-              <p>brew install clouddrive/tap/cli</p>
+              <p>以当前 CLI 发布包和构建说明为准</p>
               <p class="mt-2 text-neutral-500"># npm</p>
-              <p>npm install -g @clouddrive/cli</p>
+              <p>pcd --help</p>
               <p class="mt-2 text-neutral-500"># 使用示例</p>
-              <p>clouddrive upload ./report.pdf</p>
-              <p>clouddrive sync ~/Documents /clouddrive/Documents</p>
+              <p>pcd upload ./report.pdf</p>
+              <p>pcd sync ~/Documents /remote/Documents</p>
             </div>
             <a href="#" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">CLI 文档 <i class="fa fa-arrow-right text-xs"></i></a>
           </div>
@@ -235,7 +235,7 @@
                 <p class="text-xs text-neutral-400">多语言支持</p>
               </div>
             </div>
-            <p class="mt-4 text-sm text-neutral-500">集成 CloudDrive API 到您的应用中。支持 Python、JavaScript/TypeScript、Java、Go 等主流语言。</p>
+            <p class="mt-4 text-sm text-neutral-500">通过 PrivateCloudDisk REST API、内部服务契约或插件/工作流能力接入您的应用，具体入口以仓库文档和配置为准。</p>
             <div class="mt-4 space-y-2">
               <div v-for="sdk in sdks" :key="sdk.lang" class="flex items-center justify-between rounded-lg border border-neutral-100 px-4 py-2.5 text-sm">
                 <div class="flex items-center gap-2">
@@ -511,9 +511,9 @@ function getAltDownload(client: ClientDownload): string {
 // ============================================================
 
 const heroStats = [
-  { label: '桌面与移动系统', value: '5 平台' },
-  { label: '断点续传与同步', value: '实时' },
-  { label: '传输链路加密', value: 'E2E' },
+  { label: '客户端入口', value: '按子项目' },
+  { label: '文件传输', value: '按接口' },
+  { label: '客户端身份', value: '可注册' },
 ]
 
 const sdks = [
@@ -525,9 +525,9 @@ const sdks = [
 ]
 
 const versions = [
-  { version: 'v3.2.0', title: '新增 AI 智能搜索与文件标签', date: '2026-01-12', changes: ['新增 AI 文档内容智能搜索', '新增文件自定义标签功能', '优化大文件上传速度，提升 40%', '修复 macOS 深色模式兼容性问题'] },
-  { version: 'v3.1.0', title: '团队协作功能增强', date: '2025-12-20', changes: ['新增在线协同编辑功能', '新增文件评论与批注', '优化共享链接安全性', '新增文件锁定功能'] },
-  { version: 'v3.0.0', title: '全新架构升级', date: '2025-11-15', changes: ['重构存储引擎，性能提升 300%', '全面升级 UI 界面', '新增命令行工具', '开放 API 接口'] },
+  { version: '当前仓库', title: '空间协作与扩展能力', date: '2026-07-29', changes: ['补充空间、成员、角色和资源范围', '补充云插件、本地扩展和插件市场', '补充工作流、能力中心和工作流市场', '补充客户端身份与服务边界'] },
+  { version: '当前仓库', title: '文件生命周期能力', date: '2026-07-29', changes: ['补充文件和文件夹 CRUD', '补充上传、下载和文件夹传输', '补充预览资源、媒体播放和异步处理', '补充分享、回收站、收藏和标签管理'] },
+  { version: '当前仓库', title: '文档与部署说明', date: '2026-07-29', changes: ['更新微服务技术栈与职责边界', '移除未核验的客户、性能、价格和 SLA 数字', '统一 storage-service 命名', '补充 Compose 与 contracts 导航'] },
 ]
 
 const sysRequirements = [

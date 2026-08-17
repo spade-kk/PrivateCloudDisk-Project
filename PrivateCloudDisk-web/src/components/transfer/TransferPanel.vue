@@ -152,6 +152,15 @@
                           </template>
                         </div>
                       </div>
+                      <button
+                        v-if="canRetry(record)"
+                        type="button"
+                        class="transfer-retry-button"
+                        title="重新上传（从头开始）"
+                        @click.stop="retry(record.id)"
+                      >
+                        <i class="fa fa-refresh"></i>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -205,6 +214,15 @@
                       </template>
                     </div>
                   </div>
+                  <button
+                    v-if="canRetry(group.record)"
+                    type="button"
+                    class="transfer-retry-button"
+                    title="重新上传（从头开始）"
+                    @click.stop="retry(group.record.id)"
+                  >
+                    <i class="fa fa-refresh"></i>
+                  </button>
                 </div>
               </template>
             </div>
@@ -229,19 +247,24 @@ const hasOngoing = computed(() => store.hasOngoing)
 // 展开的文件夹分组 key 集合
 const expandedGroups = reactive(new Set<string>())
 
-interface DisplayGroup {
-  type: 'single' | 'folder'
+interface FolderDisplayGroup {
+  type: 'folder'
   key: string
-  // 单文件
-  record?: TransferRecord
-  // 文件夹分组
-  folderName?: string
-  records?: TransferRecord[]
-  totalCount?: number
-  completedCount?: number
-  errorCount?: number
-  folderProgress?: number
+  folderName: string
+  records: TransferRecord[]
+  totalCount: number
+  completedCount: number
+  errorCount: number
+  folderProgress: number
 }
+
+interface SingleDisplayGroup {
+  type: 'single'
+  key: string
+  record: TransferRecord
+}
+
+type DisplayGroup = FolderDisplayGroup | SingleDisplayGroup
 
 // 显示记录：进行中的排在前面，然后最近 10 条已完成的
 const displayRecords = computed(() => {
@@ -327,6 +350,14 @@ function closePanel() {
   panelOpen.value = false
 }
 
+function canRetry(record?: TransferRecord): boolean {
+  return !!record && record.type === 'upload' && record.status === 'failed'
+}
+
+function retry(id: number): void {
+  void store.retryRecord(id)
+}
+
 // 核心逻辑：当有新的传输操作开始时，自动弹出面板
 let prevOngoingCount = 0
 
@@ -336,7 +367,7 @@ watch(ongoingCount, (newVal, oldVal) => {
     // 有新的文件夹上传时，自动展开新的文件夹分组
     const folderGroups = groupedRecords.value.filter(g => g.type === 'folder')
     for (const group of folderGroups) {
-      const hasOngoing = group.records?.some(r => isOngoing(r))
+      const hasOngoing = group.type === 'folder' && group.records.some(r => isOngoing(r))
       if (hasOngoing) {
         expandedGroups.add(group.key)
       }
@@ -577,6 +608,19 @@ watch(ongoingCount, (newVal, oldVal) => {
 .transfer-item-info {
   flex: 1;
   min-width: 0;
+}
+
+.transfer-retry-button {
+  flex-shrink: 0;
+  color: #165dff;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.transfer-retry-button:hover {
+  color: #0f46c9;
+  background: #eff6ff;
 }
 
 .transfer-item-name {

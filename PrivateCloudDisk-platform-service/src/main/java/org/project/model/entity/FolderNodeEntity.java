@@ -32,4 +32,9 @@ public class FolderNodeEntity implements Serializable {
     private String name;
     private String create_time;
     private NodeStatus status;
+    /**
+     * 需求：空间管理能力全量集成（六）。
+     * 目录所属空间；根目录与所有后代节点必须保持一致。
+     */
+    private UUID space_id;
 }

@@ -1,896 +1,141 @@
-# PrivateCloudDisk — 企业级私有云盘系统
-
-企业级私有云盘系统，支持文件的上传（断点续传）、下载（流式）、预览、分享、回收站，具备完善的安全认证、权限控制与分布式限流能力。
-
----
-
-## 系统架构全景图
-
-```mermaid
-graph TB
-    subgraph Client["🖥 客户端层"]
-        Browser["Web 浏览器<br/>Vue 3 + Tailwind CSS"]
-    end
-
-    subgraph Gateway["🚪 网关层 :8080"]
-        GW["Spring Cloud Gateway<br/>认证 | 限流 | 路由 | CORS"]
-    end
-
-    subgraph Business["⚙ 业务服务层 :8081"]
-        BS["Spring Boot<br/>用户 | 文件 | 目录树 | 配额"]
-    end
-
-    subgraph FileService["📁 文件服务层 :8000"]
-        FS["FastAPI + Uvicorn<br/>上传 | 下载 | 缩略图 | 凭证"]
-    end
-
-    subgraph Data["💾 数据层"]
-        MySQL[("MySQL 8.0<br/>业务数据")]
-        Redis[("Redis<br/>缓存 | 限流 | 会话")]
-        RabbitMQ[("RabbitMQ<br/>异步任务 | 文件处理")]
-        Storage[("本地磁盘<br/>文件物理存储")]
-    end
-
-    Browser -->|HTTP/HTTPS| GW
-    GW -->|JWT 鉴权 + 路由| BS
-    GW -->|凭证鉴权 + 路由| FS
-    BS -->|读写| MySQL
-    BS -->|读写| Redis
-    BS -->|发布消息| RabbitMQ
-    FS -->|读写| Redis
-    FS -->|消费消息| RabbitMQ
-    FS -->|读写| Storage
-    BS -->|内部 API 调用| FS
-
-    style Client fill:#e3f2fd
-    style Gateway fill:#fff3e0
-    style Business fill:#e8f5e9
-    style FileService fill:#fce4ec
-    style Data fill:#f3e5f5
-```
-
----
-
-## 技术栈总览
-
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| **Web 前端** | Vue 3 + Vite + Tailwind CSS + Pinia | SPA 单页应用，主用户端 |
-| **管理后台** | React 19 + TypeScript + Ant Design 6 | 超级管理员后台 |
-| **桌面端** | Electron + React + macFUSE | macOS / Windows / Linux 桌面客户端 |
-| **移动端-跨端** | uni-app (Vue 3) + uView Plus | iOS / Android / 微信小程序 / H5 |
-| **移动端-原生** | SwiftUI (iOS) / Kotlin Compose (Android) | 原生 iOS / Android 客户端 |
-| **桌面端-原生** | SwiftUI (macOS) / WPF+.NET (Windows) | 原生 macOS / Windows 客户端 |
-| **网关** | Spring Cloud Gateway + WebFlux + Spring Security | 响应式 API 网关 |
-| **业务服务** | Spring Boot 4.0.6 + MyBatis + Spring AMQP | RESTful API 核心业务 |
-| **文件服务** | FastAPI + Uvicorn (Python 3.11) | 文件 I/O 处理 |
-| **即时通讯** | Spring Boot + Netty + WebRTC | 实时消息 + 音视频通话 |
-| **数据库** | MySQL 8.0 (InnoDB, utf8mb4) | 业务数据持久化 |
-| **缓存** | Redis 7 | 缓存 / 限流 / 分布式锁 |
-| **消息队列** | RabbitMQ (AMQP 0-9-1) | 异步任务处理 |
-| **全文检索** | OpenSearch 2.10 | 文件内容搜索 |
-| **对象存储** | MinIO (S3 兼容) | 文件物理存储 |
-| **认证** | JWT (RSA-256) + BCrypt | 无状态认证 |
-| **图片处理** | libvips (via pyvips) | 缩略图生成 |
-| **部署** | Docker + Docker Compose | 容器化部署 |
-| **监控** | Prometheus + Grafana + SkyWalking | 指标 + 链路追踪 |
-
----
-
-## 核心业务流程
-
-### 用户登录全流程
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant GW as 🚪 Gateway
-    participant BS as ⚙ 业务服务
-    participant Redis as 📦 Redis
-    participant MySQL as 🗄 MySQL
-
-    User->>Web: 输入账号/密码 + 滑块验证码
-    Web->>Web: 获取 Turnstile Token
-    Web->>GW: POST /api/v1/business/users/login
-    GW->>GW: 白名单路径 → 放行
-    GW->>BS: 转发请求
-
-    BS->>Redis: 检查IP/账号是否被锁定
-    alt 已被锁定
-        BS-->>GW: 429 Too Many Requests
-        GW-->>Web: 429 | 请稍后再试
-    end
-
-    BS->>BS: 验证 Turnstile Token
-    alt 验证失败
-        BS-->>GW: 400 人机验证失败
-    end
-
-    BS->>MySQL: SELECT * FROM pcd_user_info_table WHERE account=? OR phone=?
-    MySQL-->>BS: 用户数据 (BCrypt 密码哈希)
-
-    BS->>BS: BCrypt.verify(password, hash)
-    alt 密码不匹配
-        BS->>Redis: INCR login:fail:{account} ← 失败计数器
-        BS-->>GW: 401 账号或密码错误
-        GW-->>Web: 401
-    end
-
-    BS->>BS: 签发 JWT (RSA-256, 24h 有效期)
-    BS->>Redis: SET login:success:{account} ← 登录成功标记
-    BS->>MySQL: INSERT pcd_login_audit_table (审计日志)
-    BS-->>GW: 200 { token: "eyJhbG..." }
-    GW-->>Web: 200 { code: 200, data: "eyJhbG..." }
-
-    Web->>Web: localStorage.setItem('token', token)
-    Web->>Web: $router.push('/home') ← 跳转主页
-```
-
-### 文件分片上传全流程
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant GW as 🚪 Gateway
-    participant BS as ⚙ 业务服务
-    participant FS as 📁 文件服务
-    participant Redis as 📦 Redis
-    participant MQ as 🐇 RabbitMQ
-    participant Disk as 💾 磁盘
-
-    Note over User,Disk: === 阶段1: 创建上传会话 ===
-
-    User->>Web: 选择文件 / 拖拽文件
-    Web->>Web: 计算文件 SHA-256
-    Web->>Web: 文件切片 (5MB/chunk)
-
-    Web->>GW: POST /api/v1/business/uploads/<br/>{total_chunks, file_size, checksum, ...}
-    GW->>BS: 转发 → 创建上传会话
-    BS->>MySQL: INSERT pcd_uploads_session_table
-    MySQL-->>BS: uploads_id (UUID)
-    BS-->>Web: { data: "uploads_id" }
-
-    Note over User,Disk: === 阶段2: 获取操作凭证 ===
-
-    Web->>GW: POST /api/v1/files/operation-tokens<br/>{operation_type: "upload", file_name: "xxx"}
-    GW->>FS: 转发 → 签发JWT操作凭证
-    FS->>FS: 签发 JWT (jti, sub, rlimit=300, exp=1h)
-    FS-->>Web: { operation_token: "eyJ..." }
-
-    Note over User,Disk: === 阶段3: 分片上传 (带断点续传) ===
-
-    loop 每个分片 (并发3个)
-        Web->>FS: POST /api/v1/files/uploads/{id}/chunks<br/>X-Operation-Token: xxx<br/>X-Chunk-Index: 5<br/>Body: [binary data]
-        FS->>Redis: Lua原子脚本: 并发检查 + 速率检查
-        alt 分片已存在 (断点续传)
-            FS-->>Web: 200 { status: "already_uploaded" }
-        else 正常上传
-            FS->>Disk: 写入 {upload_dir}/{id}-5.part
-            FS->>BS: POST /business/internal/storage/uploads/{id}/chunks/5/complete
-            BS->>MySQL: UPDATE pcd_upload_chunks_table SET status='completed'
-            FS-->>Web: 200 { status: "uploaded" }
-        end
-    end
-
-    Note over User,Disk: === 阶段4: 完成通知 & 异步处理 ===
-
-    Web->>BS: POST /api/v1/business/uploads/{id}/complete
-    BS->>MySQL: UPDATE pcd_uploads_session_table SET status='merging'
-    BS->>MQ: 发布消息 → pcd.file.process.queue
-    BS-->>Web: 200 { status: "processing" }
-
-    MQ->>FS: 消费消息 {uploads_id, action: "process"}
-    FS->>Disk: 合并所有 .part 文件
-    FS->>Disk: SHA-256 校验
-    FS->>Disk: 病毒扫描
-    FS->>Disk: 生成缩略图 (libvips)
-    FS->>BS: 通知处理完成
-    BS->>MySQL: UPDATE file SET status='active'
-    FS->>MQ: ACK 消息
-
-    Note over Web: 前端轮询 /api/v1/business/uploads/{id}?status
-    Web-->>User: ✅ 上传完成
-```
-
-### 目录树闭包表查询
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant GW as 🚪 Gateway
-    participant BS as ⚙ 业务服务
-    participant MySQL as 🗄 MySQL
-
-    User->>Web: 点击文件夹 A
-    Web->>GW: GET /api/v1/business/nodes/{node_id}/children/paged
-    GW->>BS: 转发 + X-User-Id
-
-    BS->>MySQL: SELECT * FROM pcd_directory_tree_table<br/>WHERE node_parent_id = {node_id}<br/>AND node_user_id = {user_id}
-    MySQL-->>BS: 当前目录下的子节点列表
-
-    BS->>MySQL: SELECT COUNT(*) FROM pcd_file_info_table<br/>WHERE file_node_id = node_id AND file_status = 'active'
-    MySQL-->>BS: 各文件夹内文件数量
-
-    BS->>BS: 组装 NodeVO: {node_id, node_type, node_name, node_size}
-    BS-->>GW: 200 { items: [...], total: N, page: 1 }
-    GW-->>Web: 200 OK
-    Web->>Web: 渲染文件列表
-```
-
-### 用户注册全流程
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant GW as 🚪 Gateway
-    participant BS as ⚙ 业务服务
-    participant Redis as 📦 Redis
-    participant MySQL as 🗄 MySQL
-    participant MQ as 🐇 RabbitMQ
-
-    User->>Web: 填写手机号/密码/验证码 + 滑块验证
-    Web->>Web: 获取 Turnstile Token
-    Web->>GW: POST /api/v1/business/users/
-    GW->>GW: 白名单路径 → 放行
-    GW->>BS: 转发 POST /business/users/
-
-    BS->>Redis: 检查IP注册频率 🔑 register:limit:{ip}
-    alt 超过限制 (10次/1h)
-        BS-->>GW: 429 注册过于频繁
-        GW-->>Web: 429
-    end
-
-    BS->>BS: 验证 Turnstile Token
-    alt 验证失败
-        BS-->>GW: 400 人机验证失败
-    end
-
-    BS->>BS: 校验验证码 (code) 有效性
-    alt 验证码错误或过期
-        BS-->>GW: 400 验证码错误或已过期
-    end
-
-    BS->>MySQL: SELECT 检查手机号是否已注册
-    alt 手机号已注册
-        BS-->>GW: 409 该手机号已被注册
-    end
-
-    BS->>BS: BCrypt.hash(password) 密码加密
-    BS->>MySQL: BEGIN TRANSACTION
-    BS->>MySQL: INSERT pcd_user_info_table
-    BS->>MySQL: INSERT pcd_user_quota_table (默认10GB配额)
-    BS->>MySQL: INSERT pcd_directory_tree_table (根目录节点)
-    BS->>MySQL: INSERT pcd_directory_closure_table (根节点自引用)
-    BS->>MySQL: COMMIT
-
-    BS->>BS: 生成唯一账号 (从手机号派生)
-    BS->>MQ: 发布 welcome.email / welcome.sms 消息
-
-    BS-->>GW: 200 { data: "auto_generated_account" }
-    GW-->>Web: 200 { code: 200, data: "user_abc123" }
-    Web-->>User: ✅ 注册成功 → 跳转登录页
-```
-
-### 文件删除与回收站恢复
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant GW as 🚪 Gateway
-    participant BS as ⚙ 业务服务
-    participant MySQL as 🗄 MySQL
-    participant MQ as 🐇 RabbitMQ
-    participant FS as 📁 文件服务
-    participant Disk as 💾 磁盘
-
-    Note over User,MySQL: === 阶段1: 删除文件（软删除 → 回收站）===
-
-    User->>Web: 右键文件 → 删除
-    Web->>GW: DELETE /api/v1/business/files/{file_id}
-    GW->>BS: 转发 + X-User-Id
-
-    BS->>MySQL: BEGIN TRANSACTION
-    BS->>MySQL: UPDATE pcd_file_info_table SET file_status='trashed'
-    BS->>MySQL: INSERT pcd_trash_target_table<br/>(trash_target_id, trash_target_type, trash_user_id,<br/> trash_file_name, trash_file_type, trash_file_size,<br/> trash_original_node_id, trash_expires_at)
-    BS->>MySQL: UPDATE pcd_user_quota_table<br/>SET quota_used_capacity -= file_size,<br/>quota_file_count -= 1, quota_version += 1
-    BS->>MySQL: COMMIT
-    BS-->>GW: 200 OK
-    GW-->>Web: 200 删除成功
-    Web->>Web: Toast: "已移入回收站，30天后自动清理"
-    Web-->>User: ✅ 文件已移至回收站
-
-    Note over User,Disk: === 阶段2: 恢复文件（从回收站还原）===
-
-    User->>Web: 进入回收站 → 点击恢复
-    Web->>GW: POST /api/v1/business/trash/{trash_id}/restore
-    GW->>BS: 转发 + X-User-Id
-
-    BS->>MySQL: SELECT * FROM pcd_trash_target_table WHERE trash_id=?
-    MySQL-->>BS: 回收站记录 {file_id, original_node_id}
-
-    BS->>MySQL: BEGIN TRANSACTION
-    BS->>MySQL: UPDATE pcd_file_info_table<br/>SET file_status='active', file_node_id=original_node_id
-    BS->>MySQL: DELETE FROM pcd_trash_target_table WHERE trash_id=?
-    BS->>MySQL: UPDATE pcd_user_quota_table<br/>SET quota_used_capacity += file_size,<br/>quota_file_count += 1, quota_version += 1
-    BS->>MySQL: COMMIT
-    BS-->>GW: 200 OK
-    GW-->>Web: 200 恢复成功
-    Web-->>User: ✅ 文件已恢复至原目录
-
-    Note over User,Disk: === 阶段3: 彻底删除（物理删除）===
-
-    User->>Web: 回收站 → 彻底删除
-    Web->>GW: DELETE /api/v1/business/trash/{trash_id}
-    GW->>BS: 转发 + X-User-Id
-
-    BS->>MySQL: SELECT * FROM pcd_trash_target_table WHERE trash_id=?
-    MySQL-->>BS: 回收站记录
-
-    BS->>MySQL: BEGIN TRANSACTION
-    BS->>MySQL: DELETE FROM pcd_file_info_table WHERE file_id=?
-    BS->>MySQL: DELETE FROM pcd_trash_target_table WHERE trash_id=?
-    BS->>MySQL: COMMIT
-
-    BS->>MQ: 发布消息 → pcd.file.delete.queue<br/>{file_id, storage_path}
-    BS-->>GW: 200 OK
-    GW-->>Web: 200 彻底删除成功
-
-    MQ->>FS: 消费删除消息
-    FS->>Disk: 删除物理文件 + 缩略图缓存
-    FS->>MQ: ACK 消息
-```
-
-### 文件预览全流程
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant GW as 🚪 Gateway
-    participant FS as 📁 文件服务
-    participant BS as ⚙ 业务服务
-    participant Redis as 📦 Redis
-    participant Disk as 💾 磁盘
-
-    User->>Web: 双击文件 / 点击预览
-
-    Note over Web,FS: === 阶段1: 元数据加载 ===
-
-    Web->>GW: GET /api/v1/business/files/{file_id}
-    GW->>BS: 转发 + X-User-Id
-    BS->>MySQL: SELECT * FROM pcd_file_info_table WHERE file_id=?
-    MySQL-->>BS: {file_type, file_size, file_name}
-    BS-->>Web: 200 { type: "image/png", size: 512000, ... }
-
-    Note over Web,FS: === 阶段2: 根据文件类型选择预览策略 ===
-
-    alt 图片预览 (image/jpeg, image/png, image/webp)
-        Web->>GW: GET /api/v1/files/thumbnails/{file_id}
-        GW->>FS: 转发 + X-User-Id
-        FS->>Redis: GET thumbnail:{file_id}
-        alt 缓存命中
-            Redis-->>FS: base64 缩略图
-            FS-->>Web: 200 { thumbnail: "base64..." }
-        else 缓存未命中
-            FS->>BS: GET /internal/storage/files/{file_id}/metadata
-            BS-->>FS: { storage_path }
-            FS->>Disk: pyvips 读取图片 → 缩放到 800px
-            FS->>Redis: SETEX thumbnail:{file_id} 3600 base64_data
-            FS-->>Web: 200 { thumbnail: "...", width: 800, height: 600 }
-        end
-        Web->>Web: ImagePreview.vue 渲染全分辨率
-
-    else 视频预览 (video/mp4, video/webm)
-        Web->>GW: POST /api/v1/files/operation-tokens<br/>{file_id, operation_type: "stream"}
-        GW->>FS: 转发 + X-User-Id
-
-        FS->>BS: 验证文件存在 + 权限
-        BS-->>FS: 200 OK
-        FS->>FS: 签发 stream JWT (rlimit: 300)
-        FS-->>Web: 200 { operation_token }
-
-        Web->>FS: GET /files/files/{file_id}/content<br/>X-Operation-Token + Range: bytes=0-1048576
-        FS->>Disk: 流式读取视频数据
-        FS-->>Web: 206 Partial Content (首1MB)
-        Web->>Web: VideoPreview.vue 使用 HLS/dash 流式播放
-
-    else PDF 预览
-        Web->>GW: POST /api/v1/files/operation-tokens<br/>{file_id, operation_type: "preview"}
-        FS-->>Web: 200 { operation_token }
-        Web->>FS: GET /files/files/{file_id}/content<br/>X-Operation-Token
-        FS->>Disk: 流式读取整个 PDF
-        FS-->>Web: 200 (完整PDF二进制)
-        Web->>Web: PdfPreview.vue 使用 pdf.js 渲染
-
-    else 文本/代码预览 (text/*, application/json, etc.)
-        Web->>GW: POST /api/v1/files/operation-tokens
-        FS-->>Web: 200 { operation_token }
-        Web->>FS: GET /files/files/{file_id}/content<br/>X-Operation-Token
-        FS->>Disk: 流式读取文本内容
-        FS-->>Web: 200 text/plain
-        Web->>Web: CodePreview.vue 语法高亮渲染 (Prism.js)
-
-    else Office文档预览 (docx, xlsx, pptx)
-        Web->>Web: OfficePreview.vue<br/>通过 Microsoft Office Online / Google Docs 在线预览
-    end
-```
-
-### 文件移动/复制流程
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant Dialog as MoveCopyDialog
-    participant Picker as TreeFolderPicker
-    participant GW as 🚪 Gateway
-    participant BS as ⚙ 业务服务
-    participant MySQL as 🗄 MySQL
-
-    User->>Web: 右键文件 → 移动到...
-    Web->>Dialog: 打开 MoveCopyDialog<br/>props: { fileIds, mode: 'move' }
-
-    Dialog->>GW: GET /api/v1/business/nodes/root/children/paged
-    GW->>BS: 获取根目录子节点
-    BS->>MySQL: SELECT + Closure Table 查询
-    MySQL-->>BS: 根目录内容
-    BS-->>Dialog: 200 { items: [{id, type: folder}, ...] }
-    Dialog->>Picker: 初始化 folderTree[[{...}, {...}]]
-
-    Note over Picker: 用户浏览目标目录
-    User->>Picker: 点击 "我的文档" 文件夹
-    Picker->>Dialog: @select-node (node_id, colIndex)
-
-    Dialog->>GW: GET /api/v1/business/nodes/{node_id}/children/paged
-    GW->>BS: 转发
-    BS->>MySQL: SELECT WHERE node_parent_id=? AND node_user_id=?
-    MySQL-->>BS: 该文件夹子节点
-    BS-->>Dialog: 200 { items: [...] }
-    Dialog->>Picker: 追加新列 folderTree.push(children)
-    Picker->>Picker: 自动滚动到最新列
-
-    User->>Picker: 选择目标文件夹 → 点击确定
-    Picker->>Dialog: @confirm (selectedFolderId)
-
-    alt 模式 = 移动
-        Dialog->>GW: PATCH /api/v1/business/files/{file_id}/position<br/>{ target_node_id: selectedFolderId }
-        GW->>BS: 转发
-        BS->>MySQL: BEGIN TRANSACTION
-        BS->>MySQL: UPDATE pcd_file_info_table SET file_node_id=?
-        BS->>MySQL: COMMIT
-        BS-->>Dialog: 200 OK
-    else 模式 = 复制
-        Dialog->>GW: POST /api/v1/business/files/{file_id}/copy<br/>{ target_node_id: selectedFolderId }
-        GW->>BS: 转发
-        BS->>MySQL: BEGIN TRANSACTION
-        BS->>MySQL: INSERT pcd_file_info_table (新file_id, 新node_id)
-        BS->>MySQL: UPDATE pcd_user_quota_table (增加用量)
-        BS->>MySQL: COMMIT
-        BS-->>Dialog: 200 OK
-    end
-
-    Dialog->>Web: close + refresh
-    Web->>Web: 刷新当前文件列表
-    Web-->>User: ✅ 操作成功
-```
-
-### 流式下载（支持断点续传）
-
-```mermaid
-sequenceDiagram
-    actor User as 👤 用户
-    participant Web as 🌐 Vue前端
-    participant Store as downloaderStore
-    participant GW as 🚪 Gateway
-    participant FS as 📁 文件服务
-    participant BS as ⚙ 业务服务
-    participant Redis as 📦 Redis
-    participant Disk as 💾 磁盘
-
-    User->>Web: 点击下载文件 (100MB)
-    Web->>Store: startDownload(fileId)
-
-    Note over Web,FS: === 阶段1: 获取文件元数据 ===
-    Store->>GW: GET /api/v1/business/files/{file_id}
-    GW->>BS: 转发
-    BS-->>Store: 200 { name, size: 104857600, type }
-
-    Note over Store,FS: === 阶段2: 申请操作凭证 ===
-    Store->>GW: POST /api/v1/files/operation-tokens<br/>{file_id, operation_type: "download"}
-    GW->>FS: 转发 + X-User-Id
-    FS->>BS: 验证文件权限
-    BS-->>FS: 200 OK
-    FS->>FS: 签发 JWT (rlimit: N个分片)
-    FS-->>Store: 200 { operation_token }
-
-    Note over Store,Disk: === 阶段3: 并发分段下载 ===
-    Store->>Store: 计算分段：100MB → 20个5MB分片
-
-    par 并发下载 (4个并发)
-        Store->>FS: GET /files/files/{file_id}/content<br/>X-Operation-Token<br/>Range: bytes=0-5242879
-        FS->>Redis: Lua: INCR total:{jti}, INCR concurrency:{jti}
-        alt 超过并发限制
-            FS-->>Store: 429 → 等待后重试
-        end
-        FS->>Disk: aiofiles seek(0) + read(5242880)
-        Disk-->>FS: 分片数据
-        FS-->>Store: 206 { data: bytes, offset: 0 }
-
-    and
-        Store->>FS: Range: bytes=5242880-10485759
-        FS-->>Store: 206 { data: bytes, offset: 5242880 }
-
-    and
-        Store->>FS: Range: bytes=10485760-15728639
-        FS-->>Store: 206 { data: bytes, offset: 10485760 }
-
-    and
-        Store->>FS: Range: bytes=15728640-20971519
-        FS-->>Store: 206 { data: bytes, offset: 15728640 }
-    end
-
-    Note over Store: === 阶段4: 组装与保存 ===
-    Store->>Store: 按 offset 排序 all chunks
-    Store->>Store: 合并 all chunks → Blob
-    Store->>Store: 触发浏览器下载 (URL.createObjectURL)
-
-    alt 下载中断 (网络断开)
-        Store->>Store: 记录已完成的 chunk offsets
-        Note over Store: 重试时跳过已完成的chunks
-        Store->>FS: 继续下载剩余的 chunks
-        FS-->>Store: 206 (剩余数据)
-    end
-
-    Store-->>Web: downloadProgress: 100%
-    Web-->>User: ✅ 下载完成
-```
-
-### Docker Compose 部署架构
-
-```mermaid
-graph TB
-    subgraph DockerHost["Docker Host"]
-        subgraph Networks["网络"]
-            FrontNet["🌐 frontend-net<br/>(对外暴露)"]
-            BackNet["🔒 backend-net<br/>(内部通信)"]
-        end
-
-        subgraph Containers["容器"]
-            Nginx["nginx:alpine<br/>🖥 Web Server<br/>Port: 80→80"]
-
-            Gateway["Gateway Service<br/>🚪 Spring Cloud Gateway<br/>Port: 8080 (内部)"]
-
-            Business["Business Service<br/>⚙ Spring Boot<br/>Port: 8081 (内部)"]
-
-            FileService["File Service<br/>📁 FastAPI + Uvicorn<br/>Port: 8000 (内部)"]
-
-            MySQL[("mysql:8.0<br/>🗄 MySQL<br/>Port: 3306 (内部)")]
-
-            Redis[("redis:7-alpine<br/>📦 Redis<br/>Port: 6379 (内部)")]
-
-            RabbitMQ[("rabbitmq:3-management<br/>🐇 RabbitMQ<br/>Port: 5672/15672")]
-        end
-
-        subgraph Volumes["数据卷"]
-            MysqlVol["mysql-data"]
-            UploadsVol["uploads-data"]
-            ThumbsVol["thumbnails-data"]
-        end
-    end
-
-    Internet((🌍 Internet)) -->|HTTPS:443| Nginx
-
-    Nginx -->|"/api/*"| Gateway
-    Nginx -->|"Static Files"| Nginx
-    Nginx --> FrontNet
-
-    Gateway --> BackNet
-    Business --> BackNet
-    FileService --> BackNet
-    MySQL --> BackNet
-    Redis --> BackNet
-    RabbitMQ --> BackNet
-
-    Gateway --> Business
-    Gateway --> FileService
-    Business -->|"内部API"| FileService
-    Business --> MySQL
-    Business --> Redis
-    Business -->|"发布消息"| RabbitMQ
-    FileService --> Redis
-    FileService -->|"消费消息"| RabbitMQ
-    FileService --> UploadsVol
-    FileService --> ThumbsVol
-    RabbitMQ -->|"处理消息"| FileService
-    MySQL --> MysqlVol
-```
-
-### 前端组件架构全景
-
-```mermaid
-graph TB
-    subgraph App["App.vue — 根组件"]
-        Router["<router-view/>"]
-    end
-
-    subgraph AuthPages["认证页面 (无需登录)"]
-        Login["LoginView.vue<br/>Three.js 3D背景<br/>GSAP 动画切换"]
-        Register["RegisterView.vue<br/>与登录页联动动画"]
-    end
-
-    subgraph MainLayout["Layout.vue — 主布局 (需登录)"]
-        Sidebar["Sidebar.vue<br/>导航菜单"]
-        UserDropdown["UserDropdown.vue<br/>用户头像/下拉"]
-        NotifCenter["NotificationCenter.vue<br/>通知面板"]
-        Content["<router-view/> — 内容区"]
-    end
-
-    subgraph Pages["页面视图"]
-        Dashboard["DashboardView.vue<br/>我的网盘 — 主文件浏览页"]
-        Profile["ProfileView.vue<br/>个人中心 — 企业级UI"]
-        Starred["StarredView.vue<br/>收藏文件"]
-        Trash["TrashView.vue<br/>回收站"]
-        Shares["SharesView.vue<br/>我的分享"]
-        Transfers["TransfersView.vue<br/>传输记录"]
-        Preview["FilePreviewView.vue<br/>文件预览页"]
-    end
-
-    subgraph FileComponents["文件操作子组件"]
-        FileList["FileListView.vue"]
-        FileGrid["FileGridView.vue"]
-        PathNav["PathNavigator.vue<br/>面包屑导航"]
-        RenameDialog["RenameDialog.vue"]
-        MoveCopyDialog["MoveCopyDialog.vue"]
-        TreePicker["TreeFolderPicker.vue<br/>分栏目录选择器"]
-        BatchBar["BatchActionsBar.vue"]
-        StorageInfo["StorageInfo.vue"]
-        FileDetail["FileDetailDrawer.vue"]
-    end
-
-    subgraph UploadComponents["上传组件"]
-        UploadPanel["UploadProgressPanel.vue"]
-        FileUploader["FileUploader.vue<br/>(核心上传器)"]
-    end
-
-    subgraph PreviewComponents["预览组件"]
-        ImagePreview["ImagePreview.vue"]
-        VideoPreview["VideoPreview.vue"]
-        AudioPreview["AudioPreview.vue"]
-        PdfPreview["PdfPreview.vue"]
-        CodePreview["CodePreview.vue"]
-        OfficePreview["OfficePreview.vue"]
-    end
-
-    App --> Router
-    Router --> AuthPages
-    Router --> MainLayout
-
-    MainLayout --> Sidebar
-    MainLayout --> UserDropdown
-    MainLayout --> NotifCenter
-    MainLayout --> Content
-
-    Content --> Pages
-
-    Dashboard --> FileComponents
-    Dashboard --> UploadComponents
-    Dashboard --> UploadPanel
-    Dashboard --> FileUploader
-
-    Preview --> PreviewComponents
-
-    MoveCopyDialog --> TreePicker
-
-    style App fill:#e3f2fd
-    style MainLayout fill:#fff3e0
-    style AuthPages fill:#f3e5f5
-    style Pages fill:#e8f5e9
-    style FileComponents fill:#fce4ec
-    style UploadComponents fill:#ede7f6
-    style PreviewComponents fill:#e0f2f1
-```
-
----
-
-## 微服务间通信
-
-```mermaid
-graph LR
-    subgraph "前端服务间调用"
-        GW["🚪 Gateway<br/>:8080"]
-        BS["⚙ Business<br/>:8081"]
-        FS["📁 File<br/>:8000"]
-    end
-
-    GW -->|"外部请求<br/>JWT 鉴权"| BS
-    GW -->|"外部请求<br/>凭证鉴权"| FS
-    BS -->|"内部 API<br/>X-Internal 头"| FS
-
-    subgraph "异步消息通信"
-        MQ["🐇 RabbitMQ"]
-        BS -->|"发布<br/>file.process.queue<br/>file.delete.queue<br/>welcome.email.queue<br/>welcome.sms.queue"| MQ
-        MQ -->|"消费"| FS
-    end
-```
-
----
-
-## 安全性设计全景
-
-```mermaid
-graph TB
-    subgraph "安全防线"
-        L1["🛡 第一道防线<br/>网关层"]
-        L2["🛡 第二道防线<br/>业务服务层"]
-        L3["🛡 第三道防线<br/>文件服务层"]
-        L4["🛡 第四道防线<br/>数据层"]
-    end
-
-    L1 --> L1A["JWT 签名验证 (RSA-256)"]
-    L1 --> L1B["分布式限流 (7条规则)"]
-    L1 --> L1C["请求头清洗 (防伪造)"]
-    L1 --> L1D["CORS 跨域控制"]
-
-    L2 --> L2A["BCrypt 密码哈希"]
-    L2 --> L2B["登录失败锁定"]
-    L2 --> L2C["注册频率限制"]
-    L2 --> L2D["Turnstile 人机验证"]
-    L2 --> L2E["API 滥用防护"]
-    L2 --> L2F["UUID 主键 (防遍历)"]
-    L2 --> L2G["参数校验 (JSR-380)"]
-
-    L3 --> L3A["操作凭证 JWT"]
-    L3 --> L3B["多维度并发控制 (Lua)"]
-    L3 --> L3C["下载授权 Opaque Token"]
-    L3 --> L3D["文件完整性校验 (SHA-256)"]
-
-    L4 --> L4A["外键级联约束"]
-    L4 --> L4B["乐观锁 (版本号)"]
-    L4 --> L4C["软删除 (回收站)"]
-    L4 --> L4D["审计日志"]
-```
-
----
+# PrivateCloudDisk
+
+PrivateCloudDisk 是面向团队与业务的私有云文件平台，围绕文件管理、空间协作、在线预览、文件生命周期处理、插件、工作流和市场能力构建。
+
+> 本 README 只描述当前仓库中可由代码、配置、数据库迁移或接口契约核验的能力。容量、性能、可用性、合规认证和商业支持范围，须结合实际部署环境确认。
+
+## 核心能力
+
+- 文件与文件夹 CURD：创建、读取、重命名、移动、复制、删除和目录浏览。
+- 文件传输：文件上传、分片上传、断点续传、文件下载、流式 Range 下载、文件夹上传与下载。
+- 文件管理：分享链接、回收站恢复与清理、收藏夹、标签、最近访问、搜索和配额管理。
+- 在线预览：图片、PDF、Office、Markdown、代码、压缩包、音频和视频等入口，实际格式以配置为准。
+- 空间协作：个人空间、团队空间、成员、角色、权限、资源范围和空间级插件。
+- 平台扩展：云插件、本地扩展、插件运行时、能力中心、工作流 DSL、调度、插件市场和工作流市场。
+- 实时通信：消息、会话、群组、通知、WebSocket 推送和 WebRTC 音视频通话。
+- 多客户端：Vue Web、React 管理后台、Electron、uni-app、原生 iOS/Android/macOS/Windows 和 Go CLI。
+
+## 技术栈
+
+| 层次 | 技术 | 主要用途 |
+| --- | --- | --- |
+| Web | Vue 3、TypeScript、Vite、Tailwind CSS、Pinia、GSAP | 官网、文件、空间、预览、插件和工作流页面 |
+| 管理后台 | React、TypeScript、Ant Design | 管理员与运营后台 |
+| Java 服务 | Spring Boot、Spring Cloud Gateway、WebFlux、Spring Security、MyBatis | 网关、平台、计费、插件、工作流、自动化和调度 |
+| Python 服务 | FastAPI、Uvicorn、Python 3.11、aiofiles、pyvips、PyMuPDF、Pillow | 文件 I/O、预览资源、Worker 和可选 AI |
+| Go 服务 | Gin、Redis、MySQL、RabbitMQ、Go Runtime | 通知、客户端注册、插件运行时 |
+| 实时通信 | Netty、WebSocket、WebRTC | IM 业务、长连接和音视频通话 |
+| 基础设施 | Docker Compose、Nginx、MySQL 8、Redis 7、RabbitMQ、MinIO、OpenSearch | 部署、缓存、消息、对象存储和检索 |
+| 观测 | Prometheus、SkyWalking、SkyWalking UI | 健康检查、指标和链路诊断 |
+
+## 微服务职责边界
+
+| 服务 | 技术/端口 | 责任边界 |
+| --- | --- | --- |
+| `gateway-service-backend` | Spring Cloud Gateway / `8080` | 统一入口、认证、路由、限流、CORS 和 WebSocket 转发 |
+| `platform-service-backend` | Spring Boot / `8081` | 用户、目录树、文件元数据、空间、成员权限、分享、标签、收藏、回收站和配额 |
+| `file-service-backend` | FastAPI / `8000` | 分片上传、合并、校验、下载、Range、预览令牌、缩略图和存储访问 |
+| `file-service-worker` | Python Worker | 消费文件生命周期事件，执行异步处理、扫描、缩略图和索引 |
+| `billing-service-backend` | Spring Boot / `8083` | 订单、订阅、优惠券、发票、退款和支付回调，按配置启用 |
+| `notification-service` | Go | 验证码、模板、邮件、短信、系统通知、设备和 WebSocket 推送 |
+| `im-platform-backend` | Spring Boot / `8088` | 会话、消息、群组、好友和通话记录等 IM 业务 |
+| `im-server-backend` | Netty / WebSocket `9090` | 实时长连接和消息推送 |
+| `client-registration-service` | Go / `8089` | 客户端注册挑战、设备身份、用户绑定、签名证明和插件绑定 |
+| `plugin-service-backend` | Spring Boot / `8085` | 插件定义、版本、清单、权限、安装、包仓库、签名、执行记录和插件市场 |
+| `plugin-runtime-service` | Go / `8090` | 受控运行时、Python 沙箱、资源限制、Broker 和执行回收 |
+| `automation-service-backend` | Spring Boot + RabbitMQ / `8084` | 文件事件匹配、插件入口选择、执行持久化、Inbox/Outbox 和恢复 |
+| `workflow-service-backend` | Spring Boot + RabbitMQ / `8087` | 工作流定义、DSL 校验、能力中心、版本发布、执行、市场和调度对接 |
+| `scheduler-service-backend` | Spring Boot + RabbitMQ / `8088` | Cron 计划、租约、幂等触发和调度消息发布 |
+| `ai-service-backend` | FastAPI / `8001` | 可选 AI 任务、推荐、聚类和异步模型处理 |
+
+服务之间通过 Docker Compose 服务名、内部 API 和 RabbitMQ 事件协作。浏览器链路为“浏览器 → Nginx → Gateway → 业务/文件服务”；容器内部不能用 `localhost` 代替其他服务。
+
+## 架构与性能设计
+
+1. 客户端负责展示、交互、任务进度和本地能力适配。
+2. Gateway 负责统一入口和认证后的路由分发。
+3. Platform Service 负责业务元数据、空间权限和状态；Storage Service 负责文件内容与派生资源。
+4. RabbitMQ 解耦文件处理、通知、插件自动化和工作流执行。
+5. MySQL 保存业务数据，Redis 保存缓存、限流、会话和短期授权，MinIO/本地卷保存对象，OpenSearch 支撑检索。
+6. 插件和工作流通过能力中心访问受控能力，不直接取得宿主文件路径、数据库凭证或用户 JWT。
+
+性能设计包括分片上传、断点续传、SHA-256 校验、Range/流式下载、并发控制、异步文件处理、预览资源缓存、健康检查、指标和链路追踪。仓库没有未经压测的吞吐、延迟或 SLA 承诺，生产容量须结合实例、连接池、消息堆积、存储吞吐和压测结果制定。
+
+## 与传统单体应用的区别
+
+| 对比项 | PrivateCloudDisk | 传统单体 |
+| --- | --- | --- |
+| 业务边界 | 网关、平台、文件、通知、IM、插件、工作流等服务分工 | 大部分能力集中在一个进程 |
+| 文件处理 | 内容 I/O 与元数据分离，可异步处理 | 常由同一进程承担 |
+| 扩展方式 | 插件、工作流、能力中心和市场可独立治理 | 常通过修改主应用重新发布 |
+| 故障影响 | 可按服务和队列定位与恢复 | 故障影响面更集中 |
+| 运维代价 | 边界清晰但服务和基础设施更多 | 初期部署简单，长期耦合可能更高 |
+
+## 与 Nextcloud 的区别
+
+两者都支持私有化文件管理，但定位不同：
+
+| 对比项 | PrivateCloudDisk | Nextcloud |
+| --- | --- | --- |
+| 核心定位 | 空间协作、文件生命周期和业务自动化平台 | 通用私有云协作套件与应用生态 |
+| 扩展模型 | 云插件、本地扩展、工作流、能力中心和双市场 | Nextcloud Apps、外部应用和官方生态 |
+| 文件处理 | 独立 Storage Service + Worker，围绕事件和预览演进 | 遵循 Nextcloud 文件与应用机制 |
+| 空间模型 | 空间作为成员、角色、资源和插件授权上下文 | 常见团队/群组/共享机制，具体语义依版本与应用 |
+| 选择建议 | 适合希望按本项目服务边界定制业务的团队 | 适合优先采用成熟通用协作生态的团队 |
 
 ## 项目结构
 
-```
+```text
 PrivateCloudDisk-project/
-│
-├── PrivateCloudDisk-web/                    # 🌐 Web 前端 (Vue 3 + Vite)
-│   └── README.md
-│
-├── PrivateCloudDisk-admin-web/              # 🔧 管理后台 (React 19 + Ant Design)
-│   └── README.md
-│
-├── PrivateCloudDisk-desktop/                # 💻 桌面客户端 (Electron + React)
-│   └── README.md
-│
-├── PrivateCloudDisk-uni-app/                # 📱 跨端移动端 (uni-app + Vue 3)
-│   └── README.md
-│
-├── PrivateCloudDisk-android/                # 🤖 Android 原生客户端 (Kotlin + Compose)
-│   └── README.md
-│
-├── PrivateCloudDisk-ios/                    # 🍎 iOS 原生客户端 (SwiftUI)
-│   └── README.md
-│
-├── PrivateCloudDisk-macos/                  # 🖥 macOS 原生客户端 (SwiftUI)
-│   └── README.md
-│
-├── PrivateCloudDisk-win/                    # 🪟 Windows 原生客户端 (WPF + .NET)
-│   └── README.md
-│
-├── PrivateCloudDisk-gateway-service/         # 🚪 API 网关 (Spring Cloud Gateway)
-│   └── README.md
-│
-├── PrivateCloudDisk-platform-service/        # ⚙ 业务服务 (Spring Boot)
-│   └── README.md
-│
-├── PrivateCloudDisk-shortage-service/        # 📁 文件服务 (FastAPI + Python)
-│   └── README.md
-│
-├── PrivateCloudDisk-im/                      # 💬 即时通讯 (Spring Boot + Netty)
-│   └── README.md
-│
-├── PrivateCloudDisk-db/                      # 🗄 数据库脚本 (MySQL)
-│   ├── database_init.sql
-│   └── README.md
-│
-├── PrivateCloudDisk-infra/                   # 🏗 基础设施配置 (Docker 中间件)
-│   └── README.md
-│
-├── scripts/                                  # 🔨 脚本工具集
-│   ├── init_database.sql                    #    完整数据库初始化 (19张表)
-│   ├── generate_admin_password.py           #    密码哈希生成工具
-│   ├── deploy.sh                            #    一键部署
-│   ├── backup.sh                            #    数据备份
-│   ├── rollback.sh                          #    备份回滚
-│   └── README.md
-│
-├── docs/                                     # 📚 项目文档
-│
-├── docker-compose.yml                       # Docker Compose 编排
-├── Makefile                                 # 常用命令快捷操作
-├── .env.example                             # 环境变量模板
-├── DEPLOYMENT.md                            # 部署文档
-└── README.md                                # 📋 本文件
+├── PrivateCloudDisk-web/                  # Vue Web 与官网
+├── PrivateCloudDisk-admin-web/             # 管理后台
+├── PrivateCloudDisk-gateway-service/       # API 网关
+├── PrivateCloudDisk-platform-service/      # 核心业务
+├── PrivateCloudDisk-storage-service/       # 文件 I/O
+├── PrivateCloudDisk-notification-service/  # 通知
+├── PrivateCloudDisk-im/                    # IM
+├── PrivateCloudDisk-client-registration-service/
+├── PrivateCloudDisk-plugin-service/        # 插件控制面
+├── PrivateCloudDisk-plugin-runtime-service/# 插件 Runtime
+├── PrivateCloudDisk-automation-service/    # 事件自动化
+├── PrivateCloudDisk-workflow-service/      # 工作流
+├── PrivateCloudDisk-scheduler-service/     # 调度
+├── PrivateCloudDisk-billing-service/       # 计费
+├── PrivateCloudDisk-ai-service/            # 可选 AI
+├── PrivateCloudDisk-db/  PrivateCloudDisk-infra/
+├── contracts/  deploy/  docs/
 ```
-
----
 
 ## 快速开始
 
-### 环境要求
-
-| 组件 | 版本要求 |
-|------|----------|
-| JDK | 18+ |
-| Python | 3.11+ |
-| Node.js | 18+ |
-| MySQL | 8.0+ |
-| Redis | 6.0+ |
-| RabbitMQ | 3.10+ |
-| libvips | 8.10+ |
-
-### 本地开发
+环境要求：Docker Compose v2、Node.js/npm、Java 21、Python 3.11 和 Go。
 
 ```bash
-# 1. 初始化数据库
-mysql -u root -p < PrivateCloudDisk-db/database_init.sql
-
-# 2. 启动 Redis & RabbitMQ
-brew services start redis
-brew services start rabbitmq
-
-# 3. 启动业务服务 (:8081)
-cd PrivateCloudDisk-platform-service
-./gradlew bootRun
-
-# 4. 启动文件服务 (:8000)
-cd PrivateCloudDisk-shortage-service
-uvicorn server:app --host 0.0.0.0 --port 8000 --reload
-
-# 5. 启动网关 (:8080)
-cd PrivateCloudDisk-gateway-service
-./gradlew bootRun
-
-# 6. 启动前端
-cd PrivateCloudDisk-web
-npm install && npm run dev
-```
-
-访问 `http://localhost:5173` 即可。
-
-### Docker 一键部署
-
-```bash
+cp .env.example .env
+# 设置数据库、Redis、RabbitMQ、MinIO 和内部服务凭证
+docker compose config --quiet
 docker compose up -d
+cd PrivateCloudDisk-web
+npm install
+npm run dev
 ```
 
----
+插件和工作流服务位于 Compose `automation` profile，启用前需配置独立数据库口令、Runtime 地址和插件签名密钥：
 
-## 各子项目导航
+```bash
+docker compose --profile automation up -d
+```
 
-| 子项目 | 技术栈 | 端口 | 说明 |
-|--------|--------|------|------|
-| [PrivateCloudDisk-web](./PrivateCloudDisk-web/) | Vue 3 + Vite + Tailwind CSS + Pinia | 5173 | Web 前端，文件浏览器/上传管理/个人中心 |
-| [PrivateCloudDisk-admin-web](./PrivateCloudDisk-admin-web/) | React 19 + TypeScript + Ant Design 6 | 5174 | 管理后台，用户管理/审计/安全/系统配置 |
-| [PrivateCloudDisk-desktop](./PrivateCloudDisk-desktop/) | Electron + React + macFUSE | - | 桌面客户端，虚拟磁盘挂载/文件管理 |
-| [PrivateCloudDisk-uni-app](./PrivateCloudDisk-uni-app/) | uni-app (Vue 3) + uView Plus | - | 跨端移动端，iOS/Android/小程序/H5 |
-| [PrivateCloudDisk-android](./PrivateCloudDisk-android/) | Kotlin + Jetpack Compose | - | Android 原生客户端 |
-| [PrivateCloudDisk-ios](./PrivateCloudDisk-ios/) | SwiftUI + Combine | - | iOS 原生客户端 |
-| [PrivateCloudDisk-macos](./PrivateCloudDisk-macos/) | SwiftUI + AppKit | - | macOS 原生客户端，虚拟磁盘/系统集成 |
-| [PrivateCloudDisk-win](./PrivateCloudDisk-win/) | WPF + .NET 8.0 | - | Windows 原生客户端，虚拟磁盘/系统托盘 |
-| [PrivateCloudDisk-gateway-service](./PrivateCloudDisk-gateway-service/) | Spring Cloud Gateway + WebFlux | 8080 | API 网关，JWT 认证/限流/路由 |
-| [PrivateCloudDisk-platform-service](./PrivateCloudDisk-platform-service/) | Spring Boot 4.0.6 + MyBatis | 8081 | 核心业务，用户/文件/目录树/配额 |
-| [PrivateCloudDisk-shortage-service](./PrivateCloudDisk-shortage-service/) | FastAPI + Uvicorn (Python) | 8000 | 文件处理，分片上传/流式下载/缩略图 |
-| [PrivateCloudDisk-im](./PrivateCloudDisk-im/) | Spring Boot + Netty + WebRTC | - | 即时通讯，消息推送/音视频通话 |
-| [PrivateCloudDisk-db](./PrivateCloudDisk-db/) | MySQL 8.0 DDL Scripts | 3306 | 数据库初始化脚本 |
-| [PrivateCloudDisk-infra](./PrivateCloudDisk-infra/) | Docker 中间件配置 | - | 基础设施，MySQL/Redis/RabbitMQ 等 |
-| [scripts](./scripts/) | Bash + Python + SQL | - | 运维工具集，部署/备份/密码生成 |
+生产前端使用同源 API（例如 `VITE_API_BASE_URL=/api/v1`）；修改 Vite 环境变量后必须重新构建前端镜像。
+
+## 文档导航
+
+- [文档中心](./docs/README.md)
+- [架构设计](./docs/architecture.md)
+- [API 概览](./docs/api-overview.md)
+- [数据库设计](./docs/database.md)
+- [开发指南](./docs/development.md)
+- [安全说明](./docs/security.md)
+- [空间集成审计](./docs/SPACE_FULL_INTEGRATION_AUDIT.md)
+- [插件自动化平台设计](./docs/PLUGIN_AUTOMATION_PLATFORM_DESIGN.md)
+- [插件开发指南](./docs/PLUGIN_DEVELOPER_GUIDE.md)

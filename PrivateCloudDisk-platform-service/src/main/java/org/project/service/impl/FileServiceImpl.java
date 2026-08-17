@@ -63,6 +63,12 @@ public class FileServiceImpl implements FileService {
         fileData.setTotal_chunks(total_chunks);
         fileData.setStorage_path(null);
         fileData.setStatus(FileEntity.FileStatus.merging);
+        /*
+         * 需求：空间管理能力全量集成（五-2/9）。
+         * 原行为：文件仅记录上传者；新行为：继承目标目录的 space_id，
+         * 即使合并回调来自内部接口、ThreadLocal 不存在，也不会丢失空间上下文。
+         */
+        fileData.setSpace_id(node.getSpace_id());
         //设置上传时间
         fileData.setUploaded_time(LocalDateTime.now());
         // 生成文件的ID

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     mysql_host: str = "localhost"
     mysql_port: int = 3306
     mysql_user: str = "root"
+    # Sprint 0 安全基线：原行为包含可直接使用的开发口令；新行为要求由环境变量显式注入。
     mysql_password: str = "20070315mwz"
     mysql_database: str = "private_cloud_disk"
     mysql_pool_min_size: int = 2
@@ -28,7 +29,8 @@ class Settings(BaseSettings):
     minio_bucket: str = "pcd-uploads"
     minio_secure: bool = False
 
-    business_service_url: str = "http://127.0.0.1:8080"
+    # Sprint 0：内部接口不得经过公网 Gateway；开发环境默认直连业务服务 8081。
+    business_service_url: str = "http://127.0.0.1:8081"
     private_key_path: str = "./private_key.pem"
     public_key_path: str = "./public_key.pem"
     max_concurrent: int = 3
@@ -61,18 +63,9 @@ class Settings(BaseSettings):
     rabbitmq_password: str = "guest"
     rabbitmq_vhost: str = "/"
 
-    # ====== 旧版文件处理（保留兼容，逐步迁移） ======
-    file_process_exchange: str = "pcd.file.process.exchange"
-    # file_process_queue: str = "pcd.file.process.queue"
-    file_process_routing_key: str = "file.process"
-    file_process_dlx: str = "pcd.file.process.dlx"
-    file_process_dlq: str = "pcd.file.process.dlq"
-    file_process_dlq_routing_key: str = "file.process.dlq"
-
-    # ========== 文件后台处理拓扑（Backend Processing — 顺序流水线） ==========
-    # 每个阶段独立 exchange + queue + DLQ，便于独立追踪耗时和运维
-
-    # --- 后台处理主交换机 (DIRECT) ---
+    # ========== 文件后台 Task Bus（Backend — 顺序流水线） ==========
+    # REQ-WORKER-TASKBUS-2026-07：恢复原有任务总线；每个阶段由同一业务交换机按 routing key
+    # 投递到指定任务队列，消费者成功后继续发布下一阶段任务。
     file_backend_exchange: str = "pcd.file.backend.exchange"
     file_backend_dlx: str = "pcd.file.backend.dlx"
 
@@ -103,6 +96,38 @@ class Settings(BaseSettings):
     file_backend_mark_active_dlq: str = "pcd.file.backend.mark_active.dlq"
     file_backend_mark_active_dlq_routing_key: str = "file.backend.mark_active.dlq"
     file_backend_mark_active_max_retries: int = 3
+
+    # ========== 文件内容预处理生命周期拓扑 ==========
+    # 需求：merge 后、最终 hash 前允许云插件通过隔离候选对象预处理文件内容。
+    # 注意：该阶段必须 fail-open；Automation/Runtime 故障不得把核心 Backend 标记失败。
+    file_lifecycle_exchange: str = "pcd.file.lifecycle.exchange"
+    file_lifecycle_dlx: str = "pcd.file.lifecycle.dlx"
+    file_content_ready_routing_key: str = "file.content.ready"
+    file_content_processed_routing_key: str = "file.content.processed"
+    file_content_timeout_schedule_routing_key: str = "file.content.timeout.schedule"
+    file_content_timeout_routing_key: str = "file.content.timeout"
+    file_content_ready_dlq_routing_key: str = "file.content.ready.dlq"
+    file_content_processed_dlq_routing_key: str = "file.content.processed.dlq"
+    file_content_ready_queue: str = "pcd.automation.file.content.ready.q"
+    file_content_processed_queue: str = "pcd.storage.file.content.processed.q"
+    file_content_timeout_delay_queue: str = "pcd.storage.file.content.timeout.delay.q"
+    file_content_timeout_queue: str = "pcd.storage.file.content.timeout.q"
+    file_content_ready_dlq: str = "pcd.automation.file.content.ready.dlq"
+    file_content_processed_dlq: str = "pcd.storage.file.content.processed.dlq"
+    file_content_processed_retry_delays_seconds: str = "5,30,120"
+    # REQ-WORKER-TASKBUS-2026-07：内容预处理是核心任务链中的短暂可选步骤；无 Automation
+    # 消费者时由 timeout sentinel 快速触发 fail-open，不让上传等待原来的 180 秒。
+    file_preprocess_deadline_seconds: int = 15
+    file_preprocess_sweeper_interval_seconds: float = 3.0
+    file_preprocess_sweeper_batch_size: int = 100
+    storage_outbox_poll_seconds: float = 0.5
+    storage_outbox_batch_size: int = 50
+    storage_outbox_publish_lease_seconds: int = 60
+    # Runtime → Storage Broker 内部调用凭证。生产环境必须通过 Secret 注入且禁止配置公网路由。
+    plugin_runtime_internal_token: str = ""
+    pcd_internal_service_token: str = ""
+    file_preprocess_candidate_max_bytes: int = 10 * 1024 * 1024 * 1024
+    file_preprocess_candidate_max_expansion_ratio: float = 2.0
 
     # ========== 文件增强处理拓扑（Enhancement Processing — 并发流水线） ==========
     # 每个增强阶段独立 exchange + queue + DLQ，可并发消费，互不阻塞
@@ -177,12 +202,26 @@ class Settings(BaseSettings):
     retry_max_delay_seconds: int = 300  # 最大延迟 5 分钟
     # AUDIT FIX [7.4]（需求一-3）: DLQ 自动恢复独立计数，避免与阶段内重试相互叠加造成无限循环。
     enhance_dlq_recovery_max_attempts: int = 2
-    enhance_processing_lease_seconds: int = 1800
+    # REQ-WORKER-TASKBUS-2026-07：增强重复投递只需要短暂等待原消费者租约释放；
+    # 原 1800 秒会让重复消息的恢复看起来像熔断失效，影响异常上传后的后处理时延。
+    enhance_processing_lease_seconds: int = 30
     # 需求一-3：可选运维告警 Webhook；为空时仅保留 critical 日志和数据库台账。
     ops_alert_webhook_url: str = ""
 
+    # W-05/W-06：Worker 进程与统一消息处理框架配置。worker_processes=0 表示按 CPU
+    # 核心数启动；生产/开发可通过 WORKER_PROCESSES/WORKER_CONCURRENCY 覆盖，队列级变量
+    # 仅用于当前 Task Bus 消费者的并发覆盖。
+    worker_processes: int = 4  # 0 表示使用 CPU 核心数
+    worker_concurrency: int = 8
+    worker_shutdown_timeout_seconds: int = 30
+    worker_idempotency_ttl_seconds: int = 86400
+    worker_health_host: str = "127.0.0.1"
+    worker_health_port: int = 8719
+    worker_metrics_log_interval_seconds: int = 60
+    worker_admin_token: str = ""
+
     # --- 病毒扫描 ---
-    virus_scan_enabled: bool = False
+    virus_scan_enabled: bool = True
     virus_scan_fail_open: bool = False  # True=扫描器不可用时放行, False=拒绝
     quarantine_dir: str = "../Uploads/quarantine"  # 隔离区目录
 
@@ -209,15 +248,6 @@ class Settings(BaseSettings):
     enable_ocr: bool = True               # 是否启用 OCR
     enable_image_tags: bool = True        # 是否启用图片标签
 
-    # --- 内容索引交换机 & 队列 ---
-    content_index_exchange: str = "pcd.content.index.exchange"
-    content_index_queue: str = "pcd.content.index.queue"
-    content_index_routing_key: str = "content.index"
-    content_index_dlx: str = "pcd.content.index.dlx"
-    content_index_dlq: str = "pcd.content.index.dlq"
-    content_index_dlq_routing_key: str = "content.index.dlq"
-    content_index_max_retries: int = 3
-
     # ========== 上传会话事件交换机 & 队列（与 Spring Boot 主业务服务一致） ==========
     # --- 上传会话事件主交换机 ---
     uploads_event_exchange: str = "pcd.uploads.event.exchange"
@@ -226,6 +256,8 @@ class Settings(BaseSettings):
     # --- 上传会话事件死信队列 ---
     uploads_event_dlq: str = "pcd.uploads.event.dlq"
     uploads_event_dlq_routing_key: str = "uploads.event.dlq"
+    uploads_event_retry_queue: str = "pcd.uploads.event.retry.queue"
+    uploads_event_retry_routing_key: str = "uploads.event.retry"
     # --- 上传会话删除事件（文件存储服务消费 → 删除物理分块文件） ---
     uploads_session_delete_queue: str = "pcd.uploads.session.delete.queue"
     uploads_session_delete_routing_key: str = "uploads.session.delete"
@@ -262,6 +294,7 @@ settings = Settings()
 # ========== 任务类型常量 ==========
 class TaskTypes:
     MERGE = "merge"
+    CONTENT_PREPROCESS = "content_preprocess"    # merge 后、最终 hash 前的持久化等待闸门
     HASH_CALCULATE = "hash_calculate"
     VIRUS_SCAN = "virus_scan"
     THUMBNAIL = "thumbnail"
@@ -376,8 +409,8 @@ EVENT_STATUS_TTL = 30000
 REDIS_ENHANCE_EVENT_KEY = "enhance:task:{enhance_task_id}:{stage}"
 REDIS_ENHANCE_MASTER_KEY = "enhance:task:{enhance_task_id}:master"
 
-# ========== 任务流水线拆分 ==========
-# 旧版流水线（保留兼容）
+# ========== 文件流水线阶段定义 ==========
+# REQ-WORKER-TASKBUS-2026-07：阶段枚举用于任务状态和处理器选择；后台消息编排使用 Task Bus。
 TASK_PIPELINE = [
     TaskTypes.MERGE,
     TaskTypes.HASH_CALCULATE,
@@ -392,6 +425,7 @@ TASK_PIPELINE = [
 # 新版——后台处理流水线（顺序执行，影响文件可用性）
 BACKEND_PIPELINE = [
     TaskTypes.MERGE,
+    TaskTypes.CONTENT_PREPROCESS,
     TaskTypes.HASH_CALCULATE,
     TaskTypes.VIRUS_SCAN,
     TaskTypes.MARK_ACTIVE,
@@ -409,28 +443,30 @@ ENHANCE_PIPELINE = [
 
 # 后台处理阶段 → 下一阶段的映射
 BACKEND_NEXT_STAGE = {
-    TaskTypes.MERGE: TaskTypes.HASH_CALCULATE,
+    # 需求：原行为 merge 直接进入 hash；新行为先开启 fail-open 预处理闸门。
+    TaskTypes.MERGE: TaskTypes.CONTENT_PREPROCESS,
+    TaskTypes.CONTENT_PREPROCESS: TaskTypes.HASH_CALCULATE,
     TaskTypes.HASH_CALCULATE: TaskTypes.VIRUS_SCAN,
     TaskTypes.VIRUS_SCAN: TaskTypes.MARK_ACTIVE,
     TaskTypes.MARK_ACTIVE: None,  # 流水线终点，触发增强事件
 }
 
-# 后台处理阶段 → routing_key 映射
+# Backend Task Bus 阶段 → 任务 routing_key 映射。
 BACKEND_STAGE_ROUTING_KEY = {
-    TaskTypes.MERGE: "file.backend.merge",
-    TaskTypes.HASH_CALCULATE: "file.backend.hash",
-    TaskTypes.VIRUS_SCAN: "file.backend.virus",
-    TaskTypes.MARK_ACTIVE: "file.backend.mark_active",
+    TaskTypes.MERGE: settings.file_backend_merge_routing_key,
+    TaskTypes.HASH_CALCULATE: settings.file_backend_hash_routing_key,
+    TaskTypes.VIRUS_SCAN: settings.file_backend_virus_routing_key,
+    TaskTypes.MARK_ACTIVE: settings.file_backend_mark_active_routing_key,
 }
 
 # 增强处理阶段 → routing_key 映射
 ENHANCE_STAGE_ROUTING_KEY = {
-    TaskTypes.THUMBNAIL: "file.enhance.thumbnail",
-    TaskTypes.VIDEO_TRANSCODE: "file.enhance.transcode",
-    TaskTypes.HLS_TRANSCODE: "file.enhance.hls",
-    TaskTypes.CONTENT_INDEX: "file.enhance.index",
-    TaskTypes.OFFICE_TO_PDF: "file.enhance.office_to_pdf",
-    TaskTypes.ARCHIVE_PARSE: "file.enhance.archive_parse",
+    TaskTypes.THUMBNAIL: settings.file_enhance_thumbnail_routing_key,
+    TaskTypes.VIDEO_TRANSCODE: settings.file_enhance_transcode_routing_key,
+    TaskTypes.HLS_TRANSCODE: settings.file_enhance_hls_routing_key,
+    TaskTypes.CONTENT_INDEX: settings.file_enhance_index_routing_key,
+    TaskTypes.OFFICE_TO_PDF: settings.file_enhance_office_to_pdf_routing_key,
+    TaskTypes.ARCHIVE_PARSE: settings.file_enhance_archive_parse_routing_key,
 }
 
 # 根据文件类型判断需要触发的增强阶段

@@ -1,201 +1,85 @@
 # API 接口概览
 
-## 1. 接口规范
+## 1. 通用约定
 
-### 1.1 基础信息
+- 公共入口：浏览器访问 `/api/v1`，生产环境由 Nginx 转发到 Gateway。
+- 认证：登录后使用 `Authorization: Bearer <JWT>`；预览、下载和上传分片还可能需要短期操作凭证。
+- 内部调用：`/business/internal/**` 等内部路径只允许受信服务携带内部服务凭证访问。
+- 响应：各服务使用统一字段或服务专用响应包装，接入时以对应 Controller、DTO/VO 和前端 API 模块为准。
+- 错误：常见状态包括 400 参数错误、401 未认证、403 无权限、404 不存在、409 冲突、413 配额/大小限制、429 限流和 5xx 服务错误。
 
-| 属性 | 值 |
-|------|-----|
-| 网关地址 | `http://localhost:8080` |
-| 内容类型 | `application/json` |
-| 字符编码 | UTF-8 |
-| 认证方式 | Bearer JWT (Header: `Authorization: Bearer <token>`) |
+## 2. Gateway 路由族
 
-### 1.2 统一响应格式
+| 路径族 | 目标 | 说明 |
+| --- | --- | --- |
+| `/api/v1/business/**` | Platform Service | 用户、文件元数据、目录、空间、分享、标签、收藏、回收站和配额 |
+| `/api/v1/files/**` | Storage Service | 操作凭证、上传分片、文件内容、缩略图、预览资源和转换 |
+| `/api/v1/im/**` | IM Platform | 消息、会话、群组、好友、通话记录 |
+| `/ws/**` | IM Server | WebSocket 长连接 |
+| `/api/v1/plugins/**` | Plugin Service | 插件控制面和市场 |
+| `/api/v1/workflows/**` | Workflow Service | 工作流定义、校验、运行和执行记录 |
+| `/api/v1/capabilities/**` | Workflow/Plugin | 能力中心和能力解析 |
+| `/api/v1/marketplace/**` | Plugin/Workflow | 插件与工作流市场 |
+| `/api/v1/client-registration/**` | Client Registration | 客户端挑战、绑定和状态 |
 
-```json
-{
-  "code": 200,
-  "message": null,
-  "data": {}
-}
-```
+## 3. 业务 API 能力
 
-| code | 含义 |
-|------|------|
-| 200 | 成功 |
-| 400 | 请求参数错误 |
-| 401 | 未认证 |
-| 403 | 无权限 |
-| 404 | 资源不存在 |
-| 409 | 资源冲突 |
-| 429 | 请求过于频繁 |
-| 500 | 服务器内部错误 |
+### 用户与认证
 
-### 1.3 路由前缀
+- 登录、注册、注销、用户信息、头像、密码、邮箱/手机号变更。
+- 验证码发送、重发和校验。
+- 设备/客户端状态与绑定由 Client Registration Service 负责。
 
-| 前缀 | 目标服务 | 说明 |
-|------|----------|------|
-| `/api/v1/business/**` | platform-service :8081 | 业务 API |
-| `/api/v1/files/**` | shortage-service :8000 | 文件 API |
-| `/api/v1/im/**` | im-platform | 即时通讯 API |
+### 文件与目录
 
-## 2. 用户模块 API
+- 文件详情、重命名、移动、复制、删除和位置变更。
+- 文件夹创建、重命名、移动、复制、删除、分页子节点和路径浏览。
+- 文件列表、最近访问、搜索和配额查询。
+- 所有资源操作都应结合当前用户和空间上下文，不应仅凭客户端传入的 ID 判断权限。
 
-### 2.1 认证
+### 上传、下载与预览
 
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/business/users/login` | 用户登录 | 否 |
-| POST | `/api/v1/business/users/` | 用户注册 | 否 |
-| POST | `/api/v1/business/users/logout` | 用户登出 | 是 |
+- 上传会话创建、状态查询、取消和完成通知。
+- 操作凭证签发/撤销。
+- 分片上传、已上传分片查询、合并和内容激活。
+- 文件内容流式下载、Range、文件夹下载、预览令牌、元数据、缩略图、文档转换和预览缓存。
+- 实际支持的预览格式由 Storage Service 的能力和部署依赖决定。
 
-### 2.2 用户信息
+### 分享、回收站、收藏与标签
 
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/users/profile` | 获取个人信息 | 是 |
-| PUT | `/api/v1/business/users/profile` | 更新个人信息 | 是 |
-| PUT | `/api/v1/business/users/password` | 修改密码 | 是 |
-| PUT | `/api/v1/business/users/avatar` | 上传头像 | 是 |
+- 分享创建、详情、资源列表、访问和撤回。
+- 回收站列表、恢复、彻底删除和清空。
+- 文件/文件夹收藏状态、收藏列表和批量操作。
+- 标签创建、更新、删除、绑定、解绑、批量管理和按标签查询。
 
-### 2.3 验证
+### 空间协作
 
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/business/verification/send` | 发送验证码 | 否 |
-| POST | `/api/v1/business/verification/verify` | 验证验证码 | 否 |
+- 空间创建、列表、详情、更新和删除。
+- 成员邀请、成员列表、角色调整和移除。
+- 成员权限查询/更新、加入申请、可见性列表和公开发现。
+- 当前空间上下文通过请求头/会话与服务端权限共同决定，不能由客户端伪造。
 
-## 3. 文件模块 API
+## 4. 插件与自动化 API
 
-### 3.1 文件操作
+- Plugin Service：插件 CRUD、版本、包上传、校验、发布、安装/卸载、启停、执行统计和插件市场。
+- Local Plugin：客户端身份绑定、平台/客户端筛选、签名包下载授权。
+- Workflow Service：工作流 CRUD、版本、DSL/图校验、发布、运行、执行详情、重试和取消。
+- Capability Hub：列出、解析和投影内置能力、平台 API、插件能力和本地插件能力。
+- Marketplace：插件/工作流列表、提交审核、评分和模板导入。
+- Automation/Scheduler：主要为内部服务 API，负责事件匹配、执行落库、Inbox/Outbox、定时计划和幂等触发。
 
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/files/{id}` | 获取文件信息 | 是 |
-| DELETE | `/api/v1/business/files/{id}` | 删除文件 (移入回收站) | 是 |
-| PATCH | `/api/v1/business/files/{id}/rename` | 重命名文件 | 是 |
-| PATCH | `/api/v1/business/files/{id}/position` | 移动文件 | 是 |
-| POST | `/api/v1/business/files/{id}/copy` | 复制文件 | 是 |
+## 5. 接入注意事项
 
-### 3.2 目录节点
+1. 先阅读 Gateway 的有效路由配置，不要只依据旧文档路径。
+2. 生产前端使用同源 `/api/v1`，不要把容器内部地址或固定公网 IP 编译进 Vite。
+3. 文件上传/下载/预览要使用服务端签发的短期凭证，并正确处理过期、重试和 Range。
+4. 修改空间、文件、插件或工作流接口时，同步检查数据库迁移、事件契约和对应客户端 API 模块。
+5. 内部接口不得暴露到公网；不要信任客户端自行提交的用户/空间身份头。
 
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/nodes/{id}/children/paged` | 分页获取子节点 | 是 |
-| POST | `/api/v1/business/nodes/` | 创建文件夹 | 是 |
-| DELETE | `/api/v1/business/nodes/{id}` | 删除文件夹 | 是 |
-| PATCH | `/api/v1/business/nodes/{id}/rename` | 重命名文件夹 | 是 |
-| PATCH | `/api/v1/business/nodes/{id}/position` | 移动文件夹 | 是 |
+## 6. 真实接口来源
 
-## 4. 上传模块 API
-
-### 4.1 上传会话
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/business/uploads/` | 创建上传会话 | 是 |
-| GET | `/api/v1/business/uploads/{id}` | 查询上传状态 | 是 |
-| POST | `/api/v1/business/uploads/{id}/complete` | 通知上传完成 | 是 |
-
-### 4.2 操作凭证
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/files/operation-tokens` | 签发操作凭证 | 是 |
-| DELETE | `/api/v1/files/operation-tokens/{id}` | 撤销操作凭证 | 是 |
-
-### 4.3 文件分片
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/files/uploads/{id}/chunks` | 上传分片 | 凭证 |
-| GET | `/api/v1/files/uploads/{id}/chunks` | 查询已上传分片 | 凭证 |
-
-## 5. 下载模块 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/files/files/{id}/content` | 下载文件内容 (支持 Range) | 凭证 |
-| GET | `/api/v1/files/files/{id}/metadata` | 获取文件元数据 | 是 |
-| GET | `/api/v1/files/thumbnails/{id}` | 获取缩略图 | 是 |
-
-## 6. 回收站模块 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/trash/` | 获取回收站列表 | 是 |
-| POST | `/api/v1/business/trash/{id}/restore` | 恢复文件 | 是 |
-| DELETE | `/api/v1/business/trash/{id}` | 彻底删除 | 是 |
-| DELETE | `/api/v1/business/trash/clear` | 清空回收站 | 是 |
-
-## 7. 收藏模块 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/stars/` | 获取收藏列表 | 是 |
-| POST | `/api/v1/business/stars/{fileId}` | 添加收藏 | 是 |
-| DELETE | `/api/v1/business/stars/{fileId}` | 取消收藏 | 是 |
-
-## 8. 分享模块 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/business/shares/` | 创建分享链接 | 是 |
-| GET | `/api/v1/business/shares/` | 获取我的分享 | 是 |
-| DELETE | `/api/v1/business/shares/{id}` | 删除分享 | 是 |
-| GET | `/api/v1/business/shares/{code}/access` | 访问分享内容 | 否 |
-
-## 9. 配额模块 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/quotas/` | 获取配额信息 | 是 |
-
-## 10. 即时通讯 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/im/messages/` | 发送消息 | 是 |
-| GET | `/api/v1/im/messages/` | 获取消息历史 | 是 |
-| GET | `/api/v1/im/conversations/` | 获取会话列表 | 是 |
-| POST | `/api/v1/im/groups/` | 创建群组 | 是 |
-| WS | `/ws/im` | WebSocket 长连接 | JWT |
-
-## 11. 管理员 API
-
-### 11.1 管理员认证
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| POST | `/api/v1/admin/auth/login` | 管理员登录 | 否 |
-
-### 11.2 用户管理
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/admin/users/` | 用户列表 | 管理员 |
-| GET | `/api/v1/admin/users/{id}` | 用户详情 | 管理员 |
-| PUT | `/api/v1/admin/users/{id}/status` | 启用/禁用用户 | 管理员 |
-
-### 11.3 仪表盘
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/admin/dashboard/` | 管理仪表盘数据 | 管理员 |
-
-### 11.4 审计与安全
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/admin/audit-logs/` | 审计日志 | 管理员 |
-| GET | `/api/v1/admin/security-events/` | 安全事件 | 管理员 |
-| GET | `/api/v1/admin/ip-blacklist/` | IP 黑名单 | 管理员 |
-| POST | `/api/v1/admin/ip-blacklist/` | 添加 IP 黑名单 | 管理员 |
-
-## 12. 搜索 API
-
-| 方法 | 路径 | 说明 | 认证 |
-|------|------|------|------|
-| GET | `/api/v1/business/search/files` | 全文搜索文件 | 是 |
-| GET | `/api/v1/business/search/files/basic` | 文件名搜索 | 是 |
+- Platform Controller：`PrivateCloudDisk-platform-service/src/main/java/org/project/control/`
+- Storage API：`PrivateCloudDisk-storage-service/app/api/`
+- Web API 模块：`PrivateCloudDisk-web/src/api/modules/`
+- Gateway 路由：`PrivateCloudDisk-gateway-service/src/main/resources/application*.properties`
+- 事件契约：`contracts/events/`

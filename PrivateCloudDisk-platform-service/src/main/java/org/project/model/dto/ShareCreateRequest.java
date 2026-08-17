@@ -39,6 +39,9 @@ public class ShareCreateRequest {
     @Pattern(regexp = "^[A-Za-z0-9]+$", message = "提取码只能包含字母和数字，不能包含特殊字符")
     private String password;
 
+    /** 是否允许通过分享授权获取文件实际内容，默认允许以兼容旧分享。 */
+    private Boolean allow_download = true;
+
     /** 有效期天数（0 表示永久有效） */
     @NotNull(message = "有效期不能为空")
     private Integer expires_in_days;

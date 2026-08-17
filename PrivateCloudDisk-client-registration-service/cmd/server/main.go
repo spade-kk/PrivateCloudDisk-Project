@@ -113,7 +113,7 @@ func main() {
 		)
 	}))
 
-	handler := httphandler.NewHandler(registrationService)
+	handler := httphandler.NewHandler(registrationService, cfg.Security.InternalServiceToken)
 	handler.RegisterRoutes(router)
 
 	// ─── 8. 启动 HTTP 服务器 ────────────────────────────────────────────────────

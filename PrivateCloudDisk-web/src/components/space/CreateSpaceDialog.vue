@@ -63,17 +63,17 @@
             ></textarea>
           </div>
 
-          <!-- 可见性 -->
-          <div v-if="form.spaceType === 'public'">
-            <label class="mb-1.5 block text-sm font-medium text-neutral-700">可见性</label>
-            <select
-              v-model="form.spaceVisibility"
-              class="w-full rounded-lg border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
-            >
-              <option value="public">公开 - 所有人可见</option>
-              <option value="whitelist">白名单 - 指定用户可见</option>
-              <option value="blacklist">黑名单 - 指定用户不可见</option>
-              <option value="private">私有 - 仅成员可见</option>
+          <!-- 公开空间按仓库语义固定 visible/invite_only，不再显示普通成员空间可见性选择。 -->
+          <div v-if="form.spaceType === 'public'" class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
+            公开仓库面向登录用户发现，不参与成员加入流程。创建后可在仓库设置中分别控制浏览、下载和上传权限。
+          </div>
+
+          <div v-if="form.spaceType !== 'personal' && form.spaceType !== 'public'" class="rounded-lg border border-neutral-200 p-3">
+            <label class="mb-1 block text-xs font-medium text-neutral-600">加入策略</label>
+            <select v-model="form.joinPolicy" class="w-full rounded-lg border px-3 py-2 text-sm">
+              <option value="open">开放加入</option>
+              <option value="approval_required">需要审批</option>
+              <option value="invite_only">仅限邀请</option>
             </select>
           </div>
 
@@ -125,7 +125,8 @@ const submitting = ref(false)
 const spaceTypes = [
   { value: 'personal', label: '个人', icon: 'fa fa-user', desc: '主网盘' },
   { value: 'enterprise', label: '企业', icon: 'fa fa-building', desc: '企业级管理' },
-  { value: 'public', label: '公共', icon: 'fa fa-globe', desc: '开放共享' },
+  { value: 'private', label: '私有', icon: 'fa fa-lock', desc: '邀请成员协作' },
+  { value: 'public', label: '公开仓库', icon: 'fa fa-globe', desc: '长期资源发布' },
   { value: 'team', label: '团队', icon: 'fa fa-users', desc: '团队协作' },
 ]
 
@@ -133,7 +134,11 @@ const form = reactive({
   spaceName: '',
   spaceType: 'team',
   spaceDescription: '',
-  spaceVisibility: 'public',
+  spaceVisibility: 'visible',
+  joinPolicy: 'approval_required' as 'open' | 'approval_required' | 'invite_only',
+  allowPublicBrowse: true,
+  allowPublicDownload: true,
+  allowPublicUpload: false,
 })
 
 function cancel() {
@@ -149,6 +154,10 @@ async function submit() {
       spaceType: form.spaceType,
       spaceDescription: form.spaceDescription,
       spaceVisibility: form.spaceVisibility,
+      joinPolicy: form.spaceType === 'personal' || form.spaceType === 'public' ? 'invite_only' : form.joinPolicy,
+      allowPublicBrowse: form.spaceType === 'public' ? form.allowPublicBrowse : undefined,
+      allowPublicDownload: form.spaceType === 'public' ? form.allowPublicDownload : undefined,
+      allowPublicUpload: form.spaceType === 'public' ? form.allowPublicUpload : undefined,
     })
     if (res.code === 200) {
       await spaceStore.refreshSpaces()
@@ -165,6 +174,10 @@ function resetForm() {
   form.spaceName = ''
   form.spaceType = 'team'
   form.spaceDescription = ''
-  form.spaceVisibility = 'public'
+  form.spaceVisibility = 'visible'
+  form.joinPolicy = 'approval_required'
+  form.allowPublicBrowse = true
+  form.allowPublicDownload = true
+  form.allowPublicUpload = false
 }
 </script>

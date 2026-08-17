@@ -24,6 +24,9 @@ public class FileStarEntity implements Serializable {
     /** 用户ID */
     private UUID user_id;
 
+    /** 需求：空间管理能力全量集成（五-5），收藏所属空间。 */
+    private UUID space_id;
+
     /** 收藏目标类型：file / folder */
     private TargetType target_type;
 

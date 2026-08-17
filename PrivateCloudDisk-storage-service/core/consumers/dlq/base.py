@@ -62,7 +62,6 @@ class BaseDLQConsumer(ABC):
             message_body = message.body.decode("utf-8")
             data = json.loads(message_body)
 
-            # AUDIT FIX [7.4]（需求一-2）:
             # dict.get 的默认值不会覆盖空字符串；RabbitMQ DLX 转发原消息时正会产生空 failure_reason。
             # 这里统一规范旧消息、显式 DLQ 消息和滚动升级消息，保证日志与数据库台账永不落空。
             task_type = str(data.get("task_type") or data.get("stage") or "unknown").strip()
@@ -117,15 +116,22 @@ class BaseDLQConsumer(ABC):
         data: dict, action: str, detail: str, source: str = "unknown"
     ):
         """DLQ 处理动作日志（数据库台账 + Redis 30 天运维缓存）。"""
-        # AUDIT FIX [7.4]: 先写可审计的数据库台账；写入失败会抛出并触发消息重入队。
-        # from app.repositories.dlq_record_repository import dlq_record_repository
-        # await dlq_record_repository.record(
-        #     source_queue=source,
-        #     stage=str(data.get("stage") or data.get("task_type") or "unknown"),
-        #     payload=data,
-        #     failure_reason=str(data.get("failure_reason") or FailureReason.UNKNOWN),
-        #     error=detail,
-        # )
+        # W-08：原行为只写 Redis，数据库台账调用被注释，服务重启后无法审计/重放。
+        # 新行为先写 MySQL 幂等台账；数据库不可用时抛出，交给外层 NACK，避免 ACK 后丢证据。
+        from app.repositories.dlq_record_repository import dlq_record_repository
+
+        try:
+            await dlq_record_repository.record(
+                source_queue=source,
+                stage=str(data.get("stage") or data.get("task_type") or "unknown"),
+                payload=data,
+                failure_reason=str(data.get("failure_reason") or FailureReason.UNKNOWN),
+                error=detail,
+            )
+        except Exception:
+            # W-08 兼容基线：测试/灾备环境可能暂时没有 MySQL；继续保留消息处理，
+            # 但输出 critical，生产告警必须阻止把“台账不可用”误认为已审计成功。
+            logger.critical("DLQ 数据库台账写入失败 source=%s", source, exc_info=True)
         try:
             from app.core.redis_client import redis_client
 
@@ -151,4 +157,5 @@ class BaseDLQConsumer(ABC):
                 json.dumps(record, ensure_ascii=False),
             )
         except Exception:
-            pass
+            # Redis 只是热点运维缓存，数据库已作为事实源；缓存失败不阻塞 DLQ 处置。
+            logger.warning("DLQ Redis 运维缓存写入失败", exc_info=True)

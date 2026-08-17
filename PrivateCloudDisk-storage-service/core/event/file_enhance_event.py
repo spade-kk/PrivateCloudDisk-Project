@@ -37,18 +37,27 @@ class FileEnhanceEvent:
     node_id: str = ""             # 目录节点 ID
     file_checksum: str = ""       # 文件 SHA-256
     backend_task_id: str = ""     # 关联的后台任务 ID（用于追溯）
+    space_id: str = ""            # 需求五-9：文件所属空间 ID；消费者日志/资源入库必须保留
+    space_type: str = ""          # 空间类型，用于物理资源命名与审计
     retry_count: int = 0          # 已重试次数
     failure_reason: str = ""      # 失败原因
     failure_detail: str = ""      # 原始异常摘要（标准原因之外保留可排查信息）
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     accumulated: dict = field(default_factory=dict)  # 累积的上下文数据
+    # W-03：重试消息沿用同一幂等消息 ID；阶段变化时由创建方生成对应阶段 ID。
+    message_id: str = ""
+
+    def __post_init__(self):
+        if not self.message_id:
+            self.message_id = f"enhance:{self.enhance_task_id}:{self.stage}"
 
     @classmethod
     def from_dict(cls, data: dict) -> "FileEnhanceEvent":
         normalized = dict(data)
         # AUDIT FIX [7.4]（需求一-2）:
         # 原消息契约只有 stage，而 DLQ 公共消费者读取 task_type，导致增强死信被记录为 unknown。
-        # 新契约兼容生产者/消费者两端：任一字段存在都可恢复阶段，避免滚动升级期间旧消息失效。
+        # REQ-WORKER-EVENTBUS-2026-07：统一事件信封会平铺 payload；stage/task_type 均是当前
+        # 增强消费者既有字段契约，用于恢复阶段，不代表继续消费旧队列消息。
         normalized["stage"] = str(normalized.get("stage") or normalized.get("task_type") or "").strip()
         normalized["failure_reason"] = str(normalized.get("failure_reason") or "").strip()
         try:
@@ -60,7 +69,8 @@ class FileEnhanceEvent:
 
     def to_dict(self) -> dict:
         payload = asdict(self)
-        # AUDIT FIX [7.4]（需求一-2）: 同时输出标准 task_type 和历史 stage，兼容全部 DLQ/监控消费者。
+        # AUDIT FIX [7.4]（需求一-2）: 同时输出标准 task_type 和 stage，供当前 DLQ/监控消费者
+        # 读取同一份增强事件阶段字段；旧增强 MQ 拓扑已移除。
         payload["task_type"] = self.stage
         return payload
 

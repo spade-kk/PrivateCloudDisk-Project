@@ -23,6 +23,9 @@ public class TagEntity implements Serializable {
     /** 所属用户ID */
     private UUID tag_user_id;
 
+    /** 需求：空间管理能力全量集成（五-6），标签定义所属空间。 */
+    private UUID tag_space_id;
+
     /** 标签名称 */
     private String tag_name;
 

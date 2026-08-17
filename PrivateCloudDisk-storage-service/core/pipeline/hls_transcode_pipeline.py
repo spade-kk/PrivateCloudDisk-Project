@@ -206,6 +206,9 @@ class HlsTranscodePipeline:
             # 需求六-1：30 秒资源生成后立即通知持久层独立提交，不再等待多码率 HLS 和雪碧图。
             if hover_preview_path and hover_preview_ready:
                 try:
+                    logger.info(
+                        "[HLS-PREVIEW] 回调 Callable hover_preview_read() 方法)"
+                    )
                     await hover_preview_ready(hover_preview_path, source_info)
                 except Exception as exc:
                     # 独立事务失败不销毁已生成文件；主流程结束后的幂等 upsert 仍可兜底补账。

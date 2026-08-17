@@ -1,10 +1,13 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
     <!-- 标题栏 -->
-    <div class="flex items-center justify-between">
-      <h1 class="text-xl font-bold sm:text-2xl">
-        <i class="fa fa-star text-warning"></i> 我的收藏
-      </h1>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-bold sm:text-2xl">
+          <i class="fa fa-star text-warning"></i> 我的收藏
+        </h1>
+        <CurrentSpaceBadge class="mt-2" />
+      </div>
       <span class="text-sm text-neutral-400">共 {{ starredStore.starredCount }} 项</span>
     </div>
 
@@ -31,17 +34,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import FileGridView from '@/components/file/FileGridView.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useStarredStore } from '@/stores/starred'
 import { useToastStore } from '@/stores/toastStore'
 import { useRouter } from 'vue-router'
 import { isVideo } from '@/utils/previewHelper'
+import { useSpaceStore } from '@/stores/spaceStore'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 
 const starredStore = useStarredStore()
 const toastStore = useToastStore()
 const router = useRouter()
+const spaceStore = useSpaceStore()
 
 const starredNodes = ref<any[]>([])
 const loading = ref(false)
@@ -100,4 +106,7 @@ const onStarClick = async (node: any) => {
 }
 
 onMounted(loadStarred)
+
+// 需求四-3：收藏列表跟随当前空间，避免切换后短暂展示旧空间项目。
+watch(() => spaceStore.revision, () => void loadStarred())
 </script>

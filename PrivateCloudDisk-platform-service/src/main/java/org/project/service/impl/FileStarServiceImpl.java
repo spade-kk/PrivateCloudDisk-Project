@@ -3,6 +3,7 @@ package org.project.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.mapper.FileStarMapper;
+import org.project.context.SpaceContextHolder;
 import org.project.model.entity.FileStarEntity;
 import org.project.service.FileStarService;
 import org.project.service.ex.FileNotExistException;
@@ -39,6 +40,7 @@ public class FileStarServiceImpl implements FileStarService {
 
         FileStarEntity fileStar = new FileStarEntity();
         fileStar.setUser_id(user_id);
+        fileStar.setSpace_id(SpaceContextHolder.getSpaceId());
         fileStar.setFile_id(file_id);
         fileStar.setStarred_at(LocalDateTime.now());
 
@@ -78,6 +80,7 @@ public class FileStarServiceImpl implements FileStarService {
 
         FileStarEntity fileStar = new FileStarEntity();
         fileStar.setUser_id(user_id);
+        fileStar.setSpace_id(SpaceContextHolder.getSpaceId());
         fileStar.setNode_id(node_id);
         fileStar.setStarred_at(LocalDateTime.now());
 

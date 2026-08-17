@@ -1,6 +1,6 @@
 # PrivateCloudDisk-android
 
-企业级私有云盘 Android 原生客户端，基于 Kotlin + Jetpack Compose 构建，支持文件管理、即时通讯、虚拟磁盘等功能。
+Android 原生客户端，基于 Kotlin + Jetpack Compose 构建，提供文件访问、上传下载、预览和客户端扩展入口；即时通讯、离线或设备能力以当前模块实现和后端配置为准。
 
 ---
 

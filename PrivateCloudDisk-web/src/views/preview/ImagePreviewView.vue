@@ -4,6 +4,7 @@
       :visible="true"
       :file-id="fileId"
       :file-name="fileName"
+      :space-id="spaceId"
       @close="goBack"
     />
   </main>
@@ -19,6 +20,7 @@ const route = useRoute()
 const router = useRouter()
 const fileId = computed(() => String(route.params.fileId || ''))
 const fileName = computed(() => String(route.query.name || '图片预览'))
+const spaceId = computed(() => String(route.query.space || '') || undefined)
 
 function goBack() {
   if (window.history.length > 1) router.back()

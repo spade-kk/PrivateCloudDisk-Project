@@ -47,6 +47,7 @@ class FileDeleteConsumer:
 
             logger.info(
                 f"收到删除消息: file_id={event.file_id}, "
+                f"space_id={event.space_id or 'personal-legacy'}, "
                 f"retry_count={event.retry_count}"
             )
 
@@ -136,7 +137,9 @@ class FileDeleteConsumer:
         # AUDIT FIX [7.4]: 永久删除文件时按数据库资源清单清除 HLS、文档、压缩包等全部派生产物。
         try:
             from app.services.preview_resource_service import preview_resource_service
-            preview_deleted = await preview_resource_service.delete_file_resources(event.file_id, event.user_id)
+            preview_deleted = await preview_resource_service.delete_file_resources(
+                event.file_id, event.user_id, event.space_id or None,
+            )
             deleted.extend(preview_deleted)
         except Exception as e:
             errors.append(f"预览资源清理失败: {e}")
@@ -180,21 +183,35 @@ class FileDeleteConsumer:
             return
 
         await message.ack()
-        logger.info(f"文件删除完成: file_id={event.file_id}, deleted={len(result['deleted'])}个文件")
+        logger.info(
+            f"文件删除完成: space_id={event.space_id or 'personal-legacy'}, "
+            f"file_id={event.file_id}, deleted={len(result['deleted'])}个文件"
+        )
 
     async def _on_failure(self, message: Any, event: FileDeleteEvent, result: dict):
         """删除失败 → 判断重试或进 DLQ"""
         failure_reason = result.get("failure_reason", FailureReason.DELETE_IO_ERROR)
 
         if not self.retry.should_retry(event.retry_count, failure_reason):
-            # 重试耗尽 → NACK → DLQ
+            # 重试耗尽 → 发布 enriched 载荷到专属 DLQ；发布确认失败时保留原消息。
             logger.error(
                 f"删除任务重试耗尽 → 进入 DLQ: "
                 f"file_id={event.file_id}, "
                 f"retry_count={event.retry_count}, "
                 f"errors={result['errors']}"
             )
-            await message.nack(requeue=False)
+            try:
+                failed = event.to_dict()
+                failed["failure_reason"] = failure_reason
+                await rabbitmq_service.publish_to_dlq(
+                    settings.file_delete_dlx,
+                    settings.file_delete_dlq_routing_key,
+                    failed,
+                )
+                await message.ack()
+            except Exception:
+                logger.exception("文件删除 DLQ 发布失败，原消息重新入队 file_id=%s", event.file_id)
+                await message.nack(requeue=True)
             return
 
         # 重试
@@ -208,16 +225,16 @@ class FileDeleteConsumer:
             f"errors={result['errors']}"
         )
 
-        await asyncio.sleep(delay)
         retry_event = event.with_retry_increment()
         retry_dict = retry_event.to_dict()
         retry_dict["failure_reason"] = failure_reason
         try:
-            # 【需求七】先确认重试消息发布成功再 ACK 原消息，避免发布失败时出现消息丢失窗口。
-            await rabbitmq_service.publish_message(
-                settings.file_delete_exchange,
-                settings.file_delete_routing_key,
-                retry_dict,
+            # W-02：写入文件删除专属 TTL retry 队列，发布确认后才 ACK 原消息。
+            await rabbitmq_service.publish_retry_message(
+                exchange_name=settings.file_delete_exchange,
+                routing_key=settings.file_delete_routing_key,
+                message=retry_dict,
+                delay_seconds=delay,
             )
             await message.ack()
         except Exception:

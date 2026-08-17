@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToastStore } from './toastStore'
+import { useSpaceStore } from './spaceStore'
 import { getFileInfoApi, getFileInfoByPathAndNameApi, getNodeChildrenApi, getNodeInfoApi, resolvePathToNodeIdApi, getChildrenByPathApi, moveFileApi, moveNodeApi, renameFileApi, getMyUserRootNodeApi, createFolderApi, renameNodeApi, moveFileToTrashApi, moveFolderToTrashApi } from '@/api/index'
 
 export interface PathNode {
@@ -25,6 +26,7 @@ export interface LoadError {
 
 export const useFileBrowserStore = defineStore('fileBrowser', () => {
   const toastStore = useToastStore()
+  const spaceStore = useSpaceStore()
   const currentNodeId = ref('')
   const pathStack = ref<PathNode[]>([])
   const nodes = ref<FileNode[]>([])
@@ -55,7 +57,8 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
       if (res.code === 200 && res.data) {
         const root = res.data
         currentNodeId.value = root.node_id
-        pathStack.value = [{ node_id: root.node_id, node_name: '我的网盘' }]
+        // 需求四-2：面包屑第一级展示当前空间名称；未初始化时仍兼容显示“我的网盘”。
+        pathStack.value = [{ node_id: root.node_id, node_name: spaceStore.currentSpaceName }]
         await loadChildren(currentNodeId.value)
       } else {
         nodes.value = []
@@ -188,6 +191,7 @@ export const useFileBrowserStore = defineStore('fileBrowser', () => {
       }
 
       if (chain.length > 0) {
+        chain[0].node_name = spaceStore.currentSpaceName
         pathStack.value = chain
       }
     } catch (error) {

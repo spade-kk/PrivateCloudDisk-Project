@@ -1,7 +1,8 @@
 """
 文件后台处理消费者基类
 
-供 merge / hash / virus / mark_active 四个阶段消费者复用。
+供 merge / hash / virus / mark_active 四个实际计算阶段消费者复用。
+content_preprocess 是持久化等待闸门，由生命周期消费者关闭，不占用计算消费者。
 
 核心能力:
   - 基于 backend_task_id + stage 的幂等检查（Redis 事件状态键）
@@ -31,6 +32,8 @@ from core.config import (
 from core.rabbitmq import rabbitmq_service
 from core.event.file_backend_event import FileBackendEvent
 from core.services.file_processor import FileProcessor, ProcessResult
+from core.messaging.errors import RetryableWorkerError, classify_exception, exception_summary
+from core.messaging.metrics import worker_metrics
 
 logger = logging.getLogger("backend_consumer")
 
@@ -96,7 +99,9 @@ class BaseBackendConsumer(ABC):
                 f"retry={event.retry_count}/{self.max_retries}"
             )
 
-            # 2. 幂等检查（backend_task_id + stage）
+            # 2. 幂等检查。新行为使用 Redis SET NX 原子抢占，避免多进程中“先读后写”竞态；
+            # Redis 故障时仍由原有业务状态和数据库 Gate/资源唯一键兜底。
+            #claimed = await self._claim_event(event.backend_task_id)
             event_status = await self._get_event_status(event.backend_task_id)
             if event_status == TaskStatus.PROCESSING:
                 logger.warning(
@@ -123,7 +128,7 @@ class BaseBackendConsumer(ABC):
                 await message.nack(requeue=True)
                 return
 
-            # 标记事件状态为 processing
+            # 标记事件状态为 processing（SET NX 已成功时只刷新租约状态）。
             await self._set_event_status(event.backend_task_id, TaskStatus.PROCESSING)
 
             # 3. 执行业务逻辑
@@ -140,15 +145,40 @@ class BaseBackendConsumer(ABC):
                     f"pipeline_id={event.pipeline_id} "
                     f"file_id={event.file_id} "
                     f"reason={result.failure_reason} "
-                    f"elapsed={elapsed:.2f}s"
+                    f"elapsed={elapsed * 1000}ms"
                 )
                 await self._on_failure(message, event, result)
 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             logger.error(
-                f"[BACKEND-{self.stage}] JSON_PARSE_ERROR → 丢弃"
+                f"[BACKEND-{self.stage}] JSON_PARSE_ERROR → 专属 DLQ"
             )
-            await message.ack()
+            # 协议错误不可重试，但不能静默 ACK 丢失；构造最小 DLQ 载荷并在
+            # 发布确认后 ACK 原消息。当前专属 DLQ 消费者读取 stage/failure_reason。
+            invalid = FileBackendEvent(
+                backend_task_id="invalid",
+                stage=self.stage,
+                pipeline_id="invalid",
+                file_id="",
+                user_id="",
+                file_name="",
+                file_type="",
+                failure_reason="MESSAGE_SCHEMA_ERROR",
+                accumulated={"raw_error": exception_summary(exc)},
+            )
+            try:
+                await self._publish_to_dlq(invalid, ProcessResult(
+                    success=False,
+                    task_type=self.stage,
+                    failure_reason="MESSAGE_SCHEMA_ERROR",
+                    error=exception_summary(exc),
+                    retryable=False,
+                ))
+                await message.ack()
+            except Exception:
+                logger.exception("[BACKEND-%s] SCHEMA_DLQ_PUBLISH_FAILED → 原消息重新入队", self.stage)
+                if not getattr(message, "processed", False):
+                    await message.nack(requeue=True)
         except Exception as e:
             logger.error(
                 f"[BACKEND-{self.stage}] EXCEPTION "
@@ -156,11 +186,19 @@ class BaseBackendConsumer(ABC):
                 f"error={e}",
                 exc_info=True,
             )
-            # 未预期异常 → 更新事件状态为 failed → 进入 DLQ
+            # 所有未预期异常统一分类；未知异常不可重试，且必须补全 failure_reason。
             if event:
-                await self._set_event_status(event.backend_task_id, TaskStatus.FAILED)
-                await self._update_master_status(event, TaskStatus.FAILED)
-            await message.nack(requeue=False)
+                classified = classify_exception(e)
+                failure = ProcessResult(
+                    success=False,
+                    task_type=self.stage,
+                    failure_reason=classified.failure_reason,
+                    error=exception_summary(classified),
+                    retryable=isinstance(classified, RetryableWorkerError),
+                )
+                await self._on_failure(message, event, failure)
+            elif not getattr(message, "processed", False):
+                await message.nack(requeue=False)
 
     # ===== 子类实现 =====
 
@@ -185,8 +223,34 @@ class BaseBackendConsumer(ABC):
             f"file_id={event.file_id} "
             f"elapsed={elapsed:.2f}s"
         )
+        await worker_metrics.record(self.stage, "success")
 
-        await message.ack()
+        # 需求：原行为是先 ACK merge 再发布 hash，进程在两者之间退出会永久丢失下一阶段。
+        # 新行为对 merge 先在 MySQL 同一事务写 Gate + ready/timeout Outbox，事务成功后再 ACK。
+        # 其他阶段也调整为成功发布下一阶段后 ACK，保持原业务结果但收紧消息可靠性窗口。
+        if self.stage == TaskTypes.MERGE:
+            from app.services.file_preprocess_gate_service import file_preprocess_gate_service
+
+            await file_preprocess_gate_service.open_after_merge(event, result.data)
+            await self._update_master_status(
+                event, TaskStatus.PROCESSING, TaskTypes.CONTENT_PREPROCESS
+            )
+            await self._set_named_event_status(
+                event.backend_task_id, TaskTypes.CONTENT_PREPROCESS, TaskStatus.PROCESSING
+            )
+            await message.ack()
+            return
+
+        if self.stage == TaskTypes.HASH_CALCULATE and event.preprocess_gate_id:
+            # 需求：candidate_checksum 只来自 Broker，final_checksum 必须由 Storage Hash
+            # Worker 独立计算后回写 Gate，避免插件伪造摘要绕过后续安全扫描。
+            from app.repositories.file_preprocess_repository import file_preprocess_repository
+
+            await file_preprocess_repository.mark_final_checksum(
+                event.preprocess_gate_id,
+                str(result.data.get("checksum") or event.file_checksum),
+                int(event.file_size),
+            )
 
         next_stage = BACKEND_NEXT_STAGE.get(self.stage)
         if next_stage is None:
@@ -198,6 +262,9 @@ class BaseBackendConsumer(ABC):
             )
             await self._update_master_status(event, TaskStatus.COMPLETED)
             await self._publish_enhance_events(event, result)
+            # file.available 仍由 MarkActiveConsumer 按既有业务契约发布；Task Bus 不新增
+            # activated 事实事件，避免把任务编排和广播事件混在同一条后台链路中。
+            await message.ack()
             return
 
         # 更新总任务状态为 processing（记录当前阶段）
@@ -213,7 +280,6 @@ class BaseBackendConsumer(ABC):
         accumulated.update(result.data)
 
         next_event = event.with_next_stage(next_stage, accumulated)
-        routing_key = BACKEND_STAGE_ROUTING_KEY[next_stage]
 
         logger.info(
             f"[BACKEND-{self.stage}] → {next_stage} "
@@ -221,25 +287,46 @@ class BaseBackendConsumer(ABC):
             f"pipeline_id={event.pipeline_id}"
         )
 
+
+
+        # REQ-WORKER-TASKBUS-2026-07：恢复任务总线编排。当前消费者完成本阶段后直接发布
+        # 下一阶段 FileBackendEvent 到原任务队列；不新增事实事件监听适配层。
         await rabbitmq_service.publish_message(
             exchange_name=self.exchange,
-            routing_key=routing_key,
+            routing_key=BACKEND_STAGE_ROUTING_KEY[next_stage],
             message=next_event.to_dict(),
         )
+        await message.ack()
 
     # ===== 失败处理 =====
 
     async def _on_failure(
         self, message: Any, event: FileBackendEvent, result: ProcessResult
     ):
-        logger.warning(f"{event.retry_count}:{self.max_retries}")
         """处理失败 → 重试 / DLQ"""
-        if event.retry_count >= self.max_retries:
+        # 明确不可重试原因和未知异常立即进入 DLQ；正常阶段失败默认按历史策略重试。
+        non_retryable_reasons = set(getattr(__import__("core.config", fromlist=["FailureReason"]), "FailureReason").NO_RETRY_REASONS)
+        non_retryable = result.retryable is False or result.failure_reason in non_retryable_reasons
+        if result.failure_reason in {"UNKNOWN", "MESSAGE_SCHEMA_ERROR", "UNEXPECTED_ERROR"}:
+            non_retryable = True
+        if non_retryable or event.retry_count >= self.max_retries:
             # 超过最大重试次数 → 更新事件状态为 failed → 更新总任务为 failed → 发布到 DLQ
             await self._set_event_status(event.backend_task_id, TaskStatus.FAILED)
             await self._update_master_status(event, TaskStatus.FAILED)
-            await self._publish_to_dlq(event, result)
-            await message.ack()
+            # W-03：DLQ 发布确认前不得 ACK 原消息；Broker/网络异常时重新入队，
+            # 避免“业务已失败但死信未落盘”造成消息丢失。
+            try:
+                await self._publish_to_dlq(event, result)
+                await message.ack()
+                await worker_metrics.record(self.stage, "dlq")
+            except Exception:
+                logger.exception(
+                    "[BACKEND-%s] DLQ_PUBLISH_FAILED backend_task_id=%s → 原消息重新入队",
+                    self.stage,
+                    event.backend_task_id,
+                )
+                if not getattr(message, "processed", False):
+                    await message.nack(requeue=True)
             return
 
         # 重置事件状态为未处理（允许重试消费）
@@ -259,18 +346,29 @@ class BaseBackendConsumer(ABC):
             f"reason={result.failure_reason}"
         )
 
-        await asyncio.sleep(delay)
-        await message.ack()
-
         retry_event = event.with_retry_increment()
         retry_event.failure_reason = result.failure_reason
 
-        routing_key = BACKEND_STAGE_ROUTING_KEY[self.stage]
-        await rabbitmq_service.publish_message(
-            exchange_name=self.exchange,
-            routing_key=routing_key,
-            message=retry_event.to_dict(),
-        )
+        # Sprint 0 安全基线（生命周期可靠性）：
+        # 原行为先 sleep、再 ACK、最后发布，Worker 退出时会造成重试丢失；新行为先把消息持久化到
+        # 阶段专属 TTL 延迟队列，确认发布成功后再 ACK，原业务重试次数和退避时长保持不变。
+        try:
+            # W-02：先持久化到阶段专属 TTL retry 队列并等待 Broker 确认，再 ACK 原消息。
+            await rabbitmq_service.publish_retry_message(
+                exchange_name=self.exchange,
+                routing_key=BACKEND_STAGE_ROUTING_KEY[self.stage],
+                message=retry_event.to_dict(),
+                delay_seconds=delay,
+            )
+            await message.ack()
+            await worker_metrics.record(self.stage, "retry")
+        except Exception:
+            logger.exception(
+                f"[BACKEND-{self.stage}] RETRY_PUBLISH_FAILED "
+                f"backend_task_id={event.backend_task_id} → 原消息重新入队"
+            )
+            if not getattr(message, "processed", False):
+                await message.nack(requeue=True)
 
     async def _publish_to_dlq(self, event: FileBackendEvent, result: ProcessResult):
         """发布到阶段专属死信队列"""
@@ -343,6 +441,8 @@ class BaseBackendConsumer(ABC):
                 node_id=event.node_id,
                 file_checksum=accumulated.get("checksum", event.file_checksum),
                 backend_task_id=event.backend_task_id,
+                space_id=event.space_id,
+                space_type=event.space_type,
                 accumulated=accumulated,
             )
             rk = ENHANCE_STAGE_ROUTING_KEY[stage_name]
@@ -381,6 +481,24 @@ class BaseBackendConsumer(ABC):
         except Exception:
             return None
 
+    # 暂时不使用..... 因为先写后读可能回导致 未进行消息幂等检查 直接把事件状态改为处理中 如果消息幂等了呢？
+    async def _claim_event(self, backend_task_id: str) -> bool:
+        """使用短租约原子抢占阶段，避免 Task Bus 重投造成并发重复执行。"""
+        try:
+            from app.core.redis_client import redis_client
+
+            key = self._event_key(backend_task_id)
+            claimed = await redis_client.set(
+                key,
+                TaskStatus.PROCESSING,
+                ex=max(EVENT_STATUS_TTL, settings.enhance_processing_lease_seconds),
+                nx=True,
+            )
+            return bool(claimed)
+        except Exception as exc:
+            logger.warning("[BACKEND-%s] Redis 原子幂等不可用，降级业务事务: %s", self.stage, exc)
+            return True
+
     async def _set_event_status(self, backend_task_id: str, status: str):
         """设置事件状态（带 TTL）"""
         try:
@@ -393,6 +511,19 @@ class BaseBackendConsumer(ABC):
             )
         except Exception as e:
             logger.error(f"设置事件状态失败: {e}")
+
+    async def _set_named_event_status(
+        self, backend_task_id: str, stage: str, status: str
+    ):
+        """为不对应 BaseBackendConsumer 子类的等待闸门写入 UI 兼容投影。"""
+        try:
+            from app.core.redis_client import redis_client
+            key = REDIS_BACKEND_EVENT_KEY.format(
+                backend_task_id=backend_task_id, stage=stage
+            )
+            await redis_client.setex(key, EVENT_STATUS_TTL, status)
+        except Exception as e:
+            logger.error(f"设置等待闸门状态失败: {e}")
 
     async def _reset_event_status(self, backend_task_id: str):
         """重置事件状态（删除键，表示未处理）"""
@@ -417,6 +548,21 @@ class BaseBackendConsumer(ABC):
             return True  # merge 是第一个阶段
 
         prev_stage = stages[idx - 1]
+        if self.stage == TaskTypes.HASH_CALCULATE and prev_stage == TaskTypes.CONTENT_PREPROCESS:
+            # 需求：核心生命周期不能再由 Redis-only 状态决定。Hash 只接受已由 DB CAS
+            # 选择 candidate/original 的闸门，Redis 此时仅供前端展示进度。
+            try:
+                from app.repositories.file_preprocess_repository import (
+                    file_preprocess_repository,
+                )
+                return await file_preprocess_repository.is_gate_closed(backend_task_id)
+            except Exception as exc:
+                logger.error(
+                    "[BACKEND-HASH] PREPROCESS_GATE_CHECK_FAILED backend_task_id=%s error=%s",
+                    backend_task_id,
+                    exc,
+                )
+                return False
         prev_key = REDIS_BACKEND_EVENT_KEY.format(
             backend_task_id=backend_task_id, stage=prev_stage
         )
@@ -475,5 +621,12 @@ class BaseBackendConsumer(ABC):
             logger.error(f"初始化增强任务总状态失败: {e}")
 
 
-# 导出流水线常量供子类使用
-BACKEND_PIPELINE = [TaskTypes.MERGE, TaskTypes.HASH_CALCULATE, TaskTypes.VIRUS_SCAN, TaskTypes.MARK_ACTIVE]
+# 导出流水线常量供子类使用。
+# 需求：content_preprocess 是 merge 与最终 hash 之间的持久化等待阶段。
+BACKEND_PIPELINE = [
+    TaskTypes.MERGE,
+    TaskTypes.CONTENT_PREPROCESS,
+    TaskTypes.HASH_CALCULATE,
+    TaskTypes.VIRUS_SCAN,
+    TaskTypes.MARK_ACTIVE,
+]

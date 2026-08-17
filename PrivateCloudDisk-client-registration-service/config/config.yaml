@@ -12,7 +12,8 @@ database:
   host: localhost
   port: 3306
   user: root
-  password: 20070315mwz
+  # Sprint 0：口令由 DB_PASSWORD 环境变量注入，仓库不保存可直接使用的数据库密钥。
+  password: "20070315mwz"
   database: private_cloud_disk
   max_open_conns: 20
   max_idle_conns: 10
@@ -25,6 +26,7 @@ redis:
   pool_size: 20
 
 security:
+  internal_service_token: ""
   # 挑战值有效期（客户端需在此时间内完成注册）
   challenge_ttl: 5m
   # 证明时间戳有效窗口
@@ -34,6 +36,8 @@ security:
   # 允许的应用 Bundle ID 白名单
   allowed_app_ids:
     - "com.spadek.PrivateCloudDisk-macos"
+    # 本地插件第二阶段：WebCrypto 软件密钥客户端，服务端完整性等级固定为 low。
+    - "web.privateclouddisk.app"
 
 apple:
   # 苹果根证书文件路径（可选，为空则使用内置证书）

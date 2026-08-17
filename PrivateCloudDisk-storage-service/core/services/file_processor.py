@@ -30,6 +30,9 @@ class ProcessResult:
     failure_reason: str = ""
     error: str = ""
     data: dict = field(default_factory=dict)
+    # W-03：业务流水线可明确声明异常是否可重试；None 时由消费者按 failure_reason 分类。
+    # 原有调用方未传该字段时行为保持兼容。
+    retryable: bool | None = None
 
 
 class FileProcessor:
@@ -108,7 +111,9 @@ class FileProcessor:
             total_chunks=event.total_chunks,
             file_name=event.file_name,
             expected_checksum=event.file_checksum,
-            file_id=event.file_id
+            file_id=event.file_id,
+            space_id=getattr(event, "space_id", ""),
+            space_type=getattr(event, "space_type", ""),
         )
         return ProcessResult(
             success=result.success,
@@ -206,6 +211,7 @@ class FileProcessor:
             await preview_resource_service.upsert(PreviewResource(
                 file_id=event.file_id,
                 user_id=event.user_id,
+                space_id=event.space_id or None,
                 resource_type="video_preview",
                 resource_variant="30s",
                 storage_path=path,
@@ -257,6 +263,13 @@ class FileProcessor:
             user_id=event.user_id,
             thumbnails=thumbnails,
             transcoded=transcoded,
+            storage_path=event.storage_path,
+            checksum=event.file_checksum,
+            file_size=event.file_size,
+            content_revision=event.content_revision,
+            content_modified=event.content_modified,
+            preprocess_status=event.preprocess_status,
+            space_id=event.space_id,
         )
         return ProcessResult(
             success=result.success,
@@ -276,6 +289,8 @@ class FileProcessor:
             file_size=event.file_size,
             node_id=getattr(event, 'node_id', ''),
             created_at=getattr(event, 'created_at', ''),
+            # 需求五-9：增强事件恢复空间上下文，全文索引以 space_id 隔离。
+            space_id=getattr(event, 'space_id', ''),
         )
         return ProcessResult(
             success=result.success,

@@ -16,16 +16,16 @@
         <div ref="heroContent" class="hero-content mx-auto max-w-3xl text-center">
           <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-medium text-primary">
             <i class="fa fa-bolt text-[10px]"></i>
-            全新 v3.0 版本发布 · 性能提升 300%
+            全新版本发布 · 性能提升 300%
           </div>
           <h1 class="text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl lg:text-6xl">
-            企业级私有云盘
+            面向团队与业务的私有云平台
             <span class="mt-2 block bg-gradient-to-r from-primary to-info bg-clip-text text-transparent">
-              安全 · 高效 · 智能
+              文件 · 空间 · 自动化
             </span>
           </h1>
           <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-neutral-500 sm:text-xl">
-            CloudDrive 为企业提供端到端加密的私有云存储解决方案。支持文件管理、团队协作、智能搜索、病毒扫描，全方位保障数据安全。
+            PrivateCloudDisk 将文件管理、多人空间协作、在线预览和可扩展自动化能力放在同一个平台中，让团队围绕真实业务组织、处理和交付文件。
           </p>
           <div class="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <router-link to="/register" class="hero-btn group inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/25 transition-all duration-300 hover:bg-primary/90 hover:shadow-xl hover:-translate-y-0.5">
@@ -37,7 +37,7 @@
               下载客户端
             </router-link>
           </div>
-          <p class="mt-4 text-xs text-neutral-400">无需信用卡 · 免费 10GB 存储 · 随时升级</p>
+          <p class="mt-4 text-xs text-neutral-400">支持自部署 · 支持空间隔离 · 能力范围以当前部署配置为准</p>
         </div>
 
         <!-- Dashboard Preview -->
@@ -92,7 +92,7 @@
     <!-- ============================================================ -->
     <section ref="trustedSection" class="reveal border-y border-neutral-100 bg-neutral-50/50 py-10">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <p class="text-center text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-8">已为 10,000+ 企业提供服务</p>
+        <p class="text-center text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-8">围绕真实业务能力构建的开放平台</p>
         <div class="flex flex-wrap items-center justify-center gap-8 sm:gap-12 opacity-50">
           <span v-for="brand in brands" :key="brand" class="text-lg font-bold text-neutral-400 hover:text-neutral-600 transition-colors duration-300">{{ brand }}</span>
         </div>
@@ -111,9 +111,9 @@
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div ref="featuresHeader" class="reveal mx-auto max-w-2xl text-center">
           <h2 class="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
-            为什么选择 CloudDrive
+            一个云盘，也是一套业务文件平台
           </h2>
-          <p class="mt-4 text-neutral-500">六大核心能力，全方位满足企业级文件管理需求</p>
+          <p class="mt-4 text-neutral-500">从文件 CURD 到空间协作，再到插件和工作流扩展，覆盖日常文件处理与业务自动化</p>
         </div>
         <div class="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <div v-for="(feat, idx) in features" :key="feat.title" :ref="(el) => setFeatureRef(el as HTMLElement, idx)" class="feature-card group rounded-2xl border border-neutral-100 p-8 transition-all duration-500 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1">
@@ -144,12 +144,12 @@
               <div class="horizontal-panel-inner">
                 <div class="panel-content grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
                   <div class="panel-text space-y-6">
-                    <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">多端同步</span>
+                    <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">空间协作</span>
                     <h2 class="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl leading-tight">
-                      全平台<br />无缝覆盖
+                      团队空间<br />清晰协作
                     </h2>
                     <p class="text-lg text-white/80 max-w-md leading-relaxed">
-                      Windows、macOS、Linux、iOS、Android 全平台原生客户端，文件实时同步，随时随地访问您的数据。
+                      创建个人空间或团队空间，邀请成员并配置角色、权限和资源范围，让项目文件、部门资料与个人文件保持清晰边界。
                     </p>
                     <div class="flex flex-wrap gap-3">
                       <span v-for="p in platforms" :key="p" class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm text-white backdrop-blur-sm">
@@ -175,7 +175,7 @@
               </div>
             </div>
 
-            <!-- 面板 1：AI 智能搜索 -->
+            <!-- 面板 1：插件与工作流 -->
             <div class="horizontal-panel" :style="{ backgroundColor: panelColors[1] }">
               <div class="horizontal-panel-inner">
                 <div class="panel-content grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
@@ -187,7 +187,7 @@
                             <i class="fa fa-search text-5xl text-white/80"></i>
                             <div class="absolute -top-2 -right-2 w-20 h-6 rounded-full bg-white/20 blur-sm animate-pulse"></div>
                           </div>
-                          <p class="text-white/60 text-sm">AI 语义搜索</p>
+                          <p class="text-white/60 text-sm">插件与工作流</p>
                           <div class="mt-4 space-y-2">
                             <div v-for="w in 3" :key="w" class="h-2 rounded-full bg-white/15" :style="{ width: (80 - w * 15) + '%' }"></div>
                           </div>
@@ -197,18 +197,18 @@
                     </div>
                   </div>
                   <div class="panel-text space-y-6 order-1 lg:order-2">
-                    <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">AI 驱动</span>
+                    <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">开放扩展</span>
                     <h2 class="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl leading-tight">
-                      智能搜索<br />毫秒响应
+                      连接能力<br />自动执行
                     </h2>
                     <p class="text-lg text-white/80 max-w-md leading-relaxed">
-                      基于 NLP 自然语言理解，支持文件名、文件内容、OCR 图片文字搜索，毫秒级精准定位。
+                      云插件、本地扩展和工作流共享统一的能力中心；可以在文件生命周期事件上触发处理，也可以把可复用流程发布到市场。
                     </p>
                     <div class="flex items-center gap-4">
                       <div class="flex -space-x-2">
                         <span v-for="i in 4" :key="i" class="w-8 h-8 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center text-xs text-white font-bold">{{ ['文','图','音','视'][i-1] }}</span>
                       </div>
-                      <span class="text-sm text-white/60">支持 50+ 文件格式</span>
+                      <span class="text-sm text-white/60">云插件 · 本地扩展 · 工作流</span>
                     </div>
                   </div>
                 </div>
@@ -220,12 +220,12 @@
               <div class="horizontal-panel-inner">
                 <div class="panel-content grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
                   <div class="panel-text space-y-6">
-                    <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">安全认证</span>
+                    <span class="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">访问与安全</span>
                     <h2 class="text-4xl font-extrabold text-white sm:text-5xl lg:text-6xl leading-tight">
-                      银行级<br />安全防护
+                      可控可审计<br />安全边界
                     </h2>
                     <p class="text-lg text-white/80 max-w-md leading-relaxed">
-                      AES-256 端到端加密、实时病毒扫描、双因素认证，满足等保三级和 SOC 2 合规要求。
+                      通过网关统一认证、请求限流和路由，结合空间上下文、文件权限、操作凭证与内部服务校验，形成可追踪的访问边界。
                     </p>
                     <div class="grid grid-cols-2 gap-3">
                       <div v-for="s in securityBadges" :key="s.label" class="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 backdrop-blur-sm">
@@ -242,7 +242,7 @@
                           <div class="mt-4 flex items-center justify-center gap-1">
                             <div v-for="i in 5" :key="i" class="w-8 h-1 rounded-full bg-white/30" :class="{ 'bg-white/80': i <= 4 }"></div>
                           </div>
-                          <p class="mt-3 text-white/50 text-xs">安全等级 98.7%</p>
+                          <p class="mt-3 text-white/50 text-xs">机制可核验 · 结果按部署验证</p>
                         </div>
                       </div>
                       <div class="absolute -top-4 -right-4 w-16 h-16 rounded-full border-2 border-white/20 animate-spin" style="animation-duration: 8s;"></div>
@@ -278,11 +278,11 @@
                       实时协同<br />效率翻倍
                     </h2>
                     <p class="text-lg text-white/80 max-w-md leading-relaxed">
-                      实时共享文件夹、在线协同编辑、评论批注、权限精细管理，团队协作效率提升 60%。
+                      共享文件夹、空间成员、角色权限与文件分享相互配合，让团队在同一资源边界内协作处理文件。
                     </p>
                     <div class="flex items-center gap-2">
                       <i class="fa fa-users text-white/60"></i>
-                      <span class="text-sm text-white/60">支持 10,000+ 人同时协作</span>
+                      <span class="text-sm text-white/60">空间成员 · 角色权限 · 操作记录</span>
                     </div>
                   </div>
                 </div>
@@ -299,7 +299,7 @@
                       开放 API<br />无限扩展
                     </h2>
                     <p class="text-lg text-white/80 max-w-md leading-relaxed">
-                      提供 RESTful API 和 SDK，轻松集成 LDAP/SSO、企业微信、钉钉、飞书等 100+ 企业工具。
+                      提供 REST API、内部服务契约与客户端身份能力，方便接入现有系统；扩展能力以仓库中的接口和部署配置为准。
                     </p>
                     <router-link to="/register" class="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-all duration-300 hover:bg-neutral-50 hover:shadow-xl hover:-translate-y-0.5">
                       开始集成
@@ -377,13 +377,13 @@
         <div class="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div ref="securityContent" class="reveal">
             <span class="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">
-              <i class="fa fa-shield"></i> 安全认证
+              <i class="fa fa-shield"></i> 安全边界
             </span>
             <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
               企业级安全防护
             </h2>
             <p class="mt-4 text-neutral-500 leading-relaxed">
-              端到端 AES-256 加密、文件病毒实时扫描、多因素认证、操作审计日志、IP 白名单——我们提供银行级别的安全防护，确保您的数据万无一失。
+              平台把认证、空间权限、文件操作凭证、内部服务校验和生命周期事件串联起来，便于按部署配置建立可控、可追踪的访问边界。
             </p>
             <ul class="mt-6 space-y-3">
               <li v-for="item in securityItems" :key="item" class="flex items-center gap-3 text-sm text-neutral-600">
@@ -420,7 +420,7 @@
     <section ref="testimonialsSection" class="border-t border-neutral-100 bg-neutral-50/50 py-20 sm:py-28">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="reveal mx-auto max-w-2xl text-center">
-          <h2 class="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">客户怎么说</h2>
+          <h2 class="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">平台能力如何落到业务</h2>
         </div>
         <div class="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3">
           <div v-for="(t, idx) in testimonials" :key="t.name" :ref="(el) => setTestimonialRef(el as HTMLElement, idx)" class="testimonial-card rounded-2xl border border-neutral-200 bg-white p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
@@ -448,9 +448,9 @@
     <section ref="solutionsSection" class="py-20 sm:py-28 bg-white">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="reveal mx-auto max-w-2xl text-center">
-          <span class="inline-flex items-center gap-2 rounded-full bg-info/10 px-3 py-1 text-xs font-medium text-info">行业解决方案</span>
-          <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">为各行业量身打造</h2>
-          <p class="mt-4 text-neutral-500">无论您身处哪个行业，CloudDrive 都能提供贴合需求的解决方案</p>
+          <span class="inline-flex items-center gap-2 rounded-full bg-info/10 px-3 py-1 text-xs font-medium text-info">业务场景</span>
+          <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">从基础文件到自动化协作</h2>
+          <p class="mt-4 text-neutral-500">按项目、部门、外部协作和内容处理等场景组合平台能力</p>
         </div>
         <div class="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div v-for="sol in solutions" :key="sol.title" class="group rounded-2xl border border-neutral-100 p-6 transition-all duration-500 hover:border-primary/20 hover:shadow-lg hover:-translate-y-1">
@@ -471,9 +471,9 @@
     <section ref="integrationSection" class="border-t border-neutral-100 bg-neutral-50/30 py-20 sm:py-24">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="reveal mx-auto max-w-2xl text-center">
-          <span class="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-600">生态集成</span>
-          <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">与您现有的工具无缝集成</h2>
-          <p class="mt-4 text-neutral-500">CloudDrive 支持与 100+ 企业级工具集成，无需改变现有工作流程</p>
+          <span class="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-600">开放能力</span>
+          <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">用 API、插件和工作流连接现有系统</h2>
+          <p class="mt-4 text-neutral-500">以当前仓库提供的接口、事件契约和扩展运行时为基础，逐步接入现有业务流程</p>
         </div>
         <div class="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           <div v-for="it in integrations" :key="it.name" class="flex flex-col items-center gap-2 rounded-xl border border-neutral-100 bg-white p-5 transition-all duration-300 hover:shadow-md hover:border-primary/20 hover:-translate-y-1">
@@ -494,8 +494,8 @@
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="reveal flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <span class="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">客户案例</span>
-            <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">标杆客户的信赖之选</h2>
+            <span class="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">落地场景</span>
+            <h2 class="mt-4 text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">把平台能力映射到实际工作</h2>
           </div>
           <router-link to="/case-studies" class="text-sm font-medium text-primary hover:underline shrink-0">查看全部案例 <i class="fa fa-arrow-right text-xs"></i></router-link>
         </div>
@@ -564,7 +564,7 @@
       <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         <div class="reveal text-center">
           <h2 class="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">常见问题</h2>
-          <p class="mt-4 text-neutral-500">关于 CloudDrive 的常见疑问</p>
+          <p class="mt-4 text-neutral-500">关于 PrivateCloudDisk 当前能力与部署方式的常见疑问</p>
         </div>
         <div class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div v-for="(faq, i) in homeFaqs" :key="i" class="rounded-xl border border-neutral-100 p-5 transition-all duration-300 hover:border-primary/20 hover:shadow-sm">
@@ -587,8 +587,8 @@
           <div class="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
           <div class="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
           <div class="relative">
-            <h2 class="text-3xl font-bold text-white sm:text-4xl">准备好开始了吗？</h2>
-            <p class="mt-4 text-lg text-white/80">免费注册即可获得 10GB 存储空间，无需信用卡</p>
+            <h2 class="text-3xl font-bold text-white sm:text-4xl">准备好组织您的文件业务了吗？</h2>
+            <p class="mt-4 text-lg text-white/80">从文件管理开始，逐步启用空间协作、在线预览和自动化扩展</p>
             <div class="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <router-link to="/register" class="cta-btn group inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-primary shadow-lg transition-all duration-300 hover:bg-neutral-50 hover:-translate-y-0.5 hover:shadow-xl">
                 立即注册
@@ -649,13 +649,13 @@
 
         <!-- 描述文字 -->
         <p ref="brandDesc" class="brand-desc mx-auto mt-10 max-w-2xl text-lg text-white/70 leading-relaxed">
-          安全、高效、智能的企业级私有云存储解决方案，已为 10,000+ 企业提供数据安全保障
+          将文件、空间协作、插件与工作流连接起来的私有云平台，能力边界清晰，数据部署位置可控
         </p>
 
         <!-- 底部按钮 -->
         <div ref="brandActions" class="brand-actions mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <router-link to="/register" class="group inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-primary shadow-xl shadow-black/20 transition-all duration-300 hover:bg-neutral-50 hover:shadow-2xl hover:-translate-y-0.5">
-            开始使用 CloudDrive
+            开始使用 PrivateCloudDisk
             <i class="fa fa-arrow-right text-sm transition-transform duration-300 group-hover:translate-x-1"></i>
           </router-link>
           <router-link to="/download" class="inline-flex items-center gap-2 rounded-xl border-2 border-white/30 px-8 py-3.5 text-base font-semibold text-white transition-all duration-300 hover:border-white hover:bg-white/10 hover:-translate-y-0.5">
@@ -679,6 +679,10 @@ gsap.registerPlugin(ScrollTrigger)
 // ============================================================
 // 数据
 // ============================================================
+// 需求编号：REQ-WEB-CONTENT-2026-07
+// 改动点：官网首页由历史演示数据改为当前代码已实现的能力说明，避免把虚构的客户数、容量、性能和合规结果当作产品事实。
+// 原有行为：展示固定的业务统计与客户背书；新行为：展示文件、空间、预览、扩展和服务边界等可由仓库核验的能力。
+// 影响范围：仅影响官网首页文案与静态演示数据，不改变布局、样式、动画、路由或后端业务逻辑。
 const previewCards = [
   { label: '已用存储', value: '2.4 TB', icon: 'fa fa-hdd-o', trend: '较上月 +15%', trendUp: false },
   { label: '文件总数', value: '45,821', icon: 'fa fa-files-o', trend: '较上月 +8%', trendUp: true },
@@ -693,114 +697,113 @@ const fileTypes = [
   { type: '其他', pct: 19, color: '#95A5A6' },
 ]
 
-const brands = ['中国移动', '建设银行', '清华大学', '华为云', '字节跳动', '招商银行', '中信证券', '阿里巴巴']
+const brands = ['空间协作', '文件预览', '插件平台', '工作流市场', '多端客户端', '开放 API', '安全审计', '私有部署']
 
 const features = [
-  { title: '智能文件管理', desc: '支持拖拽上传、批量操作、文件夹嵌套、标签分类，AI 智能分类自动整理您的文件。', icon: 'fa fa-folder-open', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
-  { title: '高效团队协作', desc: '实时共享文件夹、在线协同编辑、权限精细管理、评论批注，团队协作无缝衔接。', icon: 'fa fa-users', bgClass: 'bg-success/10', iconClass: 'text-success' },
-  { title: '全文智能搜索', desc: '支持文件名、文件内容、OCR 图片文字搜索，毫秒级响应，精准定位您需要的文件。', icon: 'fa fa-search', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
-  { title: '多端无缝同步', desc: 'Windows、macOS、Linux、iOS、Android 全平台支持，文件实时同步，随时随地访问。', icon: 'fa fa-sync', bgClass: 'bg-info/10', iconClass: 'text-info' },
-  { title: '企业级安全防护', desc: 'AES-256 端到端加密、病毒实时扫描、双因素认证、操作审计，银行级安全标准。', icon: 'fa fa-shield', bgClass: 'bg-danger/10', iconClass: 'text-danger' },
-  { title: '开放 API 集成', desc: '提供 RESTful API 和 SDK，轻松集成到现有系统，支持 LDAP/SSO 单点登录。', icon: 'fa fa-code', bgClass: 'bg-purple-100', iconClass: 'text-purple-600' },
+  { title: '文件全生命周期', desc: '支持文件与文件夹 CURD、分片上传、断点续传、流式下载、回收站和收藏管理。', icon: 'fa fa-folder-open', bgClass: 'bg-primary/10', iconClass: 'text-primary' },
+  { title: '空间多人协作', desc: '以空间组织项目或团队资源，支持成员、角色、权限、共享文件夹和空间插件管理。', icon: 'fa fa-users', bgClass: 'bg-success/10', iconClass: 'text-success' },
+  { title: '标签与快速查找', desc: '使用标签、星标、最近访问和搜索能力整理文件，让个人与团队资源更容易定位。', icon: 'fa fa-search', bgClass: 'bg-warning/10', iconClass: 'text-warning' },
+  { title: '多端访问与同步', desc: '提供 Web、桌面端、移动端和原生客户端入口，按客户端能力访问同一平台数据。', icon: 'fa fa-sync', bgClass: 'bg-info/10', iconClass: 'text-info' },
+  { title: '预览与媒体处理', desc: '覆盖图片、PDF、Office、Markdown、代码、压缩包、音频和视频等在线处理场景。', icon: 'fa fa-eye', bgClass: 'bg-danger/10', iconClass: 'text-danger' },
+  { title: '插件与工作流扩展', desc: '支持云插件、本地扩展、能力中心、工作流编排，以及插件和工作流市场。', icon: 'fa fa-code', bgClass: 'bg-purple-100', iconClass: 'text-purple-600' },
 ]
 
 const stats = [
-  { value: '10,000+', label: '服务企业' },
-  { value: '500 万+', label: '活跃用户' },
-  { value: '99.99%', label: '服务可用性' },
-  { value: '200+', label: '国家/地区' },
+  { value: '6', label: '客户端入口' },
+  { value: '3', label: '插件运行形态' },
+  { value: '2', label: '可扩展市场' },
+  { value: '1', label: '统一平台底座' },
 ]
 
 const securityItems = [
-  'AES-256 端到端加密传输与存储',
-  '实时病毒扫描与恶意文件隔离',
-  '双因素认证 (2FA) 与单点登录 (SSO)',
-  '完整操作审计日志，满足合规要求',
-  'IP 白名单与异常登录检测',
-  '数据多地冗余备份，容灾恢复',
+  '网关统一认证、路由与请求限流',
+  'JWT、操作凭证和内部服务令牌分层校验',
+  '空间上下文参与资源访问与权限判断',
+  '文件分享支持访问边界与撤回管理',
+  '上传、预览、下载和处理链路分工清晰',
+  '文件生命周期事件支持幂等和状态追踪',
 ]
 
 const certs = [
-  { label: 'ISO 27001', desc: '信息安全管理体系认证', icon: 'fa fa-certificate' },
-  { label: '等保三级', desc: '国家信息安全等级保护', icon: 'fa fa-shield' },
-  { label: 'SOC 2 Type II', desc: '服务组织控制报告', icon: 'fa fa-check-circle' },
-  { label: 'GDPR 合规', desc: '欧盟通用数据保护条例', icon: 'fa fa-globe' },
+  { label: '认证与鉴权', desc: '网关、JWT 与客户端身份校验', icon: 'fa fa-key' },
+  { label: '空间隔离', desc: '成员、角色与资源范围控制', icon: 'fa fa-users' },
+  { label: '文件安全边界', desc: '操作凭证与临时访问控制', icon: 'fa fa-lock' },
+  { label: '生命周期追踪', desc: '处理状态、事件与审计信息', icon: 'fa fa-history' },
 ]
 
 const testimonials = [
-  { name: '张伟', role: '技术总监 · 某金融科技公司', text: 'CloudDrive 帮助我们解决了跨部门文件共享的痛点，安全审计功能让我们的合规团队非常满意。部署简单，运维成本低，强烈推荐。' },
-  { name: '李娜', role: 'CTO · 某互联网企业', text: '从传统 NAS 迁移到 CloudDrive 后，团队协作效率提升了 60%。API 集成非常方便，轻松接入我们的 CI/CD 流程。' },
-  { name: '王强', role: 'IT 经理 · 某制造业集团', text: '作为一家有 3000+ 员工的企业，数据安全是我们的首要关注点。CloudDrive 的端到端加密和病毒扫描让我们非常放心。' },
+  { name: '空间协作', role: '团队与项目场景', text: '以空间为边界组织成员、角色和文件资源，适合部门资料、项目交付和跨团队协作。' },
+  { name: '文件处理', role: '上传、下载与预览场景', text: '从文件夹和文件 CURD，到分片上传、流式下载、缩略图和多类型在线预览，覆盖常用文件操作。' },
+  { name: '自动化扩展', role: '插件与工作流场景', text: '云插件、本地扩展和工作流使用能力中心连接平台事件，让文件处理可以按规则扩展。' },
 ]
 
 const solutions = [
-  { title: '金融行业', desc: '满足等保三级和金融行业监管要求，审计日志完整可追溯，数据加密存储确保合规。', icon: 'fa fa-bank', bgClass: 'bg-primary/10', iconClass: 'text-primary', href: '/solutions' },
-  { title: '教育行业', desc: '教学资源统一管理，课件在线预览，师生共享空间，支持大规模并发访问。', icon: 'fa fa-graduation-cap', bgClass: 'bg-success/10', iconClass: 'text-success', href: '/solutions' },
-  { title: '医疗行业', desc: '符合 HIPAA 和医疗数据保护法规，病历影像安全存储，跨院区数据共享。', icon: 'fa fa-heartbeat', bgClass: 'bg-danger/10', iconClass: 'text-danger', href: '/solutions' },
-  { title: '制造业', desc: '设计图纸安全管控，供应链文件协同，多地工厂数据实时同步，支持大文件传输。', icon: 'fa fa-industry', bgClass: 'bg-warning/10', iconClass: 'text-warning', href: '/solutions' },
+  { title: '项目空间', desc: '为项目建立独立空间，集中管理成员、文件夹、分享链接和自动化处理规则。', icon: 'fa fa-cubes', bgClass: 'bg-primary/10', iconClass: 'text-primary', href: '/solutions' },
+  { title: '部门资料', desc: '用团队空间承载部门资料，结合角色权限、标签、收藏和回收站降低管理成本。', icon: 'fa fa-users', bgClass: 'bg-success/10', iconClass: 'text-success', href: '/solutions' },
+  { title: '内容处理', desc: '围绕上传完成、内容可用等生命周期事件接入插件和工作流，扩展文件处理链路。', icon: 'fa fa-magic', bgClass: 'bg-danger/10', iconClass: 'text-danger', href: '/solutions' },
+  { title: '对外协作', desc: '通过分享链接、访问凭证和可撤回资源，为外部协作提供清晰的访问边界。', icon: 'fa fa-share-alt', bgClass: 'bg-warning/10', iconClass: 'text-warning', href: '/solutions' },
 ]
 
 const integrations = [
-  { name: 'Slack', icon: 'fa fa-slack', color: 'text-purple-500' },
-  { name: '企业微信', icon: 'fa fa-weixin', color: 'text-success' },
-  { name: '钉钉', icon: 'fa fa-comments', color: 'text-info' },
-  { name: '飞书', icon: 'fa fa-paper-plane', color: 'text-primary' },
-  { name: 'Microsoft 365', icon: 'fa fa-windows', color: 'text-primary' },
-  { name: 'Google Workspace', icon: 'fa fa-google', color: 'text-danger' },
-  { name: 'Jenkins', icon: 'fa fa-cogs', color: 'text-neutral-600' },
-  { name: 'GitHub', icon: 'fa fa-github', color: 'text-neutral-800' },
-  { name: 'Jira', icon: 'fa fa-tasks', color: 'text-info' },
-  { name: 'Notion', icon: 'fa fa-file-text', color: 'text-neutral-700' },
-  { name: 'Zapier', icon: 'fa fa-bolt', color: 'text-warning' },
-  { name: 'LDAP/AD', icon: 'fa fa-sitemap', color: 'text-purple-600' },
+  { name: 'REST API', icon: 'fa fa-code', color: 'text-primary' },
+  { name: '内部服务契约', icon: 'fa fa-lock', color: 'text-success' },
+  { name: 'RabbitMQ 事件', icon: 'fa fa-envelope', color: 'text-info' },
+  { name: '插件市场', icon: 'fa fa-puzzle-piece', color: 'text-purple-500' },
+  { name: '工作流市场', icon: 'fa fa-random', color: 'text-warning' },
+  { name: '客户端注册', icon: 'fa fa-desktop', color: 'text-danger' },
+  { name: 'MinIO 存储', icon: 'fa fa-database', color: 'text-neutral-600' },
+  { name: 'OpenSearch', icon: 'fa fa-search', color: 'text-neutral-800' },
+  { name: 'Docker Compose', icon: 'fa fa-cubes', color: 'text-info' },
+  { name: 'Prometheus', icon: 'fa fa-line-chart', color: 'text-warning' },
+  { name: 'SkyWalking', icon: 'fa fa-sitemap', color: 'text-purple-600' },
 ]
 
 const caseHighlights = [
   {
-    company: '中国移动', industry: '电信运营商',
-    summary: '通过部署 CloudDrive 企业版，实现了全国 31 个省份分支机构文件的统一管理与安全共享，文件流转效率提升 80%。',
+    company: '项目空间', industry: '团队协作场景',
+    summary: '以空间划分成员与资源范围，统一管理项目文件、共享链接、角色权限和协作过程。',
     gradient: 'bg-gradient-to-r from-primary to-info',
-    metrics: [{ label: '效率提升', value: '80%' }, { label: '用户数', value: '5万+' }, { label: '年省成本', value: '2000万' }],
+    metrics: [{ label: '核心边界', value: '空间' }, { label: '权限模型', value: '角色' }, { label: '资源入口', value: '文件' }],
   },
   {
-    company: '清华大学', industry: '高等教育',
-    summary: '为全校 4 万余名师生提供统一的文件存储与协作平台，支撑在线教学、科研数据管理、跨院系合作等场景。',
+    company: '内容处理', industry: '文件生命周期场景',
+    summary: '把上传、预处理、内容激活、预览资源和后续自动化处理串成可追踪的文件生命周期。',
     gradient: 'bg-gradient-to-r from-purple-500 to-pink-500',
-    metrics: [{ label: '师生覆盖', value: '4万+' }, { label: '存储用量', value: '800TB' }, { label: '运行时间', value: '3年' }],
+    metrics: [{ label: '处理入口', value: '事件' }, { label: '执行方式', value: '异步' }, { label: '结果状态', value: '可追踪' }],
   },
   {
-    company: '招商银行', industry: '金融服务',
-    summary: '满足金融级安全合规要求的私有云盘解决方案，实现敏感数据不出行、操作全程审计、跨部门安全协作。',
+    company: '扩展平台', industry: '插件与工作流场景',
+    summary: '通过云插件、本地扩展、能力中心和市场机制，将文件平台能力安全地延伸到具体业务流程。',
     gradient: 'bg-gradient-to-r from-success to-info',
-    metrics: [{ label: '安全合规', value: '100%' }, { label: '审计记录', value: '10亿+' }, { label: '年可用率', value: '99.997%' }],
+    metrics: [{ label: '扩展形态', value: '3 类' }, { label: '市场类型', value: '2 类' }, { label: '运行边界', value: '受控' }],
   },
 ]
 
 const blogPosts = [
   {
-    title: 'CloudDrive v3.2 发布：AI 智能搜索与全新协作体验', category: '产品更新', date: '2026-01-12',
-    excerpt: '全新的 AI 驱动搜索引擎让文件查找速度提升 10 倍，支持自然语言查询和 OCR 图片文字搜索。',
-    author: '陈浩', readTime: '6 分钟',
+    title: '空间协作能力：从个人文件到团队资源边界', category: '产品能力', date: '2026-07-29',
+    excerpt: '介绍空间、成员、角色和资源范围如何共同支撑项目与部门文件协作。',
+    author: '项目文档', readTime: '按需阅读',
   },
   {
-    title: '企业私有云存储安全架构深度解析', category: '技术分享', date: '2026-01-05',
-    excerpt: '深入探讨端到端加密、零信任架构、密钥管理等企业级安全技术的实现原理与最佳实践。',
-    author: '林薇', readTime: '12 分钟',
+    title: '文件在线预览与内容生命周期', category: '技术分享', date: '2026-07-29',
+    excerpt: '梳理上传、内容处理、预览令牌、缩略图和多类型预览之间的服务边界。',
+    author: '项目文档', readTime: '按需阅读',
   },
   {
-    title: '从 0 到 10,000 家企业：CloudDrive 的架构演进之路', category: '案例分享', date: '2025-12-28',
-    excerpt: '回顾 CloudDrive 从单体架构到微服务架构的演进历程，分享大规模分布式系统的设计经验。',
-    author: '刘洋', readTime: '8 分钟',
+    title: '插件、工作流与市场：平台扩展边界说明', category: '平台扩展', date: '2026-07-29',
+    excerpt: '说明云插件、本地扩展、工作流、能力中心以及市场之间的职责划分。',
+    author: '项目文档', readTime: '按需阅读',
   },
 ]
 
 const homeFaqs = [
-  { q: 'CloudDrive 与公有云盘有什么区别？', a: 'CloudDrive 是私有化部署方案，数据完全存储在企业自有或指定服务器上，不经过第三方平台。所有数据采用端到端加密，企业拥有完全的数据主权。' },
-  { q: '如何保证数据不丢失？', a: '我们采用 3 副本冗余存储 + 跨区域异地备份 + 回收站 30 天保护 + 文件版本历史四重保护机制，确保数据安全不丢失。' },
-  { q: '是否支持大型文件上传？', a: '支持。单文件最大支持 50GB（专业版以上），采用分片断点续传技术，网络中断后可自动恢复，无需重新上传。' },
-  { q: '部署需要多长时间？', a: '标准部署仅需 30 分钟即可完成。提供 Docker 一键部署、Kubernetes Helm Chart，以及专业团队上门部署服务。' },
-  { q: '是否支持定制化开发？', a: '旗舰版支持专属定制开发，包括品牌定制、功能扩展、第三方系统集成、API 定制等，专属客户经理全程跟进。' },
-  { q: '费用如何计算？', a: '按存储空间和用户数计费，支持月付和年付。免费版提供 10GB 空间，专业版 1TB 仅需 ¥29/月。详细方案请查看定价页。' },
+  { q: 'PrivateCloudDisk 与传统单体网盘有什么区别？', a: '平台将网关、平台业务、文件处理、通知、即时通讯、插件、工作流和调度等职责拆分，便于按边界演进；数据仍通过统一入口和契约协作。' },
+  { q: '空间协作解决什么问题？', a: '空间为成员、角色、资源范围和扩展能力提供共同边界，适合项目、部门或外部协作场景，减少个人文件与团队文件混杂。' },
+  { q: '支持哪些基础文件能力？', a: '支持文件和文件夹的创建、读取、更新、移动、复制、删除，文件上传、下载、文件夹上传与下载，以及分享、回收站、收藏和标签管理。' },
+  { q: '在线预览覆盖哪些类型？', a: '当前前端包含图片、PDF、Word、Excel、PPT、Markdown、代码、压缩包、音频和视频等预览入口，实际可用格式以服务配置和文件类型为准。' },
+  { q: '插件和工作流如何扩展平台？', a: '云插件、本地扩展和工作流通过能力中心连接平台事件；插件市场与工作流市场用于发现、发布和复用扩展内容。' },
+  { q: '如何了解部署与技术栈？', a: '请先阅读根 README、docs/architecture.md、docs/api-overview.md 和各子项目 README；Docker Compose 是当前仓库提供的主要联调方式。' },
 ]
 
 // ============================================================
@@ -826,10 +829,10 @@ const deviceIcons = [
 ]
 
 const securityBadges = [
-  { label: 'AES-256', icon: 'fa fa-lock' },
-  { label: '等保三级', icon: 'fa fa-certificate' },
-  { label: 'SOC 2', icon: 'fa fa-check-circle' },
-  { label: 'GDPR', icon: 'fa fa-globe' },
+  { label: 'JWT 鉴权', icon: 'fa fa-key' },
+  { label: '空间权限', icon: 'fa fa-users' },
+  { label: '操作凭证', icon: 'fa fa-lock' },
+  { label: '事件追踪', icon: 'fa fa-history' },
 ]
 
 const collaborationItems = [
@@ -841,11 +844,11 @@ const collaborationItems = [
 
 const apiIcons = [
   { name: 'REST', icon: 'fa fa-code' },
-  { name: 'LDAP', icon: 'fa fa-sitemap' },
-  { name: 'SSO', icon: 'fa fa-key' },
-  { name: 'Webhook', icon: 'fa fa-link' },
-  { name: 'OAuth', icon: 'fa fa-shield' },
-  { name: 'SDK', icon: 'fa fa-cube' },
+  { name: 'Internal API', icon: 'fa fa-lock' },
+  { name: 'Event Contract', icon: 'fa fa-envelope' },
+  { name: 'Plugin SDK', icon: 'fa fa-puzzle-piece' },
+  { name: 'Workflow DSL', icon: 'fa fa-random' },
+  { name: 'Client Identity', icon: 'fa fa-desktop' },
 ]
 
 // ============================================================
@@ -1056,10 +1059,10 @@ function initScrollAnimations() {
       onEnter: () => {
         // 数字计数动画
         const targetValues = [
-          { target: 10000, suffix: '+', prefix: '' },
-          { target: 500, suffix: ' 万+', prefix: '' },
-          { target: 99.99, suffix: '%', prefix: '' },
-          { target: 200, suffix: '+', prefix: '' },
+          { target: 6, suffix: '', prefix: '' },
+          { target: 3, suffix: '', prefix: '' },
+          { target: 2, suffix: '', prefix: '' },
+          { target: 1, suffix: '', prefix: '' },
         ]
         statNumberRefs.value.forEach((el, i) => {
           if (!el || !targetValues[i]) return

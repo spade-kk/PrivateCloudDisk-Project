@@ -30,6 +30,9 @@ public class ShareLinkVO {
     /** 是否有密码 */
     private Boolean share_has_password;
 
+    /** 是否允许通过分享授权获取实际文件内容。 */
+    private Boolean share_allow_download;
+
     /** 过期时间 */
     private LocalDateTime share_expires_at;
 

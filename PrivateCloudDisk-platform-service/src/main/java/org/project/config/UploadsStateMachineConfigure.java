@@ -25,17 +25,12 @@ public class UploadsStateMachineConfigure extends EnumStateMachineConfigurerAdap
                 .and()
                 .withExternal()
                     .source(UploadsSessionEntity.UploadsSessionStatus.uploading)
-                    .target(UploadsSessionEntity.UploadsSessionStatus.canceled)
-                    .event(UploadsSessionEntity.UploadsSessionEvent.Cancel)
-                .and()
-                .withExternal()
-                    .source(UploadsSessionEntity.UploadsSessionStatus.merging)
                     .target(UploadsSessionEntity.UploadsSessionStatus.completed)
-                    .event(UploadsSessionEntity.UploadsSessionEvent.Complete)
+                    .event(UploadsSessionEntity.UploadsSessionEvent.Merge)
                 .and()
                 .withExternal()
-                    .source(UploadsSessionEntity.UploadsSessionStatus.merging)
-                    .target(UploadsSessionEntity.UploadsSessionStatus.failed)
-                    .event(UploadsSessionEntity.UploadsSessionEvent.Fail);
+                    .source(UploadsSessionEntity.UploadsSessionStatus.uploading)
+                    .target(UploadsSessionEntity.UploadsSessionStatus.canceled)
+                    .event(UploadsSessionEntity.UploadsSessionEvent.Cancel);
     }
 }

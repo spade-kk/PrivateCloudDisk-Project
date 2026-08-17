@@ -5,12 +5,31 @@
         <div>
           <p class="text-sm text-neutral-500">OpenSearch</p>
           <h1 class="mt-1 text-2xl font-bold text-neutral-700 sm:text-3xl">文件搜索</h1>
+          <CurrentSpaceBadge class="mt-2" />
         </div>
         <SmartSearchBox mode="hero" @search="runSearch" />
       </div>
     </section>
 
-    <section class="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+    <!-- 公开仓库搜索与文件搜索分栏，仓库结果只展示登录后可访问的 visible public space。 -->
+    <div class="search-tabs" role="tablist">
+      <button :class="{ active: resultTab === 'files' }" @click="resultTab = 'files'">文件</button>
+      <button :class="{ active: resultTab === 'spaces' }" @click="resultTab = 'spaces'; loadPublicSpaces()">空间</button>
+    </div>
+
+    <section v-if="resultTab === 'spaces'" class="space-search-results">
+      <div v-if="spaceLoading" class="responsive-panel flex justify-center py-16"><LoadingSpinner /></div>
+      <PageState v-else-if="spaceResults.length === 0" type="empty" icon="fa fa-cubes" title="暂无公开仓库" description="尝试更换关键词，或前往探索页浏览推荐仓库" action-text="打开探索" @action="router.push('/explore')" />
+      <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <article v-for="space in spaceResults" :key="space.spaceId" class="space-result-card" @click="router.push(`/repo/${space.spaceId}`)">
+          <div class="flex items-center justify-between"><h3 class="truncate font-semibold text-primary">{{ space.spaceName }}</h3><span class="rounded-full border px-2 py-0.5 text-[10px] text-neutral-500">Public</span></div>
+          <p class="mt-2 line-clamp-2 text-sm text-neutral-500">{{ space.description || '暂无描述' }}</p>
+          <div class="mt-3 text-xs text-neutral-400">@{{ space.ownerName }} · {{ space.fileCount || 0 }} 个文件</div>
+        </article>
+      </div>
+    </section>
+
+    <section v-else class="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
       <!-- 移动端过滤器切换按钮 -->
       <div class="flex items-center gap-2 lg:hidden">
         <button
@@ -173,15 +192,22 @@ import { useRoute, useRouter } from 'vue-router'
 import SmartSearchBox from '@/components/search/SmartSearchBox.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import PageState from '@/components/common/PageState.vue'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 import { useSearchStore } from '@/stores/searchStore'
+import { useSpaceStore } from '@/stores/spaceStore'
 import { formatDateTime, formatFileSize } from '@/utils/helpers'
 import { getFileIconClass } from '@/utils/fileIcon'
+import { searchPublicSpacesApi, type PublicSpaceDetail } from '@/api/modules/publicSpaces'
 
 const route = useRoute()
 const router = useRouter()
 const searchStore = useSearchStore()
+const spaceStore = useSpaceStore()
 
 const showFilters = ref(false)
+const resultTab = ref<'files' | 'spaces'>('files')
+const spaceResults = ref<PublicSpaceDetail[]>([])
+const spaceLoading = ref(false)
 
 const categoryBuckets = computed(() => toBuckets(searchStore.aggregations.file_category))
 const tagBuckets = computed(() => toBuckets(searchStore.aggregations.tags).slice(0, 12))
@@ -202,6 +228,15 @@ const pageItems = computed(() => {
 onMounted(loadFromRoute)
 
 watch(() => route.query, loadFromRoute)
+
+/*
+ * 空间管理能力全量集成（需求四-2/3）：
+ * 空间切换后保留检索词和筛选条件，仅刷新结果集，避免短暂展示上一个空间的数据。
+ */
+watch(() => spaceStore.revision, () => {
+  searchStore.page = 1
+  void searchStore.search({ page: 1 })
+})
 
 function loadFromRoute() {
   searchStore.keyword = route.query.q || ''
@@ -233,6 +268,11 @@ function runSearch(payload = {}) {
       size: String(searchStore.size),
     },
   })
+}
+
+async function loadPublicSpaces() {
+  spaceLoading.value = true
+  try { spaceResults.value = (await searchPublicSpacesApi(searchStore.keyword)).data || [] } finally { spaceLoading.value = false }
 }
 
 function clearFilters() {
@@ -341,6 +381,13 @@ function bestSnippet(hit) {
   background: #fff;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
+
+.search-tabs { display:flex; gap:4px; border-bottom:1px solid #e5e7eb; }
+.search-tabs button { border-bottom:2px solid transparent; padding:9px 14px; font-size:13px; color:#6b7280; }
+.search-tabs button.active { border-bottom-color:#165dff; color:#165dff; font-weight:600; }
+.space-search-results { min-height:220px; }
+.space-result-card { cursor:pointer; border:1px solid #e5e7eb; border-radius:12px; background:#fff; padding:18px; transition:box-shadow .15s, transform .15s; }
+.space-result-card:hover { box-shadow:0 8px 20px rgba(0,0,0,.08); transform:translateY(-1px); }
 
 .search-hero {
   padding: 18px;

@@ -58,9 +58,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             new ExcludedPath("/api/v1/business/verification-code/register/resend", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/client/register-challenge", "POST"),             // 客户端注册挑战值
             new ExcludedPath("/api/v1/client/register", "POST"),                       // 客户端注册
-            new ExcludedPath("/api/v1/client/internal/**", "*"),                       // 客户端注册服务内部接口
             new ExcludedPath("/api/v1/business/admin/**", "*"),                        // 管理员接口（由 AdminGatewayFilter 处理）
-            new ExcludedPath("/api/v1/business/internal/**", "*"),                      // 内部服务通信
             new ExcludedPath("/ws/**", "*")                                             // im websocket协议服务 方向代理路径地址 不需要网关鉴权直接放行下游
     );
 
@@ -78,6 +76,22 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         String requestPath = sanitizedRequest.getURI().getPath();
         String requestMethod = sanitizedRequest.getMethod().name();
+
+        /*
+         * Sprint 0 安全基线（插件生态设计文档 16.1）：
+         * 原行为把 /api/v1/business/internal/** 加入公网白名单并转发至业务服务；
+         * 新行为在公网网关最前置阶段直接拒绝。文件服务、插件服务、工作流服务必须
+         * 通过容器私网直连 platform-service-backend:8081，并携带服务间凭证。
+         */
+        if (pathMatcher.match("/api/v1/business/internal/**", requestPath)
+                || pathMatcher.match("/api/v1/client/internal/**", requestPath)) {
+            log.warn("拒绝通过公网网关访问内部接口: {} {}", requestMethod, requestPath);
+            return ResponseUtil.writeError(
+                    sanitizedExchange,
+                    HttpStatus.NOT_FOUND,
+                    "请求的资源不存在"
+            );
+        }
 
         // ═══════════════════════════════════════════════
         // 步骤1: 白名单路径 — 直接放行，不执行认证
@@ -224,6 +238,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                     headers.remove("X-User-Id");
                     headers.remove("X-Auth-Source");
                     headers.remove("X-Session-Id");
+                    headers.remove("X-PCD-Service-Token");
                 })
                 .build();
     }

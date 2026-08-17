@@ -1,0 +1,57 @@
+server:
+  port: ${SERVER_PORT:8085}
+  shutdown: graceful
+
+spring:
+  application:
+    name: PrivateCloudDisk-plugin-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${PLUGIN_DATASOURCE_URL:jdbc:mysql://localhost:3306/pcd_plugin?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${PLUGIN_DATASOURCE_USERNAME:root}
+    # [SEC-CONFIG-001] 密码只能由部署环境注入，禁止在源码默认值中保留开发凭证。
+    password: ${PLUGIN_DATASOURCE_PASSWORD:20070315mwz}
+    hikari:
+      maximum-pool-size: ${PLUGIN_DB_POOL_MAX:12}
+      minimum-idle: ${PLUGIN_DB_POOL_MIN:2}
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+  servlet:
+    multipart:
+      max-file-size: ${PLUGIN_PACKAGE_MAX_BYTES:10MB}
+      max-request-size: ${PLUGIN_PACKAGE_MAX_BYTES:10MB}
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pcd:
+  # 使用容器卷路径，避免把开发者本机绝对路径写入服务配置。
+  storage-path: ${PLUGIN_STORAGE_PATH:/Users/user/Desktop/data/plugin-repo}
+  storage-backend: ${PLUGIN_STORAGE_BACKEND:local}
+  package-max-bytes: ${PLUGIN_PACKAGE_MAX_BYTES:10485760}
+  package-max-files: ${PLUGIN_PACKAGE_MAX_FILES:256}
+  package-max-expanded-bytes: ${PLUGIN_PACKAGE_MAX_EXPANDED_BYTES:52428800}
+  runtime-url: ${PLUGIN_RUNTIME_URL:http://localhost:8090}
+  platform-url: ${PLATFORM_SERVICE_URL:http://localhost:8081}
+  workflow-url: ${WORKFLOW_SERVICE_URL:http://localhost:8087}
+  client-registration-url: ${CLIENT_REGISTRATION_SERVICE_URL:http://localhost:8089}
+  # 本地插件发布必须使用离线保管的 Ed25519 PKCS#8 私钥签名；公钥供受信客户端验包。
+  signing-private-key-base64: ${PLUGIN_SIGNING_PRIVATE_KEY_BASE64:}
+  signing-public-key-base64: ${PLUGIN_SIGNING_PUBLIC_KEY_BASE64:}
+  signing-key-id: ${PLUGIN_SIGNING_KEY_ID:}
+  local-download-grant-ttl-seconds: ${PLUGIN_LOCAL_DOWNLOAD_GRANT_TTL_SECONDS:120}
+  # 生产环境必须由部署平台注入；空值会在内部客户端调用时被 Runtime 拒绝。
+  internal-service-token: ${PCD_INTERNAL_SERVICE_TOKEN:test}

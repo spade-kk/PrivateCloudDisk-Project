@@ -29,6 +29,20 @@ public interface ShareResourceMapper {
     ShareResourceEntity findById(@Param("share_resource_id") UUID shareResourceId);
 
     /**
+     * 校验文件是否属于分享范围（支持直接分享文件以及分享文件夹的后代文件）。
+     * 该查询只用于内部授权链，不向客户端暴露 file_id。
+     */
+    int countFileInShare(@Param("share_id") UUID shareId,
+                         @Param("file_id") UUID fileId,
+                         @Param("space_id") UUID spaceId);
+
+    /** 校验虚拟文件夹 ID 是否属于分享根目录或其后代。 */
+    int countNodeInShare(@Param("share_id") UUID shareId,
+                         @Param("node_id") UUID nodeId,
+                         @Param("space_id") UUID spaceId,
+                         @Param("user_id") UUID userId);
+
+    /**
      * 查询引用指定文件的分享链接 ID，用于永久删除时判断并清理空分享。
      */
     List<UUID> findShareIdsByFileId(@Param("file_id") UUID fileId);

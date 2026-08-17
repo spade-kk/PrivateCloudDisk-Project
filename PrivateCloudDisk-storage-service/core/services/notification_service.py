@@ -17,6 +17,13 @@ _CLIENT_TIMEOUT = httpx.Timeout(30.0)
 _CLIENT_LIMITS = httpx.Limits(max_keepalive_connections=10)
 
 
+def _internal_headers() -> dict[str, str]:
+    """Sprint 0：内部回调统一携带服务凭证，禁止借用公网用户身份。"""
+    if not settings.pcd_internal_service_token:
+        return {}
+    return {"X-PCD-Service-Token": settings.pcd_internal_service_token}
+
+
 class NotificationService:
     """向业务服务发送文件处理状态变更通知"""
 
@@ -33,11 +40,12 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            trust_env=False
+            trust_env=False,
+            headers=_internal_headers(),
         ) as client:
             try:
                 resp = await client.post(
-                    f"{settings.business_service_url}/api/v1/business/internal/storage/files",
+                    f"{settings.business_service_url}/business/internal/storage/files",
                     params={
                         "uploads_id": uploads_id,
                         "file_storage_path": storage_path,
@@ -53,17 +61,61 @@ class NotificationService:
                 raise
 
     @staticmethod
-    async def notify_file_activate(file_id: str, user_id: str) -> bool:
-        """通知业务服务：文件处理完毕，标记为活跃"""
+    async def notify_upload_session_merge_cleanup(uploads_id: str) -> bool:
+        """分块文件清理完成后删除已完成上传会话，不触发配额回滚。"""
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            trust_env=False
+            trust_env=False,
+            headers=_internal_headers(),
         ) as client:
             try:
                 resp = await client.post(
-                    f"{settings.business_service_url}/api/v1/business/internal/storage/files/{file_id}/activate",
+                    f"{settings.business_service_url}/business/internal/storage/uploads/{uploads_id}/merge-cleanup"
+                )
+                resp.raise_for_status()
+                logger.info("合并后上传会话清理成功: uploads_id=%s", uploads_id)
+                return True
+            except Exception as e:
+                # 分块清理已完成时，通知失败不应重新执行合并；定时清理/运维可再次调用幂等接口。
+                logger.error("合并后上传会话清理失败: uploads_id=%s, error=%s", uploads_id, e)
+                return False
+
+    @staticmethod
+    async def notify_file_activate(
+        file_id: str,
+        user_id: str,
+        *,
+        storage_path: str | None = None,
+        checksum: str | None = None,
+        file_size: int | None = None,
+        content_revision: int = 0,
+        content_modified: bool = False,
+        preprocess_status: str = "",
+        space_id: str = "",
+    ) -> bool:
+        """通知业务服务：原子提交最终内容快照并标记为活跃。"""
+        headers = _internal_headers()
+        if space_id:
+            headers["X-Space-Id"] = space_id
+        async with httpx.AsyncClient(
+            timeout=_CLIENT_TIMEOUT,
+            limits=_CLIENT_LIMITS,
+            trust_env=False,
+            headers=headers,
+        ) as client:
+            try:
+                resp = await client.post(
+                    f"{settings.business_service_url}/business/internal/storage/files/{file_id}/activate",
                     params={"uid": user_id},
+                    json={
+                        "storage_path": storage_path,
+                        "checksum": checksum,
+                        "size": file_size,
+                        "content_revision": content_revision,
+                        "content_modified": content_modified,
+                        "preprocess_status": preprocess_status,
+                    },
                 )
                 resp.raise_for_status()
                 logger.info(f"文件已标记为活跃: file_id={file_id}")
@@ -90,11 +142,12 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            trust_env=False
+            trust_env=False,
+            headers=_internal_headers(),
         ) as client:
             try:
                 resp = await client.patch(
-                    f"{settings.business_service_url}/api/v1/business/internal/storage/files/{file_id}/status",
+                    f"{settings.business_service_url}/business/internal/storage/files/{file_id}/status",
                     params={
                         "status": status,
                         "uid": user_id,
@@ -115,11 +168,12 @@ class NotificationService:
         async with httpx.AsyncClient(
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
-            trust_env=False
+            trust_env=False,
+            headers=_internal_headers(),
         ) as client:
             try:
                 resp = await client.post(
-                    f"{settings.business_service_url}/api/v1/business/internal/storage/files/{file_id}/delete-complete",
+                    f"{settings.business_service_url}/business/internal/storage/files/{file_id}/delete-complete",
                     params={"uid": user_id},
                 )
                 resp.raise_for_status()
@@ -146,10 +200,11 @@ class NotificationService:
             timeout=_CLIENT_TIMEOUT,
             limits=_CLIENT_LIMITS,
             trust_env=False,
+            headers=_internal_headers(),
         ) as client:
             try:
                 resp = await client.post(
-                    f"{settings.business_service_url}/api/v1/business/internal/storage/files/{file_id}/hls-ready",
+                    f"{settings.business_service_url}/business/internal/storage/files/{file_id}/hls-ready",
                     params={"uid": user_id},
                     json={
                         "hls_dir": hls_dir,

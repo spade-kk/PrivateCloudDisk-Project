@@ -352,11 +352,8 @@ public class InternalStorageGrpcService extends InternalStorageServiceImplBase {
         if (status == null) return UploadSessionStatus.UPLOAD_SESSION_STATUS_UNSPECIFIED;
         return switch (status) {
             case uploading -> UploadSessionStatus.UPLOAD_SESSION_STATUS_UPLOADING;
-            case merging -> UploadSessionStatus.UPLOAD_SESSION_STATUS_MERGING;
             case completed -> UploadSessionStatus.UPLOAD_SESSION_STATUS_COMPLETED;
-            case failed -> UploadSessionStatus.UPLOAD_SESSION_STATUS_FAILED;
             case canceled -> UploadSessionStatus.UPLOAD_SESSION_STATUS_CANCELLED;
-            case deleted -> UploadSessionStatus.UPLOAD_SESSION_STATUS_DELETED;
         };
     }
 

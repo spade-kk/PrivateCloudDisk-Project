@@ -10,6 +10,10 @@
         <result column="space_used" property="spaceUsed"/>
         <result column="space_file_count" property="spaceFileCount"/>
         <result column="space_visibility" property="spaceVisibility"/>
+        <result column="join_policy" property="joinPolicy"/>
+        <result column="allow_public_browse" property="allowPublicBrowse"/>
+        <result column="allow_public_download" property="allowPublicDownload"/>
+        <result column="allow_public_upload" property="allowPublicUpload"/>
         <result column="space_description" property="spaceDescription"/>
         <result column="space_avatar_path" property="spaceAvatarPath"/>
         <result column="space_im_group_id" property="spaceImGroupId"/>
@@ -20,6 +24,21 @@
 
     <select id="findById" resultMap="SpaceEntityMap">
         SELECT * FROM pcd_space_table WHERE space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </select>
+
+    <!--
+      需求：空间管理能力全量集成（二）。
+      原行为：请求头缺失时没有统一的默认空间解析规则；
+      新行为：固定解析当前用户有效的 personal 空间，保证旧客户端零改动。
+    -->
+    <select id="findPersonalByOwnerId" resultMap="SpaceEntityMap">
+        SELECT *
+        FROM pcd_space_table
+        WHERE space_owner_id = #{ownerId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND space_type = 'personal'
+          AND space_status = 'active'
+        ORDER BY space_created_at ASC
+        LIMIT 1
     </select>
 
     <select id="findByOwnerId" resultMap="SpaceEntityMap">
@@ -37,29 +56,60 @@
     <select id="findPublicSpaces" resultMap="SpaceEntityMap">
         SELECT * FROM pcd_space_table
         WHERE space_type = 'public' AND space_visibility = 'public' AND space_status = 'active'
+          AND allow_public_browse = 1
         <if test="keyword != null and keyword != ''">
             AND (space_name LIKE CONCAT('%', #{keyword}, '%') OR space_description LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         ORDER BY space_created_at DESC
     </select>
 
+    <!-- [SPACE-COLLAB-DB-02] 团队协作发现只返回 visible 的团队/企业/私有空间，不改变公开仓库旧查询。 -->
+    <select id="findDiscoverableSpaces" resultMap="SpaceEntityMap">
+        SELECT * FROM pcd_space_table
+        WHERE space_type IN ('private','enterprise','team')
+          AND (space_visibility IN ('public','visible'))
+          AND space_status = 'active'
+        <if test="keyword != null and keyword != ''">
+            AND (space_name LIKE CONCAT('%', #{keyword}, '%') OR space_description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY space_updated_at DESC
+        LIMIT 100
+    </select>
+
     <select id="findPublicByName" resultMap="SpaceEntityMap">
         SELECT * FROM pcd_space_table
-        WHERE space_name = #{spaceName} AND space_type = 'public' AND space_status = 'active'
+        WHERE space_name = #{spaceName} AND space_type = 'public' AND space_visibility = 'public'
+          AND space_status = 'active' AND allow_public_browse = 1
+    </select>
+
+    <select id="findPublicSpacesByOwnerId" resultMap="SpaceEntityMap">
+        SELECT * FROM pcd_space_table
+        WHERE space_owner_id = #{ownerId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND space_type = 'public'
+          AND space_visibility = 'public'
+          AND space_status = 'active'
+          AND allow_public_browse = 1
+        ORDER BY space_updated_at DESC;
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="spaceId" parameterType="org.project.model.entity.SpaceEntity">
         INSERT INTO pcd_space_table (space_id, space_name, space_type, space_owner_id, space_quota, space_used,
-            space_file_count, space_visibility, space_description, space_avatar_path, space_im_group_id, space_status)
+            space_file_count, space_visibility, join_policy, allow_public_browse, allow_public_download, allow_public_upload,
+            space_description, space_avatar_path, space_im_group_id, space_status)
         VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceName}, #{spaceType},
             #{spaceOwnerId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceQuota}, #{spaceUsed},
-            #{spaceFileCount}, #{spaceVisibility}, #{spaceDescription}, #{spaceAvatarPath}, #{spaceImGroupId}, #{spaceStatus})
+            #{spaceFileCount}, #{spaceVisibility}, COALESCE(#{joinPolicy}, 'invite_only'), #{allowPublicBrowse}, #{allowPublicDownload}, #{allowPublicUpload},
+            #{spaceDescription}, #{spaceAvatarPath}, #{spaceImGroupId}, #{spaceStatus})
     </insert>
 
     <update id="update" parameterType="org.project.model.entity.SpaceEntity">
         UPDATE pcd_space_table SET
             space_name = #{spaceName},
             space_visibility = #{spaceVisibility},
+            join_policy = COALESCE(#{joinPolicy}, join_policy),
+            allow_public_browse = COALESCE(#{allowPublicBrowse}, allow_public_browse),
+            allow_public_download = COALESCE(#{allowPublicDownload}, allow_public_download),
+            allow_public_upload = COALESCE(#{allowPublicUpload}, allow_public_upload),
             space_description = #{spaceDescription},
             space_avatar_path = #{spaceAvatarPath},
             space_quota = #{spaceQuota}

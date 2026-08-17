@@ -115,7 +115,8 @@ public class ShareController extends BaseController {
                 request.getShare_description(),
                 resourceItems,
                 request.getPassword(),
-                request.getExpires_in_days());
+                request.getExpires_in_days(),
+                request.getAllow_download());
         return new JsonResult<>(OK, VoMapper.toShareLinkVO(entity));
     }
 
@@ -174,6 +175,24 @@ public class ShareController extends BaseController {
             throw new org.project.service.ex.ServiceException("提取码格式错误：必须为4-20位字母数字组合");
         }
         shareService.updateSharePassword(userId, share_id, newPassword);
+        return new JsonResult<>(OK);
+    }
+
+    /**
+     * 需求二-2：管理端可将分享切换为“仅浏览”或“允许下载”。
+     * 原有密码接口保持不变，权限开关独立更新，避免误改提取码。
+     */
+    @PutMapping("/business/shares/{share_id}/download-permission")
+    public JsonResult<Void> updateShareDownloadPermission(
+            @Pattern(regexp = UUID_REGEX, message = "share_id 必须是有效的UUID格式")
+            @PathVariable String share_id,
+            @RequestBody java.util.Map<String, Boolean> body,
+            @RequestHeader("X-User-Id") String userId) {
+        Boolean allowDownload = body.get("allow_download");
+        if (allowDownload == null) {
+            throw new org.project.service.ex.ServiceException("allow_download 不能为空");
+        }
+        shareService.updateShareDownloadPermission(userId, share_id, allowDownload);
         return new JsonResult<>(OK);
     }
 
@@ -241,6 +260,25 @@ public class ShareController extends BaseController {
     }
 
     /**
+     * 获取单个分享资源详情；即使资源 ID 为真实 UUID，也必须绑定当前 share_token。
+     * 虚拟子节点 ID 不在此接口解析，避免把内部 file_id/node_id 重新暴露出去。
+     */
+    @GetMapping("/business/public/shares/{share_token}/resources/{share_resource_id}")
+    public JsonResult<ShareResourceVO> getShareResourceDetail(
+            @Pattern(regexp = SHARE_TOKEN_REGEX, message = "share_token 必须是12位字母数字组合")
+            @PathVariable String share_token,
+            @Pattern(regexp = SHARE_RESOURCE_ID_REGEX, message = "share_resource_id 格式错误：必须是UUID或Base64URL格式")
+            @PathVariable String share_resource_id,
+            @RequestHeader("X-Share-Access-Token") String accessToken) {
+        ShareLinkEntity share = shareService.getShareByAccessToken(accessToken);
+        if (!share.getShare_token().equals(share_token)) {
+            throw new org.project.service.ex.OverstepAuthorityException("无权访问该分享");
+        }
+        ShareResourceEntity resource = shareService.getShareResourceDetail(share_token, share_resource_id);
+        return new JsonResult<>(OK, VoMapper.toShareResourceVO(resource));
+    }
+
+    /**
      * 浏览分享文件夹的子内容（通过 share_resource_id，支持真实和虚拟 ID）
      * <p>需要携带有效的访问令牌。
      * <p>安全：先尝试真实 share_resource_id（来自 share_resource 表），
@@ -261,27 +299,6 @@ public class ShareController extends BaseController {
         }
         List<ShareService.SharedItem> items = shareService.getShareResourceChildrenByVirtualId(share_token, share_resource_id);
         return new JsonResult<>(OK, toShareContentItemVOList(share_token, items));
-    }
-
-    /**
-     * 下载分享文件（通过 share_resource_id）
-     * <p>需要携带有效的访问令牌。
-     * <p>安全：通过 share_resource_id 校验文件是否在分享范围内，不暴露内部 file_id。
-     */
-    @GetMapping("/business/public/shares/{share_token}/resources/{share_resource_id}/download")
-    public JsonResult<org.project.model.entity.FileEntity> downloadSharedFile(
-            @Pattern(regexp = SHARE_TOKEN_REGEX, message = "share_token 必须是12位字母数字组合")
-            @PathVariable String share_token,
-            @Pattern(regexp = SHARE_RESOURCE_ID_REGEX, message = "share_resource_id 格式错误：必须是UUID或Base64URL格式")
-            @PathVariable String share_resource_id,
-            @RequestHeader("X-Share-Access-Token") String accessToken) {
-        // 下载凭证不可用于其他分享链接。
-        ShareLinkEntity share = shareService.getShareByAccessToken(accessToken);
-        if (!share.getShare_token().equals(share_token)) {
-            throw new org.project.service.ex.OverstepAuthorityException("无权访问该分享");
-        }
-        org.project.model.entity.FileEntity file = shareService.getSharedFileByResourceId(share_token, share_resource_id);
-        return new JsonResult<>(OK, file);
     }
 
     // ==================== 私有转换方法 ====================

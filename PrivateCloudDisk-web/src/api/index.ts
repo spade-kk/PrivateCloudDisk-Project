@@ -15,6 +15,9 @@ export * from './modules/security'
 export * from './modules/settings'
 export * from './modules/video'
 export * from './modules/space'
+export * from './modules/publicSpaces'
+export * from './modules/plugins'
+export * from './modules/workflows'
 
 // IM 模块 — 实时通信类型、SDK、API（完全替换旧 collaboration 端点）
 export * from './im'

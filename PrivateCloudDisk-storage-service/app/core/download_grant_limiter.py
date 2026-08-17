@@ -16,10 +16,11 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 import time
-from fastapi import Request, Header, HTTPException, status, Depends
+from fastapi import Request, Header, HTTPException, status
 from core.config import settings
-from app.core.redis_client import redis_client, check_and_incr_concurrency, release_concurrency
-from app.core.download_grant import verify_download_grant, _hash_token
+from app.core.grant_limiter import enforce_grant_limits
+from app.core.redis_client import redis_client
+from app.core.download_grant import _hash_token
 
 # 限流配置
 MAX_CONCURRENT = settings.max_concurrent
@@ -88,49 +89,25 @@ class DownloadGrantRateLimiter:
         #    file_id 在路由层面作为路径参数，但这里我们先用 token 自身验证
         #    实际的 file_id 校验在 verify_download_grant 中会做
         grant_data = await self._verify_grant(token, user_id)
+        requested_space = (request.headers.get("X-Space-Id") or "").strip()
+        granted_space = str(grant_data.get("spaceId") or "").strip()
+        if requested_space and requested_space != granted_space:
+            # 需求三-2：下载令牌消费阶段也必须校验空间边界。
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载授权与当前空间不匹配")
 
-        token_hash = grant_data["token_hash"]
-
-        # 2. 总请求次数限制
-        total_key = f"total:download_grant:{token_hash}"
-        total = await redis_client.incr(total_key)
-        if total == 1:
-            await redis_client.expire(total_key, DOWNLOAD_GRANT_TTL_SECONDS + 10)
-        if total > MAX_REQUESTS_PER_GRANT:
-            raise HTTPException(
-                status_code=429,
-                detail="The current number of download requests has reached the upper limit"
-            )
-
-        # 3. 每秒请求速率限制（固定窗口）
-        rate_key = f"rate:download_grant:{token_hash}:{int(time.time())}"
-        current_rate = await redis_client.incr(rate_key)
-        if current_rate == 1:
-            await redis_client.expire(rate_key, 2)
-        if current_rate > self.rate_per_sec:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Download rate limit exceeded"
-            )
-
-        # 4. 并发连接数限制
-        concurrency_key = f"concurrency:download_grant:{token_hash}"
-        allowed = await check_and_incr_concurrency(concurrency_key, self.max_concurrent)
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many concurrent download requests"
-            )
-
-        # 存储并发 key 以便释放
-        request.state.download_grant_concurrency_key = concurrency_key
-        # 将授权信息存入 state 供路由使用
-        request.state.download_grant_data = grant_data
-
-        try:
+        # AUDIT FIX [3.4]：普通下载与分享下载统一使用 Grant 限流执行器，
+        # 保留原有下载授权校验和 X-Space-Id 绑定行为。
+        async for _ in enforce_grant_limits(
+            request,
+            grant_data,
+            kind="download",
+            max_concurrent=self.max_concurrent,
+            max_requests=MAX_REQUESTS_PER_GRANT,
+            rate_per_sec=self.rate_per_sec,
+            ttl_seconds=DOWNLOAD_GRANT_TTL_SECONDS,
+            state_attr="download_grant_data",
+        ):
             yield
-        finally:
-            await release_concurrency(concurrency_key)
 
     async def _verify_grant(self, token: str, user_id: str) -> dict:
         """

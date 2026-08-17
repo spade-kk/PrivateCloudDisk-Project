@@ -88,8 +88,8 @@ class ImageCacheManager {
   }
 
   /** 加载原始图片内容，用于大图灯箱；不会把有损缩略图冒充原图。 */
-  async loadOriginal(fileId: string): Promise<string> {
-    const cacheKey = this.buildOriginalKey(fileId)
+  async loadOriginal(fileId: string, spaceId?: string): Promise<string> {
+    const cacheKey = this.buildOriginalKey(fileId, spaceId)
     const cached = this.cache.get(cacheKey)
     if (cached) {
       cached.lastAccess = Date.now()
@@ -106,7 +106,7 @@ class ImageCacheManager {
      * 需求三-1/2、四-2：原图首次加载与重试均申请独立 Preview Token。
      * 原行为直接访问无 Preview Token 的 URL，首次进入页面会失败，重试路径却可能因缓存时序不同而成功。
      */
-    const promise = this.fetchOriginalWithRetry(fileId, cacheKey, 0)
+    const promise = this.fetchOriginalWithRetry(fileId, spaceId, cacheKey, 0)
     this.pending.set(cacheKey, { promise, subscribers: 1 })
     try {
       return await promise
@@ -187,8 +187,8 @@ class ImageCacheManager {
     this.removeEntry(url)
   }
 
-  evictOriginal(fileId: string): void {
-    this.removeEntry(this.buildOriginalKey(fileId))
+  evictOriginal(fileId: string, spaceId?: string): void {
+    this.removeEntry(this.buildOriginalKey(fileId, spaceId))
   }
 
   /**
@@ -227,13 +227,13 @@ class ImageCacheManager {
     return getVideoThumbnailUrl(fileId, size)
   }
 
-  private buildOriginalKey(fileId: string): string {
-    return `preview-source:${fileId}`
+  private buildOriginalKey(fileId: string, spaceId?: string): string {
+    return `preview-source:${spaceId || 'personal'}:${fileId}`
   }
 
-  private async fetchOriginalWithRetry(fileId: string, cacheKey: string, attempt: number): Promise<string> {
+  private async fetchOriginalWithRetry(fileId: string, spaceId: string | undefined, cacheKey: string, attempt: number): Promise<string> {
     try {
-      const blob = await fetchPreviewContentBlob(fileId)
+      const blob = await fetchPreviewContentBlob(fileId, spaceId)
       const objectUrl = URL.createObjectURL(blob)
       this.addToCache(cacheKey, objectUrl, blob)
       return objectUrl
@@ -241,7 +241,7 @@ class ImageCacheManager {
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_BASE_DELAY * Math.pow(2, attempt)
         await new Promise((resolve) => setTimeout(resolve, delay))
-        return this.fetchOriginalWithRetry(fileId, cacheKey, attempt + 1)
+        return this.fetchOriginalWithRetry(fileId, spaceId, cacheKey, attempt + 1)
       }
       throw error
     }
@@ -394,8 +394,8 @@ export async function loadAuthenticatedMedia(
 /**
  * AUDIT FIX [3.1]: 大图预览直接获取原文件 Blob，确保缩放时保持原始清晰度。
  */
-export function loadOriginalImage(fileId: string): Promise<string> {
-  return imageCache.loadOriginal(fileId)
+export function loadOriginalImage(fileId: string, spaceId?: string): Promise<string> {
+  return imageCache.loadOriginal(fileId, spaceId)
 }
 
 /**

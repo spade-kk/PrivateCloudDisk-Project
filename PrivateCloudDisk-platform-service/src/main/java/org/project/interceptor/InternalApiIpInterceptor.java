@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
  * 内部接口IP访问控制拦截器
@@ -13,18 +15,35 @@ import java.util.List;
 public class InternalApiIpInterceptor implements HandlerInterceptor {
     // 允许访问的IP列表（通过配置注入）
     private final List<String> allowedIps;
+    private final String serviceToken;
 
-    public InternalApiIpInterceptor(List<String> allowedIps) {
+    public InternalApiIpInterceptor(List<String> allowedIps, String serviceToken) {
         this.allowedIps = allowedIps;
+        this.serviceToken = serviceToken == null ? "" : serviceToken;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 获取请求的真实IP
-        String clientIp = getRealClientIp(request);
+        /*
+         * Sprint 0 安全基线：
+         * 原行为 protected path 与真实 /business/internal/** 路径不一致，且信任客户端可伪造
+         * 的 X-Forwarded-For。新行为优先验证服务凭证；未配置凭证仅保留 loopback 开发兼容，
+         * Docker/生产必须显式注入 PCD_INTERNAL_SERVICE_TOKEN。
+         */
+        String presentedToken = request.getHeader("X-PCD-Service-Token");
+        if (!serviceToken.isBlank()
+                && presentedToken != null
+                && MessageDigest.isEqual(
+                        serviceToken.getBytes(StandardCharsets.UTF_8),
+                        presentedToken.getBytes(StandardCharsets.UTF_8))) {
+            return true;
+        }
+
+        // 不信任代理转发头；内部路径不得经公网 Gateway 暴露。
+        String clientIp = request.getRemoteAddr();
 
         // 检查IP是否在允许列表中
-        if (allowedIps.contains(clientIp)) {
+        if (serviceToken.isBlank() && allowedIps.contains(clientIp)) {
             return true; // 允许访问
         }
 
@@ -35,40 +54,4 @@ public class InternalApiIpInterceptor implements HandlerInterceptor {
         return false;
     }
 
-    /**
-     * 获取真实客户端IP（处理代理场景）
-     */
-    private String getRealClientIp(HttpServletRequest request) {
-        // 优先从代理头获取真实IP（适用于有反向代理的场景）
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_CLIENT_IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
-        }
-
-        // 如果以上都没有，直接获取远程地址
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-
-        // 处理多代理场景（X-Forwarded-For可能包含多个IP，取第一个）
-        if (ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-
-        // 特殊处理IPv6本地回环地址（转换为IPv4的127.0.0.1）
-        if ("0:0:0:0:0:0:0:1".equals(ip)) {
-            ip = "127.0.0.1";
-        }
-
-        return ip;
-    }
 }

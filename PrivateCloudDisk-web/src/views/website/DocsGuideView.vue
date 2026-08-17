@@ -32,11 +32,11 @@
             </span>
             <span class="inline-flex items-center gap-1">
               <i class="fa fa-refresh text-neutral-300"></i>
-              最后更新: 2026-01
+              最后更新: 2026-07
             </span>
             <span class="inline-flex items-center gap-1">
               <i class="fa fa-history text-neutral-300"></i>
-              v3.0.0+
+              以当前仓库实现为准
             </span>
           </div>
         </div>
@@ -244,7 +244,7 @@ cd PrivateCloudDisk</pre>
                   <span class="text-xs font-medium text-neutral-600">终端 3 - 文件服务</span>
                 </div>
                 <div class="rounded-xl bg-neutral-900 p-4">
-                  <pre class="font-mono text-sm text-neutral-300">cd PrivateCloudDisk-shortage-service
+                  <pre class="font-mono text-sm text-neutral-300">cd PrivateCloudDisk-storage-service
 pip install -r requirements.txt
 uvicorn server:app --host 0.0.0.0 --port 8000 --reload</pre>
                 </div>
@@ -286,21 +286,21 @@ npm run dev</pre>
               </div>
 
               <div class="mt-6">
-                <h3 class="text-base font-semibold text-neutral-800 mb-3">测试账号</h3>
+                <h3 class="text-base font-semibold text-neutral-800 mb-3">访问配置</h3>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div class="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-3">
                     <div>
                       <p class="text-sm font-medium text-neutral-800">超级管理员</p>
-                      <p class="text-xs text-neutral-500">系统全部权限</p>
+                      <p class="text-xs text-neutral-500">管理员权限由部署初始化配置</p>
                     </div>
-                    <code class="rounded bg-primary/10 px-2 py-1 text-xs text-primary">superadmin / admin123</code>
+                    <code class="rounded bg-primary/10 px-2 py-1 text-xs text-primary">账号由部署配置提供</code>
                   </div>
                   <div class="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-3">
                     <div>
                       <p class="text-sm font-medium text-neutral-800">普通用户</p>
-                      <p class="text-xs text-neutral-500">测试用账号</p>
+                      <p class="text-xs text-neutral-500">测试权限由测试环境配置</p>
                     </div>
-                    <code class="rounded bg-primary/10 px-2 py-1 text-xs text-primary">pcd_test001 / test123456</code>
+                    <code class="rounded bg-primary/10 px-2 py-1 text-xs text-primary">账号由测试环境提供</code>
                   </div>
                 </div>
               </div>

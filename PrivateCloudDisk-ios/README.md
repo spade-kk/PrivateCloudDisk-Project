@@ -1,6 +1,6 @@
 # PrivateCloudDisk-ios
 
-企业级私有云盘 iOS 原生客户端，基于 SwiftUI 构建，支持文件管理、即时通讯、Widget 小组件、Share Extension 等功能。
+iOS 原生客户端，基于 SwiftUI 构建，包含文件访问、上传下载和原生扩展相关模块；Widget、Share Extension 与即时通讯能力以工程配置和当前构建结果为准。
 
 ---
 

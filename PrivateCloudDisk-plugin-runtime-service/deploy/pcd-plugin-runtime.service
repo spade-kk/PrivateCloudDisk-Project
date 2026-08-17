@@ -1,0 +1,36 @@
+[Unit]
+Description=PrivateCloudDisk Plugin Runtime
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pcd-runtime
+Group=pcd-runtime
+EnvironmentFile=/etc/pcd-plugin-runtime/runtime.env
+ExecStart=/usr/local/bin/pcd-plugin-runtime
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=25
+
+# Runtime 仅负责创建受限容器；工作目录和 Docker CLI 是唯一必要的本机能力。
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/pcd-runtime/work
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

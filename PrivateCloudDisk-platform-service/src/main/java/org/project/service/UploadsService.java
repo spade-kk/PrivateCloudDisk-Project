@@ -3,6 +3,7 @@ package org.project.service;
 import org.project.model.dto.LazyUploadSessionResponse;
 import org.project.model.entity.UploadsChunkEntity;
 import org.project.model.entity.UploadsSessionEntity;
+import org.project.model.vo.UploadSessionConcurrencyVO;
 
 import java.util.UUID;
 
@@ -31,6 +32,11 @@ public interface UploadsService {
                 UUID node_id,
                 String clientIp
             );
+
+    /** 公开仓库上传会话：由仓库开关校验后复用原有分片上传流水线。 */
+    UUID createPublicUploadsSession(UUID spaceId, int totalChunks, long fileSize, String checksum,
+                                    int chunkMaxSize, String fileName, String fileType,
+                                    UUID userId, UUID nodeId, String clientIp);
 
     /**
      * 根据上传会话ID查询上传会话
@@ -97,11 +103,31 @@ public interface UploadsService {
     void activateFileStatus(UUID file_id, UUID user_id);
 
     /**
-     * 文件存储服务完成物理文件删除后，同步调用标记上传会话为 deleted
-     * <p>内部会发布 uploads.session.deleted 事件，通知主业务服务释放配额。
+     * 插件生态生命周期：在同一事务中提交最终内容定位、摘要、大小与 active 状态。
+     * 旧 activateFileStatus 保留并继续兼容未携带最终内容快照的 Worker。
+     */
+    void activateFileStatusWithFinalContent(
+            UUID fileId,
+            UUID userId,
+            String storagePath,
+            String checksum,
+            Long fileSize
+    );
+
+    /**
+     * 文件存储服务完成取消/过期会话的物理分块删除后，同步删除 canceled 会话记录。
+     * <p>内部会发布 uploads.session.deleted 事件，通知主业务服务释放配额；不再写入 deleted 状态。
      * @param uploads_id 上传会话ID
      */
     void markUploadSessionDeleted(UUID uploads_id);
+
+    /**
+     * 合并流水线清理分块后删除上传会话及其分块元数据，不发布配额回滚事件。
+     */
+    void deleteUploadsSessionAfterMerge(UUID uploads_id);
+
+    /** 查询当前用户/空间的活跃上传会话并发状态。 */
+    UploadSessionConcurrencyVO queryUploadConcurrency(UUID user_id);
 
     /**
      * 懒创建上传会话（混合模型）。

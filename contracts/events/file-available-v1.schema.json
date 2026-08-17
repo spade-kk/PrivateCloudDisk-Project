@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.privateclouddisk.local/events/file-available-v1.schema.json",
+  "title": "pcd.file.available.v1 normalized",
+  "description": "Automation 内部规范化后的 file.available；MQ 仍兼容既有 camelCase 消息。",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["specversion", "id", "type", "actor_user_id", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "format": "uuid" },
+    "type": { "const": "pcd.file.available.v1" },
+    "actor_user_id": { "type": "string", "format": "uuid" },
+    "space_id": { "type": ["string", "null"], "format": "uuid" },
+    "data": {
+      "type": "object",
+      "required": ["file_id", "name", "size", "mime_type"],
+      "properties": {
+        "file_id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "size": { "type": "integer", "minimum": 0 },
+        "mime_type": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "checksum": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "content_revision": { "type": "integer", "minimum": 0 },
+        "content_modified": { "type": "boolean" },
+        "preprocess_status": { "type": "string", "maxLength": 32 }
+      }
+    }
+  }
+}

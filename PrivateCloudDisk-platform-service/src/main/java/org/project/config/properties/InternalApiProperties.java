@@ -19,8 +19,11 @@ public class InternalApiProperties {
 
     // 需要保护的内部接口路径（例如文件存储服务调用的路径）
     private List<String> protectedPaths = List.of(
-            "/internal/storage/**"   // 内部文件存储服务所有接口
+            "/business/internal/**"   // 文件、插件和工作流内部接口
     );
+
+    /** 服务间共享凭证；生产环境必须通过 Secret 注入，后续可平滑替换为 mTLS 身份。 */
+    private String serviceToken = "";
 
     // 排除拦截的路径（可选）
     private List<String> excludePaths = new ArrayList<>();
@@ -48,5 +51,13 @@ public class InternalApiProperties {
 
     public void setExcludePaths(List<String> excludePaths) {
         this.excludePaths = excludePaths;
+    }
+
+    public String getServiceToken() {
+        return serviceToken;
+    }
+
+    public void setServiceToken(String serviceToken) {
+        this.serviceToken = serviceToken;
     }
 }

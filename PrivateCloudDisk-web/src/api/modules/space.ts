@@ -11,27 +11,35 @@ import { get, post, put, del } from '@/utils/request'
 export interface SpaceInfo {
   spaceId: string
   spaceName: string
-  spaceType: 'personal' | 'enterprise' | 'public' | 'team'
+  spaceType: 'personal' | 'private' | 'enterprise' | 'public' | 'team'
   spaceOwnerId: string
   spaceQuota: number
   spaceUsed: number
   spaceFileCount: number
-  spaceVisibility: 'private' | 'public' | 'whitelist' | 'blacklist'
+  spaceVisibility: 'private' | 'public' | 'visible' | 'hidden' | 'whitelist' | 'blacklist'
+  /** [SPACE-COLLAB-API-01] 协作空间加入策略；旧服务未返回时按 invite_only 兼容。 */
+  joinPolicy?: 'open' | 'approval_required' | 'invite_only'
   spaceDescription: string
   spaceAvatarPath: string
   spaceImGroupId: string
   spaceCreatedAt: string
   spaceUpdatedAt: string
   spaceStatus: 'active' | 'disabled' | 'deleted'
+  allowPublicBrowse?: boolean
+  allowPublicDownload?: boolean
+  allowPublicUpload?: boolean
 }
 
 export interface SpaceMember {
   memberId: number
   spaceId: string
   userId: string
-  role: 'owner' | 'admin' | 'editor' | 'viewer'
+  role: 'owner' | 'admin' | 'editor' | 'viewer' | 'custom'
   joinedAt: string
   invitedBy: string | null
+  username?: string
+  avatarPath?: string
+  permissions?: SpacePermission
 }
 
 export interface SpacePermission {
@@ -45,6 +53,13 @@ export interface SpacePermission {
   canShare: boolean
   canInvite: boolean
   canManage: boolean
+  canView?: boolean
+  canDownload?: boolean
+  canUpload?: boolean
+  canEdit?: boolean
+  canManageMembers?: boolean
+  canManagePlugins?: boolean
+  canManageSettings?: boolean
   grantedBy: string
   grantedAt: string
 }
@@ -60,6 +75,28 @@ export interface SpaceJoinRequest {
   createdAt: string
 }
 
+export interface SpacePreview extends SpaceInfo {
+  ownerUsername?: string
+  ownerAvatarPath?: string
+  memberCount?: number
+  isMember?: boolean
+  currentRequestStatus?: SpaceJoinRequest['status'] | null
+}
+
+export interface SpacePermissionUpdate {
+  role?: SpaceMember['role']
+  canView?: boolean
+  canRead?: boolean
+  canDownload?: boolean
+  canUpload?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
+  canShare?: boolean
+  canManageMembers?: boolean
+  canManagePlugins?: boolean
+  canManageSettings?: boolean
+}
+
 export interface SpaceVisibility {
   visibilityId: number
   spaceId: string
@@ -73,13 +110,21 @@ export interface CreateSpaceParams {
   spaceType: string
   spaceDescription?: string
   spaceVisibility?: string
+  joinPolicy?: 'open' | 'approval_required' | 'invite_only'
+  allowPublicBrowse?: boolean
+  allowPublicDownload?: boolean
+  allowPublicUpload?: boolean
 }
 
 export interface UpdateSpaceParams {
   spaceName?: string
   spaceDescription?: string
   spaceVisibility?: string
+  joinPolicy?: 'open' | 'approval_required' | 'invite_only'
   spaceQuota?: number
+  allowPublicBrowse?: boolean
+  allowPublicDownload?: boolean
+  allowPublicUpload?: boolean
 }
 
 // ============================================================
@@ -188,4 +233,77 @@ export function getCurrentSpaceApi(): Promise<{ code: number; data: string }> {
 
 export function setCurrentSpaceApi(spaceId: string): Promise<{ code: number }> {
   return put(`business/spaces/current/${spaceId}`)
+}
+
+// ============================================================
+// 空间协作中心（SPACE-COLLAB-API）
+// ============================================================
+
+export function searchCollaborationSpacesApi(keyword?: string): Promise<{ code: number; data: SpacePreview[] }> {
+  return get('business/teamwork/spaces/search', { keyword })
+}
+
+export function getCollaborationSpacePreviewApi(spaceId: string): Promise<{ code: number; data: SpacePreview }> {
+  return get(`business/teamwork/spaces/${spaceId}`)
+}
+
+export function joinCollaborationSpaceApi(spaceId: string, message?: string, inviteToken?: string): Promise<{ code: number }> {
+  return post(`business/teamwork/spaces/${spaceId}/join`, { message, inviteToken })
+}
+
+export function listMyCollaborationSpacesApi(): Promise<{ code: number; data: SpaceInfo[] }> {
+  return get('business/teamwork/my-spaces')
+}
+
+export function listMyJoinRequestsApi(): Promise<{ code: number; data: SpaceJoinRequest[] }> {
+  return get('business/teamwork/my-requests')
+}
+
+export function cancelJoinRequestApi(requestId: number): Promise<{ code: number }> {
+  return del(`business/teamwork/requests/${requestId}`)
+}
+
+export function listCollaborationMembersApi(spaceId: string, keyword?: string): Promise<{ code: number; data: SpaceMember[] }> {
+  return get(`business/space/${spaceId}/members`, { keyword })
+}
+
+export function updateMemberPermissionsApi(spaceId: string, userId: string, data: SpacePermissionUpdate): Promise<{ code: number }> {
+  return put(`business/space/${spaceId}/members/${userId}/permissions`, data)
+}
+
+export function updateCollaborationSettingsApi(spaceId: string, data: UpdateSpaceParams): Promise<{ code: number; data: SpaceInfo }> {
+  return put(`business/space/${spaceId}/settings`, data)
+}
+
+export function listCollaborationApprovalsApi(spaceId: string, status?: string): Promise<{ code: number; data: SpaceJoinRequest[] }> {
+  return get(`business/space/${spaceId}/members/approvals`, { status })
+}
+
+export function reviewCollaborationApprovalApi(spaceId: string, requestId: number, action: 'approved' | 'rejected', reason?: string): Promise<{ code: number }> {
+  return put(`business/space/${spaceId}/members/approvals/${requestId}`, { action, reason })
+}
+
+export function createSpaceInvitationApi(spaceId: string, expiresHours = 72, maxUses = 10): Promise<{ code: number; data: string }> {
+  return post(`business/space/${spaceId}/invitations`, { expiresHours, maxUses })
+}
+
+export function redeemSpaceInvitationApi(token: string): Promise<{ code: number }> {
+  return post('business/space/invitations/redeem', { token })
+}
+
+export interface PublicUserProfile {
+  userId: string
+  username?: string
+  account?: string
+  avatarPath?: string
+  description?: string
+  createdAt?: string
+}
+
+export function getPublicUserProfileApi(userId: string): Promise<{ code: number; data: PublicUserProfile }> {
+  return get(`business/users/${userId}/profile`)
+}
+
+export function searchSpaceUsersApi(keyword: string, limit = 20): Promise<{ code: number; data: PublicUserProfile[] }> {
+  return get('business/users/search', { q: keyword, limit })
 }

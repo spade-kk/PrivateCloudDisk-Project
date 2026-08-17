@@ -39,6 +39,9 @@ public class FileMergeFailedEvent implements Serializable {
     /** 用户ID */
     private String userId;
 
+    /** 空间管理能力全量集成（需求五-9）：用于失败回滚恢复空间配额上下文。 */
+    private String spaceId;
+
     /** 上传会话ID */
     private String uploadsSessionId;
 

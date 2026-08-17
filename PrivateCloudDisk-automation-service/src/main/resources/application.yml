@@ -1,0 +1,54 @@
+server:
+  port: ${SERVER_PORT:8084}
+  shutdown: graceful
+
+spring:
+  application:
+    name: PrivateCloudDisk-automation-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${AUTOMATION_DATASOURCE_URL:jdbc:mysql://localhost:3306/pcd_automation?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${AUTOMATION_DATASOURCE_USERNAME:root}
+    password: ${AUTOMATION_DATASOURCE_PASSWORD:20070315mwz}
+    hikari:
+      maximum-pool-size: ${AUTOMATION_DB_POOL_MAX:12}
+      minimum-idle: ${AUTOMATION_DB_POOL_MIN:2}
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 16
+        concurrency: 2
+        max-concurrency: 8
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pcd:
+  plugin-service-url: ${PLUGIN_SERVICE_URL:http://localhost:8085}
+  runtime-service-url: ${PLUGIN_RUNTIME_URL:http://localhost:8090}
+  internal-service-token: ${PCD_INTERNAL_SERVICE_TOKEN:test}
+  # REQ-WORKER-TASKBUS-2026-07：内容预处理是文件后处理的可选闸门，匹配失败必须快速
+  # fail-open，不能让插件目录或运行时不可用拖住 hash 任务。
+  trigger-match-timeout-ms: ${TRIGGER_MATCH_TIMEOUT_MS:500}
+  runtime-timeout-seconds: ${PLUGIN_RUNTIME_TIMEOUT_SECONDS:8}
+  inbox-lease-seconds: ${AUTOMATION_INBOX_LEASE_SECONDS:15}
+  outbox-poll-ms: ${AUTOMATION_OUTBOX_POLL_MS:250}

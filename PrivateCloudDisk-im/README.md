@@ -43,7 +43,7 @@ PrivateCloudDisk-im/
 
 基于 Netty 的高性能长连接服务：
 
-- **NettyWebSocketServer**：Boss/Worker 线程模型，支持万级并发
+- **NettyWebSocketServer**：Boss/Worker 线程模型，负责 WebSocket 长连接和实时消息推送；连接规模与部署资源、配置和压测结果有关
 - **SessionManager**：用户-Channel 映射，多端登录，连接数限制
 - **AuthHandler**：WebSocket 握手认证，JWT Token 校验
 - **MessageHandler**：命令字路由（心跳/消息/ACK/已读/同步）

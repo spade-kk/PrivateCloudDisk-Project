@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.mapper.SpaceInvitationMapper">
+    <resultMap id="InvitationMap" type="org.project.model.entity.SpaceInvitationEntity">
+        <id column="invitation_id" property="invitationId"/>
+        <result column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="token_hash" property="tokenHash"/>
+        <result column="created_by" property="createdBy" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="expires_at" property="expiresAt"/>
+        <result column="max_uses" property="maxUses"/>
+        <result column="used_count" property="usedCount"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="invitationId">
+        INSERT INTO pcd_space_invitation_table (space_id, token_hash, created_by, expires_at, max_uses, used_count, status)
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{tokenHash},
+                #{createdBy,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{expiresAt}, #{maxUses}, 0, 'active')
+    </insert>
+    <select id="findActiveByHash" resultMap="InvitationMap">
+        SELECT * FROM pcd_space_invitation_table
+        WHERE token_hash = #{tokenHash} AND status = 'active'
+          AND expires_at &gt; CURRENT_TIMESTAMP AND used_count &lt; max_uses
+        LIMIT 1
+    </select>
+    <update id="consume">
+        UPDATE pcd_space_invitation_table
+        SET used_count = used_count + 1,
+            status = IF(used_count + 1 >= max_uses, 'expired', status)
+        WHERE invitation_id = #{invitationId} AND status = 'active'
+          AND expires_at &gt; CURRENT_TIMESTAMP AND used_count &lt; max_uses
+    </update>
+    <update id="revoke">
+        UPDATE pcd_space_invitation_table SET status = 'revoked'
+        WHERE invitation_id = #{invitationId}
+          AND space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+    </update>
+</mapper>

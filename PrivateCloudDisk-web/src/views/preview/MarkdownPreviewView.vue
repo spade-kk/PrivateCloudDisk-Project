@@ -225,7 +225,7 @@ const loadFileContent = async (): Promise<void> => {
 
   try {
     // 1. 获取文件元数据
-    const fileInfoRes = await getFileInfoApi(fileId.value)
+    const fileInfoRes = await getFileInfoApi(fileId.value, String(route.query.space || '') || undefined)
     const fileInfo = fileInfoRes.data || fileInfoRes
     if (fileInfo) {
       fileName.value = fileInfo.file_name || fileInfo.node_name || fileName.value
@@ -237,7 +237,7 @@ const loadFileContent = async (): Promise<void> => {
      * 原行为从下载接口读取 Markdown；新行为统一走有状态 Preview Token，
      * 后端只临时返回原始内容，由当前页面在浏览器内完成渲染和高亮。
      */
-    const blob = await fetchPreviewContentBlob(fileId.value)
+    const blob = await fetchPreviewContentBlob(fileId.value, String(route.query.space || '') || undefined)
 
     // 4. 将 Blob 转换为文本
     const text = await blobToText(blob)

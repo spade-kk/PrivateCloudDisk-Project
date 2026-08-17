@@ -34,4 +34,9 @@ public class FileEntity implements Serializable {
     private Integer total_chunks;
     private String storage_path;
     private FileStatus status;
+    /**
+     * 需求：空间管理能力全量集成（六）。
+     * 新增资源定位维度；历史个人网盘记录允许为 NULL，由统一空间查询规则兼容。
+     */
+    private UUID space_id;
 }

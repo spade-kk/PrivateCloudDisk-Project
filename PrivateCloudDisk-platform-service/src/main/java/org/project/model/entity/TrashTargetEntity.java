@@ -27,7 +27,10 @@ public class TrashTargetEntity implements Serializable {
     
     /** 用户ID */
     private UUID user_id;
-    
+
+    /** 需求：空间管理能力全量集成（五-7），回收站记录所属空间。 */
+    private UUID space_id;
+
     /** 目标名称 */
     private String target_name;
 

@@ -17,6 +17,14 @@ public class SpacePermissionEntity implements Serializable {
     private Boolean canShare;
     private Boolean canInvite;
     private Boolean canManage;
+    /** [SPACE-COLLAB-PERM-01] 新权限矩阵字段；保留旧字段以兼容既有接口。 */
+    private Boolean canView;
+    private Boolean canDownload;
+    private Boolean canUpload;
+    private Boolean canEdit;
+    private Boolean canManageMembers;
+    private Boolean canManagePlugins;
+    private Boolean canManageSettings;
     private UUID grantedBy;
     private LocalDateTime grantedAt;
 }

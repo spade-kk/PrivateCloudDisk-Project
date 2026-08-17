@@ -13,6 +13,9 @@ class PreviewResource:
     user_id: str
     resource_type: str
     storage_path: str
+    # 空间管理能力全量集成（需求五-8/9）：预览资源与源文件使用同一空间定位维度。
+    # 历史资源可为空；迁移脚本会优先根据 file_id 回填。
+    space_id: Optional[str] = None
     resource_variant: str = "default"
     storage_backend: str = "localstorage"
     mime_type: Optional[str] = None

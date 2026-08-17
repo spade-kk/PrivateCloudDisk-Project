@@ -5,7 +5,7 @@
         <div class="mx-auto max-w-3xl text-center">
           <span class="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">合作伙伴</span>
           <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">携手共建生态</h1>
-          <p class="mt-4 text-lg text-neutral-500">CloudDrive 与全球领先的技术和服务伙伴合作，为企业提供全方位的解决方案</p>
+          <p class="mt-4 text-lg text-neutral-500">PrivateCloudDisk 展示当前仓库使用的基础设施、服务机制和开放扩展接口</p>
         </div>
       </div>
     </section>
@@ -33,8 +33,8 @@
     <!-- Become Partner -->
     <section class="border-t border-neutral-100 bg-neutral-50/50 py-20">
       <div class="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-        <h2 class="text-3xl font-bold text-neutral-900">成为 CloudDrive 合作伙伴</h2>
-        <p class="mt-4 text-neutral-500">加入 CloudDrive 合作伙伴计划，共享企业级私有云存储市场的巨大机遇</p>
+        <h2 class="text-3xl font-bold text-neutral-900">参与平台生态建设</h2>
+        <p class="mt-4 text-neutral-500">围绕基础设施、插件、工作流、客户端和文档提交可核验的集成贡献</p>
         <div class="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
           <div class="rounded-2xl border border-neutral-200 bg-white p-6 text-center">
             <i class="fa fa-certificate text-3xl text-primary mb-3"></i>
@@ -61,34 +61,34 @@
 <script setup lang="ts">
 const partnerCategories = [
   {
-    title: '云平台合作伙伴', desc: '与全球主流云平台深度集成，提供灵活部署选择',
+    title: '基础设施组件', desc: '当前仓库和部署配置中使用的存储、消息、搜索与观测组件',
     partners: [
-      { name: '阿里云', desc: '弹性计算与对象存储', type: '深度集成' },
-      { name: '华为云', desc: '鲲鹏架构原生支持', type: '战略合作' },
-      { name: '腾讯云', desc: 'COS 对象存储集成', type: '技术合作' },
-      { name: 'AWS', desc: 'S3 兼容存储后端', type: '技术合作' },
-      { name: 'Azure', desc: 'Azure AD 身份集成', type: '认证合作' },
-      { name: 'Google Cloud', desc: 'GCS 存储集成', type: '技术合作' },
-      { name: 'UCloud', desc: '中立云平台方案', type: '合作集成' },
-      { name: '青云 QingCloud', desc: '私有云一体机方案', type: 'OEM 合作' },
+      { name: 'MinIO', desc: 'S3 兼容对象存储后端', type: '仓库能力' },
+      { name: 'MySQL', desc: '业务与服务元数据存储', type: '仓库能力' },
+      { name: 'Redis', desc: '缓存、限流与临时凭证', type: '仓库能力' },
+      { name: 'RabbitMQ', desc: '文件生命周期与异步任务', type: '仓库能力' },
+      { name: 'OpenSearch', desc: '搜索与索引基础设施', type: '按配置接入' },
+      { name: 'Docker Compose', desc: '本地与联调部署编排', type: '仓库能力' },
+      { name: 'Prometheus', desc: '指标采集接口', type: '按配置接入' },
+      { name: 'SkyWalking', desc: '服务链路追踪', type: '按配置接入' },
     ],
   },
   {
-    title: '安全合作伙伴', desc: '联合顶级安全厂商，构建全方位安全防护体系',
+    title: '安全边界机制', desc: '当前代码中用于认证、空间和扩展运行边界的机制',
     partners: [
-      { name: '奇安信', desc: '终端安全与态势感知', type: '战略合作' },
-      { name: '深信服', desc: '零信任访问方案', type: '技术合作' },
-      { name: '亚信安全', desc: '病毒查杀引擎集成', type: '技术合作' },
-      { name: '启明星辰', desc: '安全审计与合规', type: '合作集成' },
+      { name: 'Gateway Auth', desc: '统一认证与路由边界', type: '仓库能力' },
+      { name: 'Space Context', desc: '空间成员与资源范围', type: '仓库能力' },
+      { name: 'Operation Token', desc: '预览和下载临时授权', type: '仓库能力' },
+      { name: 'Plugin Sandbox', desc: '扩展包校验与隔离运行', type: '仓库能力' },
     ],
   },
   {
-    title: 'ISV 合作伙伴', desc: '与领先的企业软件厂商集成，扩展业务场景',
+    title: '开放扩展接口', desc: '当前平台提供的 API、插件和工作流扩展入口',
     partners: [
-      { name: '用友', desc: 'ERP 系统文件管理集成', type: '认证合作' },
-      { name: '金蝶', desc: '财务文档云端管理', type: '认证合作' },
-      { name: '泛微', desc: 'OA 流程附件管理', type: '技术合作' },
-      { name: '蓝凌', desc: '知识管理平台集成', type: '技术合作' },
+      { name: 'REST API', desc: '平台业务与文件能力入口', type: '仓库能力' },
+      { name: 'Plugin SDK', desc: '云插件与本地扩展能力', type: '仓库能力' },
+      { name: 'Workflow DSL', desc: '可校验、可发布的流程定义', type: '仓库能力' },
+      { name: 'Event Contract', desc: '文件生命周期事件契约', type: '仓库能力' },
     ],
   },
 ]

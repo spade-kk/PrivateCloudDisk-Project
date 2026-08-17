@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
 import org.project.mapper.QuotaMapper;
+import org.project.mapper.SpaceQuotaReservationMapper;
 import org.project.model.dto.message.QuotaUpdateMessageDTO;
 import org.project.model.entity.QuotaEntity;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -21,16 +22,34 @@ import java.util.UUID;
 public class QuotaUpdateMessageConsumer {
     
     private final QuotaMapper quotaMapper;
+    private final SpaceQuotaReservationMapper spaceQuotaReservationMapper;
     
     /**
      * 消费配额更新消息
      */
     @RabbitListener(queues = RabbitMQConifgure.QUOTA_UPDATE_QUEUE)
     public void consumeQuotaUpdateMessage(QuotaUpdateMessageDTO message) {
-        log.info("收到配额更新消息: messageId={}, userId={}, updateType={}", 
-                message.getMessage_id(), message.getUser_id(), message.getUpdate_id());
+        log.info("收到配额更新消息: messageId={}, spaceId={}, userId={}, updateType={}",
+                message.getMessage_id(), message.getSpace_id(),
+                message.getUser_id(), message.getUpdate_id());
         
         try {
+            /*
+             * 空间管理能力全量集成（需求五-9/10）：
+             * 新消息携带 space_id 时直接更新空间账本；历史消息为空时完整保留原用户配额逻辑。
+             */
+            if (message.getSpace_id() != null && !message.getSpace_id().isBlank()) {
+                if ("FILE_UPLOAD".equals(message.getUpdate_id())
+                        || "FILE_DELETE".equals(message.getUpdate_id())) {
+                    spaceQuotaReservationMapper.adjustUsage(
+                            UUID.fromString(message.getSpace_id()),
+                            message.getChange_bytes() == null ? 0L : message.getChange_bytes(),
+                            message.getChange_file_count() == null ? 0 : message.getChange_file_count());
+                } else {
+                    log.info("空间配额重新计算由实际文件聚合接口负责: spaceId={}", message.getSpace_id());
+                }
+                return;
+            }
             QuotaEntity quota = quotaMapper.findQuotaByUserId(UUID.fromString(message.getUser_id()));
             if (quota == null) {
                 log.warn("用户配额不存在: userId={}", message.getUser_id());

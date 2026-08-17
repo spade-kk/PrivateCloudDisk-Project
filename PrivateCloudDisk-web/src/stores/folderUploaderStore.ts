@@ -11,7 +11,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { CHUNK_SIZE, MAX_RETRIES } from '@/utils/constants'
+import { CHUNK_SIZE, MAX_CONCURRENT_FILES, MAX_CONCURRENT_UPLOADS, MAX_RETRIES } from '@/utils/constants'
 import { calculateSHA256 } from '@/utils/helpers'
 import { SpeedSampler } from '@/utils/speedSampler'
 import { useToastStore } from './toastStore'
@@ -22,6 +22,7 @@ import {
   uploadFileChunkApi,
   completeUploadSessionApi,
   getBackendTaskStatusApi,
+  isOptimisticLockConflict,
 } from '@/api/index'
 
 // ============================================================
@@ -60,6 +61,8 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
   const speedSampler = new SpeedSampler(5000, 200, 0.3)
   let speedTimer: ReturnType<typeof setInterval> | null = null
   let accumulatedBytes = 0
+  let folderRunId = 0
+  const activeControllers = new Set<AbortController>()
 
   const completedCount = computed(() =>
     files.value.filter(f => f.status === 'completed').length
@@ -145,6 +148,7 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
     fileList: File[],
   ): Promise<void> {
     if (fileList.length === 0) return
+    reset()
 
     try {
       // 1. 解析文件列表
@@ -163,32 +167,54 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
           fileItem.fileSize,
           rootName, // folderName 用于分组
         )
+        const recordId = fileItem.transferRecordId!
+        transferStore.registerRetryHandler(recordId, async () => {
+          fileItem.status = 'uploading'
+          fileItem.progress = 0
+          fileItem.errorMessage = ''
+          try {
+            await uploadSingleFileInFolder(fileItem, targetNodeId)
+            fileItem.status = 'completed'
+            fileItem.progress = 100
+          } catch (error: any) {
+            fileItem.status = 'error'
+            fileItem.errorMessage = error?.message || '重试失败'
+            transferStore.failRecord(recordId, fileItem.errorMessage)
+            throw error
+          }
+        })
       }
 
-      // 3. 逐个上传文件
+      // 3. 文件级并发池：每个文件内部再使用独立的分块并发池；文件合并接口成功即释放文件槽位。
       status.value = 'uploading'
       startSpeedMonitor()
       cancelled.value = false
 
-      for (let i = 0; i < files.value.length; i++) {
-        if (cancelled.value) break
-
-        const fileItem = files.value[i]
-        currentFileIndex.value = i
-        fileItem.status = 'uploading'
-
-        try {
-          await uploadSingleFileInFolder(fileItem, targetNodeId)
-          fileItem.status = 'completed'
-          fileItem.progress = 100
-          uploadedBytes.value += fileItem.fileSize
-        } catch (err: any) {
-          if (cancelled.value) break
-          fileItem.status = 'error'
-          fileItem.errorMessage = err.message || '上传失败'
-          toastStore.showToast(`"${fileItem.relativePath || fileItem.file.name}" 上传失败: ${err.message}`, 'error')
+      const runId = ++folderRunId
+      let nextFileIndex = 0
+      const worker = async (): Promise<void> => {
+        while (!cancelled.value && runId === folderRunId) {
+          const index = nextFileIndex++
+          if (index >= files.value.length) return
+          const fileItem = files.value[index]
+          currentFileIndex.value = index
+          fileItem.status = 'uploading'
+          try {
+            await uploadSingleFileInFolder(fileItem, targetNodeId, runId)
+            fileItem.status = 'completed'
+            fileItem.progress = 100
+            uploadedBytes.value += fileItem.fileSize
+          } catch (err: any) {
+            if (cancelled.value || runId !== folderRunId) return
+            fileItem.status = 'error'
+            fileItem.errorMessage = err.message || '上传失败'
+            toastStore.showToast(`"${fileItem.relativePath || fileItem.file.name}" 上传失败: ${err.message}`, 'error')
+          }
         }
       }
+      await Promise.all(
+        Array.from({ length: Math.min(MAX_CONCURRENT_FILES, files.value.length) }, () => worker()),
+      )
 
       stopSpeedMonitor()
 
@@ -220,6 +246,7 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
   async function uploadSingleFileInFolder(
     fileItem: FolderUploadFileItem,
     targetNodeId: string,
+    runId = folderRunId,
   ): Promise<void> {
     const { file, relativePath, transferRecordId } = fileItem
 
@@ -238,17 +265,33 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
     let sessionId: string
     let actualNodeId: string
     try {
-      const sessionRes = await createLazyUploadSessionApi(
-        totalChunks,
-        file.size,
-        checksum,
-        CHUNK_SIZE,
-        file.type || 'application/octet-stream',
-        fileName,
-        targetNodeId,
-        dirPath || undefined, // relative_path
-        undefined, // breadcrumb_path
-      )
+      let sessionRes: any
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          sessionRes = await createLazyUploadSessionApi(
+            totalChunks,
+            file.size,
+            checksum,
+            CHUNK_SIZE,
+            file.type || 'application/octet-stream',
+            fileName,
+            targetNodeId,
+            dirPath || undefined, // relative_path
+            undefined, // breadcrumb_path
+          )
+          if (sessionRes?.code === 'OPTIMISTIC_LOCK_CONFLICT'
+            || sessionRes?.data?.code === 'OPTIMISTIC_LOCK_CONFLICT') {
+            const conflict = new Error('服务器繁忙，请稍后重试') as any
+            conflict.status = 409
+            throw conflict
+          }
+          break
+        } catch (error: any) {
+          if (!isOptimisticLockConflict(error) || attempt >= 2) throw error
+          // REQ-UPLOAD-OPTIMISTIC-RETRY-2026-07：懒上传会话与普通会话使用同一冲突协议。
+          await new Promise(resolve => setTimeout(resolve, 100 + Math.floor(Math.random() * 401)))
+        }
+      }
       if (sessionRes.code !== 200) {
         throw new Error(sessionRes.message || '创建上传会话失败')
       }
@@ -264,44 +307,63 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
       throw new Error('创建上传会话失败: ' + err.message)
     }
 
-    // 上传分片（串行）
-    for (let chunkIdx = 1; chunkIdx <= totalChunks; chunkIdx++) {
-      if (cancelled.value) throw new Error('上传已取消')
-
-      const start = (chunkIdx - 1) * CHUNK_SIZE
-      const end = Math.min(start + CHUNK_SIZE, file.size)
-      const blob = file.slice(start, end)
-
-      let retries = 0
-      let success = false
-
-      while (retries < MAX_RETRIES && !success) {
-        try {
-          const res = await uploadFileChunkApi(sessionId, chunkIdx, blob)
-          if (res.code === 200) {
+    // REQ-UPLOAD-CONCURRENCY-2026-07：单文件分块使用固定并发池；一个分块完成后立即补充下一个。
+    let nextChunk = 1
+    let completedChunks = 0
+    const chunkLoaded = new Map<number, number>()
+    const uploadChunk = async (): Promise<void> => {
+      while (!cancelled.value && runId === folderRunId) {
+        const chunkIdx = nextChunk++
+        if (chunkIdx > totalChunks) return
+        const start = (chunkIdx - 1) * CHUNK_SIZE
+        const end = Math.min(start + CHUNK_SIZE, file.size)
+        const blob = file.slice(start, end)
+        let retries = 0
+        let success = false
+        while (retries < MAX_RETRIES && !success) {
+          if (cancelled.value || runId !== folderRunId) throw new Error('上传已取消')
+          const controller = new AbortController()
+          activeControllers.add(controller)
+          chunkLoaded.set(chunkIdx, 0)
+          try {
+            const res = await uploadFileChunkApi(
+              sessionId,
+              chunkIdx,
+              blob,
+              controller.signal,
+              (loaded: number) => {
+                const previous = chunkLoaded.get(chunkIdx) || 0
+                const delta = Math.max(0, loaded - previous)
+                if (delta > 0) {
+                  chunkLoaded.set(chunkIdx, loaded)
+                  accumulatedBytes += delta
+                }
+              },
+            )
+            if (res.code !== 200) throw new Error(res.message || '分片上传失败')
             success = true
-          } else {
-            throw new Error(res.message || '分片上传失败')
-          }
-        } catch (err: any) {
-          retries++
-          if (retries >= MAX_RETRIES) {
-            if (transferRecordId != null) {
-              transferStore.failRecord(transferRecordId, `分片 ${chunkIdx} 上传失败`)
+          } catch (error: any) {
+            if (error?.name === 'AbortError' || cancelled.value) throw new Error('上传已取消')
+            retries += 1
+            if (retries >= MAX_RETRIES) {
+              if (transferRecordId != null) transferStore.failRecord(transferRecordId, `分片 ${chunkIdx} 上传失败`)
+              throw new Error(`分片 ${chunkIdx} 上传失败，已重试 ${MAX_RETRIES} 次`)
             }
-            throw new Error(`分片 ${chunkIdx} 上传失败，已重试 ${MAX_RETRIES} 次`)
+          } finally {
+            activeControllers.delete(controller)
+            chunkLoaded.delete(chunkIdx)
           }
         }
-      }
-
-      fileItem.progress = Math.round((chunkIdx / totalChunks) * 100)
-      accumulatedBytes += (end - start)
-
-      // 同步更新传输列表进度
-      if (transferRecordId != null) {
-        transferStore.updateProgress(transferRecordId, fileItem.progress, getSpeed())
+        completedChunks += 1
+        fileItem.progress = Math.round((completedChunks / totalChunks) * 100)
+        if (transferRecordId != null) {
+          transferStore.updateProgress(transferRecordId, fileItem.progress, getSpeed())
+        }
       }
     }
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_CONCURRENT_UPLOADS, totalChunks) }, () => uploadChunk()),
+    )
 
     // 完成上传（合并）
     try {
@@ -313,17 +375,14 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
         throw new Error(completeRes.message || '合并请求失败')
       }
 
-      // 轮询后台任务状态
+      // 合并接口成功即完成本文件的上传会话；后处理轮询独立运行，不占用文件并发槽位。
       if (completeRes.data?.backend_task_id) {
         if (transferRecordId != null) {
           transferStore.enterProcessing(transferRecordId, completeRes.data.backend_task_id, '文件合并中')
         }
-        await pollBackendTask(completeRes.data.backend_task_id, transferRecordId)
-      }
-
-      // 传输完成
-      if (transferRecordId != null) {
-        transferStore.finishRecord(transferRecordId)
+        void pollBackendTask(completeRes.data.backend_task_id, transferRecordId, fileItem)
+      } else {
+        throw new Error('合并响应缺少后台任务 ID')
       }
     } catch (err: any) {
       if (transferRecordId != null) {
@@ -333,7 +392,7 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
     }
   }
 
-  async function pollBackendTask(taskId: string, transferRecordId?: number): Promise<void> {
+  async function pollBackendTask(taskId: string, transferRecordId?: number, fileItem?: FolderUploadFileItem): Promise<void> {
     const MAX_POLL = 150
     return new Promise((resolve, reject) => {
       let count = 0
@@ -356,11 +415,16 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
           }
           if (data.status === 'completed') {
             clearInterval(timer)
+            if (transferRecordId != null) transferStore.finishRecord(transferRecordId)
             resolve()
           } else if (data.status === 'failed') {
             clearInterval(timer)
             if (transferRecordId != null) {
               transferStore.failRecord(transferRecordId, '处理失败')
+            }
+            if (fileItem) {
+              fileItem.status = 'error'
+              fileItem.errorMessage = '文件后处理失败'
             }
             reject(new Error('处理失败'))
           }
@@ -373,9 +437,15 @@ export const useFolderUploaderStore = defineStore('folderUploader', () => {
 
   function cancelFolderUpload(): void {
     cancelled.value = true
+    folderRunId += 1
+    activeControllers.forEach(controller => controller.abort())
+    activeControllers.clear()
   }
 
   function reset(): void {
+    folderRunId += 1
+    activeControllers.forEach(controller => controller.abort())
+    activeControllers.clear()
     folderName.value = ''
     status.value = 'idle'
     files.value = []

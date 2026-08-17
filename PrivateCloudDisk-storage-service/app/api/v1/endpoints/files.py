@@ -2,22 +2,22 @@
 文件操作 API 端点
 提供文件下载和缩略图获取接口
 """
-import json
 import hashlib
 import logging
 import aiofiles
 import os
-import asyncio
+from pathlib import Path
 from fastapi import APIRouter, Header, Request, Depends, Query, HTTPException, status
-from fastapi.responses import StreamingResponse, FileResponse, Response
+from fastapi.responses import Response
 from typing import Optional
 
 from core.config import settings
-from app.core.redis_client import redis_client
 from app.core.download_grant_limiter import download_grant_limiter
 from app.core.download_grant import get_cached_file_metadata
+from app.core.file_delivery import serve_authorized_file
 from app.core.business_service_client import business_service_client, BusinessServiceError
 from app.services.thumbnail_service import get_thumbnail_bytes
+from app.services.preview_resource_service import preview_resource_service
 
 
 # 创建路由器
@@ -35,9 +35,6 @@ THUMBNAIL_SIZE_MAP = {
     "medium": "md",   # 400×400 — 中等预览
     "large": "lg",    # 800×800 — 大图预览（有损）
 }
-
-# 缩略图存放目录
-THUMBNAIL_DIR = os.path.join(settings.file_upload_dir, "thumbnails")
 
 
 @router.get("/files/files/{file_id}/content", summary="下载文件")
@@ -119,79 +116,20 @@ async def download_file(
             "file_name": result["data"]["name"]
         }
 
-    file_storage_path = metadata["storage_path"]
-    file_size = metadata["file_size"]
-    file_name = metadata["file_name"]
-    start, end = 0, file_size - 1
-
-    # 4. 处理 Range 请求
-    if range_header:
-        unit, _, ranges = range_header.partition("=")
-        if unit.strip() == "bytes":
-            ranges = ranges.strip()
-            start_str, _, end_str = ranges.partition("-")
-            try:
-                start = int(start_str) if start_str else 0
-                end = int(end_str) if end_str else file_size - 1
-            except ValueError:
-                logger.info("Invalid Range header: %s", ranges)
-                raise HTTPException(status_code=400, detail="Invalid Range header")
-            if start >= file_size or end >= file_size or start > end:
-                raise HTTPException(status_code=416, detail="Range not satisfiable")
-
-        content_length = end - start + 1
-        if content_length > MAX_RANGE_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
-                detail=f"Requested range exceeds maximum allowed size of {MAX_RANGE_BYTES} bytes",
-                headers={
-                    "Content-Range": f"bytes */{file_size}",
-                    "X-Max-Range-Size": str(MAX_RANGE_BYTES)
-                }
-            )
-
-        # 流式返回文件片段
-        async def file_iterator():
-            """文件流迭代器，异步读取文件指定范围的内容"""
-            async with aiofiles.open(file_storage_path, "rb") as f:
-                await f.seek(start)
-                remaining = content_length
-                while remaining > 0:
-                    chunk_size = min(8192, remaining)
-                    data = await f.read(chunk_size)
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
-
-        headers = {
-            "Content-Range": f"bytes {start}-{end}/{file_size}",
-            "Content-Length": str(content_length),
-            "Accept-Ranges": "bytes",
-        }
-
-        return StreamingResponse(
-            file_iterator(),
-            status_code=206,
-            headers=headers,
-            media_type="application/octet-stream"
-        )
-    else:
-        # 非 Range 请求，返回完整文件
-        content_length = file_size
-        if content_length > MAX_RANGE_BYTES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large to download without Range header. "
-                       f"Max allowed size: {MAX_RANGE_BYTES} bytes",
-                headers={"X-Max-File-Size": str(MAX_RANGE_BYTES)}
-            )
-        return FileResponse(
-            path=file_storage_path,
-            filename=file_name,
-            media_type="application/octet-stream",
-            headers={"Accept-Ranges": "bytes"}
-        )
+    # 原有行为注释保留（回溯）：原实现“4. 处理 Range 请求”，Range 请求返回
+    # 206 流式分片；非 Range 请求返回完整文件，并限制单次读取大小。
+    # 普通下载与分享下载共用文件投递核心；下载授权限流和
+    # 最近访问事件仍由本路由保持，只有路径、Range 和异步分块读取被集中维护。
+    return await serve_authorized_file(
+        metadata["storage_path"],
+        file_name=metadata["file_name"],
+        media_type="application/octet-stream",
+        range_header=range_header,
+        max_range_bytes=MAX_RANGE_BYTES,
+        max_full_bytes=MAX_RANGE_BYTES,
+        expected_size=int(metadata["file_size"]),
+        content_disposition_type="attachment",
+    )
 
 @router.get("/files/files/{file_id}/thumbnail", summary="获取预生成缩略图（大/中/小）")
 async def get_pregenerated_thumbnail(
@@ -267,14 +205,24 @@ async def get_pregenerated_thumbnail(
 
     storage_path = result["data"]["storage_path"]
 
-    # 3. 查找预生成的缩略图文件
-    thumbnail_path = os.path.join(THUMBNAIL_DIR, f"{file_id}_{label}.jpg")
+    # 预生成缩略图的存在性以预览资源数据库为准，不再扫描
+    # uploads/thumbnails 固定目录；这样多实例部署时不会因本地目录不同而误判或越权。
+    resource = await preview_resource_service.get_ready(file_id, user_id, "thumbnail", label)
+    thumbnail_path = Path(str(resource["storage_path"])).resolve() if resource else None
+    upload_root = Path(settings.file_upload_dir).resolve()
+    if thumbnail_path:
+        try:
+            thumbnail_path.relative_to(upload_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="缩略图路径不在允许范围内") from exc
 
-    if os.path.exists(thumbnail_path):
+    if thumbnail_path and thumbnail_path.is_file():
         # 缩略图已存在，直接返回
         try:
             mtime = os.path.getmtime(thumbnail_path)
-            etag = hashlib.md5(f"{file_id}{label}{mtime}".encode()).hexdigest()
+            etag = hashlib.md5(
+                f"{resource.get('resource_id')}:{resource.get('source_version')}:{mtime}".encode()
+            ).hexdigest()
 
             if request.headers.get("If-None-Match") == etag:
                 return Response(status_code=304)

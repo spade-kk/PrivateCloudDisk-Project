@@ -12,11 +12,14 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 import java.nio.charset.StandardCharsets;
 import java.security.*;
@@ -26,6 +29,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 设备身份安全验证过滤器（WebFlux 响应式版本）
@@ -122,8 +126,7 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
 
     private static final List<ExcludedPath> EXCLUDED_PATHS = Arrays.asList(
             new ExcludedPath("/api/v1/client/register-challenge", "POST"),
-            new ExcludedPath("/api/v1/client/register", "POST"),
-            new ExcludedPath("/api/v1/client/internal/**", "*")
+            new ExcludedPath("/api/v1/client/register", "POST")
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
@@ -134,12 +137,25 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 步骤0: 剥离客户端可能伪造的下游内部头
-        ServerHttpRequest sanitizedRequest = removeClientSuppliedInternalHeaders(exchange.getRequest());
-        ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
+        /*
+         * Sprint 0 安全修复：
+         * 原行为是在“剥离”方法中保留 X-Client-ID，未签名的普通 JWT 请求可伪造设备身份。
+         * 新行为先从原始请求读取待校验签名，再彻底剥离内部身份头；仅在签名成功后重新注入。
+         * 影响范围仅为下游可信头，不改变 JWT 请求和设备签名协议。
+         */
+        ServerHttpRequest originalRequest = exchange.getRequest();
+        String method = originalRequest.getMethod().name();
+        String path = originalRequest.getURI().getPath();
+        String clientId = originalRequest.getHeaders().getFirst("X-Client-ID");
+        String requestTime = originalRequest.getHeaders().getFirst("X-Request-Time");
+        String requestNonce = originalRequest.getHeaders().getFirst("X-Request-Nonce");
+        String requestSign = originalRequest.getHeaders().getFirst("X-Request-Sign");
+        String signAlgorithm = originalRequest.getHeaders().getFirst("X-Sign-Algorithm");
+        String integrityLevel = originalRequest.getHeaders().getFirst("X-Integrity-Level");
 
-        String method = sanitizedRequest.getMethod().name();
-        String path = sanitizedRequest.getURI().getPath();
+        // 步骤0: 剥离客户端可能伪造的下游内部头
+        ServerHttpRequest sanitizedRequest = removeClientSuppliedInternalHeaders(originalRequest);
+        ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
 
         // ═══════════════════════════════════════════════
         // 步骤1: 白名单路径 — 放行
@@ -152,17 +168,21 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
         // ═══════════════════════════════════════════════
         // 步骤2: 检查是否携带设备身份签名头
         // ═══════════════════════════════════════════════
-        String clientId = sanitizedRequest.getHeaders().getFirst("X-Client-ID");
-        String requestTime = sanitizedRequest.getHeaders().getFirst("X-Request-Time");
-        String requestNonce = sanitizedRequest.getHeaders().getFirst("X-Request-Nonce");
-        String requestSign = sanitizedRequest.getHeaders().getFirst("X-Request-Sign");
-        String signAlgorithm = sanitizedRequest.getHeaders().getFirst("X-Sign-Algorithm");
-        String integrityLevel = sanitizedRequest.getHeaders().getFirst("X-Integrity-Level");
+        boolean hasAnyDeviceHeader = clientId != null || requestTime != null
+                || requestNonce != null || requestSign != null || signAlgorithm != null;
+        boolean hasCompleteDeviceProof = clientId != null && requestTime != null
+                && requestNonce != null && requestSign != null && signAlgorithm != null;
 
-        // 如果没有设备身份签名头，允许通过（由 AuthGlobalFilter 的 JWT 认证处理）
-        if (clientId == null || requestSign == null) {
+        // 完全不携带设备签名头时按普通 JWT 请求处理，但内部设备身份头已经被剥离。
+        if (!hasAnyDeviceHeader) {
             log.debug("没有设备身份签名头，允许通过（由 AuthGlobalFilter 的 JWT 认证处理）");
             return chain.filter(sanitizedExchange);
+        }
+        if (!hasCompleteDeviceProof) {
+            log.warn("设备身份验证失败 — 签名头不完整: path={}", path);
+            return ResponseUtil.writeError(
+                    sanitizedExchange, HttpStatus.BAD_REQUEST, "设备签名信息不完整"
+            );
         }
 
         // 验证签名算法匹配
@@ -295,9 +315,10 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
 
                     // 从 Redis 获取客户端公钥并验证签名
                     final byte[] finalBodyBytes = bodyBytes;
-                    return getClientPublicKey(clientId)
-                            .flatMap(publicKeyBase64 -> {
-                                if (publicKeyBase64 == null || publicKeyBase64.isEmpty()) {
+                    return getVerifiedClientIdentity(clientId)
+                            .flatMap(clientIdentity -> {
+                                if (clientIdentity.publicKeyBase64() == null
+                                        || clientIdentity.publicKeyBase64().isEmpty()) {
                                     log.warn("设备身份验证失败 — 客户端公钥不存在: clientId={}", clientId);
                                     return ResponseUtil.writeError(
                                             exchange, HttpStatus.UNAUTHORIZED,
@@ -308,7 +329,9 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
                                 try {
                                     // 验证 ECDSA 签名
                                     boolean valid = verifyEcdsaSignature(
-                                            publicKeyBase64, signingPayload, requestSign
+                                            clientIdentity.publicKeyBase64(),
+                                            signingPayload,
+                                            requestSign
                                     );
 
                                     if (!valid) {
@@ -321,36 +344,42 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
                                     }
 
                                     log.debug("设备身份验证通过: clientId={}, integrity={}, {} {}",
-                                            clientId, integrityLevel, method, path);
+                                            clientId, clientIdentity.integrityLevel(), method, path);
 
-                                    // 构造新的请求（注入下游头 + 缓存的请求体）
-                                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                                            .headers(headers -> {
-                                                headers.set("X-Client-ID", clientId);
-                                                headers.set("X-Integrity-Level",
-                                                        integrityLevel != null ? integrityLevel : "medium");
-                                                headers.set("X-Auth-Source", "device-identity");
-                                            })
-                                            .build();
+                                    /*
+                                     * Sprint 0 安全修复：
+                                     * 原行为读取请求体完成验签后只重设 Content-Length，实际请求体数据已被消费，
+                                     * 导致签名 POST/PUT 请求到达下游时为空。新行为使用 Decorator 回放缓存字节。
+                                     */
+                                    ServerHttpRequest decoratedRequest =
+                                            new ServerHttpRequestDecorator(exchange.getRequest()) {
+                                                @Override
+                                                public HttpHeaders getHeaders() {
+                                                    HttpHeaders headers = new HttpHeaders();
+                                                    headers.putAll(super.getHeaders());
+                                                    headers.set("X-Client-ID", clientId);
+                                                    headers.set(
+                                                            "X-Integrity-Level",
+                                                            clientIdentity.integrityLevel()
+                                                    );
+                                                    headers.set("X-Auth-Source", "device-identity");
+                                                    headers.remove(HttpHeaders.TRANSFER_ENCODING);
+                                                    headers.setContentLength(finalBodyBytes.length);
+                                                    return headers;
+                                                }
 
-                                    // 重新构建 exchange，使用缓存的请求体
+                                                @Override
+                                                public Flux<DataBuffer> getBody() {
+                                                    if (finalBodyBytes.length == 0) {
+                                                        return Flux.empty();
+                                                    }
+                                                    return Flux.just(exchange.getResponse()
+                                                            .bufferFactory().wrap(finalBodyBytes));
+                                                }
+                                            };
                                     ServerWebExchange mutatedExchange = exchange.mutate()
-                                            .request(mutatedRequest)
+                                            .request(decoratedRequest)
                                             .build();
-
-                                    // 如果原始请求有 body，需要重新设置
-                                    if (finalBodyBytes.length > 0) {
-                                        DataBuffer newBodyBuffer = exchange.getResponse()
-                                                .bufferFactory().wrap(finalBodyBytes);
-                                        mutatedExchange = mutatedExchange.mutate()
-                                                .request(mutatedExchange.getRequest().mutate()
-                                                        .header("Content-Length",
-                                                                String.valueOf(finalBodyBytes.length))
-                                                        .build())
-                                                .build();
-                                        // 注意：Spring Cloud Gateway 的请求体缓存已通过
-                                        // CachedBodyOutputMessage 处理，此处注入下游头即可
-                                    }
 
                                     return chain.filter(mutatedExchange);
 
@@ -407,7 +436,9 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
         PublicKey publicKey = keyFactory.generatePublic(keySpec);
 
         // 解码签名
-        byte[] signatureBytes = Base64.getDecoder().decode(signatureBase64);
+        byte[] signatureBytes = normalizeEcdsaSignature(
+                Base64.getDecoder().decode(signatureBase64)
+        );
 
         // 验证签名
         Signature ecdsaVerify = Signature.getInstance("SHA256withECDSA");
@@ -423,20 +454,76 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
      * <p>如果 Redis 中不存在，返回空（不在此处查询数据库，
      * 由 Client Registration Service 负责在注册时写入 Redis）。
      */
-    private Mono<String> getClientPublicKey(String clientId) {
+    private Mono<VerifiedClientIdentity> getVerifiedClientIdentity(String clientId) {
         String key = PUBKEY_KEY_PREFIX + clientId;
         return redisTemplate.opsForValue().get(key)
                 .map(value -> {
-                    // 尝试按 JSON 解析，提取 public_key 字段
+                    /*
+                     * Sprint 0 / Web 本地插件安全修复：
+                     * 原行为只读取公钥，并把请求头 X-Integrity-Level 原样注入下游，低可信客户端可伪造 high。
+                     * 新行为同时从注册服务写入的可信缓存读取完整性等级，客户端声明仅用于兼容接收、不参与授权。
+                     * 影响范围：所有设备签名请求的可信头；不改变既有签名负载与公钥缓存键。
+                     */
                     try {
                         ObjectMapper mapper = new ObjectMapper();
                         JsonNode node = mapper.readTree(value);
-                        return node.get("public_key").asText();
+                        String publicKey = node.path("public_key").asText("");
+                        String verifiedIntegrity = node.path("integrity_level").asText("low");
+                        if (!List.of("low", "medium", "high").contains(verifiedIntegrity)) {
+                            verifiedIntegrity = "low";
+                        }
+                        String status = node.path("status").asText("active");
+                        if (!"active".equalsIgnoreCase(status)) {
+                            return new VerifiedClientIdentity("", "low");
+                        }
+                        return new VerifiedClientIdentity(publicKey, verifiedIntegrity);
                     } catch (Exception e) {
-                        // 如果已经是纯公钥，直接返回
-                        return value;
+                        // 兼容历史纯公钥缓存：缺少服务端完整性等级时按最低可信级别处理。
+                        return new VerifiedClientIdentity(value, "low");
                     }
                 });
+    }
+
+    /**
+     * 将 WebCrypto 使用的 IEEE P1363（r || s）签名规范化为 Java JCA 接受的 ASN.1 DER。
+     *
+     * <p>macOS 客户端现有 DER 签名保持原样；Web 客户端的 64 字节 P-256 签名才执行转换。
+     */
+    static byte[] normalizeEcdsaSignature(byte[] signature) {
+        Objects.requireNonNull(signature, "signature");
+        if (signature.length != 64) {
+            return signature;
+        }
+        byte[] r = derInteger(Arrays.copyOfRange(signature, 0, 32));
+        byte[] s = derInteger(Arrays.copyOfRange(signature, 32, 64));
+        int bodyLength = r.length + s.length;
+        byte[] der = new byte[2 + bodyLength];
+        der[0] = 0x30;
+        der[1] = (byte) bodyLength;
+        System.arraycopy(r, 0, der, 2, r.length);
+        System.arraycopy(s, 0, der, 2 + r.length, s.length);
+        return der;
+    }
+
+    private static byte[] derInteger(byte[] unsigned) {
+        int firstNonZero = 0;
+        while (firstNonZero < unsigned.length - 1 && unsigned[firstNonZero] == 0) {
+            firstNonZero++;
+        }
+        int valueLength = unsigned.length - firstNonZero;
+        boolean needsPositivePrefix = (unsigned[firstNonZero] & 0x80) != 0;
+        byte[] encoded = new byte[2 + valueLength + (needsPositivePrefix ? 1 : 0)];
+        encoded[0] = 0x02;
+        encoded[1] = (byte) (valueLength + (needsPositivePrefix ? 1 : 0));
+        int destination = 2;
+        if (needsPositivePrefix) {
+            encoded[destination++] = 0;
+        }
+        System.arraycopy(unsigned, firstNonZero, encoded, destination, valueLength);
+        return encoded;
+    }
+
+    private record VerifiedClientIdentity(String publicKeyBase64, String integrityLevel) {
     }
 
     // ═══════════════════════════════════════════════
@@ -452,9 +539,9 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
     private ServerHttpRequest removeClientSuppliedInternalHeaders(ServerHttpRequest request) {
         return request.mutate()
                 .headers(headers -> {
-//                    headers.remove("X-Client-ID");
-//                    headers.remove("X-Integrity-Level");
-//                    headers.remove("X-Auth-Source");
+                    headers.remove("X-Client-ID");
+                    headers.remove("X-Integrity-Level");
+                    headers.remove("X-Auth-Source");
                 })
                 .build();
     }

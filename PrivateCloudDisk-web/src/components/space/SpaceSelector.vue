@@ -3,19 +3,21 @@
     <!-- 当前空间信息 -->
     <div
       class="flex cursor-pointer items-center rounded-lg px-3 py-2 transition hover:bg-primary/5"
+      :class="spaceStore.switching ? 'pointer-events-none opacity-70' : ''"
       @click="open = !open"
     >
       <i :class="spaceStore.spaceTypeIcon" class="h-5 w-5 shrink-0 text-primary"></i>
       <div v-if="!collapsed" class="ml-3 min-w-0 flex-1">
         <p class="truncate text-sm font-medium text-neutral-800">
-          {{ spaceStore.currentSpace?.spaceName || '选择空间' }}
+          {{ spaceStore.currentSpaceName }}
         </p>
         <p class="truncate text-xs text-neutral-400">
           {{ spaceStore.spaceTypeLabel }}
         </p>
       </div>
+      <i v-if="spaceStore.switching" class="fa fa-spinner fa-spin ml-1 shrink-0 text-xs text-primary"></i>
       <i
-        v-if="!collapsed"
+        v-else-if="!collapsed"
         class="fa fa-chevron-down ml-1 shrink-0 text-xs text-neutral-400 transition-transform"
         :class="open ? 'rotate-180' : ''"
       ></i>
@@ -27,7 +29,7 @@
       class="mt-1 max-h-64 overflow-y-auto rounded-lg border bg-white py-1 shadow-lg"
     >
       <div
-        v-for="space in spaceStore.spaces"
+        v-for="space in workspaceSpaces"
         :key="space.spaceId"
         class="flex cursor-pointer items-center px-3 py-2 transition hover:bg-primary/5"
         :class="space.spaceId === spaceStore.currentSpaceId ? 'bg-primary/10' : ''"
@@ -42,6 +44,18 @@
           v-if="space.spaceId === spaceStore.currentSpaceId"
           class="fa fa-check ml-2 text-xs text-primary"
         ></i>
+      </div>
+
+      <!-- 需求四-1：接口暂不可用或历史用户尚未迁移时也不能出现空白空间菜单。 -->
+      <div
+        v-if="workspaceSpaces.length === 0"
+        class="flex items-center px-3 py-2 text-sm text-neutral-600"
+      >
+        <i class="fa fa-cloud mr-3 text-primary"></i>
+        <div>
+          <p class="font-medium">我的网盘</p>
+          <p class="text-xs text-neutral-400">默认个人空间</p>
+        </div>
       </div>
 
       <!-- 创建新空间按钮 -->
@@ -59,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useSpaceStore } from '@/stores/spaceStore'
 
 defineProps<{
@@ -73,8 +87,11 @@ defineEmits<{
 const spaceStore = useSpaceStore()
 const open = ref(false)
 
-function selectSpace(spaceId: string) {
-  spaceStore.switchSpace(spaceId)
+// 公开空间是独立仓库，不属于用户切换的工作空间；从切换列表过滤但保留个人/团队/企业空间。
+const workspaceSpaces = computed(() => spaceStore.spaces.filter(space => space.spaceType !== 'public'))
+
+async function selectSpace(spaceId: string) {
+  await spaceStore.switchSpace(spaceId)
   open.value = false
 }
 

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS pcd_preview_resource_table (
     resource_id       BINARY(16)   NOT NULL PRIMARY KEY COMMENT '预览资源ID',
     file_id           BINARY(16)   NOT NULL COMMENT '源文件ID',
     user_id           BINARY(16)   NOT NULL COMMENT '资源所属用户ID',
+    space_id          BINARY(16)   DEFAULT NULL COMMENT '预览资源所属空间ID',
     resource_type     VARCHAR(32)  NOT NULL COMMENT '派生资源类型：hls/video_preview/thumbnail/office_pdf/office_thumbnail/archive等',
     resource_variant  VARCHAR(32)  NOT NULL DEFAULT 'default' COMMENT '资源变体：poster/small/medium/large/master等',
     storage_backend   VARCHAR(24)  NOT NULL DEFAULT 'localstorage' COMMENT '存储后端',
@@ -29,12 +30,14 @@ CREATE TABLE IF NOT EXISTS pcd_preview_resource_table (
     UNIQUE KEY uk_preview_file_type_variant (file_id, resource_type, resource_variant),
     INDEX idx_preview_user_status (user_id, resource_status, updated_at),
     INDEX idx_preview_file_status (file_id, resource_status),
+    INDEX idx_preview_space_file (space_id, file_id, resource_status),
     INDEX idx_preview_type_status (resource_type, resource_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件预览媒体资源元数据表';
 
 CREATE TABLE IF NOT EXISTS pcd_video_watch_progress_table (
     user_id              BINARY(16)    NOT NULL COMMENT '用户ID',
     file_id              BINARY(16)    NOT NULL COMMENT '视频文件ID',
+    space_id             BINARY(16)    DEFAULT NULL COMMENT '观看记录所属空间ID',
     file_name            VARCHAR(512)  NOT NULL DEFAULT '' COMMENT '视频文件名快照',
     current_time_seconds DECIMAL(12,3) NOT NULL DEFAULT 0 COMMENT '最后播放位置',
     duration_seconds     DECIMAL(12,3) NOT NULL DEFAULT 0 COMMENT '视频总时长',
@@ -47,6 +50,7 @@ CREATE TABLE IF NOT EXISTS pcd_video_watch_progress_table (
     last_watched_at      DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最近观看时间',
     PRIMARY KEY (user_id, file_id),
     INDEX idx_video_history (user_id, last_watched_at DESC),
+    INDEX idx_video_progress_space (space_id, user_id, last_watched_at),
     INDEX idx_video_file (file_id, updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频播放进度与观看历史表';
 

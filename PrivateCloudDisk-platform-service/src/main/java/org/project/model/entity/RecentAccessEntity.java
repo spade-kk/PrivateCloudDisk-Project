@@ -23,6 +23,15 @@ public class RecentAccessEntity implements Serializable {
     /** 用户ID */
     private UUID ra_user_id;
 
+    /** 空间管理能力全量集成（需求五-9）：访问发生时的空间快照。 */
+    private UUID ra_space_id;
+
+    /** 访问来源：space=普通空间，share=分享资源。 */
+    private String ra_access_source;
+
+    /** 分享来源的虚拟资源 ID；仅用于分享最近访问展示与审计。 */
+    private String ra_share_resource_id;
+
     /** 目标类型：file / folder */
     private String ra_target_type;
 

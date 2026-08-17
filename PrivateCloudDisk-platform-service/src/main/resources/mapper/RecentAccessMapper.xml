@@ -7,6 +7,9 @@
     <resultMap id="RecentAccessEntityMap" type="org.project.model.entity.RecentAccessEntity">
         <id column="ra_id" property="ra_id"/>
         <result column="ra_user_id" property="ra_user_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ra_space_id" property="ra_space_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
+        <result column="ra_access_source" property="ra_access_source"/>
+        <result column="ra_share_resource_id" property="ra_share_resource_id"/>
         <result column="ra_target_type" property="ra_target_type"/>
         <result column="ra_file_id" property="ra_file_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="ra_node_id" property="ra_node_id" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
@@ -21,10 +24,13 @@
 
     <insert id="insert" parameterType="org.project.model.entity.RecentAccessEntity">
         INSERT INTO pcd_recent_access_table
-            (ra_user_id, ra_target_type, ra_file_id, ra_node_id, ra_access_type,
+            (ra_user_id, ra_space_id, ra_access_source, ra_share_resource_id, ra_target_type, ra_file_id, ra_node_id, ra_access_type,
              ra_file_name, ra_file_size, ra_file_type, ra_accessed_at)
         VALUES
             (#{ra_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+             #{ra_space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
+             #{ra_access_source},
+             #{ra_share_resource_id},
              #{ra_target_type},
              #{ra_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
              #{ra_node_id,typeHandler=org.project.util.UUIDBinaryTypeHandler},
@@ -40,11 +46,19 @@
         如果目标 ID 匹配（file_id 或 node_id 任一匹配），则更新时间
     -->
     <update id="updateAccessTime" parameterType="org.project.model.entity.RecentAccessEntity">
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         UPDATE pcd_recent_access_table
         SET ra_accessed_at = #{ra_accessed_at}
         WHERE ra_user_id = #{ra_user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ra_access_type = #{ra_access_type}
           AND (
+              ra_space_id = #{ra_space_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+              OR (#{personalSpace}=true AND ra_space_id IS NULL)
+          )
+          AND COALESCE(ra_access_source, 'space') = COALESCE(#{ra_access_source}, 'space')
+          AND (
+              (ra_access_source = 'share' AND ra_share_resource_id = #{ra_share_resource_id})
+              OR
               (ra_file_id = #{ra_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
                AND #{ra_file_id,typeHandler=org.project.util.UUIDBinaryTypeHandler} IS NOT NULL)
               OR
@@ -58,16 +72,24 @@
     <!-- ==================== 查询 ==================== -->
 
     <select id="findByUserIdAndType" resultMap="RecentAccessEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_recent_access_table
         WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ra_access_type = #{access_type}
+          AND (ra_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               OR (#{personalSpace}=true AND ra_space_id IS NULL))
         ORDER BY ra_accessed_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="findByUserId" resultMap="RecentAccessEntityMap">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT * FROM pcd_recent_access_table
         WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (ra_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               OR (#{personalSpace}=true AND ra_space_id IS NULL))
         ORDER BY ra_accessed_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
@@ -90,9 +112,13 @@
     </delete>
 
     <select id="countByUserIdAndType" resultType="int">
+        <bind name="currentSpaceId" value="@org.project.context.SpaceContextHolder@getSpaceId()"/>
+        <bind name="personalSpace" value="@org.project.context.SpaceContextHolder@isPersonalSpace()"/>
         SELECT COUNT(*) FROM pcd_recent_access_table
         WHERE ra_user_id = #{user_id,typeHandler=org.project.util.UUIDBinaryTypeHandler}
           AND ra_access_type = #{access_type}
+          AND (ra_space_id=#{currentSpaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+               OR (#{personalSpace}=true AND ra_space_id IS NULL))
     </select>
 
 </mapper>

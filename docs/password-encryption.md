@@ -8,7 +8,7 @@ PrivateCloudDisk 采用 **前端 PBKDF2 预哈希 + 后端 BCrypt 二次加密**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    原始密码 (如: admin123)                 │
+│                    原始密码（示例占位符）                 │
 └──────────────────────────┬──────────────────────────────┘
                            │
                            ▼
@@ -131,10 +131,10 @@ public String encodePassword(String pbkdf2Hex) {
 pip3 install bcrypt
 
 # 生成密码哈希
-python3 scripts/generate_admin_password.py admin123
+python3 scripts/generate_admin_password.py your-test-password
 
 # 输出示例:
-# 原始密码: admin123
+# 原始密码: your-test-password（仅作命令示例）
 # PBKDF2 哈希 (hex): a1b2c3d4e5f6...
 # BCrypt 哈希: $2b$12$jKWWnXEsIn7Be2RHkpsTb.wk252WlxUfAy3bYyjjsJgF/P0FIP9Hi
 # SQL INSERT:
@@ -147,11 +147,11 @@ python3 scripts/generate_admin_password.py admin123
 如果直接对原始密码执行 BCrypt：
 ```bash
 # 错误做法
-htpasswd -bnBC 12 "" admin123 | tr -d ':\n'
+htpasswd -bnBC 12 "" your-test-password | tr -d ':\n'
 # 生成的哈希无法通过后端验证！
 
-# 原因: 后端验证的是 BCrypt.matches(PBKDF2(admin123), stored_hash)
-# 而不是 BCrypt.matches(admin123, stored_hash)
+# 原因: 后端验证的是 BCrypt.matches(PBKDF2(原始密码), stored_hash)
+# 而不是 BCrypt.matches(原始密码, stored_hash)
 ```
 
 ## 6. 安全设计理由

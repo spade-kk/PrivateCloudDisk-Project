@@ -10,8 +10,11 @@ import logging
 import json
 import os
 import math
+from pathlib import Path
 from fastapi import APIRouter, Header, Query, HTTPException, status
 
+from app.core.business_service_client import BusinessServiceError, business_service_client
+from app.services.preview_resource_service import preview_resource_service
 from core.config import settings
 
 logger = logging.getLogger("video_sprite")
@@ -38,15 +41,12 @@ async def get_video_sprite_info(
 
     若雪碧图未生成，返回空数据但 code=200（不阻塞播放）。
     """
-    hls_dir = os.path.join(settings.file_upload_dir, "hls", file_id)
-    manifest_path = os.path.join(hls_dir, "manifest.json")
-
-    # 确保有有效的 token 用于生成雪碧图/VTT URL
-    effective_token = token
-    if not effective_token:
-        # 尝试从 manifest 或其他方式获取
-        effective_token = ""
-
+    # AUDIT FIX [4.2]：雪碧图原先只按 file_id 拼本地路径，绕过了空间三元组校验；
+    # 现在先在业务服务校验 READ + (space_id,file_id) 归属，再读取预览资源。
+    try:
+        await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
     # 默认空结果
     empty_result = {
         "code": 200,
@@ -63,6 +63,23 @@ async def get_video_sprite_info(
             },
         },
     }
+    # AUDIT FIX [3.1]：数据库预览资源台账是存在性事实源；只在已登记的 HLS 根目录
+    # 内读取 manifest，避免多实例环境扫描本机固定 uploads/hls/{file_id} 目录。
+    hls_resource = await preview_resource_service.get_ready(file_id, user_id, "hls", "master")
+    if not hls_resource:
+        return empty_result
+    hls_dir = str(Path(hls_resource["storage_path"]).resolve())
+    try:
+        Path(hls_dir).relative_to(Path(settings.file_upload_dir).resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="HLS 资源路径不在允许范围内") from exc
+    manifest_path = os.path.join(hls_dir, "manifest.json")
+
+    # 确保有有效的 token 用于生成雪碧图/VTT URL
+    effective_token = token
+    if not effective_token:
+        # 尝试从 manifest 或其他方式获取
+        effective_token = ""
 
     if not os.path.exists(manifest_path):
         return empty_result

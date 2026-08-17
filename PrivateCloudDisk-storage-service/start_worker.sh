@@ -25,8 +25,8 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-# 默认启动 1 个 Worker
-WORKER_COUNT=1
+# W-05：未显式配置时按宿主机 CPU 核心数启动；容器部署可通过环境变量固定进程数。
+WORKER_COUNT="${WORKER_PROCESSES:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -47,15 +47,6 @@ echo "PrivateCloudDisk Worker 启动"
 echo "Worker 数量: ${WORKER_COUNT}"
 echo "============================================"
 
-if [ "$WORKER_COUNT" -eq 1 ]; then
-    exec python worker.py
-else
-    # 多 Worker 模式：后台启动多个进程
-    for i in $(seq 1 "$WORKER_COUNT"); do
-        echo "启动 Worker #${i}..."
-        python worker.py &
-    done
-    echo "所有 Worker 已启动 (PID: $(jobs -p | tr '\n' ' '))"
-    # 等待所有后台进程
-    wait
-fi
+# W-05：原脚本通过 shell 后台 fork，无法统一转发 SIGTERM；新行为只启动一个管理进程，
+# 由 worker.py 负责 spawn 子进程、健康端口偏移和优雅关闭。
+exec env WORKER_PROCESSES="$WORKER_COUNT" python worker.py

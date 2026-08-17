@@ -41,11 +41,12 @@ public class CleanupScheduledTask {
     /**
      * 清理过期的上传会话
      * <p>
-     * 每 5 分钟执行一次，扫描所有 uploading/merging 状态且超过过期时间的上传会话，
+     * 每 5 分钟执行一次，扫描所有 uploading 状态且超过过期时间的上传会话，
      * 发布 uploads.session.delete 事件通知文件存储服务删除物理分块文件。
      * <p>
      * 文件存储服务删除物理文件后，会同步调用 /business/internal/storage/uploads/{id}/delete-complete
-     * 将状态更新为 deleted，并发布 uploads.session.deleted 事件 → 释放配额。
+     * 将 canceled 会话记录删除，并发布 uploads.session.deleted 事件 → 释放配额。
+     * 合并完成后的 completed 会话由 merge-cleanup 接口独立删除，不进入取消/过期配额回滚链路。
      */
     @Scheduled(cron = "0 */5 * * * ?")
     public void cleanupExpiredUploadsSessions() {
@@ -71,6 +72,7 @@ public class CleanupScheduledTask {
                             .eventId("EVT-EXPIRED-" + uploadsId.toString())
                             .uploadsSessionId(uploadsId)
                             .userId(userId)
+                            .spaceId(session.getSpace_id())
                             .fileName(session.getFile_name())
                             .fileSize(session.getFile_size())
                             .fileType(session.getFile_type())

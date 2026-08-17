@@ -83,8 +83,9 @@ CREATE TABLE pcd_file_info_table (
     file_total_chunks       INT             NOT NULL                COMMENT '文件切片数目', --新增字段
     file_node_id            BINARY(16)     NOT NULL                COMMENT '文件所在目录节点ID',
     file_storage_path       VARCHAR(512)    NOT NULL                COMMENT '文件存储路径',
-    file_status             ENUM('marging', 'merged',  'scaning', 'merge_failed', 'scan_failed', 'dangrous', 'active', 'deleted', 'trashed') NOT NULL DEFAULT 'active' COMMENT '文件状态'
-    UNIQUE KEY uk_file_info (file_id, file_author_id, file_node_id),
+    file_space_id           BINARY(16)      DEFAULT NULL            COMMENT '所属空间ID',
+    file_status             ENUM('marging', 'merged',  'scaning', 'merge_failed', 'scan_failed', 'dangrous', 'active', 'deleted', 'trashed') NOT NULL DEFAULT 'active' COMMENT '文件状态',
+    UNIQUE KEY uk_file_info (file_id, file_author_id, file_node_id)
 ) COMMENT='文件信息表';
 
 -- =====================================================================
@@ -110,11 +111,13 @@ CREATE TABLE pcd_share_link_table (
     share_id                BINARY(16)     NOT NULL PRIMARY KEY       COMMENT '分享ID（内部主键）',
     share_token             VARCHAR(36)     NOT NULL UNIQUE           COMMENT '分享访问令牌（UUID，对外暴露）',
     share_owner_id          BINARY(16)     NOT NULL                   COMMENT '分享者用户ID',
+    share_space_id          BINARY(16)     NULL                       COMMENT '分享来源空间ID',
     FOREIGN KEY (share_owner_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     share_name              VARCHAR(200)    NOT NULL                   COMMENT '分享名称（用户自定义）',
     share_description       TEXT            NULL                       COMMENT '分享说明（支持受限富文本）',
     share_password          VARCHAR(120)    NULL                       COMMENT '提取码（BCrypt 哈希，NULL 表示无密码）',
     share_has_password      TINYINT(1)      NOT NULL DEFAULT 0         COMMENT '是否有密码保护',
+    share_allow_download    TINYINT(1)      NOT NULL DEFAULT 1         COMMENT '是否允许通过分享授权获取实际文件内容',
     share_expires_at        DATETIME        NULL                       COMMENT '过期时间（NULL 表示永久有效）',
     share_view_count        INT             NOT NULL DEFAULT 0         COMMENT '浏览次数',
     share_status            ENUM('active', 'revoked', 'expired') NOT NULL DEFAULT 'active' COMMENT '分享状态',
@@ -129,6 +132,7 @@ DROP TABLE IF EXISTS pcd_share_resource_table;
 CREATE TABLE pcd_share_resource_table (
     share_resource_id       BINARY(16)     NOT NULL PRIMARY KEY       COMMENT '分享资源ID（主键）',
     share_id                BINARY(16)     NOT NULL                   COMMENT '所属分享链接ID',
+    space_id                BINARY(16)     NULL                       COMMENT '分享资源所属空间ID',
     FOREIGN KEY (share_id) REFERENCES pcd_share_link_table(share_id) ON DELETE CASCADE,
     resource_type           ENUM('file', 'folder') NOT NULL           COMMENT '资源类型：file=文件，folder=文件夹',
     file_id                 BINARY(16)     NULL                       COMMENT '文件ID（resource_type=file 时必填）',
@@ -178,7 +182,8 @@ CREATE TABLE pcd_uploads_session_table (
     uploads_file_name       VARCHAR(150)    NOT NULL                                                COMMENT '文件名称',
     uploads_file_type       VARCHAR(60)     NOT NULL                                                COMMENT '文件类型',
     uploads_node_id         BINARY(16)     NOT NULL                                                 COMMENT '文件所在目录节点ID',
-    uploads_status          ENUM('uploading', 'merging', 'completed', 'canceled', 'failed', 'deleted') DEFAULT 'uploading' COMMENT '上传状态：uploading→merging→completed | uploading→canceled→deleted'
+    uploads_space_id        BINARY(16)     DEFAULT NULL                                              COMMENT '所属空间ID',
+    uploads_status          ENUM('uploading', 'completed', 'canceled') DEFAULT 'uploading' COMMENT '上传会话状态：uploading=分块接收中，completed=分块已保存且合并任务已触发，canceled=用户取消或过期清理'
 ) COMMENT='文件上传会话表';
 
 CREATE TABLE pcd_upload_chunks_table (
@@ -202,8 +207,9 @@ CREATE TABLE pcd_directory_tree_table (
     FOREIGN KEY (node_parent_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
     node_name        VARCHAR(200)    NOT NULL          COMMENT '节点名称',
     node_create_time TIMESTAMP       NOT NULL          COMMENT '节点创建时间'      DEFAULT NOW(),
-    node_status      ENUM('lock', 'active', 'pending') COMMENT '节点状态'         DEFAULT 'active'
-    UNIQUE KEY uk_directory_tree (node_id, node_user_id, node_parent_id),
+    node_status      ENUM('lock', 'active', 'pending') COMMENT '节点状态'         DEFAULT 'active',
+    node_space_id    BINARY(16)                       COMMENT '所属空间ID',
+    UNIQUE KEY uk_directory_tree (node_id, node_user_id, node_parent_id)
 ) COMMENT='节点目录树表';
 
 ALTER TABLE pcd_file_info_table
@@ -224,6 +230,7 @@ CREATE TABLE pcd_directory_closure_table (
     descendant_id    BINARY(16)     NOT NULL          COMMENT '后代节点ID',
     FOREIGN KEY (descendant_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
     depth            INT             NOT NULL          COMMENT '祖先节点与后代节点的深度，父子关系为1，祖孙关系为2，以此类推',
+    closure_space_id BINARY(16)                       COMMENT '目录闭包所属空间ID',
     PRIMARY KEY (ancestor_id, descendant_id),
     UNIQUE KEY uk_descendant (user_id, descendant_id, ancestor_id),
     KEY idx_depth (depth)
@@ -263,6 +270,7 @@ CREATE TABLE pcd_user_quota_log_table (
 CREATE TABLE pcd_file_star_table (
     star_id             BIGINT          PRIMARY KEY AUTO_INCREMENT,
     star_user_id        BINARY(16)     NOT NULL COMMENT '用户ID',
+    star_space_id       BINARY(16)              COMMENT '收藏所属空间ID',
     FOREIGN KEY (star_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     star_target_type    ENUM('file', 'folder') NOT NULL DEFAULT 'file' COMMENT '收藏目标类型：file=文件, folder=文件夹',
     star_file_id        BINARY(16)     NULL COMMENT '文件ID（收藏文件时填写）',
@@ -270,8 +278,8 @@ CREATE TABLE pcd_file_star_table (
     star_node_id        BINARY(16)     NULL COMMENT '文件夹节点ID（收藏文件夹时填写）',
     FOREIGN KEY (star_node_id) REFERENCES pcd_directory_tree_table(node_id) ON DELETE CASCADE,
     star_starred_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
-    UNIQUE KEY uk_user_file_star (star_user_id, star_file_id),
-    UNIQUE KEY uk_user_folder_star (star_user_id, star_node_id),
+    UNIQUE KEY uk_user_file_star (star_user_id, star_space_id, star_file_id),
+    UNIQUE KEY uk_user_folder_star (star_user_id, star_space_id, star_node_id),
     INDEX idx_user_starred (star_user_id, star_starred_at)
 ) COMMENT='文件/文件夹收藏表';
 
@@ -281,6 +289,7 @@ CREATE TABLE pcd_trash_target_table (
     trash_target_id         BINARY(16)     NOT NULL COMMENT '原目标ID',
     trash_target_type       ENUM('file', 'folder') NOT NULL COMMENT '目标类型',
     trash_user_id           BINARY(16)     NOT NULL COMMENT '用户ID',
+    trash_space_id          BINARY(16)              COMMENT '回收站记录所属空间ID',
     FOREIGN KEY (trash_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
     trash_target_name         VARCHAR(150)    NOT NULL COMMENT '文件名称',
     trash_file_type         VARCHAR(60)     NOT NULL COMMENT '文件类型',
@@ -336,11 +345,12 @@ DROP TABLE IF EXISTS pcd_tag_table;
 CREATE TABLE pcd_tag_table (
     tag_id              BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '标签ID',
     tag_user_id         BINARY(16)      NOT NULL                COMMENT '所属用户ID',
+    tag_space_id        BINARY(16)                              COMMENT '标签所属空间ID',
     tag_name            VARCHAR(50)     NOT NULL                COMMENT '标签名称',
     tag_color           VARCHAR(7)      NOT NULL DEFAULT '#3B82F6' COMMENT '标签颜色（HEX）',
     tag_created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     FOREIGN KEY (tag_user_id) REFERENCES pcd_user_info_table(user_id) ON DELETE CASCADE,
-    UNIQUE KEY uk_user_tag (tag_user_id, tag_name),
+    UNIQUE KEY uk_user_tag (tag_user_id, tag_space_id, tag_name),
     INDEX idx_tag_user (tag_user_id)
 ) COMMENT='用户标签表';
 
@@ -351,6 +361,7 @@ DROP TABLE IF EXISTS pcd_file_tag_table;
 CREATE TABLE pcd_file_tag_table (
     ft_id               BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '关联ID',
     ft_user_id          BINARY(16)      NOT NULL                COMMENT '用户ID（冗余，加速查询）',
+    ft_space_id         BINARY(16)                              COMMENT '标签关联所属空间ID',
     ft_tag_id           BIGINT          NOT NULL                COMMENT '标签ID',
     ft_target_type      ENUM('file', 'folder') NOT NULL         COMMENT '目标类型',
     ft_file_id          BINARY(16)                              COMMENT '文件ID（target_type=file时）',
@@ -372,6 +383,9 @@ DROP TABLE IF EXISTS pcd_recent_access_table;
 CREATE TABLE pcd_recent_access_table (
     ra_id               BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
     ra_user_id          BINARY(16)      NOT NULL                COMMENT '用户ID',
+    ra_space_id         BINARY(16)                              COMMENT '访问发生的空间ID',
+    ra_access_source    VARCHAR(32)      NOT NULL DEFAULT 'space' COMMENT '访问来源：space/share',
+    ra_share_resource_id VARCHAR(512)                              COMMENT '分享资源虚拟ID，不保存真实文件ID',
     ra_target_type      ENUM('file', 'folder') NOT NULL         COMMENT '目标类型',
     ra_file_id          BINARY(16)                              COMMENT '文件ID',
     ra_node_id          BINARY(16)                              COMMENT '文件夹节点ID',
@@ -415,14 +429,20 @@ CREATE TABLE pcd_recent_access_table (
 CREATE TABLE IF NOT EXISTS pcd_space_table (
     space_id            BINARY(16)      NOT NULL PRIMARY KEY                  COMMENT '空间唯一ID',
     space_name          VARCHAR(200)     NOT NULL                              COMMENT '空间名称',
-    space_type          ENUM('personal', 'enterprise', 'public', 'team')
+    space_type          ENUM('personal', 'private', 'enterprise', 'public', 'team')
                                         NOT NULL                              COMMENT '空间类型',
     space_owner_id      BINARY(16)      NOT NULL                              COMMENT '空间创建者/所有者',
     space_quota         BIGINT          NOT NULL DEFAULT 10737418240          COMMENT '空间配额（字节），默认10GB',
     space_used          BIGINT          NOT NULL DEFAULT 0                    COMMENT '已用容量（字节）',
+    space_reserved      BIGINT          NOT NULL DEFAULT 0                    COMMENT '上传中预占容量（字节）',
     space_file_count    INT             NOT NULL DEFAULT 0                    COMMENT '文件数量',
-    space_visibility    ENUM('private', 'public', 'whitelist', 'blacklist')
+    space_visibility    ENUM('private', 'public', 'visible', 'hidden', 'whitelist', 'blacklist')
                                         NOT NULL DEFAULT 'private'            COMMENT '可见性控制',
+    join_policy        ENUM('open', 'approval_required', 'invite_only')
+                                        NOT NULL DEFAULT 'invite_only'        COMMENT '加入策略',
+    allow_public_browse TINYINT(1)      NOT NULL DEFAULT 1                    COMMENT '公开仓库是否允许浏览',
+    allow_public_download TINYINT(1)   NOT NULL DEFAULT 1                    COMMENT '公开仓库是否允许下载',
+    allow_public_upload TINYINT(1)     NOT NULL DEFAULT 0                    COMMENT '公开仓库是否允许登录用户上传',
     space_description   TEXT                                                    COMMENT '空间描述',
     space_avatar_path   VARCHAR(512)                                            COMMENT '空间头像路径',
     space_im_group_id   VARCHAR(100)                                            COMMENT '关联IM群组ID（企业/团队空间自动创建）',
@@ -447,7 +467,7 @@ CREATE TABLE IF NOT EXISTS pcd_space_member_table (
     member_id           BIGINT          PRIMARY KEY AUTO_INCREMENT            COMMENT '成员记录ID',
     space_id            BINARY(16)      NOT NULL                              COMMENT '空间ID',
     user_id             BINARY(16)      NOT NULL                              COMMENT '用户ID',
-    role                ENUM('owner', 'admin', 'editor', 'viewer')
+    role                ENUM('owner', 'admin', 'editor', 'viewer', 'custom')
                                         NOT NULL DEFAULT 'viewer'             COMMENT '成员角色',
     joined_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '加入时间',
     invited_by          BINARY(16)                                              COMMENT '邀请人ID',
@@ -474,6 +494,13 @@ CREATE TABLE IF NOT EXISTS pcd_space_permission_table (
     can_share           TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '分享权限',
     can_invite          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '邀请成员权限',
     can_manage          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '管理权限（修改空间设置）',
+    can_view            TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '浏览空间权限',
+    can_download        TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '下载原始文件权限',
+    can_upload          TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '上传文件权限',
+    can_edit            TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '编辑文件元数据权限',
+    can_manage_members  TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '成员管理权限',
+    can_manage_plugins  TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '插件管理权限',
+    can_manage_settings TINYINT(1)      NOT NULL DEFAULT 0                    COMMENT '空间设置权限',
     granted_by          BINARY(16)                                              COMMENT '授权人ID',
     granted_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP    COMMENT '授权时间',
     FOREIGN KEY (space_id) REFERENCES pcd_space_table(space_id) ON DELETE CASCADE,
@@ -524,20 +551,16 @@ CREATE TABLE IF NOT EXISTS pcd_space_visibility_table (
 -- =====================================================================
 -- 6. 为现有文件表和目录树表添加空间隔离字段
 -- =====================================================================
-ALTER TABLE pcd_file_info_table
-    ADD COLUMN file_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
-    ADD INDEX idx_file_space (file_space_id, file_status);
-
-ALTER TABLE pcd_directory_tree_table
-    ADD COLUMN node_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
-    ADD INDEX idx_node_space (node_space_id, node_status);
+-- 空间管理能力全量集成（需求六）：
+-- 原行为：初始化脚本先创建基础表，再在此处通过 ALTER TABLE 增加空间字段。
+-- 新行为：file_space_id/node_space_id 已直接写入上方 CREATE TABLE，避免全新环境执行时重复加列失败。
+-- 存量环境请执行 007_space_context_full_integration.sql；该迁移会幂等补列、回填并创建复合索引。
 
 -- =====================================================================
 -- 7. 为现有上传会话表添加空间隔离字段
 -- =====================================================================
-ALTER TABLE pcd_uploads_session_table
-    ADD COLUMN uploads_space_id BINARY(16) DEFAULT NULL COMMENT '所属空间ID',
-    ADD INDEX idx_uploads_space (uploads_space_id, uploads_status);
+-- 空间管理能力全量集成（需求五-2/六）：
+-- uploads_space_id 已直接写入上传会话表定义；保留本段定位说明供历史初始化逻辑回溯。
 
 -- =====================================================================
 -- 8. 触发器：自动创建个人空间（用户注册时）
@@ -555,7 +578,7 @@ BEGIN
 
     -- 创建个人空间
     INSERT INTO pcd_space_table (space_id, space_name, space_type, space_owner_id, space_visibility)
-    VALUES (space_id_bin, CONCAT(NEW.user_account, '的个人空间'), 'personal', NEW.user_id, 'private');
+    VALUES (space_id_bin, '我的网盘', 'personal', NEW.user_id, 'private');
 
     -- 自动将用户添加为空间所有者
     INSERT INTO pcd_space_member_table (space_id, user_id, role)

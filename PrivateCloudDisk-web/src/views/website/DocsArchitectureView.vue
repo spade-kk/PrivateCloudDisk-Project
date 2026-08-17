@@ -18,7 +18,7 @@
             系统架构设计
           </h1>
           <p class="mt-4 text-lg text-neutral-500">
-            深入了解 PrivateCloudDisk 的微服务架构设计、技术选型、高可用方案及多客户端实现
+            深入了解 PrivateCloudDisk 的微服务职责、技术选型、服务边界及多客户端实现
           </p>
         </div>
       </div>
@@ -49,7 +49,7 @@
             <section id="overview" class="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
               <h2 class="text-2xl font-bold text-neutral-900">架构概览</h2>
               <p class="mt-2 text-neutral-500">
-                PrivateCloudDisk 采用 <strong>微服务 + 前后端分离</strong> 架构，支持多客户端接入（Web、桌面、移动端、CLI），后端通过 API 网关统一鉴权和路由分发。
+                PrivateCloudDisk 采用 <strong>微服务 + 前后端分离</strong> 架构，支持 Web、桌面、移动端和 CLI 等客户端目录，后端通过 API 网关统一鉴权和路由分发。
               </p>
 
               <!-- Complete Architecture Diagram -->
@@ -86,7 +86,7 @@
                       <span class="rounded border border-orange-200 bg-white px-2 py-1 text-xs text-orange-600">Gzip 压缩</span>
                       <span class="rounded border border-orange-200 bg-white px-2 py-1 text-xs text-orange-600">Spring Cloud Gateway</span>
                       <span class="rounded border border-orange-200 bg-white px-2 py-1 text-xs text-orange-600">JWT 鉴权</span>
-                      <span class="rounded border border-orange-200 bg-white px-2 py-1 text-xs text-orange-600">Sentinel 限流</span>
+                      <span class="rounded border border-orange-200 bg-white px-2 py-1 text-xs text-orange-600">网关请求控制</span>
                     </div>
                   </div>
 
@@ -125,20 +125,20 @@
                         <span class="text-xs font-bold text-pink-700">Notification Service</span>
                       </div>
                       <div class="space-y-1 text-xs text-pink-600">
-                        <p>邮件通知 / 短信通知</p>
-                        <p>系统消息 / 站内信</p>
-                        <p>推送路由</p>
+                        <p>邮件、短信与系统通知</p>
+                        <p>WebSocket 推送与离线消息</p>
+                        <p>通知模板与设备管理</p>
                       </div>
                     </div>
                     <div class="rounded-lg border-2 border-cyan-300 bg-cyan-50/50 p-3">
                       <div class="flex items-center gap-2 mb-2">
                         <span class="h-3 w-3 rounded-full bg-cyan-500"></span>
-                        <span class="text-xs font-bold text-cyan-700">Subscription Service</span>
+                      <span class="text-xs font-bold text-cyan-700">Plugin / Workflow Services</span>
                       </div>
                       <div class="space-y-1 text-xs text-cyan-600">
-                        <p>订阅计划 / 配额分配</p>
-                        <p>用量统计 / 配额预警</p>
-                        <p>计费周期</p>
+                        <p>插件、工作流与能力中心</p>
+                        <p>自动化执行与定时调度</p>
+                        <p>市场发布与复用</p>
                       </div>
                     </div>
                     <div class="rounded-lg border-2 border-yellow-300 bg-yellow-50/50 p-3">
@@ -223,7 +223,7 @@
                         <span class="text-xs font-bold text-gray-700">治理与监控</span>
                       </div>
                       <div class="space-y-1 text-xs text-gray-600">
-                        <p>Nacos / Sentinel / Seata</p>
+                        <p>配置文件 / 健康检查 / 消息队列</p>
                         <p>SkyWalking + SkyWalking UI</p>
                         <p>Prometheus + Grafana</p>
                       </div>
@@ -290,7 +290,7 @@
             <!-- Multi-Client Architecture -->
             <section id="clients" class="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
               <h2 class="text-2xl font-bold text-neutral-900">多客户端架构</h2>
-              <p class="mt-2 text-neutral-500">系统支持 10+ 客户端类型，覆盖 Web、桌面、移动端、CLI 等全场景。</p>
+              <p class="mt-2 text-neutral-500">系统按 Web、桌面、移动端、原生客户端和 CLI 等项目组织客户端实现，实际可用能力以对应子项目 README 和构建结果为准。</p>
 
               <!-- Client Cards Grid -->
               <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -516,11 +516,14 @@ const clients = [
 const services = [
   { name: 'gateway-service', tech: 'Spring Cloud Gateway + WebFlux', port: ':8080', desc: '统一入口、JWT 鉴权、路由分发、限流' },
   { name: 'platform-service', tech: 'Spring Boot 4.0.6 + MyBatis', port: ':8081', desc: '核心业务：用户/文件/目录树/配额/收藏/回收站' },
-  { name: 'shortage-service', tech: 'FastAPI + Uvicorn (Python)', port: ':8000', desc: '文件 I/O：分片上传/流式下载/缩略图/凭证' },
+  { name: 'storage-service', tech: 'FastAPI + Uvicorn (Python)', port: ':8000', desc: '文件 I/O：分片上传/流式下载/预览资源/凭证' },
   { name: 'notification-service', tech: 'Spring Boot + Thymeleaf', port: ':8082', desc: '通知服务：邮件/短信/站内信/推送路由' },
-  { name: 'subscription-service', tech: 'Spring Boot + MyBatis', port: ':8083', desc: '订阅服务：配额管理/用量统计/计费' },
+  { name: 'plugin-service', tech: 'Spring Boot + MyBatis', port: ':8085', desc: '插件版本、权限、安装、执行和市场' },
+  { name: 'workflow-service', tech: 'Spring Boot + MyBatis + RabbitMQ', port: ':8087', desc: '工作流 DSL、能力中心、执行和市场' },
+  { name: 'automation-service', tech: 'Spring Boot + RabbitMQ', port: ':8084', desc: '文件事件自动化、执行持久化与恢复' },
+  { name: 'scheduler-service', tech: 'Spring Boot + RabbitMQ', port: ':8088', desc: '工作流定时调度和任务发布' },
   { name: 'im-platform', tech: 'Spring Boot + MyBatis', port: '-', desc: 'IM 业务：消息/会话/群组管理' },
-  { name: 'im-server', tech: 'Netty WebSocket', port: '-', desc: '长连接推送：万级并发、多端登录' },
+  { name: 'im-server', tech: 'Netty WebSocket / WebRTC', port: ':9090', desc: '即时通讯长连接与音视频信令' },
   { name: 'file-worker', tech: 'Python (RabbitMQ Consumer)', port: '-', desc: '异步任务：病毒扫描/转码/缩略图/内容提取' },
 ]
 
@@ -629,11 +632,11 @@ const clientComparison = [
 ]
 
 const backendTechs = [
-  { name: 'Spring Boot', version: '4.0.6', icon: 'fa fa-leaf', iconClass: 'text-success', bgClass: 'bg-success/10', desc: 'Java 微服务框架', reason: '生态成熟，社区活跃' },
+  { name: 'Spring Boot', version: '3.4.7', icon: 'fa fa-leaf', iconClass: 'text-success', bgClass: 'bg-success/10', desc: 'Java 微服务框架', reason: '用于平台、插件、工作流和调度服务' },
   { name: 'Spring Cloud Gateway', version: '2023.0', icon: 'fa fa-gateway', iconClass: 'text-orange-500', bgClass: 'bg-orange-100', desc: '响应式 API 网关', reason: '非阻塞高并发，集成 Spring Security' },
   { name: 'FastAPI', version: '0.110+', icon: 'fa fa-bolt', iconClass: 'text-primary', bgClass: 'bg-primary/10', desc: 'Python 异步 I/O 框架', reason: '异步 I/O 性能优异，文件处理生态好' },
   { name: 'MyBatis', version: '3.0.4', icon: 'fa fa-database', iconClass: 'text-purple-500', bgClass: 'bg-purple-50', desc: 'SQL 映射框架', reason: 'SQL 可控，复杂查询灵活' },
-  { name: 'Netty', version: '4.1', icon: 'fa fa-network-wired', iconClass: 'text-danger', bgClass: 'bg-danger/10', desc: '高性能 NIO 框架', reason: '万级并发，长连接首选' },
+  { name: 'Netty', version: '4.1', icon: 'fa fa-network-wired', iconClass: 'text-danger', bgClass: 'bg-danger/10', desc: 'NIO 长连接框架', reason: '用于 IM WebSocket 服务' },
 ]
 
 const frontendTechs = [
@@ -650,9 +653,9 @@ const frontendTechs = [
 
 const haLayers = [
   { name: '网关层', color: 'bg-orange-500', items: ['Nginx 反向代理 + 多实例部署', '健康检查自动摘除故障节点', 'Keepalived VRRP 高可用'] },
-  { name: '服务层', color: 'bg-green-500', items: ['无状态设计，支持水平扩展', 'Sentinel 熔断降级，防止雪崩', 'Nacos 服务发现，动态路由'] },
-  { name: '数据层', color: 'bg-red-500', items: ['MySQL 主从复制 + 读写分离', 'Redis 哨兵/集群模式', 'RabbitMQ 镜像队列', 'MinIO 纠删码模式'] },
-  { name: '监控层', color: 'bg-cyan-500', items: ['SkyWalking 全链路追踪', 'Prometheus 指标采集', 'Grafana 可视化监控', 'AlertManager 告警通知'] },
+  { name: '服务层', color: 'bg-green-500', items: ['按领域拆分服务职责', '内部 API 与服务令牌校验', '通过 Compose 服务名连接'] },
+  { name: '数据层', color: 'bg-red-500', items: ['MySQL 业务元数据', 'Redis 缓存与临时状态', 'RabbitMQ 异步事件', 'MinIO 对象存储'] },
+  { name: '监控层', color: 'bg-cyan-500', items: ['健康检查接口', 'Prometheus 指标接入', 'SkyWalking 链路接入', '部署侧日志与告警'] },
 ]
 
 onMounted(() => {

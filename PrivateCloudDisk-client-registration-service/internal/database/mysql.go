@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 	"github.com/privateclouddisk/client-registration-service/internal/config"
 )
 
@@ -31,6 +31,7 @@ func NewMySQL(cfg *config.DatabaseConfig) (*sqlx.DB, error) {
 func RunMigrations(db *sqlx.DB) error {
 	migrations := []string{
 		migrationCreateClientIdentities,
+		migrationCreateClientUserBindings,
 	}
 
 	for _, m := range migrations {
@@ -66,6 +67,27 @@ CREATE TABLE IF NOT EXISTS pcd_client_identities (
     INDEX idx_registered_at (registered_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 COMMENT='客户端设备身份注册表';
+`
+
+// 第二阶段本地插件：客户端身份与登录用户绑定独立存表，避免破坏既有身份主表。
+const migrationCreateClientUserBindings = `
+CREATE TABLE IF NOT EXISTS pcd_client_user_bindings (
+    client_id        VARCHAR(64)  NOT NULL,
+    user_id          CHAR(36)     NOT NULL,
+    client_type      VARCHAR(16)  NOT NULL,
+    platform         VARCHAR(16)  NOT NULL,
+    app_version      VARCHAR(32)  NOT NULL,
+    capabilities_json JSON       NOT NULL,
+    status           VARCHAR(16)  NOT NULL DEFAULT 'active',
+    bound_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+        ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (client_id),
+    INDEX idx_client_binding_user (user_id, status),
+    CONSTRAINT fk_client_binding_identity FOREIGN KEY (client_id)
+        REFERENCES pcd_client_identities(client_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='客户端身份与登录用户绑定，用于本地插件可信分发';
 `
 
 // init 确保 time 包被引用

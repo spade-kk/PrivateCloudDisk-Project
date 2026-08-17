@@ -40,6 +40,9 @@ public class ShareDetailVO {
     /** 是否有密码 */
     private Boolean share_has_password;
 
+    /** 是否允许下载/在线获取文件内容。 */
+    private Boolean share_allow_download;
+
     /** 明文提取码（仅管理端可见，AES 解密后返回） */
     private String share_password;
 

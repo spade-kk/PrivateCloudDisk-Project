@@ -58,6 +58,9 @@ type SecurityConfig struct {
 
 	// AllowedAppIDs 允许的应用 Bundle ID 列表
 	AllowedAppIDs []string `yaml:"allowed_app_ids"`
+
+	// InternalServiceToken 仅用于服务私网查询客户端绑定，不允许由公网客户端提交。
+	InternalServiceToken string `yaml:"internal_service_token"`
 }
 
 // AppleConfig 苹果根证书配置
@@ -148,5 +151,8 @@ func (c *Config) applyEnvOverrides() {
 	}
 	if v := os.Getenv("GIN_MODE"); v != "" {
 		c.Server.Mode = v
+	}
+	if v := os.Getenv("PCD_INTERNAL_SERVICE_TOKEN"); v != "" {
+		c.Security.InternalServiceToken = v
 	}
 }

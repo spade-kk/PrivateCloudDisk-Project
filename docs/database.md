@@ -175,9 +175,8 @@ WHERE quota_user_id = ? AND quota_version = ?;
 
 完整建表 + 默认数据初始化脚本位于 `scripts/init_database.sql`，包含：
 
-- 19 张表完整 DDL
-- 超级管理员账号 (superadmin / admin123)
-- 测试用户 (pcd_test001 / test123456)
+- 当前迁移脚本所定义的表结构与索引
+- 管理员和测试数据按部署初始化配置提供，不在文档固化默认账号或密码
 - 测试用户根目录 + 闭包表 + 配额
 
 ```bash

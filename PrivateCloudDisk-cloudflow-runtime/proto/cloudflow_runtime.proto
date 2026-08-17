@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package pcd.cloudflow.v1;
+
+service CloudFlowRuntime {
+  rpc Compile(CompileRequest) returns (CompileResponse);
+  rpc StartExecution(StartExecutionRequest) returns (StartExecutionResponse);
+  rpc GetExecution(GetExecutionRequest) returns (ExecutionStatus);
+  rpc CancelExecution(CancelExecutionRequest) returns (ExecutionStatus);
+}
+
+message CompileRequest { string source = 1; string user_id = 2; string space_id = 3; }
+message CompileResponse { bool valid = 1; string plan_hash = 2; string error_code = 3; string error_message = 4; }
+message StartExecutionRequest { string execution_id = 1; string plan_hash = 2; string user_id = 3; string space_id = 4; }
+message StartExecutionResponse { string execution_id = 1; string status = 2; }
+message GetExecutionRequest { string execution_id = 1; }
+message CancelExecutionRequest { string execution_id = 1; }
+message ExecutionStatus { string execution_id = 1; string status = 2; string error_code = 3; string error_summary = 4; }

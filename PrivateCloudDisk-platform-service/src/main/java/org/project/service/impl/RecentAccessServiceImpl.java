@@ -3,6 +3,7 @@ package org.project.service.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.mapper.RecentAccessMapper;
+import org.project.context.SpaceContextHolder;
 import org.project.model.entity.RecentAccessEntity;
 import org.project.model.vo.RecentAccessVO;
 import org.project.service.RecentAccessService;
@@ -35,6 +36,8 @@ public class RecentAccessServiceImpl implements RecentAccessService {
 
         RecentAccessEntity entity = new RecentAccessEntity();
         entity.setRa_user_id(user_id);
+        entity.setRa_space_id(SpaceContextHolder.getSpaceId());
+        entity.setRa_access_source("space");
         entity.setRa_target_type(target_type);
         if (isFile) {
             entity.setRa_file_id(targetUuid);
@@ -65,6 +68,26 @@ public class RecentAccessServiceImpl implements RecentAccessService {
     }
 
     @Override
+    public void recordShareDownloadAccess(UUID user_id, String shareResourceId,
+                                          String fileName, Long fileSize, String fileType) {
+        RecentAccessEntity entity = new RecentAccessEntity();
+        entity.setRa_user_id(user_id);
+        entity.setRa_space_id(SpaceContextHolder.getSpaceId());
+        entity.setRa_access_source("share");
+        entity.setRa_share_resource_id(shareResourceId);
+        entity.setRa_target_type("file");
+        entity.setRa_access_type("download");
+        entity.setRa_file_name(fileName);
+        entity.setRa_file_size(fileSize != null ? fileSize : 0L);
+        entity.setRa_file_type(fileType != null ? fileType : "");
+        entity.setRa_accessed_at(LocalDateTime.now());
+        if (recentAccessMapper.updateAccessTime(entity) == 0) {
+            recentAccessMapper.insert(entity);
+        }
+        log.debug("记录分享下载: userId={}, shareResourceId={}", user_id, shareResourceId);
+    }
+
+    @Override
     public List<RecentAccessVO> getRecentAccess(UUID user_id, String access_type, int page, int pageSize) {
         int offset = (page - 1) * pageSize;
         List<RecentAccessEntity> entities = recentAccessMapper.findByUserIdAndType(user_id, access_type, offset, pageSize);
@@ -83,7 +106,11 @@ public class RecentAccessServiceImpl implements RecentAccessService {
     private RecentAccessVO toVO(RecentAccessEntity entity) {
         RecentAccessVO vo = new RecentAccessVO();
         vo.setRa_id(entity.getRa_id());
-        if ("file".equals(entity.getRa_target_type())) {
+        vo.setAccess_source(entity.getRa_access_source());
+        vo.setShare_resource_id(entity.getRa_share_resource_id());
+        if ("share".equals(entity.getRa_access_source())) {
+            vo.setTarget_id(entity.getRa_share_resource_id());
+        } else if ("file".equals(entity.getRa_target_type())) {
             vo.setTarget_id(entity.getRa_file_id() != null ? entity.getRa_file_id().toString() : null);
         } else {
             vo.setTarget_id(entity.getRa_node_id() != null ? entity.getRa_node_id().toString() : null);

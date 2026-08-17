@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.privateclouddisk.local/events/file-content-processed-v1.schema.json",
+  "title": "pcd.file.content.processed.v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["specversion", "id", "type", "subject", "actor_user_id", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": { "type": "string", "format": "uuid" },
+    "type": { "const": "pcd.file.content.processed.v1" },
+    "subject": { "type": "string", "minLength": 1 },
+    "actor_user_id": { "type": "string", "format": "uuid" },
+    "space_id": { "type": ["string", "null"], "format": "uuid" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id", "backend_task_id", "ready_event_id", "status", "content_modified"
+      ],
+      "properties": {
+        "gate_id": { "type": "string", "format": "uuid" },
+        "backend_task_id": { "type": "string", "pattern": "^[0-9a-fA-F]{32}$" },
+        "ready_event_id": { "type": "string", "format": "uuid" },
+        "status": { "enum": ["success", "skipped", "failed", "timeout"] },
+        "content_modified": { "type": "boolean" },
+        "candidate_id": { "type": "string", "pattern": "^candidate_[0-9a-f]{32}$" },
+        "candidate_checksum": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "candidate_size": { "type": "integer", "minimum": 1 },
+        "matched_entrypoints": { "type": "integer", "minimum": 0 },
+        "completed_entrypoints": { "type": "integer", "minimum": 0 },
+        "failure_code": { "type": "string", "maxLength": 128 },
+        "failure_summary": { "type": "string", "maxLength": 1000 },
+        "finished_at": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": { "const": "success" },
+              "content_modified": { "const": true }
+            },
+            "required": ["status", "content_modified"]
+          },
+          "then": {
+            "required": ["candidate_id", "candidate_checksum", "candidate_size"]
+          }
+        }
+      ]
+    }
+  }
+}

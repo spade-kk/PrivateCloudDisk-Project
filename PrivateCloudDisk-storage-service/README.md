@@ -1,4 +1,4 @@
-# PrivateCloudDisk-shortage-service
+# PrivateCloudDisk-storage-service
 
 企业级文件处理服务，基于 FastAPI + Uvicorn (Python 3.11) 构建，负责文件的分片上传、流式下载、缩略图生成、操作凭证管理等核心文件 I/O 功能。
 
@@ -24,7 +24,7 @@
 ## 项目结构
 
 ```
-PrivateCloudDisk-shortage-service/
+PrivateCloudDisk-storage-service/
 ├── server.py                              # FastAPI 应用主入口
 │   ├── 操作凭证管理 (签发/撤销)
 │   ├── 文件分片接收 (断点续传)
@@ -568,30 +568,34 @@ flowchart TD
 
 ## RabbitMQ 消费者
 
-### FileProcessConsumer — 文件处理流水线
+### Backend Task Bus — 文件后台处理流水线
 
 ```mermaid
 flowchart TD
-    MQ[🐇 RabbitMQ<br/>pcd.file.process.queue] -->|消息| S1[MERGE<br/>合并分片文件]
-    S1 -->|成功| S2[HASH_CALCULATE<br/>SHA-256 校验]
-    S2 -->|通过| S3[VIRUS_SCAN<br/>病毒扫描]
-    S3 -->|通过| S4[THUMBNAIL<br/>生成缩略图]
-    S4 --> S5{文件类型?}
-    S5 -->|视频| S6[VIDEO_TRANSCODE<br/>视频转码]
-    S5 -->|其他| S7[MARK_ACTIVE<br/>标记文件可用]
-    S6 --> S7
-
-    S1 -->|失败| F1[merge_failed]
-    S2 -->|不匹配| F2[hash_mismatch]
-    S3 -->|检测到| F3[scan_failed]
-
-    S7 -->|完成| BS[通知业务服务<br/>UPDATE status='active']
-
-    style S7 fill:#c8e6c9
-    style F1 fill:#ffcdd2
-    style F2 fill:#ffcdd2
-    style F3 fill:#ffcdd2
+    A[上传完成] -->|pcd.file.backend.exchange<br/>file.backend.merge| M[merge task queue]
+    M --> MC[MergeConsumer<br/>既有合并逻辑]
+    MC --> G[DB Gate + ready/timeout Outbox]
+    G -->|file.content.ready| AUTO[Automation 预处理]
+    AUTO -->|file.content.processed| CAS[Gate CAS]
+    G -->|timeout / sweeper| CAS
+    CAS -->|pcd.file.backend.exchange<br/>file.backend.hash| H[hash task queue]
+    H --> HC[HashConsumer<br/>既有哈希逻辑]
+    HC -->|pcd.file.backend.exchange<br/>file.backend.virus| V[virus task queue]
+    V --> VC[VirusConsumer<br/>既有扫描逻辑]
+    VC -->|pcd.file.backend.exchange<br/>file.backend.mark_active| MA[mark_active task queue]
+    MA --> AC[MarkActiveConsumer<br/>既有激活逻辑]
+    AC -->|file.available| BS[主业务服务]
+    AC -->|file.enhance.* tasks| E[增强 Task Bus 并发队列]
+    H -. retry / DLQ .-> R[当前阶段 retry 或专属 DLQ]
+    V -. retry / DLQ .-> R
+    MA -. retry / DLQ .-> R
 ```
+
+Backend Task Bus 交换机为 `pcd.file.backend.exchange`，DLX 为 `pcd.file.backend.dlx`。
+Merge、Hash、Virus、Mark Active 的业务处理方法保持不变；消费者完成当前任务后直接投递
+下一阶段任务。内容预处理仍通过独立的生命周期事件和 Gate CAS fail-open，不改变 Backend
+Task Bus 的阶段路由。完整拓扑、重试、死信和降级流程见
+[`docs/STORAGE_WORKER_TASK_BUS_AUDIT.md`](../docs/STORAGE_WORKER_TASK_BUS_AUDIT.md)。
 
 ### FileDeleteConsumer — 文件删除
 
@@ -650,9 +654,10 @@ Uploads/
 
 ## 核心流程时序图
 
-### 完整断点续传 (Resumable Upload)
+### 完整断点续传与 Task Bus 后台处理
 
-展示从创建上传会话到文件处理完成的完整流程，包含网络中断恢复场景。
+展示从创建上传会话、分片上传、合并，到内容预处理 Gate、哈希、病毒扫描、激活和增强
+事件扇出的关键链路。后台阶段采用原有 file backend task 队列；内容预处理使用独立生命周期事件。
 
 ```mermaid
 sequenceDiagram
@@ -664,7 +669,7 @@ sequenceDiagram
     participant Disk as 💾 磁盘
     participant MQ as 🐇 RabbitMQ
     participant Viz as 🔬 病毒扫描
-    participant Thumb as 🖼 缩略图
+    participant Auto as 🔌 Automation
 
     Note over User,BS: === 阶段 1: 创建上传会话 ===
 
@@ -673,13 +678,13 @@ sequenceDiagram
     Web->>BS: POST /api/v1/business/uploads/<br/>{ total_chunks, file_size, file_checksum, ... }
     BS->>BS: 验证参数 + 配额检查
     BS->>BS: INSERT pcd_uploads_session_table<br/>status = 'uploading'
-    BS-->>Web: 200 { uploads_id }
+    BS-->>Web: 200 { uploads_id, active_session_count, remaining_concurrent_sessions }
 
-    Note over User,FS: === 阶段 2: 顺序上传分片 ===
+    Note over User,FS: === 阶段 2: 文件/分块并发上传（默认各 3） ===
 
     Web->>Web: chunk_index = 1
 
-    loop 每个分片 chunk_index ≤ total_chunks
+    loop Promise 池：最多 3 个分片同时上传，完成一个立即补充下一个
         Web->>BS: POST /api/v1/business/files/operation-tokens<br/>{ file_id? → 不需要, upload 操作 }
         BS-->>Web: 200 { operation_token }
 
@@ -730,47 +735,57 @@ sequenceDiagram
     Note over User,BS: === 阶段 3: 触发合并 ===
 
     Web->>BS: POST /api/v1/business/uploads/{uploads_id}/complete
-    BS->>BS: UPDATE uploads_status → 'merging'
+    BS->>BS: UPDATE uploads_status → 'completed'
+    Note over BS: 仅表示分块已保存且 merge task 已发布；后处理状态由文件元数据独立维护
 
-    BS->>MQ: 发布 file.process 消息<br/>{ uploads_id, storage_paths[], file_checksum }
+    BS->>MQ: 发布 pcd.file.backend.exchange<br/>file.backend.merge
 
     BS-->>Web: 200 OK (合并已触发)
 
-    Note over MQ,Thumb: === 阶段 4: 异步处理 (MQ 消费者) ===
+    Note over MQ,Auto: === 阶段 4: Task Bus 后台处理 ===
 
-    MQ->>FS: FileProcessConsumer 接收消息
+    MQ->>FS: merge task queue → MergeConsumer
 
     FS->>FS: MERGE: 按 chunk_index 顺序合并分片<br/>→ {storage_dir}/{file_id}.ext
     alt 合并失败 (磁盘空间不足/读写错误)
-        FS->>BS: PUT uploads_status → 'merge_failed'
         FS->>Disk: 清理临时分片
+        FS->>BS: 删除 completed 上传会话及分块元数据
     end
 
+    FS->>FS: 写入 Gate + ready/timeout Outbox<br/>事务成功后 ACK merge 事件
+    FS->>Auto: file.content.ready
+    Auto-->>FS: file.content.processed 或 timeout
+    FS->>FS: Gate CAS：选择候选内容或原始合并内容
+    FS->>MQ: 发布 pcd.file.backend.exchange<br/>file.backend.hash
+    MQ->>FS: hash task queue → HashConsumer
     FS->>FS: HASH_CALCULATE: SHA-256 校验合并后文件
     alt 校验不匹配
-        FS->>BS: PUT uploads_status → 'merge_failed'
         FS->>Disk: 删除合并文件
+        FS->>BS: 删除 completed 上传会话及分块元数据
     end
 
+    FS->>MQ: 发布 pcd.file.backend.exchange<br/>file.backend.virus
+    MQ->>FS: virus task queue → VirusConsumer
     FS->>Viz: VIRUS_SCAN: 提交病毒扫描
     alt 检测到恶意文件
-        FS->>BS: PUT uploads_status → 'scan_failed'
         FS->>Disk: 删除文件
     end
 
-    FS->>Thumb: THUMBNAIL: 生成缩略图 (图片/视频)
-    Thumb-->>FS: thumbnail_base64
-
-    FS->>Redis: SETEX thumbnail:{file_id} 3600 base64_data
-
+    FS->>MQ: 发布 pcd.file.backend.exchange<br/>file.backend.mark_active
+    MQ->>FS: mark_active task queue → MarkActiveConsumer
     FS->>BS: PUT /internal/storage/files/{file_id}/status<br/>{ status: "active" }
     BS->>BS: INSERT pcd_file_info_table<br/>UPDATE pcd_user_quota_table<br/>UPDATE pcd_directory_tree_table
 
     FS->>Disk: 清理临时分片文件
 
-    FS->>MQ: ACK
+    FS->>MQ: ACK；MarkActiveConsumer 发布 file.available 和 enhancement tasks
     BS-->>FS: 200 OK
 ```
+
+可重试错误先发布到当前事件路由的 `.retry` TTL 队列，发布确认成功后 ACK；不可重试、
+未知异常或超过次数进入当前阶段专属 DLQ。内容预处理失败只触发 fail-open，核心文件仍
+继续进入 hash → scan → active。完整拓扑和 DLQ 流程见
+[`docs/STORAGE_WORKER_TASK_BUS_AUDIT.md`](../docs/STORAGE_WORKER_TASK_BUS_AUDIT.md)。
 
 ### 多分片并发上传流程
 
@@ -781,7 +796,7 @@ sequenceDiagram
     participant FS as 📁 File Service
     participant Redis as 📦 Redis
 
-    Note over Web: 并发控制配置<br/>maxConcurrent = 2 (同时上传2个分片)
+    Note over Web: 并发控制配置<br/>maxConcurrent = 3 (默认同时上传3个分片，可配置)
 
     Web->>BS: 创建上传会话 → { uploads_id, total_chunks: 20 }
 

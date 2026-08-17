@@ -7,7 +7,7 @@
           <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-info">
             <i class="fa fa-cloud text-lg text-white"></i>
           </div>
-          <span class="text-xl font-bold text-neutral-800">CloudDrive</span>
+          <span class="text-xl font-bold text-neutral-800">PrivateCloudDisk</span>
         </router-link>
       </div>
 

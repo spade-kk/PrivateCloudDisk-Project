@@ -31,6 +31,9 @@ public class UploadSessionDeleteEvent implements Serializable {
     /** 用户ID */
     private UUID userId;
 
+    /** 空间管理能力全量集成（需求五-9）：上传会话所属空间。 */
+    private UUID spaceId;
+
     /** 文件名称 */
     private String fileName;
 

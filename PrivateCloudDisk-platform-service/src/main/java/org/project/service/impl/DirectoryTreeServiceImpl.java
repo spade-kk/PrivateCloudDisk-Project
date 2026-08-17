@@ -1,5 +1,6 @@
 package org.project.service.impl;
 
+import org.project.context.SpaceContextHolder;
 import org.project.mapper.DirectoryClosureMapper;
 import org.project.mapper.TrashTargetMapper;
 import org.project.model.entity.FileEntity;
@@ -54,6 +55,11 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         folderNodeEntity.setName(name);
         folderNodeEntity.setNode_id(UUID.randomUUID());
         folderNodeEntity.setParent_id(null);
+        /*
+         * 需求：空间管理能力全量集成（五-1）。
+         * 原行为：目录只记录创建用户；新行为：额外写入请求空间，原 user_id 审计语义保留。
+         */
+        folderNodeEntity.setSpace_id(SpaceContextHolder.getSpaceId());
 
         if(node_id != null) {
             FolderNodeEntity parentNode = findUserFolderNodeIfExist(node_id, user_id);
@@ -517,6 +523,8 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
         folderNode.setName(folderName);
         folderNode.setNode_id(UUID.randomUUID());
         folderNode.setParent_id(parentId);
+        // 需求：空间管理能力全量集成（五-1），路径式创建与普通创建使用同一空间上下文。
+        folderNode.setSpace_id(SpaceContextHolder.getSpaceId());
 
         Integer rows = folderNodeMapper.insertFolderNode(folderNode);
         if (rows != 1) {

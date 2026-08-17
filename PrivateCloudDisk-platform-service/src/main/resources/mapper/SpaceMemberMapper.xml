@@ -22,6 +22,14 @@
         ORDER BY role DESC, joined_at ASC
     </select>
 
+    <select id="findBySpaceIdAndKeyword" resultMap="SpaceMemberEntityMap">
+        SELECT m.* FROM pcd_space_member_table m
+        LEFT JOIN pcd_user_info_table u ON u.user_id = m.user_id
+        WHERE m.space_id = #{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}
+          AND (u.user_name LIKE CONCAT('%', #{keyword}, '%') OR u.user_account LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY m.role DESC, m.joined_at ASC
+    </select>
+
     <select id="findByUserId" resultMap="SpaceMemberEntityMap">
         SELECT * FROM pcd_space_member_table
         WHERE user_id = #{userId,typeHandler=org.project.util.UUIDBinaryTypeHandler}

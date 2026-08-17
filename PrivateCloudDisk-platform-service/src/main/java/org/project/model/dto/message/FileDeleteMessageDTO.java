@@ -28,6 +28,12 @@ public class FileDeleteMessageDTO implements Serializable {
     
     /** 用户ID */
     private String user_id;
+
+    /**
+     * 需求：空间管理能力全量集成（五-9）。
+     * 文件永久删除消费者据此隔离预览资源、日志和物理文件定位。
+     */
+    private String space_id;
     
     /** 文件存储路径 */
     private String storage_path;

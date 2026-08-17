@@ -152,6 +152,10 @@ class BackendDLQConsumer(BaseDLQConsumer):
             except Exception as e:
                 logger.error(f"通知业务服务失败: {e}")
             await self._publish_file_merge_failed_event(data, "合并 I/O 错误")
+
+        # REQ-UPLOAD-SESSION-STATE-2026-07：进入最终 DLQ 后才清理会话记录；重试阶段保留分块，
+        # 避免 TTL 重试尚未执行就丢失可恢复数据。成功合并使用独立的 merge-cleanup，不回滚配额。
+        await self._cleanup_upload_session_record(data)
         
         await self._log_dlq_action(data, "CLEANUP_RESIDUALS", "已清理合并残留", source="file_backend")
         return True
@@ -205,6 +209,13 @@ class BackendDLQConsumer(BaseDLQConsumer):
 
     async def _handle_checksum_mismatch(self, data: dict) -> bool:
         """校验和不匹配 → 删除不完整文件"""
+        uploads_id = data.get("uploads_id", "")
+        total_chunks = int(data.get("total_chunks") or 0)
+        session_dir = settings.file_upload_dir
+        for i in range(1, total_chunks + 1):
+            chunk_path = os.path.join(session_dir, f"{uploads_id}-{i}.part")
+            if os.path.exists(chunk_path):
+                os.remove(chunk_path)
         storage_path = data.get("storage_path", "")
         if storage_path and os.path.exists(storage_path):
             os.remove(storage_path)
@@ -221,7 +232,17 @@ class BackendDLQConsumer(BaseDLQConsumer):
         except Exception as e:
             logger.error(f"通知业务服务失败: {e}")
         await self._publish_file_merge_failed_event(data, "校验和不匹配")
+        await self._cleanup_upload_session_record(data)
         return True
+
+    async def _cleanup_upload_session_record(self, data: dict) -> None:
+        """最终合并失败清理上传会话；失败仅告警，避免 DLQ 消费重复触发合并。"""
+        uploads_id = data.get("uploads_id", "")
+        if not uploads_id:
+            return
+        success = await NotificationService.notify_upload_session_merge_cleanup(uploads_id)
+        if not success:
+            logger.error("最终合并失败后清理上传会话未完成: uploads_id=%s", uploads_id)
 
     # ===== 哈希 =====
 
@@ -352,6 +373,8 @@ class BackendDLQConsumer(BaseDLQConsumer):
             "fileSize": data.get("file_size", 0),
             "fileType": data.get("file_type", ""),
             "userId": data.get("user_id", ""),
+            # 需求五-9：失败事件必须保留空间，否则主业务服务会错误回滚个人配额。
+            "spaceId": data.get("space_id", ""),
             "uploadsSessionId": data.get("uploads_id", ""),
             "eventTime":  datetime.utcnow().isoformat(),#暂时不带时区
         }
@@ -373,6 +396,7 @@ class BackendDLQConsumer(BaseDLQConsumer):
             "fileSize": data.get("file_size", 0),
             "fileType": data.get("file_type", ""),
             "userId": data.get("user_id", ""),
+            "spaceId": data.get("space_id", ""),
             "uploadsSessionId": data.get("uploads_id", ""),
             "eventTime":  datetime.utcnow().isoformat(),#暂时不带时区
         }

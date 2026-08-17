@@ -5,7 +5,7 @@
         <div class="mx-auto max-w-3xl text-center">
           <span class="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">系统状态</span>
           <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">服务状态监控</h1>
-          <p class="mt-4 text-lg text-neutral-500">实时了解 CloudDrive 各项服务的运行状态</p>
+          <p class="mt-4 text-lg text-neutral-500">展示服务清单与监控接入边界；当前页面不伪造实时可用性或 SLA 指标</p>
         </div>
       </div>
     </section>
@@ -14,9 +14,9 @@
     <section class="border-b border-neutral-100">
       <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3 rounded-2xl bg-success/5 border border-success/20 p-4">
-          <i class="fa fa-check-circle text-2xl text-success"></i>
+          <i class="fa fa-info-circle text-2xl text-info"></i>
           <div>
-            <p class="text-sm font-semibold text-success">所有系统运行正常</p>
+            <p class="text-sm font-semibold text-info">状态探针未连接</p>
             <p class="text-xs text-neutral-400">最后更新于 {{ lastUpdated }}</p>
           </div>
         </div>
@@ -51,7 +51,7 @@
     <!-- Incident History -->
     <section class="border-t border-neutral-100 bg-neutral-50/50 py-16 sm:py-20">
       <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <h2 class="text-2xl font-bold text-neutral-900 mb-8">过去 90 天事件记录</h2>
+        <h2 class="text-2xl font-bold text-neutral-900 mb-8">事件记录</h2>
         <div class="space-y-4">
           <div v-for="incident in incidents" :key="incident.id" class="rounded-xl border border-neutral-200 bg-white p-5">
             <div class="flex items-start gap-4">
@@ -88,59 +88,55 @@
 </template>
 
 <script setup lang="ts">
-const lastUpdated = '2026-01-15 14:30:00 CST'
+// 需求编号：REQ-WEB-CONTENT-2026-07
+// 改动点：移除未连接监控系统时的虚构可用率、事件和“全部正常”结论。
+// 原有行为：页面静态伪造实时状态和 SLA 数值；新行为：明确当前页面仅为服务清单，状态需接入真实探针。
+// 影响范围：仅影响官网状态页展示数据，不改变监控接入接口或页面布局。
+const lastUpdated = '页面文案更新于 2026-07-29 CST'
 
 const serviceGroups = [
   {
     name: '核心服务',
     services: [
-      { name: '文件上传服务', desc: '文件上传、分片上传、断点续传', status: 'operational', statusText: '正常', uptime: '99.997%' },
-      { name: '文件下载服务', desc: '文件下载、批量下载、流式预览', status: 'operational', statusText: '正常', uptime: '99.998%' },
-      { name: '文件管理 API', desc: '文件列表、搜索、移动、删除', status: 'operational', statusText: '正常', uptime: '99.996%' },
-      { name: '用户认证服务', desc: '登录、注册、SSO、2FA', status: 'operational', statusText: '正常', uptime: '99.999%' },
+      { name: '文件上传服务', desc: '文件上传、分片上传、内容处理', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '文件下载服务', desc: '文件下载、Range 访问、媒体播放', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '文件管理 API', desc: '文件、文件夹、搜索、移动和删除', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '用户认证服务', desc: '登录、注册、用户设置和会话', status: 'unknown', statusText: '待探针', uptime: '—' },
     ],
   },
   {
     name: '存储与基础设施',
     services: [
-      { name: 'MinIO 对象存储', desc: '文件对象存储服务', status: 'operational', statusText: '正常', uptime: '99.999%' },
-      { name: 'MySQL 数据库', desc: '元数据与业务数据存储', status: 'operational', statusText: '正常', uptime: '99.998%' },
-      { name: 'Redis 缓存', desc: '会话与热数据缓存', status: 'operational', statusText: '正常', uptime: '99.999%' },
-      { name: 'RabbitMQ 消息队列', desc: '异步任务消息处理', status: 'operational', statusText: '正常', uptime: '99.999%' },
+      { name: 'MinIO / 文件存储', desc: '文件对象与派生资源存储', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: 'MySQL 数据库', desc: '业务、空间、插件和工作流数据', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: 'Redis 缓存', desc: '会话、限流和临时凭证', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: 'RabbitMQ 消息队列', desc: '文件生命周期与异步任务消息', status: 'unknown', statusText: '待探针', uptime: '—' },
     ],
   },
   {
     name: '安全与增值服务',
     services: [
-      { name: '病毒扫描引擎', desc: '多引擎文件病毒扫描', status: 'operational', statusText: '正常', uptime: '99.995%' },
-      { name: '文件预览服务', desc: 'Office 文档/图片/视频在线预览', status: 'operational', statusText: '正常', uptime: '99.997%' },
-      { name: '全文搜索服务', desc: 'Elasticsearch 文件内容搜索', status: 'operational', statusText: '正常', uptime: '99.996%' },
-      { name: '数据防泄漏', desc: '敏感数据识别与保护', status: 'operational', statusText: '正常', uptime: '99.998%' },
+      { name: '文件预览能力', desc: '图片、PDF、Office、代码、压缩包和媒体预览', status: 'unknown', statusText: '按配置', uptime: '—' },
+      { name: '插件服务', desc: '插件版本、权限、安装和市场能力', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '工作流服务', desc: '工作流校验、发布、执行和市场', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '自动化与调度', desc: '事件触发、任务恢复和定时调度', status: 'unknown', statusText: '待探针', uptime: '—' },
     ],
   },
   {
     name: '客户端与 API',
     services: [
-      { name: 'Web 管理控制台', desc: 'Web 端管理界面', status: 'operational', statusText: '正常', uptime: '99.997%' },
-      { name: 'WebDAV 服务', desc: 'WebDAV 协议挂载', status: 'operational', statusText: '正常', uptime: '99.996%' },
-      { name: 'API 网关', desc: 'REST API 统一入口', status: 'operational', statusText: '正常', uptime: '99.998%' },
-      { name: 'CDN 加速', desc: '全球 CDN 内容分发', status: 'operational', statusText: '正常', uptime: '99.999%' },
+      { name: 'Web 控制台', desc: '官网、文件管理、空间和扩展页面', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: 'API 网关', desc: 'REST API 统一入口、认证和路由', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '即时通讯服务', desc: '消息、群组、通知和音视频通话', status: 'unknown', statusText: '待探针', uptime: '—' },
+      { name: '客户端注册服务', desc: '客户端身份、挑战和扩展绑定', status: 'unknown', statusText: '待探针', uptime: '—' },
     ],
   },
 ]
 
 const incidents = [
   {
-    id: 1, title: '文件上传服务间歇性超时', date: '2026-01-08 10:30', duration: '1 小时 15 分钟', resolved: true, severity: 'minor',
-    desc: '由于上游网络波动，部分用户在上传大文件时遇到超时。网络恢复后所有服务恢复正常。',
-  },
-  {
-    id: 2, title: '数据库连接池耗尽', date: '2025-12-28 15:00', duration: '25 分钟', resolved: true, severity: 'minor',
-    desc: '由于突发流量导致数据库连接池短暂耗尽，部分 API 请求失败。自动扩容机制触发后服务恢复。',
-  },
-  {
-    id: 3, title: 'MinIO 存储节点磁盘故障', date: '2025-12-15 08:00', duration: '2 小时', resolved: true, severity: 'minor',
-    desc: '单个存储节点磁盘故障，触发自动故障切换。数据已自动从副本恢复，无数据丢失。',
+    id: 1, title: '事件数据待接入真实监控', date: '—', duration: '—', resolved: true, severity: 'minor',
+    desc: '当前页面只提供服务清单展示，未连接生产探针、事件数据库或 SLA 统计，不对运行状态作事实承诺。',
   },
 ]
 </script>

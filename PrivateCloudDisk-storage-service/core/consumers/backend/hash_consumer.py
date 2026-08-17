@@ -1,8 +1,8 @@
 """
-哈希计算消费者 — 文件后台处理阶段 2/4
+哈希计算消费者 — 文件后台处理阶段 3/5
 
-职责: 计算文件 SHA-256 哈希值，与客户端上报的校验和比对
-顺序: merge → hash_calculate → virus_scan → mark_active
+职责: 计算闸门选定内容的 SHA-256，与 upload_checksum/candidate_checksum 比对
+顺序: merge → content_preprocess → hash_calculate → virus_scan → mark_active
 """
 from __future__ import annotations
 import logging

@@ -151,8 +151,19 @@ async def _prune_active_set(key: str) -> int:
     return len(members) - len(stale)
 
 
-async def issue_preview_grant(user_id: str, file_id: str, client_ip: str) -> tuple[str, dict]:
-    metadata = await _fetch_metadata(file_id, user_id)
+async def issue_preview_grant(
+    user_id: str,
+    file_id: str,
+    client_ip: str,
+    *,
+    metadata: Optional[dict] = None,
+    grant_source: str = "space",
+    share_token: str = "",
+    share_resource_id: str = "",
+) -> tuple[str, dict]:
+    # 需求二-1：分享授权已由主业务服务完成范围校验，沿用原有白名单、大小
+    # 限制和 Redis 并发配额，不复制另一套预览令牌逻辑。
+    metadata = metadata or await _fetch_metadata(file_id, user_id)
     file_name = str(metadata.get("name") or metadata.get("file_name") or "")
     file_size = int(metadata.get("size") or metadata.get("file_size") or 0)
     file_type = str(metadata.get("file_type") or metadata.get("type") or metadata.get("mime_type") or "")
@@ -189,6 +200,10 @@ async def issue_preview_grant(user_id: str, file_id: str, client_ip: str) -> tup
         "issuedAt": now_ms,
         "expiresAt": now_ms + ttl * 1000,
         "ip": client_ip,
+        "spaceId": str(metadata.get("space_id") or ""),
+        "grantSource": grant_source,
+        "shareToken": share_token,
+        "shareResourceId": share_resource_id,
     }
     await redis_client.hset(f"{PREFIX_TOKEN}{token_hash}", mapping=grant_data)
     await redis_client.expire(f"{PREFIX_TOKEN}{token_hash}", ttl + 30)
@@ -209,7 +224,14 @@ async def issue_preview_grant(user_id: str, file_id: str, client_ip: str) -> tup
     return token, grant_data
 
 
-async def verify_preview_grant(token: str, user_id: str, file_id: str) -> dict:
+async def verify_preview_grant(
+    token: str,
+    user_id: str,
+    file_id: str,
+    *,
+    share_token: str = "",
+    share_resource_id: str = "",
+) -> dict:
     if not validate_preview_token_format(token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="预览授权格式无效")
     token_hash = _hash_token(token)
@@ -218,9 +240,36 @@ async def verify_preview_grant(token: str, user_id: str, file_id: str) -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="预览授权已过期，请刷新后重试")
     if grant.get("userId") != user_id or grant.get("fileId") != file_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="预览授权与当前用户或文件不匹配")
+    if share_token or share_resource_id:
+        if grant.get("grantSource") != "share" \
+                or grant.get("shareToken") != share_token \
+                or grant.get("shareResourceId") != share_resource_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="预览授权与分享资源不匹配")
     if int(grant.get("expiresAt") or 0) < int(time.time() * 1000):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="预览授权已过期，请刷新后重试")
     grant["token_hash"] = token_hash
+    return grant
+
+
+async def verify_preview_grant_for_share(
+    token: str,
+    user_id: str,
+    share_token: str,
+    share_resource_id: str,
+) -> dict:
+    """在不知道真实 file_id 的情况下验证分享预览授权。"""
+    if not validate_preview_token_format(token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="预览授权格式无效")
+    grant = await redis_client.hgetall(f"{PREFIX_TOKEN}{_hash_token(token)}")
+    if not grant or grant.get("status") != GRANT_STATUS_ACTIVE:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="预览授权已过期，请刷新后重试")
+    if grant.get("userId") != user_id or grant.get("grantSource") != "share" \
+            or grant.get("shareToken") != share_token \
+            or grant.get("shareResourceId") != share_resource_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="预览授权与分享资源不匹配")
+    if int(grant.get("expiresAt") or 0) < int(time.time() * 1000):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="预览授权已过期，请刷新后重试")
+    grant["token_hash"] = _hash_token(token)
     return grant
 
 

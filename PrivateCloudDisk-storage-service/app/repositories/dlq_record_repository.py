@@ -20,7 +20,6 @@ class DLQRecordRepository:
     async def record(self, *, source_queue: str, stage: str, payload: dict[str, Any], failure_reason: str, error: str = "") -> None:
         """幂等写入死信；同一队列、任务和阶段重复到达时累计重试次数。"""
         pool = await get_database_pool()
-        # AUDIT FIX [7.4]（需求一-2）:
         # 增强事件使用 enhance_task_id，旧实现未读取该字段，所有同阶段记录会以空 task_id 冲突合并。
         task_id = str(
             payload.get("task_id")
@@ -35,7 +34,7 @@ class DLQRecordRepository:
         user_id = self._uuid_or_none(payload.get("user_id"))
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                # AUDIT FIX [7.4]: 死信处置写入可查询的数据库台账，Redis 仅保留短期运维视图。
+                # 死信处置写入可查询的数据库台账，Redis 仅保留短期运维视图。
                 await cursor.execute("""
                     INSERT INTO pcd_mq_dead_letter_record_table (
                         event_id, task_id, file_id, user_id, source_queue, process_stage,
@@ -43,7 +42,6 @@ class DLQRecordRepository:
                     ) VALUES (%s, %s, UUID_TO_BIN(%s), UUID_TO_BIN(%s), %s, %s, %s, 1, CAST(%s AS JSON), %s)
                     AS incoming
                     ON DUPLICATE KEY UPDATE
-                        -- AUDIT FIX [7.4]（需求一-1）:
                         -- 原行为在 MySQL 8.0.19+ 的 INSERT 行别名 incoming 与目标表同时包含 retry_count 时，
                         -- 右值 retry_count 无法判定来源并触发 1052；新行为显式读取目标表当前累计值。
                         retry_count=pcd_mq_dead_letter_record_table.retry_count+1,
@@ -76,7 +74,7 @@ class DLQRecordRepository:
         pool = await get_database_pool()
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                # AUDIT FIX [7.4]（需求一-3）: 状态值由消费者内部常量产生，不接受外部请求透传。
+                # 状态值由消费者内部常量产生，不接受外部请求透传。
                 await cursor.execute(
                     """
                     UPDATE pcd_mq_dead_letter_record_table

@@ -4,7 +4,9 @@ import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
+import org.project.context.SpaceContextHolder;
 import org.project.model.dto.message.UploadSessionDeletedEvent;
+import org.project.service.SpacePermissionService;
 import org.project.service.UserQuotaService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
@@ -34,6 +36,7 @@ public class UploadSessionDeletedConsumer {
     private static final long IDEMPOTENT_TTL_HOURS = 72;
 
     private final UserQuotaService userQuotaService;
+    private final SpacePermissionService spacePermissionService;
     private final RedisTemplate<String, String> redisTemplate;
 
     @RabbitListener(queues = RabbitMQConifgure.QUEUE_UPLOADS_SESSION_DELETED,
@@ -41,8 +44,9 @@ public class UploadSessionDeletedConsumer {
     public void handleUploadSessionDeleted(UploadSessionDeletedEvent event,
                                             Channel channel,
                                             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
-        log.info("收到上传会话已删除事件: eventId={}, uploadsSessionId={}, userId={}, fileSize={}",
-                event.getEventId(), event.getUploadsSessionId(), event.getUserId(), event.getFileSize());
+        log.info("收到上传会话已删除事件: eventId={}, spaceId={}, uploadsSessionId={}, userId={}, fileSize={}",
+                event.getEventId(), event.getSpaceId(), event.getUploadsSessionId(),
+                event.getUserId(), event.getFileSize());
 
         try {
             // 幂等检查
@@ -55,7 +59,15 @@ public class UploadSessionDeletedConsumer {
                 return;
             }
 
-            userQuotaService.rollbackQuota(event.getUserId(), event.getFileSize());
+            // 需求五-9/10：删除完成事件恢复空间上下文，释放正确的空间预占额度。
+            SpaceContextHolder.set(spacePermissionService.resolveContext(
+                    event.getUserId(),
+                    event.getSpaceId() == null ? null : event.getSpaceId().toString()));
+            try {
+                userQuotaService.rollbackQuota(event.getUserId(), event.getFileSize());
+            } finally {
+                SpaceContextHolder.clear();
+            }
 
             log.info("上传会话已删除事件处理完成（配额已释放）: eventId={}, uploadsSessionId={}",
                     event.getEventId(), event.getUploadsSessionId());

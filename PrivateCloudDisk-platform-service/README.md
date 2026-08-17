@@ -1,6 +1,6 @@
 # PrivateCloudDisk-platform-service
 
-核心业务服务，基于 Spring Boot + MyBatis 构建，提供用户管理、目录树管理、文件元数据管理、配额管理、回收站、收藏、内部存储协调等 RESTful API。
+核心业务服务，基于 Spring Boot 3.4.7 + MyBatis 构建，负责用户、文件元数据、目录树、空间、分享、标签、收藏、回收站、配额以及与 Storage/Automation 的内部协调。服务通过 Gateway 对外提供 REST API，空间权限和内部请求校验以当前代码与数据库迁移为准。
 
 ---
 
@@ -8,7 +8,7 @@
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| Spring Boot | 4.0.6 | 应用框架 |
+| Spring Boot | 3.4.7 | 应用框架 |
 | MyBatis | 3.x | ORM + SQL 映射 |
 | Spring AMQP | - | RabbitMQ 消息发布 |
 | Spring Data Redis | - | Redis 缓存读写 |
@@ -28,7 +28,7 @@ src/main/java/org/project/
 │   ├── UserController.java              # 用户相关 (9个端点)
 │   ├── FileController.java              # 文件管理 (4个端点)
 │   ├── NodeController.java              # 目录树管理 (6个端点)
-│   ├── UploadsController.java           # 上传会话管理 (2个端点)
+│   ├── UploadsController.java           # 上传会话管理 (3个端点)
 │   ├── TrashController.java             # 回收站管理 (6个端点)
 │   ├── FileStarController.java          # 文件收藏 (5个端点)
 │   ├── QuotaController.java             # 配额查询 (1个端点)
@@ -638,21 +638,13 @@ DELETE /api/v1/business/files/{file_id}
 
 ### 模块四：上传会话管理 `/business/uploads`
 
-```mermaid
-stateDiagram-v2
-    [*] --> uploading: POST /uploads/
-    uploading --> merging: 所有分片上传完毕
-    merging --> scaning: 文件合并完成
-    scaning --> processing: 病毒扫描通过
-    processing --> completed: 处理完成 (缩略图/转码)
-    merging --> merge_failed: 合并失败
-    scaning --> scan_failed: 病毒扫描不通过
-    processing --> process_failed: 处理异常
-    merge_failed --> [*]
-    scan_failed --> [*]
-    process_failed --> [*]
-    completed --> [*]
-```
+上传会话仅跟踪客户端分块传输与合并任务触发，不跟踪文件后处理：
+
+| 状态 | 含义 |
+|------|------|
+| `uploading` | 正在接收分块 |
+| `completed` | 分块全部保存，合并任务已触发；合并/扫描/增强状态由文件任务独立维护 |
+| `canceled` | 用户取消、过期清理或最终失败清理 |
 
 #### 4.1 创建上传会话
 
@@ -692,11 +684,24 @@ POST /api/v1/business/uploads/
 ```json
 {
   "code": 200,
-  "data": "915d3064-b465-5813-9f42-d7f1ab9b87c0"
+  "data": {
+    "uploads_id": "915d3064-b465-5813-9f42-d7f1ab9b87c0",
+    "max_concurrent_sessions": 12,
+    "active_session_count": 3,
+    "remaining_concurrent_sessions": 9
+  }
 }
 ```
 
-`data` 返回 `uploads_id` (UUID)，后续分片上传时使用。
+`data.uploads_id` 用于后续分片上传；并发字段是创建完成时的观测快照，服务端仍以实际会话校验为准。
+
+#### 4.2 查询活跃上传会话
+
+```http
+GET /api/v1/business/uploads/active
+```
+
+返回剩余并发槽位、活跃会话数量及脱敏会话摘要列表，不包含 checksum、物理路径等内部字段。
 
 ---
 
@@ -851,6 +856,9 @@ GET /api/v1/business/quotas/me
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}/complete` | 通知分片上传完成 |
+| POST | `/internal/storage/uploads/{uploads_id}/merge` | 校验分块并创建合并任务；成功时上传会话立即为 `completed` |
+| POST | `/internal/storage/uploads/{uploads_id}/merge-cleanup` | 合并成功或最终失败、物理分块清理后删除会话及分块元数据 |
+| POST | `/internal/storage/uploads/{uploads_id}/delete-complete` | 取消/过期会话的物理分块清理完成后删除 `canceled` 会话并释放预占配额 |
 | GET | `/internal/storage/uploads/{uploads_id}` | 查询上传会话详情 |
 | GET | `/internal/storage/uploads/{uploads_id}/chunks/{chunk_index}` | 查询分片状态 |
 | GET | `/internal/storage/files/{file_id}/metadata` | 查询文件元数据 |
@@ -953,22 +961,12 @@ ORDER BY depth DESC
 
 ### 上传会话状态机
 
-```mermaid
-flowchart LR
-    A[uploading<br/>上传中] -->|所有分片完成| B[merging<br/>合并中]
-    B -->|合并成功| C[scaning<br/>扫描中]
-    C -->|扫描通过| D[processing<br/>处理中]
-    D -->|处理成功| E[completed<br/>完成]
-
-    B -->|合并失败| B1[merge_failed]
-    C -->|扫描失败| C1[scan_failed]
-    D -->|处理失败| D1[process_failed]
-
-    style E fill:#c8e6c9
-    style B1 fill:#ffcdd2
-    style C1 fill:#ffcdd2
-    style D1 fill:#ffcdd2
+```text
+创建会话 → uploading → 分块全部保存并成功发布 merge task → completed
+       ↘ 用户取消/过期清理 → canceled → 物理分块清理后删除会话记录
 ```
+
+`merging`、`failed`、`scaning`、`processing` 不再是上传会话状态；它们属于文件后处理任务和文件元数据状态。
 
 ---
 

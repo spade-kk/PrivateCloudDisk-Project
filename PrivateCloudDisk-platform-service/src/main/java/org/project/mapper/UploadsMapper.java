@@ -36,7 +36,7 @@ public interface UploadsMapper {
     int updateUploadsSessionStatusById(@Param("newStatus") UploadsSessionEntity.UploadsSessionStatus newStatus, @Param("uploads_id") UUID uploads_id);
 
     /**
-     * 查询过期的上传会话（uploading/merging 状态且超过过期时间）
+     * 查询过期的上传会话（uploading 状态且超过过期时间）
      * @param expireTime 过期时间阈值
      * @return 过期上传会话列表
      */

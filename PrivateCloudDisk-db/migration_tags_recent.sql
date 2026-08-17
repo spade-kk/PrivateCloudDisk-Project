@@ -53,6 +53,9 @@ DROP TABLE IF EXISTS pcd_recent_access_table;
 CREATE TABLE pcd_recent_access_table (
     ra_id               BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
     ra_user_id          BINARY(16)      NOT NULL                COMMENT '用户ID',
+    ra_space_id         BINARY(16)                              COMMENT '访问发生的空间ID',
+    ra_access_source    VARCHAR(32)      NOT NULL DEFAULT 'space' COMMENT '访问来源：space/share',
+    ra_share_resource_id VARCHAR(512)                              COMMENT '分享资源虚拟ID，不保存真实文件ID',
     ra_target_type      ENUM('file', 'folder') NOT NULL         COMMENT '目标类型',
     ra_file_id          BINARY(16)                              COMMENT '文件ID',
     ra_node_id          BINARY(16)                              COMMENT '文件夹节点ID',

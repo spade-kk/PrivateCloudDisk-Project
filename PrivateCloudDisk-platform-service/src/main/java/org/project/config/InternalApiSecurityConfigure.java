@@ -26,7 +26,9 @@ public class InternalApiSecurityConfigure implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new InternalApiIpInterceptor(internalApiProperties.getAllowedIps()))
+        registry.addInterceptor(new InternalApiIpInterceptor(
+                        internalApiProperties.getAllowedIps(),
+                        internalApiProperties.getServiceToken()))
                 .addPathPatterns(internalApiProperties.getProtectedPaths()) // 拦截需要保护的内部接口路径
                 .excludePathPatterns(internalApiProperties.getExcludePaths()); // 排除不需要拦截的路径（可选）
     }

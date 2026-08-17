@@ -20,7 +20,10 @@
 //     POST   /business/public/shares/{token}/verify                        验证密码获取访问令牌
 //     GET    /business/public/shares/{token}/content                       获取分享内容（需 X-Share-Access-Token）
 //     GET    /business/public/shares/{token}/resources/{res_id}/children   浏览文件夹（需 X-Share-Access-Token）
-//     GET    /business/public/shares/{token}/resources/{res_id}/download   下载文件（需 X-Share-Access-Token）
+//     POST   /files/share/{token}/preview-grants                          申请分享预览授权（需登录）
+//     POST   /files/share/{token}/download-grants                         申请分享下载授权（需登录）
+//     GET    /files/share/{token}/resources/{res_id}/preview-content      获取分享文件原始内容
+//     GET    /files/share/{token}/resources/{res_id}/content              获取分享文件下载内容
 // ============================================================
 
 import { get, post, put, del } from '@/utils/request'
@@ -46,6 +49,7 @@ export interface ShareLinkItem {
   share_name: string
   share_description?: string | null
   share_has_password: boolean
+  share_allow_download: boolean
   share_expires_at: string | null
   share_view_count: number
   share_status: 'active' | 'revoked' | 'expired'
@@ -62,6 +66,7 @@ export interface ShareDetailVO {
   share_description?: string | null
   owner_name: string
   share_has_password: boolean
+  share_allow_download: boolean
   share_password: string | null
   share_expires_at: string | null
   share_view_count: number
@@ -78,6 +83,7 @@ export interface ShareAccessInfo {
   share_description?: string | null
   owner_name: string
   has_password: boolean
+  allow_download: boolean
   is_expired: boolean
   is_revoked: boolean
   expires_at: string | null
@@ -105,6 +111,8 @@ export interface ShareCreateParams {
   share_description?: string
   password?: string
   expires_in_days: number
+  /** false 表示仅允许查看目录和元数据，不允许获取实际文件内容。 */
+  allow_download?: boolean
 }
 
 /** 分享文件夹内容项 */
@@ -115,6 +123,32 @@ export interface ShareContentItem {
   name: string
   size: number
   file_type?: string
+}
+
+/** 分享文件授权响应；file_id/storage_path 永远不由客户端接收。 */
+export interface ShareGrantResponse {
+  preview_grant?: string
+  download_grant?: string
+  expires_at: number
+  file_name: string
+  file_size: number
+  file_type?: string | null
+  share_resource_id: string
+}
+
+/** 分享专用预览台账项；响应只保留虚拟资源 ID，不回显真实 file_id。 */
+export interface SharePreviewResourceVO {
+  resource_type?: string
+  resource_variant?: string
+  mime_type?: string | null
+  resource_status?: string
+  size_bytes?: number
+  width?: number | null
+  height?: number | null
+  duration_seconds?: number | null
+  page_count?: number | null
+  metadata?: Record<string, unknown>
+  share_resource_id: string
 }
 
 // ============================================================
@@ -157,6 +191,14 @@ export function revokeShareApi(share_id: string): Promise<{ code: number; messag
  */
 export function updateSharePasswordApi(share_id: string, password: string): Promise<{ code: number; message: string | null; data: null }> {
   return put(`business/shares/${share_id}/password`, { password })
+}
+
+/** 更新分享下载权限；false 表示仅浏览。 */
+export function updateShareDownloadPermissionApi(
+  share_id: string,
+  allow_download: boolean,
+): Promise<{ code: number; message: string | null; data: null }> {
+  return put(`business/shares/${share_id}/download-permission`, { allow_download })
 }
 
 // ============================================================
@@ -209,21 +251,176 @@ export function getSharedFolderChildrenApi(
   )
 }
 
-/**
- * 下载分享文件（通过 share_resource_id）
- * @param share_token 分享令牌
- * @param share_resource_id 分享资源ID
- * @param access_token 访问令牌
- */
-export function getSharedFileDownloadApi(
+/** 获取单个分享资源详情（仅返回分享资源 ID，不返回 file_id/node_id）。 */
+export function getSharedResourceDetailApi(
   share_token: string,
   share_resource_id: string,
-  access_token: string
-): Promise<any> {
-  return get<any>(
-    `business/public/shares/${share_token}/resources/${share_resource_id}/download`,
+  access_token: string,
+): Promise<{ code: number; message: string | null; data: ShareResourceVO }> {
+  return get(
+    `business/public/shares/${share_token}/resources/${share_resource_id}`,
     undefined,
-    { headers: { 'X-Share-Access-Token': access_token } }
+    { headers: { 'X-Share-Access-Token': access_token } },
+  )
+}
+
+/** 查询分享资源的预览台账（Office、缩略图、HLS、压缩包等）。 */
+export function getSharePreviewResourcesApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+): Promise<{ code: number; data: { items: SharePreviewResourceVO[]; total: number; share_resource_id: string } }> {
+  return get(
+    `files/share/${share_token}/resources/${share_resource_id}/preview-resources`,
+    undefined,
+    { headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true },
+  )
+}
+
+/** 获取分享图片/通用文件缩略图；size 支持 original/large/medium/small。 */
+export function getShareThumbnailApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+  size = 'small',
+): Promise<Blob> {
+  return get(
+    `files/share/${share_token}/resources/${share_resource_id}/thumbnail`,
+    { size },
+    { responseType: 'blob', headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true },
+  )
+}
+
+/** 获取分享 Office/PDF 首页封面图。 */
+export function getShareDocumentThumbnailApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+  size = 'small',
+): Promise<Blob> {
+  return get(
+    `files/share/${share_token}/resources/${share_resource_id}/document-thumbnail`,
+    { size },
+    { responseType: 'blob', headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true },
+  )
+}
+
+/** 查询/读取分享压缩包目录树。 */
+export function getShareArchivePreviewStatusApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+) {
+  return get(`files/share/${share_token}/resources/${share_resource_id}/archive-preview-status`, undefined, {
+    headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true,
+  })
+}
+
+export function getShareArchiveTreeApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+) {
+  return get(`files/share/${share_token}/resources/${share_resource_id}/archive-tree`, undefined, {
+    headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true,
+  })
+}
+
+/** 获取分享视频播放信息和 HLS 临时令牌。 */
+export function getShareVideoInfoApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+) {
+  return get(`files/share/${share_token}/resources/${share_resource_id}/video/info`, undefined, {
+    headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true,
+  })
+}
+
+export function createShareVideoTokenApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+  expires_in = 3600,
+) {
+  return post(`files/share/${share_token}/resources/${share_resource_id}/video/token`, { expires_in }, {
+    headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true,
+  })
+}
+
+export function getShareVideoProgressApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+) {
+  return get(`files/share/${share_token}/resources/${share_resource_id}/video/progress`, undefined, {
+    headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true,
+  })
+}
+
+export function saveShareVideoProgressApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+  payload: Record<string, unknown>,
+) {
+  return post(`files/share/${share_token}/resources/${share_resource_id}/video/progress`, payload, {
+    headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true,
+  })
+}
+
+/**
+ * 为分享资源申请一次性预览授权。
+ * 需求 2.1/2.2：分享资源必须使用 share_resource_id，不能把真实 file_id 暴露给前端。
+ */
+export function createSharePreviewGrantApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+): Promise<{ code: number; message: string | null; data: ShareGrantResponse }> {
+  return post(
+    `files/share/${share_token}/preview-grants`,
+    { share_resource_id },
+    { headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true },
+  )
+}
+
+/** 为分享资源申请下载授权；服务端会再次校验分享的 allow_download 配置。 */
+export function createShareDownloadGrantApi(
+  share_token: string,
+  share_resource_id: string,
+  access_token: string,
+): Promise<{ code: number; message: string | null; data: ShareGrantResponse }> {
+  return post(
+    `files/share/${share_token}/download-grants`,
+    { share_resource_id },
+    { headers: { 'X-Share-Access-Token': access_token }, skipAuthRedirect: true },
+  )
+}
+
+/** 读取分享文件原始内容，使用 Preview Grant，默认不产生下载/最近访问记录。 */
+export function getSharePreviewContentApi(
+  share_token: string,
+  share_resource_id: string,
+  preview_grant: string,
+): Promise<Blob> {
+  return get(
+    `files/share/${share_token}/resources/${share_resource_id}/preview-content`,
+    {},
+    { responseType: 'blob', headers: { 'X-Preview-Grant': preview_grant }, skipAuthRedirect: true, timeout: 30_000 },
+  )
+}
+
+/** 获取分享文件下载内容，支持服务端 Range 响应并记录分享来源。 */
+export function getShareDownloadContentApi(
+  share_token: string,
+  share_resource_id: string,
+  download_grant: string,
+): Promise<Blob> {
+  return get(
+    `files/share/${share_token}/resources/${share_resource_id}/content`,
+    {},
+    { responseType: 'blob', headers: { 'X-Download-Grant': download_grant }, timeout: 120_000 },
   )
 }
 

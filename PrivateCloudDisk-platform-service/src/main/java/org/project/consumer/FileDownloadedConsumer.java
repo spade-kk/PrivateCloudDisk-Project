@@ -4,8 +4,10 @@ import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.config.RabbitMQConifgure;
+import org.project.context.SpaceContextHolder;
 import org.project.model.dto.message.FileDownloadedEvent;
 import org.project.service.RecentAccessService;
+import org.project.service.SpacePermissionService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -32,6 +34,7 @@ public class FileDownloadedConsumer {
     private static final long IDEMPOTENT_TTL_HOURS = 72;
 
     private final RecentAccessService recentAccessService;
+    private final SpacePermissionService spacePermissionService;
     private final RedisTemplate<String, String> redisTemplate;
 
     @RabbitListener(queues = RabbitMQConifgure.QUEUE_FILE_DOWNLOADED,
@@ -39,8 +42,8 @@ public class FileDownloadedConsumer {
     public void handleFileDownloaded(FileDownloadedEvent event,
                                       Channel channel,
                                       @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
-        log.info("收到文件下载完成事件: eventId={}, fileId={}, fileName={}, userId={}",
-                event.getEventId(), event.getFileId(), event.getFileName(), event.getUserId());
+        log.info("收到文件下载完成事件: eventId={}, spaceId={}, fileId={}, fileName={}, userId={}",
+                event.getEventId(), event.getSpaceId(), event.getFileId(), event.getFileName(), event.getUserId());
 
         try {
             // 幂等检查
@@ -54,15 +57,29 @@ public class FileDownloadedConsumer {
             }
 
             UUID userId = UUID.fromString(event.getUserId());
-            recentAccessService.recordAccess(
-                    userId,
-                    event.getFileId(),
-                    "file",
-                    "download",
-                    event.getFileName(),
-                    event.getFileSize(),
-                    event.getFileType()
-            );
+            SpaceContextHolder.set(spacePermissionService.resolveContext(userId, event.getSpaceId()));
+            try {
+                if ("share".equalsIgnoreCase(event.getAccessSource())) {
+                    recentAccessService.recordShareDownloadAccess(
+                            userId,
+                            event.getShareResourceId(),
+                            event.getFileName(),
+                            event.getFileSize(),
+                            event.getFileType());
+                } else {
+                    recentAccessService.recordAccess(
+                            userId,
+                            event.getFileId(),
+                            "file",
+                            "download",
+                            event.getFileName(),
+                            event.getFileSize(),
+                            event.getFileType()
+                    );
+                }
+            } finally {
+                SpaceContextHolder.clear();
+            }
 
             log.info("文件下载事件处理完成（已记录最近下载）: eventId={}, fileId={}",
                     event.getEventId(), event.getFileId());

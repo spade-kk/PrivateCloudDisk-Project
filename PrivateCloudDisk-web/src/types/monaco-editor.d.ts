@@ -17,8 +17,24 @@
 // ============================================================
 
 declare module 'monaco-editor' {
+  export enum MarkerSeverity {
+    Hint = 1,
+    Info = 2,
+    Warning = 4,
+    Error = 8,
+  }
+
   // ---- Editor 命名空间 ----
   export namespace editor {
+    export interface IMarkerData {
+      severity: MarkerSeverity
+      message: string
+      startLineNumber: number
+      startColumn: number
+      endLineNumber: number
+      endColumn: number
+    }
+
     /**
      * 标准 Code Editor 实例接口
      * 仅声明项目实际调用的 API，避免维护完整接口
@@ -28,6 +44,7 @@ declare module 'monaco-editor' {
       getModel(): ITextModel | null
       // 内容
       getValue(): string
+      setValue(value: string): void
       // 配置
       updateOptions(opts: Partial<IStandaloneEditorConstructionOptions> & { [key: string]: unknown }): void
       getOptions(): IEditorOptions
@@ -85,6 +102,8 @@ declare module 'monaco-editor' {
      * 切换 model 的语言
      */
     export function setModelLanguage(model: ITextModel, languageId: string): void
+
+    export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void
 
     /**
      * 切换主题
@@ -174,6 +193,46 @@ declare module 'monaco-editor' {
       stickyScroll?: { enabled?: boolean; maxLineCount?: number }
       automaticLayout?: boolean
       fixedOverflowWidgets?: boolean
+    }
+  }
+
+  export namespace languages {
+    export enum CompletionItemKind {
+      Method = 0,
+      Function = 1,
+      Snippet = 27,
+    }
+
+    export enum CompletionItemInsertTextRule {
+      None = 0,
+      KeepWhitespace = 1,
+      InsertAsSnippet = 4,
+    }
+
+    export interface CompletionItem {
+      label: string
+      kind: CompletionItemKind
+      insertText: string
+      insertTextRules?: CompletionItemInsertTextRule
+      documentation?: string
+    }
+
+    export interface CompletionList {
+      suggestions: CompletionItem[]
+    }
+
+    export function registerCompletionItemProvider(
+      languageId: string,
+      provider: {
+        triggerCharacters?: string[]
+        provideCompletionItems(...args: unknown[]): CompletionList
+      },
+    ): { dispose(): void }
+
+    export namespace typescript {
+      export const javascriptDefaults: {
+        addExtraLib(content: string, filePath?: string): { dispose(): void }
+      }
     }
   }
 }

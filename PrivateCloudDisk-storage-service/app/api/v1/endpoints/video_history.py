@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.core.redis_client import redis_client
 from app.core.business_service_client import BusinessServiceError, business_service_client
 from app.repositories.preview_resource_repository import preview_resource_repository
+from app.core.space_context import get_current_space_id
 from app.repositories.video_progress_repository import video_progress_repository
 
 logger = logging.getLogger("video_history")
@@ -119,5 +120,8 @@ async def get_video_history_list(
 @router.get("/statistics", summary="获取账号视频资源统计")
 async def get_video_statistics(user_id: str = Header(..., alias="X-User-Id")):
     """返回数据库中已就绪的 HLS 视频数，支持多实例实时一致读取。"""
-    total = await preview_resource_repository.count_ready_videos(user_id)
+    # 空间管理能力全量集成（需求四-2/五-10）：统计仅覆盖当前空间，旧客户端无空间头时保持个人维度。
+    total = await preview_resource_repository.count_ready_videos(
+        user_id, get_current_space_id(),
+    )
     return {"code": 200, "data": {"playable_video_count": total}}

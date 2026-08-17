@@ -15,9 +15,12 @@ from __future__ import annotations
 import logging
 import os
 import glob as glob_mod
+from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import PlainTextResponse
 
+from app.core.business_service_client import BusinessServiceError, business_service_client
+from app.services.preview_resource_service import preview_resource_service
 from core.config import settings
 
 logger = logging.getLogger("video_subtitle")
@@ -54,7 +57,19 @@ async def get_video_subtitles(
     自动扫描 HLS 目录下的 .vtt 字幕文件，
     返回字幕 ID、语言标签和获取 URL。
     """
-    hls_dir = os.path.join(settings.file_upload_dir, "hls", file_id)
+    # AUDIT FIX [4.3]：字幕目录访问必须先验证用户、空间与文件归属，避免仅凭 UUID 枚举。
+    try:
+        await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+    # AUDIT FIX [3.1]：先用 HLS 资源台账确定目录，再在已授权根目录内读取字幕文件。
+    hls_resource = await preview_resource_service.get_ready(file_id, user_id, "hls", "master")
+    hls_dir = str(Path(hls_resource["storage_path"]).resolve()) if hls_resource else ""
+    if hls_dir:
+        try:
+            Path(hls_dir).relative_to(Path(settings.file_upload_dir).resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="HLS 资源路径不在允许范围内") from exc
 
     if not os.path.isdir(hls_dir):
         return {"code": 200, "data": {"subtitles": []}}
@@ -99,7 +114,18 @@ async def get_video_subtitle_content(
     自动将 SRT 格式转换为 WebVTT 格式。
     若字幕文件不存在，返回 404。
     """
-    hls_dir = os.path.join(settings.file_upload_dir, "hls", file_id)
+    # AUDIT FIX [4.3]：内容读取与字幕列表使用同一空间权限校验。
+    try:
+        await business_service_client.get_file_metadata(file_id, user_id)
+    except BusinessServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail="视频不存在或无权访问") from exc
+    hls_resource = await preview_resource_service.get_ready(file_id, user_id, "hls", "master")
+    hls_dir = str(Path(hls_resource["storage_path"]).resolve()) if hls_resource else ""
+    if hls_dir:
+        try:
+            Path(hls_dir).relative_to(Path(settings.file_upload_dir).resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="HLS 资源路径不在允许范围内") from exc
 
     if not os.path.isdir(hls_dir):
         raise HTTPException(

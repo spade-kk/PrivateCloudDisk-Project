@@ -16,15 +16,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useStorageStore } from '@/stores/storageStore'
+import { useSpaceStore } from '@/stores/spaceStore'
 
 const storageStore = useStorageStore()
+const spaceStore = useSpaceStore()
 const usedFormatted = computed(() => storageStore.formatUsed())
 const totalFormatted = computed(() => storageStore.formatTotal())
 const percent = computed(() => storageStore.percent)
 
 onMounted(() => {
   storageStore.fetchStorageInfo()
+})
+
+// 需求四-4：空间切换后按统一请求头重新获取当前空间配额。
+watch(() => spaceStore.revision, () => {
+  void storageStore.fetchStorageInfo()
 })
 </script>

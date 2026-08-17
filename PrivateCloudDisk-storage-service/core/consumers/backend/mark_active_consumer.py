@@ -1,8 +1,8 @@
 """
-标记活跃消费者 — 文件后台处理阶段 4/4 (流水线终点)
+标记活跃消费者 — 文件后台处理阶段 5/5 (流水线终点)
 
 职责: 通知业务服务文件已可访问 (file.available 事件)
-顺序: merge → hash_calculate → virus_scan → mark_active
+顺序: merge → content_preprocess → hash_calculate → virus_scan → mark_active
        ↑ 流水线终点 → 总任务 completed → 触发增强事件 (thumbnail / transcode / hls / index)
 
 成功后:
@@ -48,6 +48,22 @@ class MarkActiveConsumer(BaseBackendConsumer):
             )
             # 发布 file.available 事件到主业务服务
             await self._publish_file_available_event(event)
+            if event.preprocess_gate_id:
+                # 需求四-4：file.available 成功发布后才允许回收未选中副本。
+                # 清理失败只记录并由 Sweeper 补偿，不能把已可访问文件重新打入失败态。
+                from app.services.file_preprocess_gate_service import file_preprocess_gate_service
+
+                try:
+                    await file_preprocess_gate_service.mark_activation_and_cleanup(
+                        event.preprocess_gate_id
+                    )
+                except Exception:
+                    logger.exception(
+                        "[MARK_ACTIVE] 预处理副本清理提交失败，将由 Sweeper 补偿 "
+                        "file_id=%s gate_id=%s",
+                        event.file_id,
+                        event.preprocess_gate_id,
+                    )
         else:
             logger.error(
                 f"[MARK_ACTIVE] FAILED "
@@ -73,15 +89,30 @@ class MarkActiveConsumer(BaseBackendConsumer):
         #     "checksum": event.file_checksum,
         #     "timestamp": int(time.time() * 1000),
         # }
+        # 文件生命周期可靠性修复：原行为每次重试生成随机 eventId，若 file.available
+        # 已发布但后续 ACK 前进程退出，重试会让配额消费者误认为新事件。新行为使用
+        # backend_task_id 派生稳定 ID，保留字段格式且让旧消费者自然获得幂等能力。
+        stable_event_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"pcd:file.available:{event.backend_task_id}",
+        ).hex
         available_event = {
-            "eventId": uuid.uuid4().hex,
+            "eventId": stable_event_id,
             "fileId": event.file_id,
             "fileName": event.file_name,
             "fileSize": event.file_size,
             "fileType": event.file_type,
             "userId": event.user_id,
+            "spaceId": event.space_id,
             "uploadsSessionId": getattr(event, 'uploads_id', ''),
             "eventTime": datetime.utcnow().isoformat(),#暂时不带时区
+            # 文件生命周期预处理需求：全部为可选追加字段，旧 Java 消费者可安全忽略。
+            "checksum": event.file_checksum,
+            "storagePath": event.storage_path,
+            "contentRevision": event.content_revision,
+            "contentModified": event.content_modified,
+            "preprocessStatus": event.preprocess_status,
+            "correlationId": event.pipeline_id,
         }
 
         try:
@@ -99,6 +130,9 @@ class MarkActiveConsumer(BaseBackendConsumer):
                 f"[MARK_ACTIVE] file.available 发布失败 "
                 f"file_id={event.file_id} error={e}"
             )
+            # 原行为只记录日志仍返回成功，会导致消息 ACK 且 Platform 永远收不到
+            # file.available；新行为抛出异常交给既有 Backend 重试/DLQ 机制。
+            raise
 
 
 mark_active_consumer = MarkActiveConsumer()

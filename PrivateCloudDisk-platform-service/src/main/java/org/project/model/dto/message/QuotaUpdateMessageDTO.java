@@ -25,6 +25,9 @@ public class QuotaUpdateMessageDTO implements Serializable {
     
     /** 用户ID */
     private String user_id;
+
+    /** 空间管理能力全量集成（需求五-9/10）：为空时兼容历史个人配额消息。 */
+    private String space_id;
     
     /** 更新类型：FILE_UPLOAD-文件上传, FILE_DELETE-文件删除, RECALCULATE-重新计算 */
     private String update_id;

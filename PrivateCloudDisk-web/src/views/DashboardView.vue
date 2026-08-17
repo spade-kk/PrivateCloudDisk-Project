@@ -5,12 +5,14 @@
       <div class="min-w-0 flex-1">
         <PathNavigator :pathStack="fileBrowserStore.pathStack" @navigate="navigateTo" @home="goHome" />
       </div>
-      <WorkspaceOverview
-        class="dashboard-location-overview"
-        :nodes="fileBrowserStore.nodes"
-        :selected-count="selectionStore.selectedIds.size"
-        :path-depth="fileBrowserStore.pathStack.length"
-      />
+      <div class="dashboard-location-overview flex flex-wrap items-center justify-end gap-2">
+        <CurrentSpaceBadge />
+        <WorkspaceOverview
+          :nodes="fileBrowserStore.nodes"
+          :selected-count="selectionStore.selectedIds.size"
+          :path-depth="fileBrowserStore.pathStack.length"
+        />
+      </div>
     </div>
 
     <!-- 操作栏 -->
@@ -147,9 +149,9 @@ import { useDownloaderStore } from '@/stores/downloaderStore'
 import { useStorageStore } from '@/stores/storageStore'
 import { useToastStore } from '@/stores/toastStore'
 import { useStarredStore } from '@/stores/starred'
+import { useSpaceStore } from '@/stores/spaceStore'
 import { navigateToFilePreview } from '@/utils/previewRoute'
 import PathNavigator from '@/components/file/PathNavigator.vue'
-import StorageInfo from '@/components/file/StorageInfo.vue'
 import FileGridView from '@/components/file/FileGridView.vue'
 import FileListView from '@/components/file/FileListView.vue'
 import CreateFolderModal from '@/components/modals/CreateFolderModal.vue'
@@ -168,6 +170,7 @@ import FileDetailDrawer from '@/components/file/FileDetailDrawer.vue'
 import FolderUploadPanel from '@/components/file/FolderUploadPanel.vue'
 import FolderDownloadPanel from '@/components/file/FolderDownloadPanel.vue'
 import WorkspaceOverview from '@/components/dashboard/WorkspaceOverview.vue'
+import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 import SmartSearchBox from '@/components/search/SmartSearchBox.vue'
 import ContextMenu from '@/components/common/ContextMenu.vue'
 import type { ContextMenuItem } from '@/components/common/ContextMenu.vue'
@@ -184,6 +187,7 @@ const storageStore = useStorageStore()
 const toastStore = useToastStore()
 const selectionStore = useSelectionStore()
 const starredStore = useStarredStore()
+const spaceStore = useSpaceStore()
 const folderUploaderStore = useFolderUploaderStore()
 const folderDownloaderStore = useFolderDownloaderStore()
 
@@ -267,6 +271,29 @@ watch(() => route.query.node, async (nodeId) => {
   if (authStore.isLoggedIn && nodeId) {
     await fileBrowserStore.loadChildren(String(nodeId))
   }
+})
+
+watch(() => spaceStore.revision, async () => {
+  if (!authStore.isLoggedIn) return
+  /*
+   * 空间管理能力全量集成（需求四-1/2）：
+   * 原行为切换左侧空间后当前目录、旧选中项和 URL node 仍残留；
+   * 新行为清空瞬态选择并回到目标空间根目录，避免跨空间节点 ID 被再次请求。
+   */
+  selectionStore.clearSelection()
+  tagsByTarget.value = {}
+  const query = { ...route.query }
+  delete query.node
+  delete query.path
+  delete query.folder
+  if (route.path === '/app') {
+    await router.replace({ query })
+  }
+  await Promise.all([
+    fileBrowserStore.loadRoot(),
+    storageStore.fetchStorageInfo(),
+    starredStore.initStarredIds(),
+  ])
 })
 
 function goHome() {

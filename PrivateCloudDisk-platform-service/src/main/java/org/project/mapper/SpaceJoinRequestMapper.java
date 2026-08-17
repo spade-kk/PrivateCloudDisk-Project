@@ -11,7 +11,10 @@ public interface SpaceJoinRequestMapper {
     List<SpaceJoinRequestEntity> findBySpaceId(@Param("spaceId") UUID spaceId);
     List<SpaceJoinRequestEntity> findBySpaceIdAndStatus(@Param("spaceId") UUID spaceId, @Param("status") String status);
     SpaceJoinRequestEntity findBySpaceAndUser(@Param("spaceId") UUID spaceId, @Param("userId") UUID userId);
+    List<SpaceJoinRequestEntity> findByUserId(@Param("userId") UUID userId);
+    SpaceJoinRequestEntity findById(@Param("requestId") Long requestId);
     int insert(SpaceJoinRequestEntity request);
     int updateStatus(@Param("requestId") Long requestId, @Param("status") String status,
                      @Param("reviewedBy") UUID reviewedBy);
+    int deletePending(@Param("requestId") Long requestId, @Param("userId") UUID userId);
 }

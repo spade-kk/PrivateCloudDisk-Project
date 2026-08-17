@@ -33,6 +33,8 @@ from core.config import (
 from core.rabbitmq import rabbitmq_service
 from core.event.file_enhance_event import FileEnhanceEvent
 from core.services.file_processor import FileProcessor, ProcessResult
+from core.messaging.errors import RetryableWorkerError, classify_exception, exception_summary
+from core.messaging.metrics import worker_metrics
 
 logger = logging.getLogger("enhance_consumer")
 
@@ -98,7 +100,7 @@ class BaseEnhanceConsumer(ABC):
                 f"retry={event.retry_count}/{self.max_retries}"
             )
 
-            # AUDIT FIX [7.4]（需求一-3）：使用带租约的原子 NX 抢占替代“先读后写”竞态。
+            # 使用带租约的原子 NX 抢占替代“先读后写”竞态。
             # Worker 异常退出后租约会自动过期；处理中重复消息进入持久化延迟队列，不再直接 ACK 丢失。
             claim_state = await self._claim_event(event.enhance_task_id)
             if claim_state == TaskStatus.PROCESSING:
@@ -150,30 +152,52 @@ class BaseEnhanceConsumer(ABC):
                 )
                 await self._on_failure(message, event, result)
 
-        except json.JSONDecodeError:
-            logger.error(f"[ENHANCE-{self.stage}] JSON_PARSE_ERROR → 丢弃")
-            await message.ack()
+        except json.JSONDecodeError as exc:
+            logger.error(f"[ENHANCE-{self.stage}] JSON_PARSE_ERROR → 专属 DLQ")
+            invalid = FileEnhanceEvent(
+                enhance_task_id="invalid",
+                stage=self.stage,
+                file_id="",
+                user_id="",
+                file_name="",
+                file_type="",
+                failure_reason="MESSAGE_SCHEMA_ERROR",
+                failure_detail=exception_summary(exc),
+            )
+            try:
+                await self._publish_to_dlq(invalid, ProcessResult(
+                    success=False,
+                    task_type=self.stage,
+                    failure_reason="MESSAGE_SCHEMA_ERROR",
+                    error=exception_summary(exc),
+                    retryable=False,
+                ))
+                await message.ack()
+            except Exception:
+                logger.exception("[ENHANCE-%s] SCHEMA_DLQ_PUBLISH_FAILED → 原消息重新入队", self.stage)
+                if not getattr(message, "processed", False):
+                    await message.nack(requeue=True)
         except Exception as e:
             logger.error(
                 f"[ENHANCE-{self.stage}] EXCEPTION "
                 f"error={e}",
                 exc_info=True,
             )
-            # AUDIT FIX [7.4]（需求一-2/3）:
-            # 原行为直接 nack(requeue=False)，RabbitMQ 只会转发未经补全的原消息，造成
-            # retry_count=0、failure_reason 为空、task_type=unknown；新行为统一进入可审计重试流程。
-            # if event:
-                # unexpected = ProcessResult(
-                #     success=False,
-                #     failure_reason=self._failure_reason_for_stage(),
-                #     error=str(e) or type(e).__name__,
-                # )
-                # await self._on_failure(message, event, unexpected)
-            # else:
-            #     await message.ack()
+            # 修复原实现引用未定义 result、直接 ACK 的缺陷。统一补全错误摘要并
+            # 进入有界恢复流程；未知异常按不可重试处理，避免 stage=unknown 空死信。
             if event:
-                await self._set_event_status(event.enhance_task_id, TaskStatus.FAILED)
-            await message.nack(requeue=False)
+                classified = classify_exception(e)
+                unexpected = ProcessResult(
+                    success=False,
+                    failure_reason=self._failure_reason_for_stage()
+                    if isinstance(classified, RetryableWorkerError)
+                    else "UNEXPECTED_ERROR",
+                    error=exception_summary(classified),
+                    retryable=isinstance(classified, RetryableWorkerError),
+                )
+                await self._on_failure(message, event, unexpected)
+            elif not getattr(message, "processed", False):
+                await message.nack(requeue=False)
 
     @abstractmethod
     async def process(self, event: FileEnhanceEvent) -> ProcessResult:
@@ -184,11 +208,25 @@ class BaseEnhanceConsumer(ABC):
         self, message: Any, event: FileEnhanceEvent, result: ProcessResult
     ):
         """增强失败 → 重试 / DLQ（不影响文件可用性）"""
-        if event.retry_count >= self.max_retries:
+        non_retryable = result.retryable is False or result.failure_reason in {
+            "UNKNOWN", "UNEXPECTED_ERROR", "MESSAGE_SCHEMA_ERROR"
+        }
+        if non_retryable or event.retry_count >= self.max_retries:
             # 超过最大重试次数 → 更新事件状态为 failed → 发布到 DLQ
             await self._set_event_status(event.enhance_task_id, TaskStatus.FAILED)
-            await self._publish_to_dlq(event, result)
-            await message.ack()
+            # W-03：只有专属 DLQ 发布确认后才 ACK；发布失败时重新入队，避免死信丢失。
+            try:
+                await self._publish_to_dlq(event, result)
+                await message.ack()
+                await worker_metrics.record(self.stage, "dlq")
+            except Exception:
+                logger.exception(
+                    "[ENHANCE-%s] DLQ_PUBLISH_FAILED enhance_task_id=%s → 原消息重新入队",
+                    self.stage,
+                    event.enhance_task_id,
+                )
+                if not getattr(message, "processed", False):
+                    await message.nack(requeue=True)
             return
 
         # 重置事件状态为未处理（允许重试消费）
@@ -210,15 +248,25 @@ class BaseEnhanceConsumer(ABC):
         retry_event.failure_reason = result.failure_reason
         retry_event.failure_detail = (result.error or result.failure_reason or "未知增强异常")[:1000]
 
-        # AUDIT FIX [7.4]（需求一-3）: 先持久化发布再 ACK，且由 RabbitMQ 延迟队列承担等待和进程恢复。
-        rk = f"{self._get_routing_key()}.retry"
-        await rabbitmq_service.publish_message(
-            exchange_name=self.exchange,
-            routing_key=rk,
-            message=retry_event.to_dict(),
-            delay_seconds=delay,
-        )
-        await message.ack()
+        # 先持久化发布再 ACK，且由 RabbitMQ 延迟队列承担等待和进程恢复。
+        try:
+            # W-02：先持久化发布到阶段专属 `.retry` 队列，再 ACK 原消息。
+            await rabbitmq_service.publish_retry_message(
+                exchange_name=self.exchange,
+                routing_key=self._get_routing_key(),
+                message=retry_event.to_dict(),
+                delay_seconds=delay,
+            )
+            await message.ack()
+            await worker_metrics.record(self.stage, "retry")
+        except Exception:
+            logger.exception(
+                "[ENHANCE-%s] RETRY_PUBLISH_FAILED enhance_task_id=%s",
+                self.stage,
+                event.enhance_task_id,
+            )
+            if not getattr(message, "processed", False):
+                await message.nack(requeue=True)
 
     async def _publish_to_dlq(self, event: FileEnhanceEvent, result: ProcessResult):
         """发布到增强 DLQ"""
@@ -257,7 +305,12 @@ class BaseEnhanceConsumer(ABC):
         from app.services.preview_resource_service import preview_resource_service
 
         resources: list[PreviewResource] = []
-        common = {"file_id": event.file_id, "user_id": event.user_id, "resource_status": "ready"}
+        common = {
+            "file_id": event.file_id,
+            "user_id": event.user_id,
+            "space_id": event.space_id or None,
+            "resource_status": "ready",
+        }
 
         if self.stage == TaskTypes.HLS_TRANSCODE and result.data.get("hls_dir"):
             metadata = {

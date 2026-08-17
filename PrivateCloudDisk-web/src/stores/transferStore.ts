@@ -29,6 +29,8 @@ export interface TransferRecord {
   folderName?: string
 }
 
+type RetryHandler = () => Promise<void> | void
+
 const MAX_RECORDS = 200
 const STORAGE_KEY = 'cloud_drive_transfers'
 const NEXT_ID_KEY = 'cloud_drive_transfers_next_id'
@@ -80,6 +82,8 @@ function saveNextId(id: number): void {
 }
 
 let nextId = loadNextId()
+// File 对象不能序列化到 localStorage；重试句柄只保存在当前页面生命周期内。
+const retryHandlers = new Map<number, RetryHandler>()
 
 export const useTransferStore = defineStore('transfer', () => {
   const records = ref<TransferRecord[]>(loadRecords())
@@ -124,6 +128,48 @@ export const useTransferStore = defineStore('transfer', () => {
     }
     persist()
     return id
+  }
+
+  function registerRetryHandler(id: number, handler: RetryHandler): void {
+    retryHandlers.set(id, handler)
+  }
+
+  function unregisterRetryHandler(id: number): void {
+    retryHandlers.delete(id)
+  }
+
+  function resetRecordForRetry(id: number): void {
+    const r = records.value.find(r => r.id === id)
+    if (!r) return
+    r.status = r.type === 'upload' ? TransferStatus.UPLOADING : TransferStatus.DOWNLOADING
+    r.progress = 0
+    r.speed = ''
+    r.processingStatus = ''
+    r.backendTaskId = null
+    r.processingProgress = 0
+    r.startTime = Date.now()
+    r.endTime = null
+    persist()
+  }
+
+  /** 手动重试失败上传；实际上传逻辑由上传 Store 注册，断点续传暂不启用。 */
+  async function retryRecord(id: number): Promise<boolean> {
+    const record = records.value.find(r => r.id === id)
+    const handler = retryHandlers.get(id)
+    if (!record || record.type !== 'upload' || record.status !== TransferStatus.FAILED || !handler) {
+      return false
+    }
+    resetRecordForRetry(id)
+    try {
+      await handler()
+      return true
+    } catch (error: any) {
+      const current = records.value.find(r => r.id === id)
+      if (current && current.status !== TransferStatus.FAILED) {
+        failRecord(id, error?.message || '重试失败')
+      }
+      return false
+    }
   }
 
   function updateProgress(id: number, progress: number, speed?: string): void {
@@ -213,6 +259,10 @@ export const useTransferStore = defineStore('transfer', () => {
     hasOngoing,
     recentRecords,
     addRecord,
+    registerRetryHandler,
+    unregisterRetryHandler,
+    retryRecord,
+    resetRecordForRetry,
     updateProgress,
     enterProcessing,
     updateProcessingStatus,

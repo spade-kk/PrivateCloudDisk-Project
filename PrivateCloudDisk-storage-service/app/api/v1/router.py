@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     video_stream, video_progress, video_sprite, video_subtitle,
     video_history, video_player,
     preview_resources, preview_grants,
+    share_grants, share_preview_resources, share_video_stream, share_video_progress,
 )
 
 
@@ -29,3 +30,7 @@ api_router.include_router(video_history.router)
 api_router.include_router(video_player.router)
 api_router.include_router(preview_resources.router)
 api_router.include_router(preview_grants.router)
+api_router.include_router(share_grants.router)
+api_router.include_router(share_preview_resources.router)
+api_router.include_router(share_video_stream.router)
+api_router.include_router(share_video_progress.router)
