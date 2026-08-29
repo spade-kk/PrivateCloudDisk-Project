@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Min;
 import org.project.workflow.exception.WorkflowApiException;
 import org.project.workflow.model.ApiResponse;
 import org.project.workflow.model.WorkflowModels.CapabilityRow;
+import org.project.workflow.model.WorkflowModels.AgentCapabilityInvocation;
 import org.project.workflow.service.CapabilityHubService;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
@@ -57,6 +58,15 @@ public class CapabilityController {
     ) {
         service.upsertProjection(capability);
         return ApiResponse.ok(capability, requestId(request));
+    }
+
+    /** 仅供 CloudFlow gRPC Agent 代理调用；InternalServiceFilter 负责服务身份认证。 */
+    @PostMapping("/internal/v1/capabilities/invoke")
+    public ApiResponse<?> invoke(
+            @Valid @RequestBody AgentCapabilityInvocation invocation,
+            HttpServletRequest request
+    ) {
+        return ApiResponse.ok(service.invokeAgent(invocation), requestId(request));
     }
 
     private static String requestId(HttpServletRequest request) {

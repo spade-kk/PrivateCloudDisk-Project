@@ -1,0 +1,11 @@
+# 覆盖目标：try/catch/finally 局部错误边界。
+# 预期：try 失败时执行 handle_error，finally 的 cleanup 始终执行。
+workflow "try_catch_finally" {
+    try {
+        step risky { action builtin.file.save {} }
+    } catch error {
+        step handle_error { action builtin.notification.send { detail = error } }
+    } finally {
+        step cleanup { action builtin.file.list {} }
+    }
+}

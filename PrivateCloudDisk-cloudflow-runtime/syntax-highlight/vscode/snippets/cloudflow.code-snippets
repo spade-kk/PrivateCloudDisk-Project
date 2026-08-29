@@ -1,0 +1,397 @@
+{
+  "Workflow": {
+    "prefix": "workflow",
+    "body": [
+      "workflow \"${1:name}\" {",
+      "    metadata {",
+      "        display_name = \"${2:名称}\"",
+      "        version = \"${3:1.0.0}\"",
+      "    }",
+      "    variables {",
+      "        ${4:name} = ${5:value}",
+      "    }",
+      "    trigger { manual {} }",
+      "    runtime {",
+      "        timeout = 5m",
+      "        max_parallel = 2",
+      "    }",
+      "    steps {",
+      "        step ${6:first} {",
+      "            action ${7:file.list} {",
+      "                ${8}",
+      "            }",
+      "        }",
+      "    }",
+      "}"
+    ],
+    "description": "完整工作流模板。"
+  },
+  "Step": {
+    "prefix": "step",
+    "body": [
+      "step ${1:step_id} {",
+      "    action ${2:file.list} {",
+      "        ${3}",
+      "    }",
+      "}"
+    ],
+    "description": "添加一个步骤。"
+  },
+  "Trigger": {
+    "prefix": "trigger",
+    "body": [
+      "trigger {",
+      "    ${1:manual} {}",
+      "}"
+    ],
+    "description": "创建触发器块。"
+  },
+  "Variable": {
+    "prefix": "variable",
+    "body": [
+      "${1:name}: ${2:type} = ${3:value}"
+    ],
+    "description": "声明变量。"
+  },
+  "Foreach": {
+    "prefix": "foreach",
+    "body": [
+      "foreach ${1:item} in ${2:vars.items} {",
+      "    ${3}",
+      "}"
+    ],
+    "description": "遍历集合。"
+  },
+  "struct_struct_step": {
+    "prefix": "step",
+    "body": [
+      "step ${1:step_id} {",
+      "    action ${2:file.list} {",
+      "        ${3}",
+      "    }",
+      "}"
+    ],
+    "description": "定义步骤并调用 Capability Hub 能力。"
+  },
+  "struct_struct_if": {
+    "prefix": "if",
+    "body": [
+      "if ${1:vars.flag == true} {",
+      "    $2",
+      "} else {",
+      "    $3",
+      "}"
+    ],
+    "description": "条件分支。"
+  },
+  "struct_struct_foreach": {
+    "prefix": "foreach",
+    "body": [
+      "foreach ${1:item} in ${2:vars.items} {",
+      "    $3",
+      "}"
+    ],
+    "description": "遍历集合（item 仅在循环体内可见）。"
+  },
+  "struct_struct_for": {
+    "prefix": "for",
+    "body": [
+      "for ${1:i} in range(${2:0}, ${3:vars.max}) {",
+      "    $4",
+      "}"
+    ],
+    "description": "索引循环；循环体内可用 break/continue。"
+  },
+  "struct_struct_while": {
+    "prefix": "while",
+    "body": [
+      "while ${1:vars.count > 0} {",
+      "    $2",
+      "}"
+    ],
+    "description": "条件循环（受 maxIterations 保护）。"
+  },
+  "struct_struct_parallel": {
+    "prefix": "parallel",
+    "body": [
+      "parallel {",
+      "    step ${1:a} {}",
+      "    step ${2:b} {}",
+      "}"
+    ],
+    "description": "并行分支。"
+  },
+  "struct_struct_parallel_max": {
+    "prefix": "parallel_max",
+    "body": [
+      "parallel(max_concurrency=${1:3}) {",
+      "    step ${2:a} {}",
+      "    step ${3:b} {}",
+      "}"
+    ],
+    "description": "并行分支（带分支级并发上限）。"
+  },
+  "struct_struct_try_catch_finally": {
+    "prefix": "try_catch_finally",
+    "body": [
+      "try {",
+      "    ${1}",
+      "} catch ${2:error} {",
+      "    ${3}",
+      "} finally {",
+      "    ${4}",
+      "}"
+    ],
+    "description": "异常处理（catch 变量仅在 catch 体内可见）。"
+  },
+  "struct_struct_wait": {
+    "prefix": "wait",
+    "body": [
+      "wait ${1:approval} {",
+      "    timeout = ${2:24h}",
+      "}"
+    ],
+    "description": "等待人工审批或外部信号（可持久化/resume）。"
+  },
+  "struct_struct_assert": {
+    "prefix": "assert",
+    "body": [
+      "assert { ${1:vars.result == 0} }"
+    ],
+    "description": "断言：失败产生 CF2202。"
+  },
+  "struct_struct_switch": {
+    "prefix": "switch",
+    "body": [
+      "switch ${1:vars.status} {",
+      "    case \"${2:active}\" => {",
+      "        $3",
+      "    }",
+      "    default => {",
+      "        $4",
+      "    }",
+      "}"
+    ],
+    "description": "多分支选择。"
+  },
+  "struct_struct_delay": {
+    "prefix": "delay",
+    "body": [
+      "delay ${1:5s}"
+    ],
+    "description": "固定延迟步骤。"
+  },
+  "struct_struct_notify": {
+    "prefix": "notify",
+    "body": [
+      "notify {",
+      "    channel = \"email\"",
+      "    to = vars.${1:user_id}",
+      "    message = \"${2:...}\"",
+      "}"
+    ],
+    "description": "内建通知。"
+  },
+  "struct_struct_validate": {
+    "prefix": "validate",
+    "body": [
+      "validate { ${1:vars.result > 0} }"
+    ],
+    "description": "校验：求值 false 时运行时报错。"
+  },
+  "struct_struct_expect": {
+    "prefix": "expect",
+    "body": [
+      "expect { ${1:vars.result > 0} }"
+    ],
+    "description": "校验别名（同 validate）。"
+  },
+  "struct_struct_return": {
+    "prefix": "return",
+    "body": [
+      "return ${1:vars.result}"
+    ],
+    "description": "步骤级提前返回。"
+  },
+  "struct_struct_break": {
+    "prefix": "break",
+    "body": [
+      "break"
+    ],
+    "description": "跳出 for/while 循环。"
+  },
+  "struct_struct_continue": {
+    "prefix": "continue",
+    "body": [
+      "continue"
+    ],
+    "description": "跳过本轮循环。"
+  },
+  "struct_struct_step_group": {
+    "prefix": "step_group",
+    "body": [
+      "step group ${1:group_id} {",
+      "    step ${2:a} {}",
+      "    step ${3:b} {}",
+      "}"
+    ],
+    "description": "步骤组（编译期扁平化）。"
+  },
+  "struct_struct_retry": {
+    "prefix": "retry",
+    "body": [
+      "retry {",
+      "    max_attempts = ${1:3}",
+      "    strategy = \"${2:exponential}\"",
+      "    backoff = \"${3:5s}\"",
+      "}"
+    ],
+    "description": "重试策略。"
+  },
+  "struct_struct_retry_on": {
+    "prefix": "retry_on",
+    "body": [
+      "retry_on [${1:TimeoutException}]"
+    ],
+    "description": "可重试异常白名单。"
+  },
+  "struct_struct_depends_on": {
+    "prefix": "depends_on",
+    "body": [
+      "depends_on ${1:step_a} if ${2:vars.flag == true}"
+    ],
+    "description": "条件依赖。"
+  },
+  "struct_struct_timeout": {
+    "prefix": "timeout",
+    "body": [
+      "timeout {",
+      "    duration = ${1:30s}",
+      "    on_timeout = \"${2:fail}\"",
+      "}"
+    ],
+    "description": "超时块（on_timeout: fail/continue/retry）。"
+  },
+  "block_block_workflow": {
+    "prefix": "workflow",
+    "body": [
+      "workflow \"${1:name}\" {",
+      "    $0",
+      "}"
+    ],
+    "description": "定义 CloudFlow 工作流。"
+  },
+  "block_block_metadata": {
+    "prefix": "metadata",
+    "body": [
+      "metadata {",
+      "    display_name = \"${1:名称}\"",
+      "    version = \"${2:1.0.0}\"",
+      "    changelog = \"${3:...}\"",
+      "}"
+    ],
+    "description": "元数据声明（版本/changelog 等）。"
+  },
+  "block_block_variables": {
+    "prefix": "variables",
+    "body": [
+      "variables {",
+      "    ${1:name} = ${2:value}",
+      "}"
+    ],
+    "description": "变量声明块（支持 input.<type> 与类型标注）。"
+  },
+  "block_block_variable": {
+    "prefix": "variable",
+    "body": [
+      "${1:name}: ${2:type} = ${3:value}"
+    ],
+    "description": "变量声明：显式类型 + 初始值。"
+  },
+  "block_block_trigger": {
+    "prefix": "trigger",
+    "body": [
+      "trigger {",
+      "    ${1:manual} {}",
+      "}"
+    ],
+    "description": "触发器块。"
+  },
+  "block_block_runtime": {
+    "prefix": "runtime",
+    "body": [
+      "runtime {",
+      "    timeout = ${1:5m}",
+      "    max_parallel = ${2:2}",
+      "}"
+    ],
+    "description": "运行时配置块。"
+  },
+  "block_block_steps": {
+    "prefix": "steps",
+    "body": [
+      "steps {",
+      "    $0",
+      "}"
+    ],
+    "description": "步骤/控制流区块。"
+  },
+  "block_block_handlers": {
+    "prefix": "handlers",
+    "body": [
+      "handlers {",
+      "    on_failure {",
+      "        notify { channel = \"email\"; to = vars.owner; message = \"失败：${1:...}\" }",
+      "    }",
+      "}"
+    ],
+    "description": "全局失败处理块。"
+  },
+  "block_block_environment": {
+    "prefix": "environment",
+    "body": [
+      "environment {",
+      "    NODE_ENV = \"production\"",
+      "}"
+    ],
+    "description": "环境变量声明（仅供字面量，区别于 variables）。"
+  },
+  "block_block_namespace": {
+    "prefix": "namespace",
+    "body": [
+      "namespace ${1:com.example.workflows}"
+    ],
+    "description": "工作流命名空间声明。"
+  },
+  "block_block_audit": {
+    "prefix": "audit",
+    "body": [
+      "audit {",
+      "    level = \"high\"",
+      "    description = \"${1:...}\"",
+      "}"
+    ],
+    "description": "工作流级审计注解。"
+  },
+  "block_block_tag": {
+    "prefix": "tag",
+    "body": [
+      "tag \"${1:finance}\""
+    ],
+    "description": "工作流分类标签。"
+  },
+  "block_block_import": {
+    "prefix": "import",
+    "body": [
+      "import \"${1:common.flow}\" as ${2:common}"
+    ],
+    "description": "带别名的模块导入。"
+  },
+  "block_block_include": {
+    "prefix": "include",
+    "body": [
+      "include \"${1:common.flow}\""
+    ],
+    "description": "受限模块复用（CLI 文件模式）。"
+  }
+}

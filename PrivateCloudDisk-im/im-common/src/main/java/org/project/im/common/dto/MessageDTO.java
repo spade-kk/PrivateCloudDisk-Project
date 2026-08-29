@@ -40,7 +40,6 @@ public class MessageDTO implements Serializable {
 
     /** 所属会话 ID（UUID 格式） */
     @NotBlank(message = "会话ID不能为空")
-    @Pattern(regexp = UUID_REGEX, message = "会话ID必须是有效的UUID格式")
     private String conversationId;
 
     /** 会话类型：1-单聊 2-群聊 3-系统 */
@@ -49,10 +48,10 @@ public class MessageDTO implements Serializable {
     @Max(value = 3, message = "会话类型最大为3")
     private Integer conversationType;
 
-    /** 消息类型：1-文本 2-图片 3-文件 4-语音 5-视频 6-位置 7-系统通知 8-自定义 */
+    /** 消息类型：与 IMProtocolV2.IMMessageType 对齐，包含 1-5 基础消息及 10-100 富媒体/通知类型 */
     @NotNull(message = "消息类型不能为空")
     @Min(value = 1, message = "消息类型最小为1")
-    @Max(value = 8, message = "消息类型最大为8")
+    @Max(value = 100, message = "消息类型最大为100")
     private Integer messageType;
 
     /** 发送者用户 ID（UUID 格式） */
@@ -68,9 +67,14 @@ public class MessageDTO implements Serializable {
     @Size(max = 512, message = "头像URL长度不能超过512个字符")
     private String senderAvatar;
 
-    /** 接收者 ID（单聊时为对方 userId，群聊时为 groupId） */
+    /**
+     * 接收者 ID（单聊时为对方 userId，群聊时为 Snowflake groupId）。
+     *
+     * <p>GROUP-CHAT-20260810 [3.21/6]：原字段以 UUID Pattern 统一校验，导致所有群聊
+     * 发送在 Controller 参数校验阶段失败。新行为仅校验非空，具体 UUID/Snowflake 目标与
+     * 会话类型由 MessageService 校验；单聊权限与群成员/群状态校验逻辑不变。</p>
+     */
     @NotBlank(message = "接收者ID不能为空")
-    @Pattern(regexp = UUID_REGEX, message = "接收者ID必须是有效的UUID格式")
     private String receiverId;
 
     /** 消息内容 */
@@ -81,9 +85,9 @@ public class MessageDTO implements Serializable {
     @Size(max = 10000, message = "扩展内容长度不能超过10000个字符")
     private String extra;
 
-    /** 消息状态：0-发送中 1-已发送 2-已送达 3-已读 4-失败 5-已撤回 */
+    /** 持久化状态：0-待送达 1-已送达 2-已读 3-失败 5-已撤回 6-已删除（与传输层 Protobuf 状态分离） */
     @Min(value = 0, message = "消息状态最小为0")
-    @Max(value = 5, message = "消息状态最大为5")
+    @Max(value = 6, message = "消息状态最大为6")
     private Integer status;
 
     /** 客户端消息序列号（用于去重和排序） */

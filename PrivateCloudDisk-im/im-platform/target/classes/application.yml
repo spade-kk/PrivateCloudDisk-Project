@@ -4,6 +4,10 @@
 server:
   port: ${IM_PLATFORM_PORT:8088}
 
+platform-service:
+  # USER-DIRECTORY-20260810：IM 不直连主业务用户表，公开资料统一走用户目录 API。
+  base-url: ${PLATFORM_SERVICE_URL:http://localhost:8081}
+
 spring:
   application:
     name: im-platform

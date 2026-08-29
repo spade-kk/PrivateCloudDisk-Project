@@ -1,0 +1,6 @@
+# 覆盖目标：[V1.2-WEBHOOK] http 触发器详细配置（path + method）。
+# 预期：IR trigger 生成 {type: http, path: "/webhook/start", method: "POST"}。
+workflow "webhook_detail" {
+    trigger { http { path = "/webhook/start" method = "POST" } }
+    step start { action builtin.file.list {} output result }
+}

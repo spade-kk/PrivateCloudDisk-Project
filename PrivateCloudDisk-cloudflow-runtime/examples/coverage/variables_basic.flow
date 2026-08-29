@@ -1,0 +1,14 @@
+# 覆盖目标：number/string/boolean/array/object 本地变量、input 变量、引用和表达式。
+# 预期：字面量保留 JSON 原生类型，vars.x 编译为 $ref。
+workflow "variables_basic" {
+    variables {
+        x: number = 10
+        ratio: number = 1.25e3
+        name = "test"
+        flag = true
+        list: array = [1, 2, 3]
+        options: object = {"enabled": true, "limit": 3}
+        source = input.string(required = true)
+    }
+    step emit { action builtin.notification.send { value = vars.x title = vars.name enabled = vars.flag } }
+}

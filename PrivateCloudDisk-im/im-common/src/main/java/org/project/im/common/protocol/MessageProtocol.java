@@ -107,16 +107,4 @@ public class MessageProtocol implements Serializable {
                 .build();
     }
 
-    /**
-     * 创建 ACK 确认协议
-     */
-    public static MessageProtocol ofAck(String userId, Long originalSeq) {
-        return MessageProtocol.builder()
-                .version(1)
-                .command(202)
-                .senderId(userId)
-                .seq(originalSeq)
-                .timestamp(System.currentTimeMillis())
-                .build();
-    }
 }

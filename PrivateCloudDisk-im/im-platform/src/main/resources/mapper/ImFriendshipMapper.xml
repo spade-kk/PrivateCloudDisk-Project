@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.im.platform.mapper.ImFriendshipMapper">
+    <resultMap id="BaseResultMap" type="org.project.im.platform.entity.ImFriendship">
+        <id column="id" property="id"/><result column="user_id" property="userId"/><result column="friend_id" property="friendId"/>
+        <result column="status" property="status"/><result column="remark" property="remark"/><result column="is_starred" property="starred"/>
+        <result column="created_at" property="createdAt"/><result column="updated_at" property="updatedAt"/>
+    </resultMap>
+    <sql id="Columns">user_id, friend_id, status, remark, is_starred, created_at, updated_at</sql>
+    <insert id="insert" parameterType="org.project.im.platform.entity.ImFriendship">INSERT INTO pcd_im_friendship (<include refid="Columns"/>) VALUES (#{userId},#{friendId},#{status},#{remark},#{starred},#{createdAt},#{updatedAt})</insert>
+    <update id="reactivate">UPDATE pcd_im_friendship SET status=0,updated_at=NOW() WHERE user_id=#{userId} AND friend_id=#{friendId}</update>
+    <select id="selectByUsers" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friendship WHERE user_id=#{userId} AND friend_id=#{friendId}</select>
+    <select id="selectActiveByUserId" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friendship WHERE user_id=#{userId} AND status=0 ORDER BY created_at DESC</select>
+    <update id="updateRemark">UPDATE pcd_im_friendship SET remark=#{remark},updated_at=NOW() WHERE user_id=#{userId} AND friend_id=#{friendId} AND status=0</update>
+    <update id="updateStarred">UPDATE pcd_im_friendship SET is_starred=#{starred},updated_at=NOW() WHERE user_id=#{userId} AND friend_id=#{friendId} AND status=0</update>
+    <update id="releaseSymmetric">UPDATE pcd_im_friendship SET status=1,updated_at=NOW() WHERE (user_id=#{userId} AND friend_id=#{friendId}) OR (user_id=#{friendId} AND friend_id=#{userId})</update>
+</mapper>

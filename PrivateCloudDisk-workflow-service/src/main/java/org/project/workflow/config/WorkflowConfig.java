@@ -10,7 +10,7 @@ import java.time.Duration;
 
 /** 服务间 HTTP 客户端统一设置超时与内部身份。 */
 @Configuration
-@EnableConfigurationProperties(WorkflowProperties.class)
+@EnableConfigurationProperties({WorkflowProperties.class, CloudFlowRuntimeProperties.class})
 public class WorkflowConfig {
     @Bean
     RestClient.Builder workflowRestClientBuilder(WorkflowProperties properties) {

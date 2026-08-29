@@ -1,0 +1,1507 @@
+/* ========================================================================== */
+/* IDE responsive system — Plugin IDE / Local Plugin IDE / CloudFlow IDE       */
+/* ========================================================================== */
+/*
+ * [IDE-RESP-2026-08 / 1.1-1.25、10.1-10.24]
+ *
+ * 设计原则：桌面端保留可拖拽多面板；1024px 以下将左右与底部区域变为抽屉；
+ * 768px 以下让画布/编辑器成为唯一主工作区；480px 以下使用双行工具栏。
+ * 此文件是三个 IDE 的唯一跨组件响应式样式入口。所有选择器均以 IDE 根类
+ * 为边界，不能影响控制台、预览器或分享页面。
+ */
+
+:root {
+  --ide-breakpoint-phone-sm: 30rem;
+  --ide-breakpoint-phone: 48rem;
+  --ide-breakpoint-tablet: 64rem;
+  --ide-breakpoint-desktop-sm: 85.375rem;
+  --ide-toolbar-height: 3.75rem;
+  --ide-toolbar-height-compact: 3rem;
+  --ide-toolbar-height-double: 6rem;
+  --ide-panel-width-left: 17.5rem;
+  --ide-panel-width-right: 20rem;
+  --ide-drawer-width: min(85vw, 21.25rem);
+  --ide-drawer-height: min(60dvh, 38rem);
+  --ide-bottom-height: min(52dvh, 31rem);
+  --ide-gap: 0.75rem;
+  --ide-gap-sm: 0.5rem;
+  --ide-gap-xs: 0.25rem;
+  --ide-radius: 1rem;
+  --ide-radius-mobile: 0.75rem;
+  --ide-font: 0.875rem;
+  --ide-font-title: 1rem;
+  --ide-font-meta: 0.75rem;
+  --ide-shadow-sm: 0 0.25rem 0.875rem rgb(15 23 42 / 0.08);
+  --ide-shadow-panel: 0 1.125rem 3.5rem rgb(15 23 42 / 0.22);
+  --ide-shadow-mobile: 0 0.5rem 1.5rem rgb(15 23 42 / 0.14);
+  --ide-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --ide-z-toolbar: 70;
+  --ide-z-drawer: 90;
+  --ide-z-scrim: 80;
+  --ide-z-sheet: 180;
+  --ide-safe-top: env(safe-area-inset-top, 0px);
+  --ide-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@supports (height: 100svh) {
+  :root {
+    --ide-viewport-height: 100svh;
+  }
+}
+
+@supports not (height: 100svh) {
+  :root {
+    --ide-viewport-height: 100vh;
+  }
+}
+
+.pcd-ide-responsive {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pcd-ide-responsive *,
+.pcd-ide-responsive *::before,
+.pcd-ide-responsive *::after {
+  box-sizing: border-box;
+}
+
+.pcd-ide-responsive button,
+.pcd-ide-responsive input,
+.pcd-ide-responsive select,
+.pcd-ide-responsive textarea {
+  font: inherit;
+}
+
+.pcd-ide-responsive button,
+.pcd-ide-responsive [role='button'] {
+  touch-action: manipulation;
+}
+
+.pcd-ide-responsive :focus-visible {
+  outline: 0.125rem solid var(--workflow-primary, #2563eb);
+  outline-offset: 0.125rem;
+}
+
+.pcd-ide-responsive ::-webkit-scrollbar {
+  width: 0.375rem;
+  height: 0.375rem;
+}
+
+.pcd-ide-responsive ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pcd-ide-responsive ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--workflow-muted, #64748b) 45%, transparent);
+}
+
+.pcd-ide-responsive ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--workflow-muted, #64748b) 70%, transparent);
+}
+
+.pcd-ide-responsive .workflow-editor-loading,
+.pcd-ide-responsive .editor-empty,
+.pcd-ide-responsive .workflow-terminal-empty {
+  contain: content;
+}
+
+.pcd-ide-responsive .workflow-editor-loading span {
+  animation-duration: 0.8s;
+}
+
+.pcd-ide-responsive .ide-shell,
+.pcd-ide-responsive .workflow-ide-shell {
+  isolation: isolate;
+}
+
+.pcd-ide-responsive .workflow-canvas,
+.pcd-ide-responsive .editor-main,
+.pcd-ide-responsive .monaco-wrapper__container {
+  will-change: contents;
+}
+
+.ide-shell__mobile-scrim,
+.workflow-ide-shell__mobile-scrim {
+  display: none;
+}
+
+.ide-mobile-sheet-mask {
+  position: fixed;
+  z-index: var(--ide-z-sheet);
+  inset: 0;
+  display: grid;
+  align-items: end;
+  background: rgb(15 23 42 / 0.5);
+  backdrop-filter: blur(0.25rem);
+  animation: ide-scrim-in var(--ide-transition);
+}
+
+.ide-mobile-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 25rem);
+  max-height: min(78dvh, 38rem);
+  margin-inline: auto;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, #94a3b8 45%, transparent);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--workflow-panel, #fff);
+  box-shadow: var(--ide-shadow-panel);
+  color: var(--workflow-text, #1e293b);
+  animation: ide-sheet-in var(--ide-transition);
+  pointer-events: auto;
+  padding-bottom: calc(0.75rem + var(--ide-safe-bottom));
+}
+
+.ide-mobile-sheet__handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  margin: 0.5rem auto 0;
+  border-radius: 999px;
+  background: var(--workflow-border, #cbd5e1);
+}
+
+.ide-mobile-sheet > header {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ide-gap-sm);
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--workflow-border, #dbe4f0);
+}
+
+.ide-mobile-sheet > header strong {
+  font-size: var(--ide-font-title);
+  font-weight: 800;
+}
+
+.ide-mobile-sheet > header button {
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 0.75rem;
+  color: var(--workflow-muted, #64748b);
+}
+
+.ide-mobile-sheet__actions {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem 1rem 0;
+}
+
+.ide-mobile-sheet__actions button {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--workflow-border, #dbe4f0);
+  border-radius: 0.75rem;
+  padding: 0 0.875rem;
+  color: var(--workflow-text, #1e293b);
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.ide-mobile-sheet__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.ide-mobile-sheet__actions button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.ide-mobile-sheet__field {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.875rem 1rem 0;
+  color: var(--workflow-muted, #64748b);
+  font-size: var(--ide-font-meta);
+  font-weight: 700;
+}
+
+.ide-mobile-sheet__field .property-input {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+
+@keyframes ide-scrim-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ide-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================================================== */
+/* Large desktop > 1366px — spacious multi-panel IDE                         */
+/* ========================================================================== */
+
+@media (min-width: 85.4375rem) {
+  .pcd-ide-responsive .workflow-toolbar__icon,
+  .pcd-ide-responsive .ide-shell__icon-button,
+  .pcd-ide-responsive .ide-action {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node {
+    box-shadow: 0 0.75rem 1.875rem rgb(15 23 42 / 0.1);
+  }
+
+  .pcd-ide-responsive .workflow-node-library__item {
+    min-height: 3.25rem;
+  }
+}
+
+/* ========================================================================== */
+/* Small desktop 1024px - 1366px — retain canvas, compact metadata           */
+/* ========================================================================== */
+
+@media (min-width: 64.0625rem) and (max-width: 85.375rem) {
+  .pcd-ide-responsive {
+    --ide-gap: 0.625rem;
+    --ide-panel-width-left: 15.5rem;
+    --ide-panel-width-right: 18rem;
+  }
+
+  .pcd-ide-responsive .workflow-editor-page {
+    padding: 0.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__identity {
+    flex-basis: 13rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__name input {
+    width: min(13rem, 25vw);
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__button {
+    padding-inline: 0.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__button span {
+    font-size: 0.6875rem;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page {
+    padding: 0.5rem;
+  }
+
+  .pcd-ide-responsive .ide-shell__left {
+    flex-basis: var(--ide-panel-width-left);
+    width: var(--ide-panel-width-left);
+  }
+
+  .pcd-ide-responsive .ide-shell__right {
+    flex-basis: var(--ide-panel-width-right);
+    width: var(--ide-panel-width-right);
+  }
+
+  .pcd-ide-responsive .properties-section {
+    padding: 0.625rem;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__header {
+    padding-inline: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__search {
+    margin-inline: 0.625rem;
+  }
+}
+
+/* ========================================================================== */
+/* Tablet 768px - 1024px — side drawers and configurable bottom drawer       */
+/* ========================================================================== */
+
+@media (min-width: 48rem) and (max-width: 64rem) {
+  .pcd-ide-responsive {
+    --ide-toolbar-height: 3.25rem;
+    --ide-drawer-width: min(52vw, 25rem);
+    --ide-drawer-height: min(56dvh, 34rem);
+    --ide-bottom-height: min(44dvh, 23rem);
+    --ide-gap: 0.625rem;
+    --ide-radius: 0.875rem;
+    --ide-shadow-mobile: 0 0.5rem 1.5rem rgb(15 23 42 / 0.16);
+  }
+
+  .pcd-ide-responsive .plugin-ide-page,
+  .pcd-ide-responsive .workflow-editor-page {
+    min-height: var(--ide-viewport-height);
+    padding: 0.5rem;
+  }
+
+  .pcd-ide-responsive .ide-shell {
+    min-height: calc(var(--ide-viewport-height) - 1rem);
+  }
+
+  .pcd-ide-responsive .ide-shell__topbar {
+    min-height: var(--ide-toolbar-height);
+    padding-inline: 0.625rem;
+  }
+
+  .pcd-ide-responsive .ide-shell__body {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pcd-ide-responsive .ide-shell__left,
+  .pcd-ide-responsive .ide-shell__right {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    top: 0;
+    bottom: 0;
+    width: var(--ide-drawer-width);
+    max-width: var(--ide-drawer-width);
+    border: 0;
+    border-radius: 0;
+    box-shadow: var(--ide-shadow-panel);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    contain: content;
+  }
+
+  .pcd-ide-responsive .ide-shell__left {
+    left: 0;
+    animation: ide-drawer-left-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .ide-shell__right {
+    right: 0;
+    left: auto;
+    animation: ide-drawer-right-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .ide-shell__bottom {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: 10rem;
+    max-height: var(--ide-bottom-height);
+    border-radius: 0.875rem 0.875rem 0 0;
+    box-shadow: 0 -0.75rem 2rem rgb(15 23 42 / 0.18);
+    animation: ide-drawer-bottom-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .ide-shell__mobile-scrim {
+    position: absolute;
+    z-index: var(--ide-z-scrim);
+    inset: var(--ide-toolbar-height) 0 0;
+    display: block;
+    border: 0;
+    background: rgb(15 23 42 / 0.5);
+    backdrop-filter: blur(0.25rem);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell {
+    min-height: calc(var(--ide-viewport-height) - 1rem);
+    grid-template-rows: auto minmax(0, 1fr) !important;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__toolbar {
+    min-height: var(--ide-toolbar-height);
+    position: relative;
+    z-index: var(--ide-z-toolbar);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__main {
+    position: relative;
+    display: block;
+    overflow: hidden;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__center {
+    width: 100%;
+    height: 100%;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__left,
+  .pcd-ide-responsive .workflow-ide-shell__right {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    top: 0;
+    bottom: 0;
+    width: var(--ide-drawer-width) !important;
+    max-width: var(--ide-drawer-width);
+    border: 0;
+    background: var(--workflow-panel, #fff);
+    box-shadow: var(--ide-shadow-panel);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    contain: content;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__left {
+    left: 0;
+    animation: ide-drawer-left-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__right {
+    right: 0;
+    animation: ide-drawer-right-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__bottom {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: 9rem;
+    max-height: var(--ide-bottom-height);
+    border-radius: 0.875rem 0.875rem 0 0;
+    box-shadow: 0 -0.75rem 2rem rgb(15 23 42 / 0.18);
+    animation: ide-drawer-bottom-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__mobile-scrim {
+    position: absolute;
+    z-index: var(--ide-z-scrim);
+    top: var(--ide-toolbar-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    border: 0;
+    background: rgb(15 23 42 / 0.5);
+    backdrop-filter: blur(0.25rem);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__resizer {
+    display: none;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar {
+    min-height: var(--ide-toolbar-height);
+  }
+
+  /* 现有页面仅在 767px 以下显示 mobile-only；平板同样需要抽屉开关。 */
+  .pcd-ide-responsive .workflow-toolbar .mobile-only {
+    display: inline-grid !important;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__identity {
+    flex-basis: 11rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__name input {
+    width: min(11rem, 25vw);
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__button--publish,
+  .pcd-ide-responsive .workflow-toolbar__export,
+  .pcd-ide-responsive .workflow-toolbar__actions > .hide-mobile {
+    display: none;
+  }
+
+  .pcd-ide-responsive .properties-panel {
+    min-height: 100%;
+  }
+
+  .pcd-ide-responsive .properties-section {
+    padding: 0.75rem;
+  }
+
+  .pcd-ide-responsive .platform-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pcd-ide-responsive .bottom-panel__tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pcd-ide-responsive .bottom-panel__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pcd-ide-responsive .bottom-panel__tab {
+    flex: 0 0 auto;
+  }
+}
+
+/* ========================================================================== */
+/* Phones below 768px — editor/canvas first, all auxiliary UI in drawers      */
+/* ========================================================================== */
+
+@media (max-width: 47.9375rem) {
+  .pcd-ide-responsive {
+    --ide-toolbar-height: 3rem;
+    --ide-toolbar-height-compact: 3rem;
+    --ide-drawer-width: min(85vw, 21.25rem);
+    --ide-drawer-height: min(60dvh, 34rem);
+    --ide-bottom-height: min(50dvh, 28rem);
+    --ide-gap: 0.5rem;
+    --ide-gap-sm: 0.5rem;
+    --ide-font: 0.875rem;
+    --ide-font-title: 1rem;
+    --ide-font-meta: 0.75rem;
+    --ide-radius: 0.75rem;
+    --ide-shadow-mobile: 0 0.5rem 1.5rem rgb(15 23 42 / 0.14);
+  }
+
+  .pcd-ide-responsive .plugin-ide-page,
+  .pcd-ide-responsive .workflow-editor-page {
+    width: 100%;
+    min-height: var(--ide-viewport-height);
+    padding: 0.25rem;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page {
+    background: #0b1120;
+  }
+
+  .pcd-ide-responsive .workflow-editor-page {
+    padding-top: max(0.25rem, var(--ide-safe-top));
+  }
+
+  .pcd-ide-responsive .ide-shell,
+  .pcd-ide-responsive .workflow-ide-shell {
+    min-height: calc(var(--ide-viewport-height) - 0.5rem);
+    border-radius: var(--ide-radius-mobile);
+    box-shadow: var(--ide-shadow-mobile);
+  }
+
+  .pcd-ide-responsive .ide-shell__topbar {
+    position: relative;
+    z-index: var(--ide-z-toolbar);
+    min-height: var(--ide-toolbar-height);
+    gap: 0.25rem;
+    padding: 0.25rem 0.375rem;
+    background: color-mix(in srgb, var(--ide-panel, #172033) 92%, transparent);
+    backdrop-filter: blur(0.5rem);
+  }
+
+  .pcd-ide-responsive .ide-shell__topbar-main,
+  .pcd-ide-responsive .ide-shell__topbar-actions {
+    gap: 0.25rem;
+  }
+
+  .pcd-ide-responsive .ide-shell__icon-button,
+  .pcd-ide-responsive .ide-action,
+  .pcd-ide-responsive .workflow-toolbar__icon,
+  .pcd-ide-responsive .workflow-toolbar__button,
+  .pcd-ide-responsive .bottom-panel__close,
+  .pcd-ide-responsive .bottom-panel__fullscreen {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    min-height: 2.75rem !important;
+    height: 2.75rem;
+    justify-content: center;
+    padding: 0 !important;
+    border-radius: 0.75rem;
+  }
+
+  .pcd-ide-responsive .ide-shell__left,
+  .pcd-ide-responsive .ide-shell__right {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    top: 0;
+    bottom: 0;
+    width: var(--ide-drawer-width) !important;
+    max-width: var(--ide-drawer-width);
+    border: 0;
+    box-shadow: var(--ide-shadow-panel);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    contain: content;
+  }
+
+  .pcd-ide-responsive .ide-shell__left {
+    left: 0;
+    animation: ide-drawer-left-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .ide-shell__right {
+    right: 0;
+    left: auto;
+    animation: ide-drawer-right-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .ide-shell__bottom {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: 9rem;
+    max-height: var(--ide-bottom-height);
+    border: 0;
+    border-radius: 0.875rem 0.875rem 0 0;
+    box-shadow: 0 -0.75rem 2rem rgb(15 23 42 / 0.2);
+    overflow: hidden;
+    animation: ide-drawer-bottom-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .ide-shell__mobile-scrim {
+    position: absolute;
+    z-index: var(--ide-z-scrim);
+    inset: var(--ide-toolbar-height) 0 0;
+    display: block;
+    border: 0;
+    background: rgb(15 23 42 / 0.5);
+    backdrop-filter: blur(0.25rem);
+  }
+
+  .pcd-ide-responsive .ide-shell__bottom-trigger {
+    right: 0.5rem;
+    bottom: calc(0.5rem + var(--ide-safe-bottom));
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+    box-shadow: var(--ide-shadow-sm);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell {
+    grid-template-rows: auto minmax(0, 1fr) !important;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__toolbar {
+    position: relative;
+    z-index: var(--ide-z-toolbar);
+    min-height: var(--ide-toolbar-height);
+    background: color-mix(in srgb, var(--workflow-panel, #fff) 92%, transparent);
+    backdrop-filter: blur(0.5rem);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__main {
+    position: relative;
+    display: block;
+    overflow: hidden;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__center {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__left,
+  .pcd-ide-responsive .workflow-ide-shell__right {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    top: 0;
+    bottom: 0;
+    width: var(--ide-drawer-width) !important;
+    max-width: var(--ide-drawer-width);
+    border: 0;
+    background: var(--workflow-panel, #fff);
+    box-shadow: var(--ide-shadow-panel);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    contain: content;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__left {
+    left: 0;
+    animation: ide-drawer-left-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__right {
+    right: 0;
+    left: auto;
+    animation: ide-drawer-right-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__bottom {
+    position: absolute;
+    z-index: var(--ide-z-drawer);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    min-height: 8.5rem;
+    max-height: var(--ide-bottom-height);
+    border: 0;
+    border-radius: 0.875rem 0.875rem 0 0;
+    box-shadow: 0 -0.75rem 2rem rgb(15 23 42 / 0.2);
+    animation: ide-drawer-bottom-in var(--ide-transition);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__mobile-scrim {
+    position: absolute;
+    z-index: var(--ide-z-scrim);
+    top: var(--ide-toolbar-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    border: 0;
+    background: rgb(15 23 42 / 0.5);
+    backdrop-filter: blur(0.25rem);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__resizer {
+    display: none !important;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar {
+    min-height: var(--ide-toolbar-height);
+    gap: 0.25rem;
+    padding-inline: 0.375rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar .mobile-only {
+    display: inline-grid !important;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__identity {
+    flex: 1 1 auto;
+    gap: 0.25rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__name {
+    min-width: 0;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__name input {
+    width: min(9.5rem, 30vw);
+    min-height: 2.25rem;
+    font-size: 0.875rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__name span {
+    display: none;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__modes {
+    padding: 0.125rem;
+    border-radius: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__modes button {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    padding-inline: 0.375rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__modes button span,
+  .pcd-ide-responsive .workflow-toolbar__button span,
+  .pcd-ide-responsive .workflow-toolbar__export,
+  .pcd-ide-responsive .workflow-toolbar__actions > .hide-mobile,
+  .pcd-ide-responsive .workflow-toolbar__actions > .workflow-toolbar__icon:first-child,
+  .pcd-ide-responsive .workflow-toolbar__button--publish {
+    display: none !important;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__button {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__actions {
+    gap: 0.125rem;
+  }
+
+  .pcd-ide-responsive .workflow-breadcrumbs {
+    display: none;
+  }
+
+  .pcd-ide-responsive .workflow-source-mode {
+    padding: 0.25rem;
+  }
+
+  .pcd-ide-responsive .workflow-source-mode footer {
+    min-height: 2.75rem;
+    padding: 0.375rem;
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-source-mode footer span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .pcd-ide-responsive .workflow-canvas {
+    min-height: 0;
+    touch-action: none;
+  }
+
+  .pcd-ide-responsive .workflow-canvas .vue-flow__pane {
+    touch-action: none;
+  }
+
+  .pcd-ide-responsive .workflow-canvas .vue-flow__controls {
+    bottom: calc(0.5rem + var(--ide-safe-bottom));
+    left: 0.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-canvas .vue-flow__controls-button {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node {
+    width: 12.5rem;
+    min-height: 3.5rem;
+    border-radius: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node--condition {
+    width: 13.5rem;
+    min-height: 7.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node--condition .workflow-visual-node__content {
+    min-height: 7.5rem;
+    padding: 0.75rem 2.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node__header {
+    min-height: 3.25rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node__icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-basis: 1.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node__title strong {
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node__title small,
+  .pcd-ide-responsive .workflow-visual-node__summary,
+  .pcd-ide-responsive .workflow-visual-node__meta {
+    font-size: 0.625rem;
+  }
+
+  .pcd-ide-responsive .workflow-handle {
+    width: 0.875rem !important;
+    height: 0.875rem !important;
+  }
+
+  .pcd-ide-responsive .workflow-minimap {
+    right: 0.5rem;
+    bottom: calc(0.5rem + var(--ide-safe-bottom));
+    width: 8.75rem;
+    border-radius: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-minimap__surface {
+    height: 5.625rem;
+  }
+
+  .pcd-ide-responsive .workflow-canvas__performance {
+    top: 0.5rem;
+    right: 0.5rem;
+    max-width: calc(100% - 1rem);
+    overflow: hidden;
+    font-size: 0.625rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .pcd-ide-responsive .workflow-node-library {
+    min-height: 100%;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    padding: 0.75rem;
+    background: var(--workflow-panel, #fff);
+  }
+
+  .pcd-ide-responsive .workflow-node-library__search {
+    position: sticky;
+    z-index: 2;
+    top: 3.5rem;
+    min-height: 2.75rem;
+    margin-inline: 0.75rem;
+    background: var(--workflow-panel, #fff);
+  }
+
+  .pcd-ide-responsive .workflow-node-library__group {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__item {
+    display: grid;
+    min-height: 5.5rem;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    text-align: center;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__group h3 {
+    grid-column: 1 / -1;
+    margin: 0.25rem 0 0;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__icon {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1rem;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__copy small,
+  .pcd-ide-responsive .workflow-node-library__add {
+    display: none;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__copy strong {
+    max-width: 7rem;
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .properties-panel {
+    min-height: 100%;
+    padding-bottom: calc(4.5rem + var(--ide-safe-bottom));
+  }
+
+  .pcd-ide-responsive .properties-header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    min-height: 3rem;
+    padding: 0.75rem;
+    background: var(--workflow-panel, #f8fafc);
+  }
+
+  .pcd-ide-responsive .properties-section {
+    padding: 0.75rem;
+  }
+
+  .pcd-ide-responsive .properties-section label {
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .pcd-ide-responsive .property-input {
+    min-height: 2.75rem;
+    margin-top: 0.375rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 1rem;
+  }
+
+  .pcd-ide-responsive .switch-row {
+    min-height: 2.75rem;
+    gap: 0.75rem;
+    padding: 0.625rem;
+  }
+
+  .pcd-ide-responsive .switch-row input,
+  .pcd-ide-responsive .platform-grid input,
+  .pcd-ide-responsive .workflow-debug-grid input {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 1.5rem;
+  }
+
+  .pcd-ide-responsive .switch-row strong,
+  .pcd-ide-responsive .platform-grid label {
+    font-size: 0.875rem;
+  }
+
+  .pcd-ide-responsive .switch-row small,
+  .pcd-ide-responsive .hint {
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .platform-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .pcd-ide-responsive .platform-grid label {
+    min-height: 2.75rem;
+    padding: 0.5rem;
+  }
+
+  .pcd-ide-responsive .bottom-panel__tabs {
+    min-height: 2.75rem;
+    overflow-x: auto;
+    padding-inline: 0.5rem;
+    scrollbar-width: none;
+  }
+
+  .pcd-ide-responsive .bottom-panel__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pcd-ide-responsive .bottom-panel__tab {
+    min-height: 2.5rem;
+    flex: 0 0 auto;
+    padding-inline: 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .bottom-panel__body {
+    min-height: 0;
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pcd-ide-responsive .workflow-terminal-output,
+  .pcd-ide-responsive .console-line,
+  .pcd-ide-responsive .debug-info {
+    font-size: 0.75rem;
+    line-height: 1.45;
+  }
+
+  .pcd-ide-responsive .workflow-problem,
+  .pcd-ide-responsive .problem-row {
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .bottom-panel--fullscreen {
+    position: fixed;
+    z-index: calc(var(--ide-z-sheet) + 1);
+    inset: 0;
+    display: flex;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .pcd-ide-responsive .bottom-panel--fullscreen .bottom-panel__body {
+    flex: 1;
+  }
+
+  .pcd-ide-responsive .editor-tabs {
+    min-height: 2.75rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pcd-ide-responsive .editor-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pcd-ide-responsive .editor-tab {
+    min-width: 7.5rem;
+    min-height: 2.75rem;
+    padding-inline: 0.625rem;
+  }
+
+  .pcd-ide-responsive .editor-breadcrumb {
+    min-height: 2.25rem;
+    padding-inline: 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .editor-status {
+    min-height: 2rem;
+    gap: 0.5rem;
+    padding-inline: 0.625rem;
+    overflow-x: auto;
+    font-size: 0.6875rem;
+    white-space: nowrap;
+  }
+
+  .pcd-ide-responsive .monaco-wrapper {
+    border-radius: 0;
+    border-inline: 0;
+  }
+
+  .pcd-ide-responsive .monaco-wrapper__toolbar,
+  .pcd-ide-responsive .monaco-wrapper__status {
+    min-height: 2.75rem;
+    padding-inline: 0.625rem;
+  }
+
+  .pcd-ide-responsive .monaco-wrapper__issues,
+  .pcd-ide-responsive .monaco-wrapper__tool span {
+    display: none;
+  }
+
+  .pcd-ide-responsive .monaco-wrapper__tool {
+    width: 2.5rem;
+    min-height: 2.5rem;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .pcd-ide-responsive .monaco-wrapper__status {
+    gap: 0.5rem;
+    overflow-x: auto;
+    font-size: 0.6875rem;
+    white-space: nowrap;
+  }
+
+  .pcd-ide-responsive .monaco-wrapper :is(.monaco-minimap, .margin-view-overlays .current-line-margin) {
+    display: none !important;
+  }
+
+  .pcd-ide-responsive .file-tree__header,
+  .pcd-ide-responsive .snippet-library,
+  .pcd-ide-responsive .template-library {
+    padding-inline: 0.75rem;
+  }
+
+  .pcd-ide-responsive .file-tree__action,
+  .pcd-ide-responsive .snippet-library__icon,
+  .pcd-ide-responsive .template-library__count {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .pcd-ide-responsive .file-tree__tab {
+    min-height: 2.75rem;
+    padding-inline: 0.625rem;
+  }
+
+  .pcd-ide-responsive .snippet-library__search,
+  .pcd-ide-responsive .template-library__search,
+  .pcd-ide-responsive .file-tree__search {
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+  }
+
+  .pcd-ide-responsive .snippet-library__search input,
+  .pcd-ide-responsive .template-library__search input,
+  .pcd-ide-responsive .file-tree__search input {
+    min-height: 2.5rem;
+    font-size: 1rem;
+  }
+
+  .pcd-ide-responsive .snippet-library__item,
+  .pcd-ide-responsive .template-library__item {
+    min-height: 2.75rem;
+    border-radius: 0.75rem;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-topbar-title {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-topbar-actions {
+    flex: 0 0 auto;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-name-input {
+    width: min(8rem, 33vw);
+    min-width: 0;
+    min-height: 2.25rem;
+    font-size: 0.875rem;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-type-badge,
+  .pcd-ide-responsive .plugin-ide-page .ide-status,
+  .pcd-ide-responsive .plugin-ide-page .ide-version,
+  .pcd-ide-responsive .plugin-ide-page .ide-topbar-actions > .ide-action:not(.ide-action--more) {
+    display: none;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-action--more {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .pcd-ide-responsive .workflow-editor-offline {
+    min-height: 2.75rem;
+    margin-bottom: 0.25rem;
+    padding-inline: 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-editor-offline span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pcd-ide-responsive .workflow-editor-offline button {
+    min-width: 2.75rem;
+    min-height: 2.5rem;
+    font-size: 0;
+  }
+
+  .pcd-ide-responsive .workflow-editor-offline button::after {
+    content: '重试';
+    font-size: 0.75rem;
+  }
+}
+
+/* ========================================================================== */
+/* Large phones 480px - 768px — preserve one-line compact toolbar             */
+/* ========================================================================== */
+
+@media (min-width: 30rem) and (max-width: 47.9375rem) {
+  .pcd-ide-responsive .workflow-toolbar__name input {
+    width: min(12rem, 36vw);
+  }
+
+  .pcd-ide-responsive .workflow-node-library__group {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pcd-ide-responsive .workflow-node-library__group h3 {
+    grid-column: 1 / -1;
+  }
+
+  .pcd-ide-responsive .workflow-minimap {
+    width: 10rem;
+  }
+
+  .pcd-ide-responsive .workflow-minimap__surface {
+    height: 6.25rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node {
+    width: 13.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node--condition {
+    width: 14.5rem;
+  }
+}
+
+/* ========================================================================== */
+/* Small phones < 480px — two-row workflow toolbar and compact canvas nodes   */
+/* ========================================================================== */
+
+@media (max-width: 29.9375rem) {
+  .pcd-ide-responsive {
+    --ide-toolbar-height-double: 5.875rem;
+    --ide-drawer-width: min(92vw, 20rem);
+    --ide-bottom-height: min(54dvh, 25rem);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__toolbar {
+    min-height: var(--ide-toolbar-height-double);
+  }
+
+  .pcd-ide-responsive .workflow-toolbar {
+    min-height: var(--ide-toolbar-height-double);
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: space-between;
+    padding-block: 0.25rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__identity {
+    flex: 1 1 calc(100% - 8rem);
+    min-height: 2.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__modes {
+    order: 3;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__modes button {
+    flex: 1;
+    max-width: 6rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar__actions {
+    order: 4;
+    justify-content: center;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__mobile-scrim {
+    top: var(--ide-toolbar-height-double);
+  }
+
+  .pcd-ide-responsive .workflow-visual-node {
+    width: 9.375rem;
+    min-height: 3.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node--condition {
+    width: 10.625rem;
+    min-height: 6.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node--condition .workflow-visual-node__content {
+    min-height: 6.75rem;
+    padding-inline: 2rem;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node__summary,
+  .pcd-ide-responsive .workflow-visual-node__meta,
+  .pcd-ide-responsive .workflow-visual-node__title small {
+    display: none;
+  }
+
+  .pcd-ide-responsive .workflow-visual-node__header {
+    min-height: 3.5rem;
+  }
+
+  .pcd-ide-responsive .workflow-minimap {
+    width: 2.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-minimap:not(.workflow-minimap--collapsed) .workflow-minimap__surface {
+    display: none;
+  }
+
+  .pcd-ide-responsive .workflow-canvas__performance {
+    display: none;
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-name-input {
+    width: min(7.25rem, 30vw);
+  }
+
+  .pcd-ide-responsive .plugin-ide-page .ide-back {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+  }
+
+  .pcd-ide-responsive .ide-shell__topbar-actions > :not(.ide-shell__icon-button) {
+    display: none;
+  }
+
+  .pcd-ide-responsive .properties-section h3 {
+    font-size: 0.8125rem;
+  }
+
+  .pcd-ide-responsive .platform-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================================================== */
+/* Landscape phones — use vertical space efficiently without shrinking targets */
+/* ========================================================================== */
+
+@media (max-width: 64rem) and (orientation: landscape) and (max-height: 34rem) {
+  .pcd-ide-responsive .plugin-ide-page,
+  .pcd-ide-responsive .workflow-editor-page,
+  .pcd-ide-responsive .ide-shell,
+  .pcd-ide-responsive .workflow-ide-shell {
+    min-height: var(--ide-viewport-height);
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__toolbar,
+  .pcd-ide-responsive .ide-shell__topbar {
+    min-height: 2.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-toolbar {
+    min-height: 2.75rem;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__left,
+  .pcd-ide-responsive .workflow-ide-shell__right,
+  .pcd-ide-responsive .ide-shell__left,
+  .pcd-ide-responsive .ide-shell__right {
+    width: min(52vw, 22rem) !important;
+  }
+
+  .pcd-ide-responsive .workflow-ide-shell__bottom,
+  .pcd-ide-responsive .ide-shell__bottom {
+    max-height: 40dvh;
+  }
+}
+
+/* ========================================================================== */
+/* Touch-only behavior — no sticky hover styles, tactile press feedback        */
+/* ========================================================================== */
+
+@media (hover: none) {
+  .pcd-ide-responsive .workflow-node-library__item:hover,
+  .pcd-ide-responsive .workflow-visual-node:hover,
+  .pcd-ide-responsive .ide-action:hover,
+  .pcd-ide-responsive .workflow-toolbar__icon:hover {
+    transform: none;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__item:active,
+  .pcd-ide-responsive .ide-action:active,
+  .pcd-ide-responsive .workflow-toolbar__icon:active,
+  .pcd-ide-responsive .workflow-toolbar__button:active,
+  .pcd-ide-responsive .ide-shell__icon-button:active {
+    transform: scale(0.95);
+    transition-duration: 80ms;
+  }
+
+  .pcd-ide-responsive .workflow-node-library__item:focus-visible,
+  .pcd-ide-responsive .workflow-visual-node.is-selected {
+    box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--workflow-primary, #2563eb) 22%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcd-ide-responsive *,
+  .pcd-ide-responsive *::before,
+  .pcd-ide-responsive *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes ide-drawer-left-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ide-drawer-right-in {
+  from {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ide-drawer-bottom-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

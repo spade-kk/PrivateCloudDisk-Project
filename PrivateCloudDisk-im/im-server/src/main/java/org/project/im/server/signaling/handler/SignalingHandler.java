@@ -853,7 +853,8 @@ public class SignalingHandler {
     private void sendToUser(String userId, MessageProtocol protocol) {
         try {
             String json = objectMapper.writeValueAsString(protocol);
-            sessionManager.sendToUser(userId, json);
+            // SessionManager.sendToUser 接受 byte[]（V2 二进制协议），V1 JSON 转为 UTF-8 字节
+            sessionManager.sendToUser(userId, json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception e) {
             log.error("发送信令消息失败: userId={}, command={}", userId, protocol.getCommand(), e);
         }

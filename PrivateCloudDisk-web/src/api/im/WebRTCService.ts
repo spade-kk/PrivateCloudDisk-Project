@@ -26,7 +26,7 @@ import type {
   CallType,
   NetworkQuality,
 } from './types'
-import { CallStatus } from './types'
+import { CallStatus, CommandType } from './types'
 
 // ==================== 类型定义 ====================
 
@@ -206,7 +206,7 @@ export class WebRTCService {
       await this.peerConnection!.setLocalDescription(offer)
 
       // 5. 发送 Offer SDP 到信令服务器
-      this.sendSignaling(2101, { // SIGNALING_OFFER
+      this.sendSignaling(CommandType.SIGNALING_OFFER, { // SIGNALING_OFFER
         calleeId,
         callType,
         sdp: offer,
@@ -248,7 +248,7 @@ export class WebRTCService {
       this.addLocalStreamToPeerConnection()
 
       // 发送接听确认
-      this.sendSignaling(2002, { callId: session.callId }) // CALL_ACCEPT
+      this.sendSignaling(CommandType.CALL_ACCEPT, { callId: session.callId }) // CALL_ACCEPT
 
       this.startQualityMonitor()
       this.handlers.onStatusChange?.(CallStatus.ACTIVE)
@@ -282,7 +282,7 @@ export class WebRTCService {
       await this.peerConnection!.setLocalDescription(answer)
 
       // 发送 Answer SDP
-      this.sendSignaling(2102, { // SIGNALING_ANSWER
+      this.sendSignaling(CommandType.SIGNALING_ANSWER, { // SIGNALING_ANSWER
         callId: sdpPayload.callId,
         sdp: answer,
       })
@@ -351,7 +351,7 @@ export class WebRTCService {
   /** 拒绝通话 */
   rejectCall(reason?: string): void {
     if (this.callSession) {
-      this.sendSignaling(2003, { // CALL_REJECT
+      this.sendSignaling(CommandType.CALL_REJECT, { // CALL_REJECT
         callId: this.callSession.callId,
         reason: reason || '用户拒绝',
       })
@@ -362,7 +362,7 @@ export class WebRTCService {
   /** 取消通话 */
   cancelCall(): void {
     if (this.callSession) {
-      this.sendSignaling(2004, { // CALL_CANCEL
+      this.sendSignaling(CommandType.CALL_CANCEL, { // CALL_CANCEL
         callId: this.callSession.callId,
       })
     }
@@ -372,7 +372,7 @@ export class WebRTCService {
   /** 挂断通话 */
   hangupCall(): void {
     if (this.callSession) {
-      this.sendSignaling(2005, { // CALL_HANGUP
+      this.sendSignaling(CommandType.CALL_HANGUP, { // CALL_HANGUP
         callId: this.callSession.callId,
       })
     }
@@ -388,7 +388,7 @@ export class WebRTCService {
       })
     }
     if (this.callSession) {
-      this.sendSignaling(2303, { // CALL_MUTE_TOGGLE
+      this.sendSignaling(CommandType.CALL_MUTE_TOGGLE, { // CALL_MUTE_TOGGLE
         callId: this.callSession.callId,
         muted: this.isMuted,
       })
@@ -404,7 +404,7 @@ export class WebRTCService {
       })
     }
     if (this.callSession) {
-      this.sendSignaling(2304, { // CALL_CAMERA_TOGGLE
+      this.sendSignaling(CommandType.CALL_CAMERA_TOGGLE, { // CALL_CAMERA_TOGGLE
         callId: this.callSession.callId,
         enabled: !this.isCameraOff,
       })
@@ -422,7 +422,7 @@ export class WebRTCService {
     this.isCameraOff = true
     if (this.callSession) {
       this.callSession.videoEnabled = false
-      this.sendSignaling(2305, { callId: this.callSession.callId }) // CALL_SWITCH_TO_VOICE
+      this.sendSignaling(CommandType.CALL_SWITCH_TO_VOICE, { callId: this.callSession.callId }) // CALL_SWITCH_TO_VOICE
     }
   }
 
@@ -437,7 +437,7 @@ export class WebRTCService {
       this.isCameraOff = false
       if (this.callSession) {
         this.callSession.videoEnabled = true
-        this.sendSignaling(2306, { callId: this.callSession.callId }) // CALL_SWITCH_TO_VIDEO
+        this.sendSignaling(CommandType.CALL_SWITCH_TO_VIDEO, { callId: this.callSession.callId }) // CALL_SWITCH_TO_VIDEO
       }
     } catch (error) {
       this.handlers.onError?.(error as Error)
@@ -464,7 +464,7 @@ export class WebRTCService {
 
       this.isScreenSharing = true
       if (this.callSession) {
-        this.sendSignaling(2301, { callId: this.callSession.callId }) // CALL_SCREEN_SHARE_START
+        this.sendSignaling(CommandType.CALL_SCREEN_SHARE_START, { callId: this.callSession.callId }) // CALL_SCREEN_SHARE_START
       }
     } catch (error) {
       this.handlers.onError?.(error as Error)
@@ -491,7 +491,7 @@ export class WebRTCService {
 
     this.isScreenSharing = false
     if (this.callSession) {
-      this.sendSignaling(2302, { callId: this.callSession.callId }) // CALL_SCREEN_SHARE_STOP
+      this.sendSignaling(CommandType.CALL_SCREEN_SHARE_STOP, { callId: this.callSession.callId }) // CALL_SCREEN_SHARE_STOP
     }
   }
 
@@ -552,7 +552,7 @@ export class WebRTCService {
     // ---- ICE Candidate 事件 ----
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        this.sendSignaling(2103, { // SIGNALING_ICE_CANDIDATE
+        this.sendSignaling(CommandType.SIGNALING_ICE, { // SIGNALING_ICE_CANDIDATE
           callId: this.callSession?.callId,
           candidate: event.candidate.toJSON(),
         })
@@ -584,12 +584,11 @@ export class WebRTCService {
         this.remoteStream = event.streams[0]
         this.handlers.onRemoteStream?.(this.remoteStream)
       }
-    }
-
-    // ---- 远端媒体流移除 ----
-    this.peerConnection.onremovetrack = (event) => {
-      if (this.remoteStream) {
-        this.handlers.onRemoteStreamRemoved?.(this.remoteStream)
+      // 远端轨道结束（媒体流移除）时通知上层
+      event.track.onended = () => {
+        if (this.remoteStream) {
+          this.handlers.onRemoteStreamRemoved?.(this.remoteStream)
+        }
       }
     }
   }
@@ -634,9 +633,13 @@ export class WebRTCService {
       this.peerConnection.restartIce()
       const offer = await this.peerConnection.createOffer({ iceRestart: true })
       await this.peerConnection.setLocalDescription(offer)
-      this.sendSignaling(2104, { // SIGNALING_RENEGOTIATE
+      // AUDIT FIX [IM-PROTO-20260810]：V2 proto 没有 2104，旧 Java 枚举仅在 legacy
+      // CommandType 中存在。ICE 重启本质是重新发送 SDP Offer，因此复用 2101 并携带
+      // renegotiate 标记，避免把非法 command 写入 IMEnvelope。
+      this.sendSignaling(CommandType.SIGNALING_OFFER, { // SIGNALING_RENEGOTIATE
         callId: this.callSession?.callId,
         sdp: offer,
+        renegotiate: true,
       })
     } catch (error) {
       console.error('[WebRTC] ICE restart failed:', error)
@@ -702,7 +705,7 @@ export class WebRTCService {
 
       if (networkStats) {
         // 上报到信令服务器
-        this.sendSignaling(2201, { // CALL_QUALITY_REPORT
+        this.sendSignaling(CommandType.CALL_QUALITY_REPORT, { // CALL_QUALITY_REPORT
           callId: this.callSession?.callId,
           rtt: Math.round(networkStats.rtt),
           packetLoss: Math.round(networkStats.packetLoss * 100) / 100,
@@ -758,7 +761,7 @@ export class WebRTCService {
 
       // Remote Inbound RTP 统计（发送端视角，用于估算带宽）
       if (report.type === 'remote-inbound-rtp') {
-        const remote = report as RTCRemoteInboundRtpStreamStats
+        const remote = report as RTCStats & { roundTripTime?: number }
         if (remote.roundTripTime !== undefined) {
           result.rtt = remote.roundTripTime * 1000
         }

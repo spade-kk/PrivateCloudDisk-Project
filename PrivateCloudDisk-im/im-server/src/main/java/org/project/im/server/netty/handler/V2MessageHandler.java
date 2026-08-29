@@ -18,7 +18,10 @@ import org.project.im.common.security.IMAntiForgeryValidator;
 import org.project.im.common.security.IMSessionKeyManager;
 import org.project.im.common.security.IMSessionKeys;
 import org.project.im.server.netty.SessionManager;
+import org.project.im.server.service.EventPublisher;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 /**
  * IM v2 二进制消息处理器
@@ -50,12 +53,15 @@ import org.springframework.stereotype.Component;
 public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
 
     private final SessionManager sessionManager;
-    private final IMSessionKeyManager keyManager = IMSessionKeyManager.createIMSessionKeyManager();
+    private final IMSessionKeyManager keyManager = IMSessionKeyManager.getInstance();
     private final V2MessageRouter messageRouter;
+    private final EventPublisher eventPublisher;
 
     /** 标记属性名，标识 Channel 是否已完成密钥协商 */
     private static final String KEY_ESTABLISHED = "v2:key_established";
     private static final String CONNECTION_ID = "v2:connection_id";
+    /** 离线原因属性（1=正常, 2=心跳超时, 3=踢出, 4=异常） */
+    private static final String OFFLINE_REASON = "v2:offline_reason";
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
@@ -94,7 +100,7 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
             IMProtocolV2.IMEnvelope envelope = IMProtocolCodec.decode(frameBytes, sessionKeys);
 
             // 2. 安全校验
-            validateEnvelope(envelope, connectionId);
+            validateEnvelope(envelope, connectionId, sessionKeys);
 
             // 3. Layer 2 解密 + 消息分发
             MessageTypeDispatcher.DispatchedMessage dispatched =
@@ -103,7 +109,7 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
             // 4. 路由到业务处理器
             messageRouter.route(ctx, dispatched, sessionKeys);
 
-            log.debug("V2 message processed: type={}, messageId={}, sender={}",
+            log.info("V2 message processed: type={}, messageId={}, sender={}",
                     envelope.getMessageType(), envelope.getMessageId(), envelope.getSenderId());
 
         } catch (IMProtocolCodec.ProtocolCodecException e) {
@@ -113,7 +119,7 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
             log.warn("Message dispatch error: connectionId={}, error={}", connectionId, e.getMessage());
             sendError(ctx, "消息分发失败: " + e.getMessage());
         } catch (Exception e) {
-            log.error("Unexpected message processing error: connectionId={}", connectionId, e);
+            log.error("Unexpected message processing error: connectionId={}", connectionId, e.getMessage());
             sendError(ctx, "消息处理异常");
         }
     }
@@ -138,7 +144,8 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
     /**
      * 验证 Envelope 的合法性
      */
-    private void validateEnvelope(IMProtocolV2.IMEnvelope envelope, String connectionId) {
+    private void validateEnvelope(IMProtocolV2.IMEnvelope envelope, String connectionId,
+                                  IMSessionKeys sessionKeys) {
         // 验证消息 ID 格式
         if (!IMAntiForgeryValidator.isValidMessageId(envelope.getMessageId())) {
             throw new IMProtocolCodec.ProtocolCodecException(
@@ -149,6 +156,15 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
         if (!IMAntiForgeryValidator.isValidUserId(envelope.getSenderId())) {
             throw new IMProtocolCodec.ProtocolCodecException(
                     "Invalid sender ID: " + envelope.getSenderId());
+        }
+
+        // AUDIT FIX [14.6,14.25] / IM-WEB-ENTERPRISE-20260809：原行为只校验 sender_id
+        // 格式，任意已登录连接仍可伪造其他 UUID。新行为将信封身份绑定到 Token 协商出的
+        // 会话身份；影响范围为所有 V2 命令（消息、已读、输入状态、心跳和通话信令）。
+        if (sessionKeys == null || !envelope.getSenderId().equals(sessionKeys.getUserId())) {
+            log.warn("V2 sender identity mismatch: connectionId={}, envelopeSender={}, sessionUser={}",
+                    connectionId, envelope.getSenderId(), sessionKeys == null ? "null" : sessionKeys.getUserId());
+            throw new IMProtocolCodec.ProtocolCodecException("Sender identity does not match authenticated session");
         }
 
         // 验证时间戳（防重放）
@@ -166,6 +182,8 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
         if (evt instanceof IdleStateEvent event) {
             if (event.state() == IdleState.READER_IDLE) {
                 log.info("V2 客户端读空闲超时: {}", ctx.channel().remoteAddress());
+                // 标记离线原因：心跳超时
+                setOfflineReason(ctx, 2);
                 cleanupConnection(ctx);
                 ctx.close();
             }
@@ -175,13 +193,25 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        // 获取用户信息（在 remove 之前获取，否则 Channel 已从映射中移除）
+        String userId = sessionManager.getUserId(ctx.channel());
+        String connectionId = getConnectionId(ctx);
+        int offlineReason = getOfflineReason(ctx); // 默认 1=正常断开
+
         cleanupConnection(ctx);
         sessionManager.remove(ctx.channel());
+
+        // 发布用户离线事件到 MQ（IM Business 消费后清理在线状态）
+        if (userId != null) {
+            eventPublisher.publishUserOfflineEvent(userId, connectionId, offlineReason);
+        }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         log.error("V2 消息处理器异常: {}", cause.getMessage());
+        // 标记离线原因：异常断开
+        setOfflineReason(ctx, 4);
         cleanupConnection(ctx);
         sessionManager.remove(ctx.channel());
         ctx.close();
@@ -207,23 +237,38 @@ public class V2MessageHandler extends SimpleChannelInboundHandler<WebSocketFrame
     }
 
     /**
-     * 发送错误响应（二进制协议）
+     * 设置离线原因（用于 channelInactive 时发布事件）
+     */
+    private void setOfflineReason(ChannelHandlerContext ctx, int reason) {
+        ctx.channel().attr(
+                io.netty.util.AttributeKey.valueOf(OFFLINE_REASON)).set(reason);
+    }
+
+    /**
+     * 获取离线原因（默认 1=正常断开）
+     */
+    private int getOfflineReason(ChannelHandlerContext ctx) {
+        Integer reason = (Integer) ctx.channel().attr(
+                io.netty.util.AttributeKey.valueOf(OFFLINE_REASON)).get();
+        return reason != null ? reason : 1;
+    }
+
+    /**
+     * 发送错误响应（JSON 文本帧，与 V2AuthHandler 保持一致）
+     *
+     * <p>注意：错误消息必须以文本帧发送，而非二进制帧。
+     * 因为客户端期望所有二进制帧都是加密格式（Total Length + Header Length + Encrypted Body + HMAC），
+     * 发送原始 protobuf 字节作为二进制帧将导致客户端解析失败（Invalid total length in frame）。</p>
      */
     private void sendError(ChannelHandlerContext ctx, String message) {
         try {
-            IMProtocolV2.IMEnvelope errorEnvelope = IMProtocolV2.IMEnvelope.newBuilder()
-                    .setVersion(2)
-                    .setMessageId("error-" + System.currentTimeMillis())
-                    .setCommand(IMProtocolV2.IMCommandType.ERROR_NOTIFY)
-                    .setMessageType(IMProtocolV2.IMMessageType.ERROR)
-                    .setTimestamp(System.currentTimeMillis())
-                    .setExtraJson("{\"error\":\"" + message + "\"}")
-                    .build();
-
-            // 错误消息不需要加密，直接发送 protobuf
-            byte[] bytes = errorEnvelope.toByteArray();
-            ctx.writeAndFlush(new BinaryWebSocketFrame(
-                    io.netty.buffer.Unpooled.wrappedBuffer(bytes)));
+            Map<String, Object> error = Map.of(
+                    "type", "ERROR",
+                    "code", 500,
+                    "message", message
+            );
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(error);
+            ctx.writeAndFlush(new TextWebSocketFrame(json));
         } catch (Exception e) {
             log.error("发送错误消息失败", e);
         }

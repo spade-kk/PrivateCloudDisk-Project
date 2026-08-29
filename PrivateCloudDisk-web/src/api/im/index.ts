@@ -21,3 +21,4 @@ export type {
 
 // HTTP REST API
 export * from './imApi'
+export * from './friendApi'

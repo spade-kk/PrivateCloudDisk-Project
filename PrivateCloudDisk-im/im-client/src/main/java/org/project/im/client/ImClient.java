@@ -5,6 +5,7 @@ import org.project.im.common.dto.GroupDTO;
 import org.project.im.common.dto.MessageDTO;
 import org.project.im.common.dto.Result;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -51,16 +52,6 @@ public interface ImClient {
      * @return 撤回结果
      */
     Result<Void> recallMessage(String messageId, String userId);
-
-    /**
-     * 批量发送系统通知
-     *
-     * @param userIds  目标用户 ID 列表
-     * @param title    通知标题
-     * @param content  通知内容
-     * @return 发送结果
-     */
-    Result<Void> sendSystemNotice(List<String> userIds, String title, String content);
 
     // ==================== 会话相关 ====================
 
@@ -160,4 +151,28 @@ public interface ImClient {
      * @return 在线用户数
      */
     int getOnlineUserCount();
+
+    // ==================== 离线消息与历史消息拉取 ====================
+
+    /**
+     * 拉取当前用户的离线消息（状态为 PREPARING，拉取后标记为已送达）
+     *
+     * @param userId 当前用户 ID
+     * @param limit  最大拉取条数（默认 100）
+     * @return 离线消息列表
+     */
+    Result<List<MessageDTO>> getOfflineMessages(String userId, int limit);
+
+    /**
+     * 游标分页查询会话历史消息（仅返回已送达/已读/失败终态，不含未送达消息）
+     *
+     * @param conversationId 会话 ID
+     * @param userId         当前用户 ID
+     * @param limit          每页条数（默认 20，最大 100）
+     * @param cursor         上一页最小 server_seq（首次传 null）
+     * @param before         可选，拉取该时间之前的消息
+     * @return 历史消息列表（按时间倒序）
+     */
+    Result<List<MessageDTO>> getHistoryByCursor(String conversationId, String userId,
+                                                int limit, Long cursor, LocalDateTime before);
 }

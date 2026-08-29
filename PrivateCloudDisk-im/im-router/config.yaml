@@ -1,0 +1,89 @@
+# ================================================================
+# IM Router 默认配置文件
+# ================================================================
+# 说明：
+#   - 所有配置项均可通过环境变量覆盖（环境变量名: 大写 + 下划线，前缀 IM_ROUTER_）
+#     例如 server.node_id → IM_ROUTER_SERVER_NODE_ID
+#   - 实际部署时建议通过环境变量或 K8s ConfigMap 注入生产配置
+# ================================================================
+
+server:
+  # 当前 Router 节点 ID（多实例部署时必须唯一）
+  node_id: "router-1"
+  # gRPC 服务监听端口（预留）
+  grpc_port: 7092
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+  # Redis 连接池大小
+  pool_size: 50
+
+rabbitmq:
+  host: localhost
+  port: 5672
+  username: guest
+  password: guest
+  vhost: "/"
+
+  # 消费者配置
+  consumer:
+    # 消息推送命令队列（IM Business → IM Router）
+    push_command_queue: "im.message.push.command"
+    send_command_queue: "im.message.send.command"
+    # 消息送达事件队列（IM Server → IM Router，转送达回执）
+    delivered_event_queue: "im.message.delivered.event.router"
+    # 消息推送失败事件队列（IM Server → IM Router，转推送失败回执）
+    failed_event_queue: "im.message.failed.event.router"
+    # 消息发送失败事件队列（IM Business → IM Router，转发送失败回执）
+    send_failed_event_queue: "im.message.send.failed.event.router"
+    # RabbitMQ QoS 预取数量（每个消费者同时未确认的消息数）
+    prefetch_count: 50
+    # Worker Pool 大小（并发处理消息的协程数，建议 100~500）
+    worker_count: 100
+    # 单条消息处理超时时间
+    handle_timeout: 10s
+
+  # 生产者配置（Router 发布事件用，如离线补偿完成事件）
+  publisher:
+    # 事件交换机（fanout 类型，与 Java 侧 im.event.exchange 保持一致）
+    exchange: "im.event.exchange"
+    # 发布重试次数
+    retry_count: 3
+    # 发布确认超时
+    confirm_timeout: 5s
+
+# gRPC 客户端配置（Router → IM Server）
+grpc:
+  # 建连超时
+  dial_timeout: 5s
+  # Keepalive 探测间隔
+  keepalive_time: 30s
+  # Keepalive 探测超时
+  keepalive_timeout: 10s
+  # 单条消息最大接收大小（4MB）
+  max_recv_msg_size: 4194304
+  # 连接池每个目标节点的最大连接数
+  pool_size_per_node: 5
+
+# 离线消息配置
+offline:
+  # 单用户离线消息最大保留条数
+  max_messages_per_user: 1000
+  # 离线消息 TTL（秒），7 天
+  message_ttl: 604800
+
+# Prometheus 监控配置
+metrics:
+  enabled: true
+  port: 9093
+  path: /metrics
+
+# 日志配置
+log:
+  # 日志级别: debug / info / warn / error
+  level: info
+  # 输出格式: json / console
+  format: json

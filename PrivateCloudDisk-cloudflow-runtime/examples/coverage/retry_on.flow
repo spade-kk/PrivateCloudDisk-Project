@@ -1,0 +1,8 @@
+# 覆盖目标：[V1.2-RETRY_ON] 步骤指定可重试异常白名单。
+# 预期：step 节点 retryOn=["NetworkException","TimeoutException"]。
+workflow "retry_on" {
+    step resilient {
+        action builtin.file.list {}
+        retry_on [NetworkException, TimeoutException]
+    }
+}

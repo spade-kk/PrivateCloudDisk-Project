@@ -1,0 +1,443 @@
+# 示例：`cloudflowc compile examples/coverage/variables_basic.flow --emit-ast --no-color`
+#（AST 可视化仅反映语法解析结果，不代表语义/IR 合法。完整示例每次随源码生成，勿当作契约。）
+
+Workflow
+├── name: expression_complex
+├── Metadata
+│   ├── display_name: <none>
+│   ├── description: <none>
+│   ├── version: <none>
+│   ├── author: <none>
+│   ├── tags: []
+│   └── changelog: <none>
+├── Variables
+│   ├── Variable
+│   │   ├── name: x
+│   │   ├── type: number
+│   │   ├── source: local
+│   │   ├── required: false
+│   │   └── default
+│   │       └── 8
+│   ├── Variable
+│   │   ├── name: y
+│   │   ├── type: number
+│   │   ├── source: local
+│   │   ├── required: false
+│   │   └── default
+│   │       └── 2
+│   ├── Variable
+│   │   ├── name: files
+│   │   ├── type: array
+│   │   ├── source: local
+│   │   ├── required: false
+│   │   └── default
+│   │       └── Array
+│   │           ├── "a"
+│   │           └── "b"
+│   └── Variable
+│       ├── name: options
+│       ├── type: object
+│       ├── source: local
+│       ├── required: false
+│       └── default
+│           └── Object
+│               ├── key: enabled
+│               │   └── true
+│               └── key: region
+│                   └── "cn"
+├── Trigger
+│   └── manual
+├── Runtime
+├── steps
+│   ├── Step
+│   │   ├── id: collect
+│   │   ├── Action
+│   │   │   ├── provider: builtin
+│   │   │   ├── service: file
+│   │   │   └── method: list
+│   │   └── output: result
+│   └── Step
+│       ├── id: evaluate
+│       ├── Action
+│       │   ├── provider: builtin
+│       │   ├── service: notification
+│       │   ├── method: send
+│       │   └── Arguments
+│       │       ├── arg: file_count
+│       │       │   └── Call: size
+│       │       │       └── Reference: vars.files
+│       │       ├── arg: score
+│       │       │   └── Binary: +
+│       │       │       ├── Binary: *
+│       │       │       │   ├── Reference: vars.x
+│       │       │       │   └── Literal: 2
+│       │       │       └── Reference: vars.y
+│       │       ├── arg: selected
+│       │       │   └── Ternary
+│       │       │       ├── 
+│       │       │       │   ├── condition
+│       │       │       │   └── Binary: >
+│       │       │       │       ├── Reference: vars.x
+│       │       │       │       └── Literal: 5
+│       │       │       ├── 
+│       │       │       │   ├── when_true
+│       │       │       │   └── Literal: "high"
+│       │       │       └── 
+│       │       │           ├── when_false
+│       │       │           └── Literal: "low"
+│       │       ├── arg: typed_object
+│       │       │   └── Object
+│       │       │       ├── key: count
+│       │       │       │   └── Call: size
+│       │       │       │       └── Reference: vars.files
+│       │       │       └── key: region
+│       │       │           └── vars.options.region
+│       │       └── arg: upstream
+│       │           └── steps.collect.output.files
+│       ├── depends_on: collect
+│       └── condition
+│           └── Binary: ||
+│               ├── Binary: &&
+│               │   ├── Binary: >
+│               │   │   ├── Reference: vars.x
+│               │   │   └── Literal: 5
+│               │   └── Unary: !
+│               │       └── Binary: >
+│               │           ├── Reference: vars.y
+│               │           └── Literal: 10
+│               └── Binary: &&
+│                   ├── Binary: &&
+│                   │   ├── Binary: &&
+│                   │   │   ├── Binary: &&
+│                   │   │   │   ├── Binary: &&
+│                   │   │   │   │   ├── Binary: >
+│                   │   │   │   │   │   ├── Call: size
+│                   │   │   │   │   │   │   └── Reference: vars.files
+│                   │   │   │   │   │   └── Literal: 0
+│                   │   │   │   │   └── Call: contains
+│                   │   │   │   │       ├── Reference: vars.files
+│                   │   │   │   │       └── Literal: "a"
+│                   │   │   │   └── Call: starts_with
+│                   │   │   │       ├── Reference: vars.options.region
+│                   │   │   │       └── Literal: "c"
+│                   │   │   └── Call: ends_with
+│                   │   │       ├── Literal: "CloudFlow"
+│                   │   │       └── Literal: "Flow"
+│                   │   └── Binary: >=
+│                   │       ├── Binary: /
+│                   │       │   ├── Reference: vars.x
+│                   │       │   └── Reference: vars.y
+│                   │       └── Literal: 4
+│                   └── Binary: ==
+│                       ├── Binary: %
+│                       │   ├── Reference: vars.x
+│                       │   └── Reference: vars.y
+│                       └── Literal: 0
+└── Handlers
+
+Workflow
+├── name: full_workflow
+├── Metadata
+│   ├── display_name: CloudFlow 全语法覆盖
+│   ├── description: <none>
+│   ├── version: 1.1
+│   ├── author: <none>
+│   ├── tags: []
+│   └── changelog: <none>
+├── Variables
+│   ├── Variable
+│   │   ├── name: source
+│   │   ├── type: string
+│   │   ├── source: input
+│   │   └── required: true
+│   ├── Variable
+│   │   ├── name: files
+│   │   ├── type: array
+│   │   ├── source: local
+│   │   ├── required: false
+│   │   └── default
+│   │       └── Array
+│   │           ├── "one"
+│   │           └── "two"
+│   ├── Variable
+│   │   ├── name: threshold
+│   │   ├── type: number
+│   │   ├── source: local
+│   │   ├── required: false
+│   │   └── default
+│   │       └── 1
+│   └── Variable
+│       ├── name: mode
+│       ├── type: string
+│       ├── source: local
+│       ├── required: false
+│       └── default
+│           └── "standard"
+├── Trigger
+│   └── manual
+├── Runtime
+│   ├── Timeout
+│   │   ├── raw: 10m
+│   │   └── milliseconds: 600000
+│   ├── max_parallel: 2
+│   └── Retry
+│       ├── max_attempts: 2
+│       └── strategy: exponential
+├── steps
+│   ├── Step
+│   │   ├── id: collect
+│   │   ├── Action
+│   │   │   ├── provider: builtin
+│   │   │   ├── service: file
+│   │   │   ├── method: list
+│   │   │   └── Arguments
+│   │   │       └── arg: node
+│   │   │           └── vars.source
+│   │   └── output: files_result
+│   ├── Assert
+│   │   └── Binary: >=
+│   │       ├── Call: size
+│   │       │   └── Reference: vars.files
+│   │       └── Reference: vars.threshold
+│   ├── Condition
+│   │   ├── expression
+│   │   │   └── Binary: >
+│   │   │       ├── Reference: steps.collect.output.count
+│   │   │       └── Literal: 0
+│   │   ├── true_branch
+│   │   │   └── Foreach
+│   │   │       ├── iterator: item
+│   │   │       ├── collection
+│   │   │       │   └── Reference: vars.files
+│   │   │       └── body
+│   │   │           └── Step
+│   │   │               ├── id: process
+│   │   │               ├── Action
+│   │   │               │   ├── provider: builtin
+│   │   │               │   ├── service: file
+│   │   │               │   ├── method: copy
+│   │   │               │   └── Arguments
+│   │   │               │       └── arg: file
+│   │   │               │           └── item
+│   │   │               └── Retry
+│   │   │                   ├── max_attempts: 2
+│   │   │                   └── strategy: fixed
+│   │   └── false_branch
+│   │       └── Step
+│   │           ├── id: notify_empty
+│   │           └── Action
+│   │               ├── provider: builtin
+│   │               ├── service: notification
+│   │               ├── method: send
+│   │               └── Arguments
+│   │                   └── arg: title
+│   │                       └── "empty"
+│   ├── Parallel
+│   │   └── branches
+│   │       ├── Step
+│   │       │   ├── id: index
+│   │       │   └── Action
+│   │       │       ├── provider: builtin
+│   │       │       ├── service: file
+│   │       │       └── method: list
+│   │       └── Step
+│   │           ├── id: announce
+│   │           └── Action
+│   │               ├── provider: builtin
+│   │               ├── service: notification
+│   │               ├── method: send
+│   │               └── Arguments
+│   │                   └── arg: title
+│   │                       └── Ternary
+│   │                           ├── 
+│   │                           │   ├── condition
+│   │                           │   └── Binary: ==
+│   │                           │       ├── Reference: vars.mode
+│   │                           │       └── Literal: "standard"
+│   │                           ├── 
+│   │                           │   ├── when_true
+│   │                           │   └── Literal: "started"
+│   │                           └── 
+│   │                               ├── when_false
+│   │                               └── Literal: "custom"
+│   ├── TryCatch
+│   │   ├── try
+│   │   │   └── Step
+│   │   │       ├── id: publish
+│   │   │       └── Action
+│   │   │           ├── provider: plugin
+│   │   │           ├── plugin_id: reporter
+│   │   │           ├── function: publish
+│   │   │           └── Arguments
+│   │   │               └── arg: source
+│   │   │                   └── steps.collect.output
+│   │   ├── catch: error
+│   │   │   └── Step
+│   │   │       ├── id: report_failure
+│   │   │       └── Action
+│   │   │           ├── provider: builtin
+│   │   │           ├── service: notification
+│   │   │           ├── method: send
+│   │   │           └── Arguments
+│   │   │               └── arg: error
+│   │   │                   └── error
+│   │   └── finally
+│   │       └── Step
+│   │           ├── id: audit
+│   │           └── Action
+│   │               ├── provider: builtin
+│   │               ├── service: notification
+│   │               ├── method: send
+│   │               └── Arguments
+│   │                   └── arg: title
+│   │                       └── "audit"
+│   ├── Wait
+│   │   ├── wait_type: approval
+│   │   └── Timeout
+│   │       ├── raw: 24h
+│   │       └── milliseconds: 86400000
+│   └── Step
+│       ├── id: finalize
+│       └── Action
+│           ├── provider: builtin
+│           ├── service: notification
+│           ├── method: send
+│           └── Arguments
+│               └── arg: title
+│                   └── "done"
+└── Handlers
+
+Workflow
+├── name: weekly_sales_report
+├── Metadata
+│   ├── display_name: 销售周报
+│   ├── description: 每周一自动生成销售周报
+│   ├── version: 1.0
+│   ├── author: <none>
+│   ├── tags: []
+│   └── changelog: <none>
+├── Variables
+│   ├── Variable
+│   │   ├── name: sales_node_id
+│   │   ├── type: string
+│   │   ├── source: input
+│   │   └── required: true
+│   ├── Variable
+│   │   ├── name: template_file_id
+│   │   ├── type: string
+│   │   ├── source: input
+│   │   └── required: true
+│   └── Variable
+│       ├── name: report_node_id
+│       ├── type: string
+│       ├── source: input
+│       └── required: true
+├── Trigger
+│   └── schedule(cron=0 8 * * 1, timezone=Asia/Shanghai)
+├── Runtime
+│   ├── Timeout
+│   │   ├── raw: 30m
+│   │   └── milliseconds: 1800000
+│   ├── max_parallel: 4
+│   └── Retry
+│       ├── max_attempts: 3
+│       └── strategy: exponential
+├── steps
+│   ├── Step
+│   │   ├── id: collect_files
+│   │   ├── name: 收集销售文件
+│   │   ├── Action
+│   │   │   ├── provider: builtin
+│   │   │   ├── service: file
+│   │   │   ├── method: list
+│   │   │   └── Arguments
+│   │   │       ├── arg: filter
+│   │   │       │   └── Object
+│   │   │       │       └── key: extension
+│   │   │       │           └── "xlsx"
+│   │   │       └── arg: node
+│   │   │           └── vars.sales_node_id
+│   │   └── output: excel_files
+│   ├── Step
+│   │   ├── id: aggregate_data
+│   │   ├── name: 销售数据统计
+│   │   ├── Action
+│   │   │   ├── provider: builtin
+│   │   │   ├── service: data
+│   │   │   ├── method: aggregate_excel
+│   │   │   └── Arguments
+│   │   │       ├── arg: group_by
+│   │   │       │   └── "region"
+│   │   │       ├── arg: input
+│   │   │       │   └── Object
+│   │   │       │       └── key: files
+│   │   │       │           └── steps.collect_files.output
+│   │   │       └── arg: metrics
+│   │   │           └── Object
+│   │   │               ├── key: $call:0.sum("sales") 
+│   │   │               │   └── sum("sales")
+│   │   │               └── key: $call:1.average("profit") 
+│   │   │                   └── average("profit")
+│   │   ├── depends_on: collect_files
+│   │   └── output: report_data
+│   ├── Step
+│   │   ├── id: generate_report
+│   │   ├── name: 生成销售报告
+│   │   ├── Action
+│   │   │   ├── provider: plugin
+│   │   │   ├── plugin_id: 8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7
+│   │   │   ├── function: generate_report
+│   │   │   ├── version: 1
+│   │   │   └── Arguments
+│   │   │       ├── arg: function
+│   │   │       │   └── "generate_report"
+│   │   │       ├── arg: id
+│   │   │       │   └── "8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7"
+│   │   │       ├── arg: input
+│   │   │       │   └── Object
+│   │   │       │       ├── key: data
+│   │   │       │       │   └── steps.aggregate_data.output
+│   │   │       │       └── key: template
+│   │   │       │           └── vars.template_file_id
+│   │   │       └── arg: version
+│   │   │           └── "1"
+│   │   ├── depends_on: aggregate_data
+│   │   ├── condition
+│   │   │   └── Binary: >
+│   │   │       ├── Reference: steps.aggregate_data.output.row_count
+│   │   │       └── Literal: 0
+│   │   ├── Retry
+│   │   │   ├── max_attempts: 2
+│   │   │   └── strategy: exponential
+│   │   └── output: report_file
+│   └── Step
+│       ├── id: save_report
+│       ├── name: 保存报告
+│       ├── Action
+│       │   ├── provider: builtin
+│       │   ├── service: file
+│       │   ├── method: save
+│       │   └── Arguments
+│       │       ├── arg: source
+│       │       │   └── steps.generate_report.output.file_id
+│       │       └── arg: target
+│       │           └── vars.report_node_id
+│       └── depends_on: generate_report
+└── Handlers
+    └── Handler
+        ├── id: on_failure
+        └── Step
+            ├── id: notify_failure
+            └── Action
+                ├── provider: builtin
+                ├── service: notification
+                ├── method: send
+                └── Arguments
+                    ├── arg: channel
+                    │   └── "user"
+                    ├── arg: message
+                    │   └── Template
+                    │       ├── "失败步骤："
+                    │       └── workflow.failed_step
+                    └── arg: title
+                        └── "销售周报生成失败"

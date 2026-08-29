@@ -1,47 +1,217 @@
-// CloudFlow V1 PEG grammar. 语法由 Pest 生成解析器，业务代码只负责 Pair -> AST。
+// CloudFlow V1 strict PEG grammar.
+// [CLOUDFLOW-STRICT-001] 原通用 named_block/control_block 会把未知语法静默吞掉；
+// 新语法仅在 action 参数对象中允许动态字段，语言结构块必须使用明确关键字。
 file = { SOI ~ workflow ~ EOI }
 
-workflow = { "workflow" ~ string_value ~ block }
-top_item = _{ metadata_block | variables_block | trigger_block | runtime_block | step_decl | on_failure_block | control_block | assignment | named_block }
+workflow = { "workflow" ~ string_value ~ workflow_body }
+workflow_body = { "{" ~ workflow_item* ~ "}" }
+workflow_item = _{
+    include_decl | import_decl | metadata_block | variables_block | trigger_block | runtime_block |
+    environment_block | namespace_decl | tag_decl |
+    steps_block | handlers_block | step_group_decl | step_decl | on_failure_block |
+    if_decl | foreach_decl | for_decl | while_decl | parallel_decl | try_decl | wait_decl | assert_decl |
+    switch_decl | delay_decl | validate_decl | expect_decl | notify_decl | return_decl | break_decl | continue_decl | audit_block |
+    unknown_top_block
+}
 
-metadata_block = { "metadata" ~ block }
-variables_block = { "variables" ~ block }
-trigger_block = { "trigger" ~ block }
-runtime_block = { "runtime" ~ block }
-on_failure_block = { "on_failure" ~ block }
+include_decl = { "include" ~ string_value ~ ";"? }
+// [V1.2-IMPORT-ALIAS] import ... as 提供别名导入；alias 由 semantic 校验唯一性。
+import_decl = { "import" ~ string_value ~ ("as" ~ ident)? ~ ";"? }
 
-step_decl = { "step" ~ ident ~ block }
-step_item = _{ action_decl | depends_decl | condition_decl | retry_decl | output_decl | timeout_decl | assignment | named_block | call_stmt }
+metadata_block = { "metadata" ~ "{" ~ metadata_assignment* ~ "}" }
+metadata_assignment = { ident ~ "=" ~ value ~ ";"? }
 
-action_decl = { "action" ~ (qualified | "plugin") ~ block? }
-depends_decl = { "depends_on" ~ qualified ~ ("," ~ qualified)* ~ ";"? }
-condition_decl = { "condition" ~ "{" ~ condition_body ~ "}" }
-condition_body = @{ (!"}" ~ ANY)* }
-retry_decl = { "retry" ~ block }
+variables_block = { "variables" ~ "{" ~ variable_decl* ~ "}" }
+// [CLOUDFLOW-VARIABLE-001] 同时支持 input、本地强类型/推断值和显式类型未初始化变量。
+variable_decl = { ident ~ variable_type_annotation? ~ variable_initializer? ~ ";"? }
+variable_type_annotation = { ":" ~ variable_type }
+variable_initializer = { "=" ~ (input_decl | expression) }
+input_decl = { "input" ~ "." ~ variable_type ~ "(" ~ named_argument_list? ~ ")" }
+variable_type = @{ "string" | "number" | "boolean" | "array" | "object" | "file" | "user" | "space" }
+
+trigger_block = { "trigger" ~ "{" ~ trigger_decl ~ "}" }
+trigger_decl = _{ schedule_trigger | event_trigger | http_trigger | manual_trigger | interval_trigger | unknown_trigger_block }
+schedule_trigger = { "schedule" ~ "{" ~ trigger_assignment* ~ "}" }
+event_trigger = { "event" ~ "{" ~ trigger_assignment* ~ "}" }
+http_trigger = { "http" ~ "{" ~ trigger_assignment* ~ "}" }
+manual_trigger = { "manual" ~ "{" ~ "}" }
+// [V1.2-INTERVAL-TRIGGER] 周期触发：trigger { interval = 5m }，区别于 cron 表达式。
+interval_trigger = { "interval" ~ "=" ~ duration ~ ";"? }
+trigger_assignment = { ident ~ "=" ~ value ~ ";"? }
+unknown_trigger_block = { ident ~ generic_block }
+
+// [V1.2-AUDIT] 工作流审计注解：audit { level = "high"; description = "..." }。
+audit_block = { "audit" ~ "{" ~ audit_assignment* ~ "}" }
+audit_assignment = { ident ~ "=" ~ value ~ ";"? }
+
+runtime_block = { "runtime" ~ "{" ~ runtime_item* ~ "}" }
+runtime_item = _{ runtime_timeout | max_parallel_assignment | retry_policy_block | unknown_runtime_block | unknown_runtime_assignment }
+runtime_timeout = { "timeout" ~ "=" ~ duration ~ ";"? }
+max_parallel_assignment = { "max_parallel" ~ "=" ~ number ~ ";"? }
+retry_policy_block = { "retry_policy" ~ retry_body }
+unknown_runtime_block = { ident ~ generic_block }
+unknown_runtime_assignment = { ident ~ "=" ~ value ~ ";"? }
+
+environment_block = { "environment" ~ "{" ~ environment_assignment* ~ "}" }
+environment_assignment = { ident ~ "=" ~ value ~ ";"? }
+namespace_decl = { "namespace" ~ qualified ~ ";"? }
+tag_decl = { "tag" ~ string_value ~ ";"? }
+
+steps_block = { "steps" ~ node_body }
+handlers_block = { "handlers" ~ "{" ~ on_failure_block* ~ "}" }
+on_failure_block = { "on_failure" ~ node_body }
+
+node_body = { "{" ~ flow_node* ~ "}" }
+flow_node = _{ step_decl | if_decl | foreach_decl | for_decl | while_decl | parallel_decl | try_decl | wait_decl | assert_decl | switch_decl | delay_decl | validate_decl | expect_decl | notify_decl | return_decl | break_decl | continue_decl | unknown_node_block }
+
+// [V1.2-FOR] 索引/集合循环：for i in range(0, vars.max) 或 for x in <collection>。
+// range(from,to) 由 parser 识别为索引循环，迭代变量为该区间的整数值；其余表达式按集合处理。
+for_decl = { "for" ~ ident ~ "in" ~ expression ~ node_body }
+// [V1.2-FOR] 循环体内控制语句；仅允许出现在 for/while 循环体内（semantic 以 loop_depth 校验）。
+break_decl = { "break" ~ ";"? }
+continue_decl = { "continue" ~ ";"? }
+// [V1.2-VALIDATE] 块级/步骤后校验：validate { <bool 表达式> }，求值为 false 时产生运行时错误。
+validate_decl = { "validate" ~ expression_body }
+// [V1.2-VALIDATE] expect 是 validate 的别名，二者语义一致。
+expect_decl = { "expect" ~ expression_body }
+// [V1.2-NOTIFY] 内建通知：notify { channel = "email"; to = vars.user_id; message = "..." }。
+notify_decl = { "notify" ~ "{" ~ notify_item* ~ "}" }
+notify_item = { ident ~ "=" ~ value ~ ";"? }
+// [V1.2-RETURN] 步骤级提前返回：return <expr>?，结束当前工作流分支并返回指定输出。
+return_decl = { "return" ~ expression? ~ ";"? }
+
+// [V1.2-STEP-GROUP] 步骤组：`step group <id> { step ... }` 把多个步骤组合为一个逻辑单元。
+// 组内步骤 ID 必须全局唯一（semantic CF4418 校验冲突）；编译器将组扁平化为普通步骤节点。
+step_group_decl = { "step" ~ "group" ~ ident ~ step_group_body }
+step_group_body = { "{" ~ step_decl* ~ "}" }
+// [V1.2-USE-WITH] `use <alias>` / `with <alias>`：从已导入模块注入默认参数，减少重复代码。
+use_keyword = _{ "use" | "with" }
+use_decl = { use_keyword ~ ident ~ ";"? }
+step_decl = { "step" ~ ident ~ step_body }
+step_body = { "{" ~ step_item* ~ "}" }
+step_item = _{
+    step_name | action_decl | depends_decl | condition_decl | retry_decl | retry_on_decl |
+    output_decl | timeout_decl | timeout_block | if_decl | foreach_decl | while_decl | parallel_decl |
+    try_decl | wait_decl | assert_decl | switch_decl | delay_decl |
+    for_decl | validate_decl | expect_decl | notify_decl | return_decl | break_decl | continue_decl |
+    on_error_decl | use_decl |
+    unknown_step_block | unknown_step_assignment
+}
+step_name = { "name" ~ "=" ~ string_value ~ ";"? }
+action_decl = { "action" ~ action_name ~ action_body? }
+action_name = @{ qualified }
+depends_decl = { "depends_on" ~ ident ~ ("," ~ ident)* ~ ("if" ~ expression)? ~ ";"? }
+condition_decl = { "condition" ~ expression_body }
+retry_decl = { "retry" ~ retry_body }
+retry_body = { "{" ~ retry_item* ~ "}" }
+retry_item = _{ retry_max_attempts | retry_strategy | retry_backoff | unknown_retry_assignment }
+retry_on_decl = { "retry_on" ~ "[" ~ enum_or_string ~ ("," ~ enum_or_string)* ~ ","? ~ "]" ~ ";"? }
+retry_max_attempts = { "max_attempts" ~ "=" ~ number ~ ";"? }
+retry_strategy = { "strategy" ~ "=" ~ enum_or_string ~ ";"? }
+retry_backoff = { "backoff" ~ "=" ~ enum_or_string ~ ";"? }
+unknown_retry_assignment = { ident ~ "=" ~ value ~ ";"? }
 output_decl = { "output" ~ ident ~ ";"? }
 timeout_decl = { "timeout" ~ "=" ~ duration ~ ";"? }
+// [V1.2-TIMEOUT-BLOCK] 块形态：duration 时长 + on_timeout 行为（fail/continue/retry）。
+timeout_block = { "timeout" ~ "{" ~ timeout_item* ~ "}" }
+timeout_item = _{ timeout_duration | timeout_on_timeout | unknown_timeout_assignment }
+timeout_duration = { "duration" ~ "=" ~ duration ~ ";"? }
+timeout_on_timeout = { "on_timeout" ~ "=" ~ enum_or_string ~ ";"? }
+unknown_timeout_assignment = { ident ~ "=" ~ value ~ ";"? }
+unknown_step_block = { ident ~ generic_block }
+unknown_step_assignment = { ident ~ "=" ~ value ~ ";"? }
 
-control_block = { ("if" | "foreach" | "parallel" | "try" | "catch" | "finally" | "wait") ~ (!"{" ~ ANY)* ~ block }
-
-block = { "{" ~ block_item* ~ "}" }
-block_item = _{ step_decl | action_decl | condition_decl | retry_decl | control_block | assignment | named_block | call_stmt | output_decl | depends_decl | timeout_decl }
-named_block = { qualified ~ block }
-assignment = { qualified ~ "=" ~ value ~ ";"? }
+// action 内部是能力 schema 的动态对象，只有这里允许任意字段名。
+action_body = { "{" ~ action_item* ~ "}" }
+action_item = _{ action_assignment | action_object | call_stmt }
+action_assignment = { ident ~ "=" ~ expression ~ ";"? }
+action_object = { ident ~ action_body }
 call_stmt = { qualified ~ "(" ~ value_list? ~ ")" ~ ";"? }
 
-value_list = { value ~ ("," ~ value)* ~ ","? }
-value = _{ triple_string | string_value | boolean | duration | number | array | call_expr | qualified }
-call_expr = { qualified ~ "(" ~ argument_list? ~ ")" }
-argument_list = { argument ~ ("," ~ argument)* ~ ","? }
-argument = { qualified ~ "=" ~ value }
+if_decl = { "if" ~ expression_body ~ node_body ~ ("else" ~ node_body)? }
+foreach_decl = { "foreach" ~ ident ~ "in" ~ expression ~ node_body }
+while_decl = { "while" ~ expression_body ~ node_body }
+// [V1.2-PARALLEL] 支持分支级并发限制：parallel(max_concurrency=3) { ... }；
+// 缺省时沿用 runtime.max_parallel 全局并发。
+parallel_decl = { "parallel" ~ parallel_opt? ~ node_body }
+parallel_opt = { "(" ~ parallel_option ~ ("," ~ parallel_option)* ~ ")" }
+parallel_option = { "max_concurrency" ~ "=" ~ number }
+try_decl = { "try" ~ node_body ~ catch_clause? ~ finally_clause? }
+catch_clause = { "catch" ~ ident? ~ node_body }
+finally_clause = { "finally" ~ node_body }
+wait_decl = { "wait" ~ ident ~ "{" ~ wait_timeout? ~ "}" }
+wait_timeout = { "timeout" ~ "=" ~ duration ~ ";"? }
+assert_decl = { "assert" ~ expression_body }
+// [V1.2-SWITCH] 多分支选择：switch <expr> { case <value> => <body> ... default => <body> }
+switch_decl = { "switch" ~ expression ~ switch_body }
+switch_body = { "{" ~ switch_clause* ~ "}" }
+switch_clause = _{ switch_case | switch_default }
+switch_case = { "case" ~ value ~ "=>" ~ node_body }
+switch_default = { "default" ~ "=>" ~ node_body }
+delay_decl = { "delay" ~ duration ~ ";"? }
+// [V1.2-ON_ERROR] 步骤级错误处理：on_error { ... }。
+on_error_decl = { "on_error" ~ node_body }
+unknown_node_block = { ident ~ generic_block }
+
+expression_body = { "{" ~ expression ~ "}" }
+// [V1.2-PIPELINE] 集合处理管道：<expr> | filter(pred) | map(field) | reduce(func)。
+expression = { ternary ~ pipeline_stage* }
+pipeline_stage = { "|" ~ pipeline_op }
+pipeline_op = _{ pipeline_filter | pipeline_map | pipeline_reduce }
+pipeline_filter = { "filter" ~ "(" ~ expression ~ ")" }
+pipeline_map = { "map" ~ "(" ~ (ident | string_value)? ~ ")" }
+pipeline_reduce = { "reduce" ~ "(" ~ ident ~ ")" }
+ternary = { logical_or ~ ("?" ~ expression ~ ":" ~ expression)? }
+logical_or = { logical_and ~ (or_op ~ logical_and)* }
+logical_and = { equality ~ (and_op ~ equality)* }
+equality = { comparison ~ (equality_op ~ comparison)* }
+comparison = { additive ~ (comparison_op ~ additive)* }
+additive = { multiplicative ~ (additive_op ~ multiplicative)* }
+multiplicative = { unary ~ (multiplicative_op ~ unary)* }
+unary = { unary_op* ~ primary }
+primary = { function_call | reference | literal | local_ref | "(" ~ expression ~ ")" }
+function_call = { ident ~ "(" ~ expression_list? ~ ")" }
+expression_list = { expression ~ ("," ~ expression)* }
+reference = @{ canonical_step_ref | vars_ref | legacy_step_ref | system_ref }
+canonical_step_ref = { "steps" ~ "." ~ ident ~ "." ~ "output" ~ ("." ~ ident)* }
+vars_ref = { "vars" ~ "." ~ ident ~ ("." ~ ident)* }
+legacy_step_ref = { ident ~ "." ~ "output" ~ ("." ~ ident)* }
+system_ref = { "workflow" ~ "." ~ ident ~ ("." ~ ident)* }
+// foreach/catch 作用域内的局部引用，例如 `item` 或 `error`。语义分析负责校验其作用域。
+local_ref = @{ ident }
+literal = _{ triple_string | string_value | boolean | duration | number | array | object }
+or_op = { "||" }
+and_op = { "&&" }
+equality_op = { "==" | "!=" }
+comparison_op = { ">=" | "<=" | ">" | "<" }
+additive_op = { "+" | "-" }
+multiplicative_op = { "*" | "/" | "%" }
+unary_op = { "!" | "-" }
+
+named_argument_list = { named_argument ~ ("," ~ named_argument)* ~ ","? }
+named_argument = { ident ~ "=" ~ expression }
+value_list = { expression ~ ("," ~ expression)* ~ ","? }
+value = _{ triple_string | string_value | boolean | duration | number | array | call_value | reference | enum_value }
+call_value = { qualified ~ "(" ~ (named_argument_list | value_list)? ~ ")" }
 array = { "[" ~ value_list? ~ "]" }
+object = { "{" ~ object_entry ~ ("," ~ object_entry)* ~ ","? ~ "}" | "{" ~ "}" }
+object_entry = { (string_value | ident) ~ ":" ~ expression }
+enum_or_string = _{ string_value | enum_value }
+enum_value = @{ ident }
 duration = @{ ASCII_DIGIT+ ~ ("ms" | "s" | "m" | "h" | "d") }
 boolean = @{ "true" | "false" }
-number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+// JSON number 兼容整数、小数与科学计数法；Parser 保留 serde_json::Number，禁止文本降级。
+number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
 triple_string = @{ "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\"" }
 string_value = @{ "\"" ~ ("\\" ~ ANY | !"\"" ~ ANY)* ~ "\"" }
-qualified = @{ ident ~ ("." ~ ident)* }
+qualified = { ident ~ ("." ~ ident)* }
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
+// 未知块仅用于错误恢复和多诊断聚合；Parser 必须为其生成 CF1202，不能写入 AST/IR。
+unknown_top_block = { ident ~ generic_block }
+generic_block = { "{" ~ generic_item* ~ "}" }
+generic_item = _{ triple_string | string_value | generic_block | generic_char }
+generic_char = { !("{" | "}" | "\"") ~ ANY }
 
 WHITESPACE = _{ " " | "\t" | NEWLINE | comment }
 NEWLINE = _{ "\r\n" | "\n" | "\r" }

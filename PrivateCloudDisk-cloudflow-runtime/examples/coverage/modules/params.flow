@@ -1,0 +1,8 @@
+# 覆盖目标：[V1.2-USE-WITH] 可复用默认参数模块；只允许 variables/step 等内容。
+workflow "coverage_params" {
+    variables {
+        region = "cn"
+        timeout = 30
+    }
+    step module_step { action builtin.file.list {} output result }
+}

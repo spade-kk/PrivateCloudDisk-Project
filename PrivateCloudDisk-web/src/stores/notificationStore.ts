@@ -23,11 +23,12 @@ import {
   searchUsersApi,
   sendFriendRequestApi,
   getConversationsApi,
-  getMessageHistoryApi,
+  getMessageHistoryByCursorApi,
+  getOfflineMessagesApi,
   markMessageReadApi,
   sendMessageApi,
   recallMessageApi,
-  createConversationApi,
+  getExistingConversationApi,
   getTotalUnreadCountApi,
 } from '@/api/index'
 import {
@@ -36,11 +37,16 @@ import {
   type MessageDTO,
   type ConversationDTO,
   type CallInvitePayload,
+  // V2 协议事件回调类型（v2.0 新增）
+  type ReadEvent,
+  type ReceiptEvent,
+  ReceiptStatus,
   CommandType,
   ConnectionState,
   MessageType,
   MessageStatus,
   ConversationType,
+  CallType,
   ResponseCode,
   getImClient,
   destroyImClient,
@@ -96,6 +102,8 @@ export interface ChatMessage {
   file_id?: string
   share_url?: string
   extra?: string
+  /** 类型化 Protobuf 负载；缓存层会在写入 IndexedDB 前转换为可结构化克隆的纯对象。 */
+  payload?: Record<string, unknown>
   created_at: number
   status: string
   serverSeq?: number
@@ -221,6 +229,9 @@ function messageTypeToString(type: MessageType): string {
     [MessageType.FILE]: 'file',
     [MessageType.VOICE]: 'voice',
     [MessageType.VIDEO]: 'video',
+    // AUDIT FIX [4.5] / IM-EMOJI-SESSION-20260810：平台表情是独立 Protobuf STICKER
+    // 类型，不能降级为 text，否则旧通知中心打开历史记录时会丢失其渲染语义。
+    [MessageType.STICKER]: 'sticker',
     [MessageType.LOCATION]: 'location',
     [MessageType.SYSTEM_NOTICE]: 'system',
     [MessageType.CUSTOM]: 'custom',
@@ -238,6 +249,7 @@ function stringToMessageType(type: string): MessageType {
     file: MessageType.FILE,
     voice: MessageType.VOICE,
     video: MessageType.VIDEO,
+    sticker: MessageType.STICKER,
     location: MessageType.LOCATION,
     system: MessageType.SYSTEM_NOTICE,
     custom: MessageType.CUSTOM,
@@ -305,6 +317,10 @@ export const useNotificationStore = defineStore('notification', () => {
 
   async function bootstrap(): Promise<void> {
     loading.value = true
+    // AUDIT FIX [5.10] / IM-EMOJI-SESSION-20260810：旧通知仓库用 account/name 作为会话
+    // 查询参数，和后端 UUID 约束不一致。初始化时先补齐稳定用户 ID，避免旧入口绕过
+    // “好友/群组同步创建会话”的新模型。
+    if (!authStore.user.id) await authStore.fetchUserInfo()
     await Promise.allSettled([fetchNotifications(), fetchFriends(), fetchConversations()])
     loading.value = false
     connectRealtime()
@@ -316,7 +332,7 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       const res = await getNotificationsApi()
       if (res.code === 200 && Array.isArray(res.data)) {
-        notifications.value = res.data.map(normalizeNotification)
+        notifications.value = (res.data as Record<string, unknown>[]).map(normalizeNotification)
         backendReady.value = true
       }
     } catch {
@@ -326,9 +342,11 @@ export const useNotificationStore = defineStore('notification', () => {
 
   async function fetchFriends(): Promise<void> {
     try {
-      const res = await getFriendsApi()
+      const userId = authStore.user.id
+      if (!userId) return
+      const res = await getFriendsApi(userId)
       if (res.code === 200 && Array.isArray(res.data)) {
-        friends.value = res.data
+        friends.value = res.data as Friend[]
       }
     } catch {
       // 后端未就绪时保留种子数据
@@ -337,7 +355,9 @@ export const useNotificationStore = defineStore('notification', () => {
 
   async function fetchConversations(): Promise<void> {
     try {
-      const res = await getConversationsApi(authStore.user.account || authStore.user.name)
+      const userId = authStore.user.id
+      if (!userId) return
+      const res = await getConversationsApi(userId)
       if (res.code === 200 && Array.isArray(res.data)) {
         conversations.value = (res.data as ConversationDTO[]).map(normalizeConversation)
       }
@@ -348,7 +368,9 @@ export const useNotificationStore = defineStore('notification', () => {
 
   async function fetchTotalUnread(): Promise<number> {
     try {
-      const res = await getTotalUnreadCountApi(authStore.user.account || authStore.user.name)
+      const userId = authStore.user.id
+      if (!userId) return 0
+      const res = await getTotalUnreadCountApi(userId)
       if (res.code === 200 && typeof res.data === 'number') {
         return res.data
       }
@@ -376,10 +398,11 @@ export const useNotificationStore = defineStore('notification', () => {
 
     // 获取历史消息
     try {
-      const res = await getMessageHistoryApi(
+      const userId = authStore.user.id
+      if (!userId) throw new Error('当前用户身份尚未加载完成')
+      const res = await getMessageHistoryByCursorApi(
         conversationId,
-        authStore.user.account || authStore.user.name,
-        1,
+        userId,
         50,
       )
       if (res.code === 200 && Array.isArray(res.data)) {
@@ -401,7 +424,8 @@ export const useNotificationStore = defineStore('notification', () => {
       imClient.sendReadReceipt(conversationId)
     }
     try {
-      await markMessageReadApi(conversationId, authStore.user.account || authStore.user.name)
+      const userId = authStore.user.id
+      if (userId) await markMessageReadApi(conversationId, userId)
     } catch { /* 静默 */ }
   }
 
@@ -409,33 +433,32 @@ export const useNotificationStore = defineStore('notification', () => {
     let existing = conversations.value.find(item => item.friend_id === friendId)
     if (!existing) {
       const friend = friends.value.find(item => item.id === friendId)
+      // AUDIT FIX [5.5/5.10] / IM-EMOJI-SESSION-20260810：旧 Store 曾在用户点击时
+      // 临时伪造会话并调用创建接口。会话现仅能由好友接受事务创建；查询失败时明确报错，
+      // 防止本地“成功”与服务端会话不一致。
+      const userId = authStore.user.id
+      if (!userId) throw new Error('当前用户身份尚未加载完成')
+      const res = await getExistingConversationApi(
+        userId,
+        friendId,
+        ConversationType.PRIVATE,
+      )
+      if (res.code !== 200 || !res.data?.conversationId) {
+        throw new Error(res.message || '好友会话尚未同步完成')
+      }
       existing = {
-        id: `local-${friendId}`,
+        id: res.data.conversationId,
         friend_id: friendId,
-        title: friend?.name || friend?.account || '新会话',
-        subtitle: friend?.role || friend?.email || '',
-        unread: 0,
-        pinned: false,
-        muted: false,
-        updated_at: Date.now(),
+        title: friend?.name || friend?.account || friendId,
+        subtitle: res.data.lastMessage || '',
+        unread: res.data.unreadCount || 0,
+        pinned: Boolean(res.data.isTop),
+        muted: Boolean(res.data.isMuted),
+        updated_at: res.data.lastMessageTime ? new Date(res.data.lastMessageTime).getTime() : Date.now(),
         conversationType: ConversationType.PRIVATE,
       }
       conversations.value.unshift(existing)
       messagesByConversation.value[existing.id] = []
-
-      // 请求后端创建会话
-      try {
-        const res = await createConversationApi(
-          authStore.user.account || authStore.user.name,
-          friendId,
-          ConversationType.PRIVATE,
-        )
-        if (res.code === 200 && res.data?.conversationId) {
-          existing.id = res.data.conversationId
-        }
-      } catch {
-        // 保留本地会话
-      }
     }
     await openConversation(existing.id)
   }
@@ -454,7 +477,10 @@ export const useNotificationStore = defineStore('notification', () => {
     const conversation = conversations.value.find(item => item.id === activeConversationId.value)
     if (!conversation) return
 
-    const userId = authStore.user.account || authStore.user.name
+    // AUDIT FIX [5.3/5.10] / IM-EMOJI-SESSION-20260810：会话/消息 API 的参与方
+    // 必须使用用户 UUID。旧 account/name 回退会造成历史拉取、发送、回执落到不同身份。
+    const userId = authStore.user.id
+    if (!userId) throw new Error('当前用户身份尚未加载完成')
 
     // 构建消息 -- sender 设为 'me' 表示自己发送，前端根据此判断消息方向
     const message: ChatMessage = {
@@ -536,7 +562,8 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   async function recallMessage(messageId: string): Promise<boolean> {
-    const userId = authStore.user.account || authStore.user.name
+    const userId = authStore.user.id
+    if (!userId) return false
 
     // WebSocket 优先
     if (imClient?.isConnected) {
@@ -589,7 +616,8 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!conversation) return null
 
     const callId = `call-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const userId = authStore.user.account || authStore.user.name
+    const userId = authStore.user.id
+    if (!userId) return null
 
     const extra = JSON.stringify({
       callId,
@@ -619,7 +647,7 @@ export const useNotificationStore = defineStore('notification', () => {
       callId: incomingCallInfo.value.callId || '',
       peerId: incomingCallInfo.value.callerId || '',
       peerName: incomingCallInfo.value.callerName || '未知用户',
-      callType: incomingCallInfo.value.callType === 'VIDEO' ? 'video' : 'voice',
+      callType: incomingCallInfo.value.callType === CallType.VIDEO ? 'video' : 'voice',
       startTime: Date.now(),
     }
     isCallActive.value = true
@@ -661,7 +689,10 @@ export const useNotificationStore = defineStore('notification', () => {
   ): Promise<{ success: boolean; message?: string; local?: boolean }> {
     if (!account?.trim()) return { success: false, message: '请输入平台账号' }
     try {
-      const res = await sendFriendRequestApi(account.trim(), remark)
+      const candidates = await searchUsersApi(account.trim())
+      const target = Array.isArray(candidates.data) ? candidates.data.find((item: any) => item.account === account.trim()) || candidates.data[0] : null
+      if (!target?.userId || !authStore.user.id) return { success: false, message: '未找到可添加的用户' }
+      const res = await sendFriendRequestApi(authStore.user.id, target.userId, remark)
       if (res.code === 200) return { success: true }
       return { success: false, message: (res.message as string) || '好友申请发送失败' }
     } catch {
@@ -694,7 +725,7 @@ export const useNotificationStore = defineStore('notification', () => {
   // ==================== 实时通信 ====================
 
   function connectRealtime(): void {
-    if (!authStore.token || imClient) return
+    if (!authStore.token || !authStore.user.id || imClient) return
 
     const wsBase = import.meta.env.VITE_IM_WS_URL ||
       `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
@@ -703,6 +734,7 @@ export const useNotificationStore = defineStore('notification', () => {
       imClient = getImClient({
         url: `${wsBase}/ws`,
         token: () => authStore.token,
+        userId: authStore.user.id,
         autoReconnect: true,
         enableHeartbeat: true,
       })
@@ -738,6 +770,9 @@ export const useNotificationStore = defineStore('notification', () => {
         }
       })
 
+      // 注册 V2 协议事件回调（v2.0 新增：onRead）
+      registerV2EventCallbacks(imClient)
+
       // 注册消息处理器（按命令字路由）
       registerMessageHandlers(imClient)
 
@@ -746,6 +781,79 @@ export const useNotificationStore = defineStore('notification', () => {
     } catch {
       realtimeStatus.value = 'degraded'
     }
+  }
+
+  /**
+   * 注册 V2 协议事件回调
+   *
+   * <p>V2 SDK 提供专用事件回调，替代旧版 onCommand 处理器：
+   * - onRead: 消息已读 → 标记会话消息为已读</p>
+   *
+   * <p>注意：这些回调与 onCommand 处理器互斥，避免重复处理。
+   * V2 SDK 的 dispatchEnvelope 在触发 V2 回调后也会广播到 onCommand，
+   * 因此必须从 onCommand 中移除重复的 READ_MESSAGE 处理器。</p>
+   */
+  function registerV2EventCallbacks(client: ImWebSocketClient): void {
+    // 消息已读回调（接收方已标记已读）
+    client.onRead((event: ReadEvent) => {
+      if (event.conversationId) {
+        updateMessagesReadStatus(event.conversationId)
+      }
+    })
+
+    // 推送回执回调（本账号任一设备发送的消息被推送成功/失败时触发）
+    client.onReceipt((receipt: ReceiptEvent) => {
+      handleReceipt(receipt)
+    })
+  }
+
+  /**
+   * 处理推送回执
+   *
+   * <p>收到回执后，将本地对应消息的发送状态更新为已送达/失败。
+   * 若本地不存在该消息（另一设备发送，用于多端同步），则插入一条
+   * 占位消息以在聊天窗口中展示其发送状态。</p>
+   */
+  function handleReceipt(receipt: ReceiptEvent): void {
+    const failed = receipt.status === ReceiptStatus.PUSH_FAILED ||
+      receipt.status === ReceiptStatus.SEND_FAILED
+    const targetStatus = failed ? 'failed' : 'delivered'
+
+    // 尝试更新本地已有消息的发送状态
+    let found = false
+    for (const [conversationId, messages] of Object.entries(messagesByConversation.value)) {
+      const msg = messages.find(m => m.id === receipt.originalMessageId)
+      if (msg) {
+        msg.status = targetStatus
+        if (msg.syncStatus === 'syncing' || msg.syncStatus === 'pending') {
+          msg.syncStatus = failed ? 'failed' : 'synced'
+        }
+        messageCache.updateMessageStatus(conversationId, msg.id, targetStatus)
+        found = true
+        break
+      }
+    }
+    if (found) return
+
+    // 本地未找到：另一设备发送的消息，插入占位消息以同步发送状态
+    const conversationId = receipt.conversationId
+    if (!conversationId) return
+    const conversation = conversations.value.find(item => item.id === conversationId)
+    if (!conversation) return
+
+    const placeholder: ChatMessage = {
+      id: receipt.originalMessageId,
+      sender: 'me',
+      senderName: authStore.user.name || receipt.senderId,
+      type: 'text',
+      content: failed
+        ? (receipt.failReason || '消息发送失败')
+        : '消息已送达',
+      created_at: receipt.receiptAt || Date.now(),
+      status: targetStatus,
+      syncStatus: failed ? 'failed' : 'synced',
+    }
+    appendMessage(conversationId, placeholder)
   }
 
   function registerMessageHandlers(client: ImWebSocketClient): void {
@@ -764,13 +872,14 @@ export const useNotificationStore = defineStore('notification', () => {
             chatMessage.type = 'video_call'
             chatMessage.callType = extra.callType
             // 触发来电弹窗
-            if (msg.senderId !== authStore.user.account) {
+            if (msg.senderId !== authStore.user.id) {
               hasIncomingCall.value = true
               incomingCallInfo.value = {
                 callId: extra.callId,
-                callType: extra.callType === 'video' ? 'VIDEO' as any : 'VOICE' as any,
+                callType: extra.callType === 'video' ? CallType.VIDEO : CallType.VOICE,
                 callerId: extra.callerId || msg.senderId,
                 callerName: extra.callerName || msg.senderName || msg.senderId,
+                callerAvatar: extra.callerAvatar || '',
                 conversationId,
                 timestamp: extra.timestamp || Date.now(),
               }
@@ -788,19 +897,6 @@ export const useNotificationStore = defineStore('notification', () => {
       }
 
       appendMessage(conversationId, chatMessage)
-
-      // 发送 ACK
-      if (protocol.seq !== undefined) {
-        client.sendAck(protocol.seq)
-      }
-    })
-
-    // 消息 ACK（自己发出的消息得到服务端确认）
-    client.onCommand(CommandType.MESSAGE_ACK, (protocol: MessageProtocol) => {
-      const payload = protocol.payload as { messageId?: string; serverSeq?: number } | undefined
-      if (payload?.messageId) {
-        updateMessageStatus(payload.messageId, 'sent', payload.serverSeq)
-      }
     })
 
     // 撤回消息
@@ -811,13 +907,8 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     })
 
-    // 已读回执
-    client.onCommand(CommandType.READ_MESSAGE, (protocol: MessageProtocol) => {
-      const payload = protocol.payload as { conversationId?: string; userId?: string } | undefined
-      if (payload?.conversationId) {
-        updateMessagesReadStatus(payload.conversationId)
-      }
-    })
+    // 注意：READ_MESSAGE 事件已由 registerV2EventCallbacks 中的 onRead 回调处理，
+    // 此处不再注册重复的 onCommand 处理器。
 
     // 正在输入
     client.onCommand(CommandType.TYPING, (protocol: MessageProtocol) => {
@@ -868,11 +959,6 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     })
 
-    // 错误通知
-    client.onCommand(CommandType.ERROR_NOTIFY, (protocol: MessageProtocol) => {
-      const payload = protocol.payload as { code?: number; message?: string } | undefined
-      console.error('[IM] 服务端错误:', payload?.code, payload?.message)
-    })
   }
 
   function disconnectRealtime(): void {
@@ -899,7 +985,7 @@ export const useNotificationStore = defineStore('notification', () => {
       conversation.updated_at = message.created_at
       conversation.lastMessage = message.content.slice(0, 50)
       conversation.lastMessageType = message.type === 'text' ? 1 : 2
-      if (message.sender !== 'me' && message.sender !== authStore.user.account && conversationId !== activeConversationId.value) {
+      if (message.sender !== 'me' && message.sender !== authStore.user.id && conversationId !== activeConversationId.value) {
         conversation.unread = (conversation.unread || 0) + 1
       }
     }

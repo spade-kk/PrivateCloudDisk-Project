@@ -1,0 +1,35 @@
+# 覆盖目标：V1.1 组合流程：变量、DAG、if、foreach、parallel、try/catch/finally、wait、assert、retry。
+# 预期：Compiler 保留全部控制流语义；Runtime 只静态调度根节点，由控制节点动态执行子图。
+workflow "full_workflow" {
+    metadata { display_name = "CloudFlow 全语法覆盖" version = "1.1" tags = ["coverage", "v1"] }
+    trigger { manual {} }
+    runtime { timeout = 10m max_parallel = 2 retry_policy { max_attempts = 2 strategy = "exponential" } }
+    variables {
+        source = input.string(required = true)
+        files: array = ["one", "two"]
+        threshold: number = 1
+        mode = "standard"
+    }
+    step collect { action builtin.file.list { node = vars.source } output files_result }
+    assert { size(vars.files) >= vars.threshold }
+    if { steps.collect.output.count > 0 } {
+        foreach item in vars.files {
+            step process { action builtin.file.copy { file = item } retry { max_attempts = 2 strategy = "fixed" } }
+        }
+    } else {
+        step notify_empty { action builtin.notification.send { title = "empty" } }
+    }
+    parallel {
+        step index { action builtin.file.list {} }
+        step announce { action builtin.notification.send { title = vars.mode == "standard" ? "started" : "custom" } }
+    }
+    try {
+        step publish { action plugin.reporter.publish { source = steps.collect.output } }
+    } catch error {
+        step report_failure { action builtin.notification.send { error = error } }
+    } finally {
+        step audit { action builtin.notification.send { title = "audit" } }
+    }
+    wait approval { timeout = 24h }
+    step finalize { action builtin.notification.send { title = "done" } }
+}

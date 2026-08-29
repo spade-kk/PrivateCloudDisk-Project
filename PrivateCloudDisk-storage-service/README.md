@@ -25,7 +25,7 @@
 
 ```
 PrivateCloudDisk-storage-service/
-├── server.py                              # FastAPI 应用主入口
+├── server.py                              # legacy FastAPI 入口（仅保留历史兼容，不包含 Git Object Broker）
 │   ├── 操作凭证管理 (签发/撤销)
 │   ├── 文件分片接收 (断点续传)
 │   ├── 流式文件下载 (Range 请求)
@@ -68,6 +68,11 @@ PrivateCloudDisk-storage-service/
 ├── Dockerfile                             # Docker 镜像构建
 └── tests.py                               # 测试文件
 ```
+
+> 启动入口约定（[FIX-GIT-OBJECT-BROKER-20260817]）：当前开发、测试和生产环境统一使用
+> `app.main:app`。`server.py` 是历史兼容入口，不注册 Git Service 使用的
+> `/internal/v1/git/objects/{algorithm}/{object_hash}` 路由；如果误用 `server:app`，Git CLI
+> 的 clone/fetch 仍可能正常，但 push 在共享 Object 持久化阶段会收到 404 并表现为 HTTP 503。
 
 ---
 
@@ -977,8 +982,11 @@ brew install vips
 
 ### 启动服务
 ```bash
-uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+如果需要临时运行历史 `server.py`，请不要将其作为 Git Service 的 Storage Service；它不包含
+Git Object Broker 路由。容器开发镜像同样已固定使用 `app.main:app`。
 
 ### Docker 部署
 ```bash

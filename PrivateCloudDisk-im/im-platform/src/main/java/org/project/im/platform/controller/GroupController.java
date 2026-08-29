@@ -1,16 +1,32 @@
 package org.project.im.platform.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.project.im.common.dto.GroupDTO;
 import org.project.im.common.dto.GroupMemberDTO;
+import org.project.im.common.dto.PageResult;
 import org.project.im.common.dto.Result;
+import org.project.im.platform.dto.GroupCreateCommand;
+import org.project.im.platform.dto.GroupMemberInviteCommand;
+import org.project.im.platform.dto.GroupMemberMuteCommand;
+import org.project.im.platform.dto.GroupMemberRoleCommand;
+import org.project.im.platform.dto.GroupUpdateCommand;
 import org.project.im.platform.service.GroupService;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -29,8 +45,9 @@ import java.util.List;
  * </ul>
  * </p>
  *
- * @author PrivateCloudDisk Team
- * @since 1.0.0
+ * <p>GROUP-CHAT-20260810 [6.1-6.15]：旧实现将群 ID 按 UUID 校验，但群 ID 实际由
+ * Snowflake 生成，造成所有详情与成员接口在参数校验阶段失败。新接口移除该错误约束，并
+ * 增加 JSON 管理接口；旧版 Query 参数路由仍保留以兼容已发布客户端。</p>
  */
 @RestController
 @RequestMapping("/im/groups")
@@ -41,157 +58,131 @@ public class GroupController {
 
     private final GroupService groupService;
 
-    private static final String UUID_REGEX =
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+    /** 新 Web 客户端：创建群时一次提交初始成员，服务端同步建立成员会话。 */
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "创建群组（含初始成员）")
+    public Result<GroupDTO> createGroupJson(@Valid @RequestBody GroupCreateCommand command) {
+        return groupService.createGroup(command.getOwnerId(), command.getGroupName(), command.getAvatarFileId(),
+                command.getMemberIds(), command.getJoinMode());
+    }
 
+    /** 旧客户端兼容接口。 */
     @PostMapping("/create")
-    @Operation(summary = "创建群组")
-    public Result<GroupDTO> createGroup(
-            @Parameter(description = "群主 ID")
-            @RequestParam @NotBlank(message = "群主ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群主ID必须是有效的UUID格式") String ownerId,
-            @Parameter(description = "群组名称")
-            @RequestParam @NotBlank(message = "群组名称不能为空")
-            @Size(max = 100, message = "群组名称长度不能超过100个字符") String groupName,
-            @Parameter(description = "群头像 URL") @RequestParam(required = false) String avatar) {
+    @Operation(summary = "创建群组（兼容接口）")
+    public Result<GroupDTO> createGroup(@RequestParam @NotBlank String ownerId,
+                                        @RequestParam @NotBlank @Size(max = 100) String groupName,
+                                        @RequestParam(required = false) String avatar) {
         return groupService.createGroup(ownerId, groupName, avatar);
+    }
+
+    @GetMapping
+    @Operation(summary = "获取当前用户加入的群组列表")
+    public Result<PageResult<GroupDTO>> getUserGroups(@RequestParam @NotBlank String userId,
+                                                       @RequestParam(defaultValue = "1") int page,
+                                                       @RequestParam(defaultValue = "50") int size) {
+        return groupService.getUserGroups(userId, page, size);
+    }
+
+    /** 旧路径兼容；新客户端使用分页根路径。 */
+    @GetMapping("/user/{userId}")
+    @Operation(summary = "获取用户加入的群组列表（兼容接口）")
+    public Result<List<GroupDTO>> getUserGroupsLegacy(@PathVariable @NotBlank String userId) {
+        return groupService.getUserGroups(userId);
     }
 
     @GetMapping("/{groupId}")
     @Operation(summary = "获取群组详情")
-    public Result<GroupDTO> getGroupDetail(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId) {
-        return groupService.getGroupDetail(groupId);
+    public Result<GroupDTO> getGroupDetail(@PathVariable @NotBlank String groupId,
+                                            @RequestParam(required = false) String userId) {
+        return userId == null ? groupService.getGroupDetail(groupId) : groupService.getGroupDetail(groupId, userId);
     }
 
-    @GetMapping("/user/{userId}")
-    @Operation(summary = "获取用户加入的群组列表")
-    public Result<List<GroupDTO>> getUserGroups(
-            @Parameter(description = "用户 ID")
-            @PathVariable @NotBlank(message = "用户ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId) {
-        return groupService.getUserGroups(userId);
+    @PutMapping("/{groupId}")
+    @Operation(summary = "修改群资料")
+    public Result<GroupDTO> updateGroup(@PathVariable @NotBlank String groupId,
+                                        @Valid @RequestBody GroupUpdateCommand command) {
+        return groupService.updateGroup(groupId, command.getOperatorId(), command.getName(), command.getAvatarFileId(),
+                command.getAnnouncement(), command.getDescription(), command.getJoinMode());
     }
 
-    @PostMapping("/{groupId}/join")
-    @Operation(summary = "加入群组")
-    public Result<Void> joinGroup(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "用户 ID")
-            @RequestParam @NotBlank(message = "用户ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId) {
-        return groupService.joinGroup(groupId, userId);
+    @PostMapping("/{groupId}/members")
+    @Operation(summary = "邀请群成员")
+    public Result<Void> inviteMembers(@PathVariable @NotBlank String groupId,
+                                      @Valid @RequestBody GroupMemberInviteCommand command) {
+        return groupService.inviteMembers(groupId, command.getOperatorId(), command.getUserIds());
     }
 
-    @PostMapping("/{groupId}/leave")
-    @Operation(summary = "退出群组")
-    public Result<Void> leaveGroup(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "用户 ID")
-            @RequestParam @NotBlank(message = "用户ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId) {
+    @DeleteMapping("/{groupId}/members/self")
+    @Operation(summary = "退出群聊")
+    public Result<Void> leaveGroupRest(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String userId) {
         return groupService.leaveGroup(groupId, userId);
     }
 
-    @PostMapping("/{groupId}/kick")
-    @Operation(summary = "踢出成员（群主/管理员操作）")
-    public Result<Void> kickMember(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "操作者 ID")
-            @RequestParam @NotBlank(message = "操作者ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "操作者ID必须是有效的UUID格式") String operatorId,
-            @Parameter(description = "被踢用户 ID")
-            @RequestParam @NotBlank(message = "被踢用户ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "被踢用户ID必须是有效的UUID格式") String targetUid) {
-        return groupService.kickMember(groupId, operatorId, targetUid);
+    @DeleteMapping("/{groupId}/members/{userId}")
+    @Operation(summary = "移除群成员")
+    public Result<Void> removeMember(@PathVariable @NotBlank String groupId, @PathVariable @NotBlank String userId,
+                                     @RequestParam @NotBlank String operatorId) {
+        return groupService.kickMember(groupId, operatorId, userId);
     }
 
-    @PostMapping("/{groupId}/mute")
-    @Operation(summary = "禁言成员（群主/管理员操作）")
-    public Result<Void> muteMember(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "操作者 ID")
-            @RequestParam @NotBlank(message = "操作者ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "操作者ID必须是有效的UUID格式") String operatorId,
-            @Parameter(description = "被禁言用户 ID")
-            @RequestParam @NotBlank(message = "被禁言用户ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "被禁言用户ID必须是有效的UUID格式") String targetUid,
-            @Parameter(description = "禁言时长（分钟，-1 表示永久）")
-            @RequestParam @Min(value = -1, message = "禁言时长不能小于-1") int durationMinutes) {
-        return groupService.muteMember(groupId, operatorId, targetUid, durationMinutes);
+    @PutMapping("/{groupId}/members/{userId}/role")
+    @Operation(summary = "设置群成员角色")
+    public Result<Void> setMemberRole(@PathVariable @NotBlank String groupId, @PathVariable @NotBlank String userId,
+                                      @Valid @RequestBody GroupMemberRoleCommand command) {
+        return groupService.updateMemberRole(groupId, command.getOperatorId(), userId, command.getRole());
     }
 
-    @PostMapping("/{groupId}/unmute")
-    @Operation(summary = "解除禁言")
-    public Result<Void> unmuteMember(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "操作者 ID")
-            @RequestParam @NotBlank(message = "操作者ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "操作者ID必须是有效的UUID格式") String operatorId,
-            @Parameter(description = "被解除禁言用户 ID")
-            @RequestParam @NotBlank(message = "被解除禁言用户ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "被解除禁言用户ID必须是有效的UUID格式") String targetUid) {
-        return groupService.unmuteMember(groupId, operatorId, targetUid);
+    @PostMapping("/{groupId}/members/{userId}/mute")
+    @Operation(summary = "禁言群成员")
+    public Result<Void> muteMemberRest(@PathVariable @NotBlank String groupId, @PathVariable @NotBlank String userId,
+                                       @Valid @RequestBody GroupMemberMuteCommand command) {
+        return groupService.muteMember(groupId, command.getOperatorId(), userId, command.getDurationMinutes());
     }
 
-    @PutMapping("/{groupId}/mute-all")
-    @Operation(summary = "全员禁言/取消（仅群主）")
-    public Result<Void> muteAll(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "操作者 ID（群主）")
-            @RequestParam @NotBlank(message = "操作者ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "操作者ID必须是有效的UUID格式") String operatorId,
-            @Parameter(description = "是否全员禁言") @RequestParam boolean isAllMuted) {
-        return groupService.muteAll(groupId, operatorId, isAllMuted);
+    @DeleteMapping("/{groupId}/members/{userId}/mute")
+    @Operation(summary = "取消群成员禁言")
+    public Result<Void> unmuteMemberRest(@PathVariable @NotBlank String groupId, @PathVariable @NotBlank String userId,
+                                         @RequestParam @NotBlank String operatorId) {
+        return groupService.unmuteMember(groupId, operatorId, userId);
     }
 
-    @DeleteMapping("/{groupId}/dissolve")
-    @Operation(summary = "解散群组（仅群主）")
-    public Result<Void> dissolveGroup(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "群主 ID")
-            @RequestParam @NotBlank(message = "群主ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群主ID必须是有效的UUID格式") String ownerId) {
-        return groupService.dissolveGroup(groupId, ownerId);
+    @GetMapping(value = "/{groupId}/members", params = "userId")
+    @Operation(summary = "分页获取群成员")
+    public Result<PageResult<GroupMemberDTO>> getGroupMembers(@PathVariable @NotBlank String groupId,
+                                                               @RequestParam @NotBlank String userId,
+                                                               @RequestParam(defaultValue = "1") int page,
+                                                               @RequestParam(defaultValue = "100") int size) {
+        return groupService.getGroupMembers(groupId, userId, page, size);
     }
 
-    @GetMapping("/{groupId}/members")
-    @Operation(summary = "获取群成员列表")
-    public Result<List<GroupMemberDTO>> getGroupMembers(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId) {
+    /** 旧客户端兼容：未带 userId 时保持原有列表响应形态。 */
+    @GetMapping(value = "/{groupId}/members", params = "!userId")
+    @Operation(summary = "获取群成员列表（兼容接口）")
+    public Result<List<GroupMemberDTO>> getGroupMembersLegacy(@PathVariable @NotBlank String groupId) {
         return groupService.getGroupMembers(groupId);
     }
 
-    @PutMapping("/{groupId}/announcement")
-    @Operation(summary = "更新群公告（群主/管理员操作）")
-    public Result<Void> updateAnnouncement(
-            @Parameter(description = "群组 ID")
-            @PathVariable @NotBlank(message = "群组ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "群组ID必须是有效的UUID格式") String groupId,
-            @Parameter(description = "操作者 ID")
-            @RequestParam @NotBlank(message = "操作者ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "操作者ID必须是有效的UUID格式") String operatorId,
-            @Parameter(description = "公告内容")
-            @RequestParam @NotBlank(message = "公告内容不能为空")
-            @Size(max = 500, message = "公告内容长度不能超过500个字符") String announcement) {
-        return groupService.updateAnnouncement(groupId, operatorId, announcement);
+    @DeleteMapping("/{groupId}")
+    @Operation(summary = "解散群聊")
+    public Result<Void> dissolveGroupRest(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String ownerId) {
+        return groupService.dissolveGroup(groupId, ownerId);
     }
+
+    // 以下为旧 Query 参数路由，保留以避免移动端或脚本客户端回归。
+    @PostMapping("/{groupId}/join")
+    public Result<Void> joinGroup(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String userId) { return groupService.joinGroup(groupId, userId); }
+    @PostMapping("/{groupId}/leave")
+    public Result<Void> leaveGroup(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String userId) { return groupService.leaveGroup(groupId, userId); }
+    @PostMapping("/{groupId}/kick")
+    public Result<Void> kickMember(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String operatorId, @RequestParam @NotBlank String targetUid) { return groupService.kickMember(groupId, operatorId, targetUid); }
+    @PostMapping("/{groupId}/mute")
+    public Result<Void> muteMember(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String operatorId, @RequestParam @NotBlank String targetUid, @RequestParam int durationMinutes) { return groupService.muteMember(groupId, operatorId, targetUid, durationMinutes); }
+    @PostMapping("/{groupId}/unmute")
+    public Result<Void> unmuteMember(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String operatorId, @RequestParam @NotBlank String targetUid) { return groupService.unmuteMember(groupId, operatorId, targetUid); }
+    @PutMapping("/{groupId}/mute-all")
+    public Result<Void> muteAll(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String operatorId, @RequestParam boolean isAllMuted) { return groupService.muteAll(groupId, operatorId, isAllMuted); }
+    @DeleteMapping("/{groupId}/dissolve")
+    public Result<Void> dissolveGroup(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String ownerId) { return groupService.dissolveGroup(groupId, ownerId); }
+    @PutMapping("/{groupId}/announcement")
+    public Result<Void> updateAnnouncement(@PathVariable @NotBlank String groupId, @RequestParam @NotBlank String operatorId, @RequestParam @NotBlank @Size(max = 500) String announcement) { return groupService.updateAnnouncement(groupId, operatorId, announcement); }
 }

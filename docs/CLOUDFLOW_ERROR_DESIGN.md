@@ -1,4 +1,4 @@
-下面给你设计一份 **CloudFlow DSL Compiler 错误诊断系统设计规范文档**。
+#  **CloudFlow DSL Compiler 错误诊断系统设计规范文档**
 
 
 
@@ -74,9 +74,9 @@ error[E0425]: cannot find value `x` in this scope
 CloudFlow DSL 应达到：
 
 ```
-ERROR CF1002
+ERROR CF1202
 
-workflow.cloud:23:15
+workflow.flow:23:15
 
 Unknown keyword "triger"
 
@@ -149,7 +149,7 @@ CF + 类型 + 编号
 例如：
 
 ```
-CF1001
+CF1201
 ```
 
 含义：
@@ -184,7 +184,7 @@ FATAL
 WARNING CF2001
 unused variable
 
-ERROR CF1005
+ERROR CF1201
 invalid syntax
 ```
 
@@ -196,7 +196,7 @@ invalid syntax
 
 ```json
 {
-  "code": "CF1001",
+  "code": "CF1201",
 
   "severity": "ERROR",
 
@@ -208,13 +208,15 @@ invalid syntax
   "location": {
 
     "file":
-    "weekly_report.cf",
+    "weekly_report.flow",
 
     "line":23,
 
     "column":15,
 
-    "offset":532
+    "startOffset":532,
+
+    "endOffset":538
 
   },
 
@@ -234,7 +236,13 @@ invalid syntax
   ],
 
   "help":
-  "Trigger defines workflow execution source"
+  "Trigger defines workflow execution source",
+
+  "documentationUrl":
+  "/docs/cloudflow/errors/CF1201",
+
+  "cliOutput":
+  "ERROR CF1201\n\nweekly_report.flow:23:15\n\nUnexpected token"
 
 }
 ```
@@ -256,7 +264,7 @@ workflow name
 例如：
 
 ```
-workflow/report.cf
+workflow/report.flow
 ```
 
 ------
@@ -510,9 +518,10 @@ Step.name cannot be empty
 代码：
 
 ```cloudflow
-needs:
-
-- generate_report
+step save_report {
+    depends_on generate_report
+    action file.save {}
+}
 ```
 
 但是没有：
@@ -553,12 +562,10 @@ aggregate_data
 
 例如：
 
-```
-A needs B
-
-B needs C
-
-C needs A
+```cloudflow
+step A { depends_on B action task.run {} }
+step B { depends_on C action task.run {} }
+step C { depends_on A action task.run {} }
 ```
 
 错误：
@@ -580,13 +587,13 @@ A -> B -> C -> A
 CloudFlow支持：
 
 ```
-${{ vars.xxx }}
+vars.xxx
 ```
 
 错误：
 
 ```cloudflow
-${{ vars.user_id }}
+vars.user_id
 ```
 
 但是：
@@ -625,9 +632,12 @@ vars.report_id
 例如：
 
 ```cloudflow
-uses:
-
-plugin:x:create_report
+step create_report {
+    action plugin {
+        id = "x"
+        function = "create_report"
+    }
+}
 ```
 
 但是插件不存在。
@@ -807,7 +817,7 @@ Compiler提供：
 ```
 POST
 
-/api/cloudflow/compiler/check
+/api/v1/compile
 ```
 
 Request:
@@ -821,7 +831,7 @@ Request:
 
 "filename":
 
-"report.cf"
+"report.flow"
 
 }
 ```
@@ -1116,7 +1126,7 @@ compile failed
 ```
 ERROR CF2001
 
-weekly_report.cf:32:8
+weekly_report.flow:32:8
 
 
 Step "save_report"
@@ -1219,7 +1229,7 @@ JSON主要用于：
 
 ```json
 {
-  "code": "CF1002",
+  "code": "CF1202",
 
   "severity": "ERROR",
 
@@ -1232,7 +1242,7 @@ JSON主要用于：
   "location": {
 
     "file":
-    "workflow.cloud",
+    "workflow.flow",
 
     "line":23,
 
@@ -1269,10 +1279,14 @@ JSON主要用于：
 
   "Available workflow trigger definitions include trigger, schedule, manual and event",
 
+  "documentationUrl":
+
+  "/docs/cloudflow/errors/CF1202",
+
 
   "cliOutput":
 
-  "ERROR CF1002\n\nworkflow.cloud:23:15\n\nUnknown keyword \"triger\"\n\nDid you mean:\ntrigger\n\n23 | triger:\n   | ^^^^^^\n\nAvailable keywords:\n- trigger\n- schedule\n- manual\n- event"
+  "ERROR CF1202\n\nworkflow.flow:23:15\n\nUnknown keyword \"triger\"\n\nDid you mean:\ntrigger\n\n23 | triger:\n   | ^^^^^^\n\nAvailable keywords:\n- trigger\n- schedule\n- manual\n- event"
 
 }
 ```
@@ -1291,6 +1305,7 @@ JSON主要用于：
 | source      | 源码上下文   |
 | suggestions | 自动修复建议 |
 | help        | 帮助信息     |
+| documentationUrl | 错误码文档地址 |
 | cliOutput   | CLI格式输出  |
 
 ------
@@ -1309,15 +1324,15 @@ JSON主要用于：
 执行：
 
 ```bash
-cloudflowc compile workflow.cloud
+cloudflowc compile workflow.flow
 ```
 
 输出：
 
 ```text
-ERROR CF1002
+ERROR CF1202
 
-workflow.cloud:23:15
+workflow.flow:23:15
 
 Unknown keyword "triger"
 
@@ -1450,7 +1465,7 @@ workflow {
 IDE：
 
 ```text
-23:15 ERROR CF1002
+23:15 ERROR CF1202
 
 Unknown keyword "triger"
 
@@ -1483,7 +1498,7 @@ Compiler API同时返回机器数据和展示数据。
 ```http
 POST
 
-/api/cloudflow/compiler/check
+/api/v1/compile
 ```
 
 请求：
@@ -1491,7 +1506,7 @@ POST
 ```json
 {
  "filename":
- "workflow.cloud",
+ "workflow.flow",
 
  "source":
  "..."
@@ -1511,7 +1526,7 @@ POST
 
 {
 
-"code":"CF1002",
+"code":"CF1202",
 
 "severity":"ERROR",
 
@@ -1532,7 +1547,7 @@ POST
 
 "cliOutput":
 
-"ERROR CF1002\nworkflow.cloud:23:15..."
+"ERROR CF1202\nworkflow.flow:23:15..."
 
 }
 
@@ -1653,9 +1668,9 @@ Terminal Output
 例如生成：
 
 ```text
-ERROR CF1002
+ERROR CF1202
 
-workflow.cloud:23:15
+workflow.flow:23:15
 
 Unknown keyword
 ```
@@ -1715,3 +1730,36 @@ Unknown keyword
 - 图形化流程设计器
 
 都可以直接复用这一套 Diagnostic Engine。你不需要为每个平台重新设计错误输出。
+
+---
+
+## V1.2 新语法错误码（CF44xx）
+
+| 错误码 | 类别 | 说明 | 触发 |
+|--------|-----|------|------|
+| CF4401 | SYNTAX_ERROR | switch 只允许一个 default 分支 | switch 体内出现多个 default |
+| CF4402 | RETRY_ERROR | retry_on 引用了未知异常类型 | retry_on [UnknownException] |
+| CF4403 | TIMEOUT_ERROR | on_timeout 取值非法 | on_timeout 非 fail/continue/retry |
+| CF4404 | DELAY_ERROR | delay 时长必须大于 0 | delay 0s |
+| CF4405 | ENVIRONMENT_ERROR | environment 值必须是字面量 | environment { KEY = vars.x } |
+| CF4406 | NAMESPACE_ERROR | namespace 不符合小写点分标识符 | namespace Com.Example |
+| CF4407 | IMPORT_ERROR | import 别名重复 | 两个 import 使用同一 as 别名 |
+| CF4408 | CONTROL_ERROR | break/continue 只能出现在 for/while 循环体内 | 顶层写成 break/continue |
+| CF4409 | VALIDATE_ERROR | validate 表达式必须是 boolean | validate { 1 } |
+| CF4410 | FOR_ERROR | for range 端点必须是 number | range(0, "x") |
+| CF4411 | PARALLEL_ERROR | parallel max_concurrency 必须为正整数 | parallel(max_concurrency=0) |
+| CF4412 | VALIDATE_ERROR | validate 校验未通过（运行时） | validate 表达式求值为 false |
+| CF4413 | WEBHOOK_ERROR | http 触发 method 非法 | trigger { http { method = "FETCH" } } |
+| CF4414 | INTERVAL_ERROR | interval 触发时长必须大于 0 | trigger { interval = 0s } |
+| CF4415 | AUDIT_ERROR | audit level 非法 | audit { level = "critical" } |
+| CF4416 | NOTIFY_ERROR | notify 渠道非法 | notify { channel = "sms-turbo" } |
+| CF4417 | RETURN_ERROR | 步骤级提前返回信号（运行期 SUCCESS） | step 内 return <expr> |
+| CF4418 | GROUP_ERROR | step group 冲突 / 空组 | step group g {} 或组名与 step 冲突 |
+| CF4420 | USE_ERROR | use/with 引用了未声明模块别名 | use missing（未 import as） |
+| CF4421 | COND_DEPENDS_ERROR | 条件依赖 must 是布尔表达式 | depends_on a if vars.n + 1 |
+
+所有 CF44xx 诊断仍复用统一 `Diagnostic` 结构（code/severity/category/message/location/source/suggestions/help/cliOutput）。
+其中 CF4412 由 Runtime 在求值阶段产生（RuntimeExecutionError::ValidateFailed）；
+CF4408 同时作为 Runtime 内部循环控制信号（LoopBreak/LoopContinue）的错误码载体，供恢复审计使用；
+CF4417 为步骤级 `return` 的 Runtime 提前返回信号（以 SUCCESS 结束并携带返回输出）。
+其余 CF44xx 均在编译期产出。

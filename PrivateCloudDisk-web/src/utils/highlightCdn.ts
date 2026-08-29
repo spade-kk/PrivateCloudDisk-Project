@@ -25,7 +25,7 @@ const CDN_URL = `https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@${HIGHLIGH
 const STYLE_BASE_URL = `https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@${HIGHLIGHT_JS_VERSION}/styles`
 
 // 预设主题名称（可暴露给外部切换）
-export type HighlightTheme = 'default' | 'github-dark' | 'dark' | 'vs2015' | 'atom-one-dark' | 'monokai'
+export type HighlightTheme = 'default' | 'github-dark' | 'dark' | 'vs2015' | 'atom-one-dark' | 'monokai' | 'github' | 'xcode'
 
 // 用于防止重复注入的标记
 let injectedTheme: string | null = null

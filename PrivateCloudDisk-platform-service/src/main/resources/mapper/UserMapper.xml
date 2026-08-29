@@ -35,8 +35,9 @@
         FROM pcd_user_info_table
         WHERE user_name LIKE CONCAT('%', #{keyword}, '%')
            OR user_account LIKE CONCAT('%', #{keyword}, '%')
-        ORDER BY user_name ASC
-        LIMIT #{limit}
+           OR user_email LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY CASE WHEN user_account = #{keyword} THEN 0 ELSE 1 END, user_name ASC
+        LIMIT #{offset}, #{size}
     </select>
     <!--    配置sql语句插入单条用户数据-->
     <insert id="insertUser" useGeneratedKeys="true" keyProperty="id" parameterType="org.project.model.entity.UserEntity">

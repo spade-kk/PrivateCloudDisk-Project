@@ -1,5 +1,5 @@
 <template>
-  <section class="monaco-wrapper" :class="{ 'monaco-wrapper--fullscreen': fullscreen }" :aria-label="`${path || '代码'}编辑器`">
+  <section class="monaco-wrapper" :class="{ 'monaco-wrapper--fullscreen': fullscreen }" :style="{ height }" :aria-label="`${path || '代码'}编辑器`">
     <header class="monaco-wrapper__toolbar">
       <div class="monaco-wrapper__path"><i class="fa fa-file-code-o" aria-hidden="true"></i><span>{{ path || '未命名文件' }}</span><em v-if="dirty">未保存</em></div>
       <div class="monaco-wrapper__tools">
@@ -8,7 +8,9 @@
         <button class="monaco-wrapper__tool" type="button" :title="fullscreen ? '退出全屏' : '全屏编辑'" :aria-label="fullscreen ? '退出全屏' : '全屏编辑'" @click="fullscreen = !fullscreen"><i :class="fullscreen ? 'fa fa-compress' : 'fa fa-expand'" aria-hidden="true"></i></button>
       </div>
     </header>
-    <div ref="containerRef" class="monaco-wrapper__container" :style="{ height }"></div>
+    <!-- [IDE-RESP-2026-08 / 编辑器高度修复] 由根容器承接 height，避免内部编辑区
+         的 100% 高度与工具栏、状态栏叠加并挤压 Monaco 可视区域。 -->
+    <div ref="containerRef" class="monaco-wrapper__container"></div>
     <footer class="monaco-wrapper__status">
       <span>Ln {{ cursor.lineNumber }}, Col {{ cursor.column }}</span>
       <span>{{ language.toUpperCase() }}</span>
@@ -72,6 +74,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const fullscreen = ref(false)
 const cursor = ref({ lineNumber: 1, column: 1 })
 const issues = ref<MonacoValidationIssue[]>([])
+const compactViewport = ref(false)
 let monacoApi: typeof import('monaco-editor') | null = null
 let editor: import('monaco-editor').editor.IStandaloneCodeEditor | null = null
 let changeGuard = false
@@ -203,9 +206,9 @@ async function initialize() {
     theme: props.theme,
     readOnly: props.readOnly,
     automaticLayout: true,
-    minimap: { enabled: true },
+    minimap: { enabled: !compactViewport.value },
     fontSize: 14,
-    lineHeight: 22,
+    lineHeight: compactViewport.value ? 22 : 22,
     tabSize: 2,
     insertSpaces: true,
     scrollBeyondLastLine: false,
@@ -226,6 +229,21 @@ async function initialize() {
   }))
   validateNow(props.modelValue)
   emit('ready')
+}
+
+/**
+ * [IDE-RESP-2026-08 / 7.1-7.14] Monaco 的小地图属于编辑器运行时选项，单靠
+ * CSS 无法可靠隐藏。窄屏关闭小地图、保持 14px 与自动换行，避免代码区被压缩。
+ */
+function syncResponsiveEditorOptions() {
+  compactViewport.value = typeof window !== 'undefined' && window.innerWidth < 768
+  editor?.updateOptions({
+    minimap: { enabled: !compactViewport.value },
+    fontSize: compactViewport.value ? 14 : 14,
+    lineHeight: compactViewport.value ? 22 : 22,
+    wordWrap: compactViewport.value ? 'on' : 'on',
+  })
+  editor?.layout()
 }
 
 function formatDocument() { void editor?.getAction('editor.action.formatDocument')?.run() }
@@ -249,13 +267,16 @@ watch(() => props.theme, (value) => { if (monacoApi && value) monacoApi.editor.s
 defineExpose({ focus, formatDocument, getValue, validateNow })
 
 onMounted(() => {
-  initialize().catch((error) => {
+  syncResponsiveEditorOptions()
+  initialize().then(syncResponsiveEditorOptions).catch((error) => {
     const message = error?.message || 'Monaco 编辑器初始化失败'
     applyIssues([{ message, severity: 'error', line: 1, column: 1 }])
     console.error('[MonacoEditorWrapper] 初始化失败', error)
   })
+  window.addEventListener('resize', syncResponsiveEditorOptions, { passive: true })
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncResponsiveEditorOptions)
   if (validationTimer) clearTimeout(validationTimer)
   disposables.splice(0).forEach((disposable) => disposable.dispose())
   editor?.dispose()
@@ -264,9 +285,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.monaco-wrapper { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid #273244; border-radius: 12px; background: #111827; color: #cbd5e1; }
+.monaco-wrapper { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; border: 1px solid #273244; border-radius: 12px; background: #111827; color: #cbd5e1; }
 .monaco-wrapper--fullscreen { position: fixed; inset: 0; z-index: 130; border-radius: 0; }
-.monaco-wrapper--fullscreen .monaco-wrapper__container { height: calc(100dvh - 80px) !important; }
 .monaco-wrapper__toolbar,
 .monaco-wrapper__status { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; background: #172033; }
 .monaco-wrapper__toolbar { border-bottom: 1px solid #273244; }
@@ -280,7 +300,7 @@ onBeforeUnmount(() => {
 .monaco-wrapper__tool:hover:not(:disabled),
 .monaco-wrapper__tool:focus-visible:not(:disabled) { background: #273244; color: #fff; outline: none; }
 .monaco-wrapper__tool:disabled { cursor: not-allowed; opacity: .5; }
-.monaco-wrapper__container { width: 100%; min-height: 180px; flex: 1; }
+.monaco-wrapper__container { width: 100%; min-height: 0; flex: 1; }
 .monaco-wrapper__status { justify-content: flex-end; border-top: 1px solid #273244; color: #94a3b8; font-size: 10px; }
 @media (prefers-reduced-motion: reduce) { .monaco-wrapper__tool { transition: none; } }
 </style>

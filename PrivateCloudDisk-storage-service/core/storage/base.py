@@ -17,6 +17,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
+from pathlib import Path
 
 
 class StorageProvider(ABC):
@@ -201,7 +202,16 @@ class StorageProvider(ABC):
         """存储文本数据（便捷方法）"""
         await self.put(path, data.encode(encoding))
 
+    async def put_file(self, path: str, source_path: str | Path) -> None:
+        """[REQ-GIT-OBJECT-6.2] 从临时文件写入 Provider。
+
+        默认实现保持第三方 Provider 向后兼容；Local/MinIO 会覆盖为真正流式复制，
+        避免 Git 大对象在 Broker 中整体载入内存。
+        """
+        data = await __import__("asyncio").to_thread(Path(source_path).read_bytes)
+        await self.put(path, data)
+
     async def get_text(self, path: str, encoding: str = "utf-8") -> str:
         """获取文本数据（便捷方法）"""
         data = await self.get(path)
-        return data.decode(encoding)  
+        return data.decode(encoding)

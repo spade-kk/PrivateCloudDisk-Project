@@ -16,6 +16,7 @@ import os
 import shutil
 import asyncio
 import logging
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -92,6 +93,27 @@ class LocalStorageProvider(StorageProvider):
                 f.write(data)
 
         await asyncio.to_thread(_write)
+
+    async def put_file(self, path: str, source_path: str | Path) -> None:
+        """[REQ-GIT-OBJECT-6.2] 采用文件到文件复制，避免大 Git Object 常驻进程内存。"""
+        real_path = self._resolve_path(path)
+
+        def _copy():
+            os.makedirs(os.path.dirname(real_path), exist_ok=True)
+            # [REQ-GIT-OBJECT-6.4] 固定 .tmp 名称在并发写同一 dedup Object 时会互相覆盖；
+            # 新行为为每次写入分配同目录临时文件，再用 replace 原子发布，避免半对象可见。
+            descriptor, temporary_path = tempfile.mkstemp(prefix=".git-object-", dir=os.path.dirname(real_path))
+            os.close(descriptor)
+            try:
+                shutil.copyfile(str(source_path), temporary_path)
+                os.replace(temporary_path, real_path)
+            finally:
+                try:
+                    os.remove(temporary_path)
+                except FileNotFoundError:
+                    pass
+
+        await asyncio.to_thread(_copy)
 
     async def get(self, path: str, offset: int = 0, length: Optional[int] = None) -> bytes:
         """

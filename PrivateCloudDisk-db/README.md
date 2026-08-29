@@ -20,6 +20,8 @@
 
 本次授权安全增量：`011_share_download_permission.sql` 为分享链接增加 `share_allow_download`（历史数据默认允许）；`012_recent_share_access.sql` 为最近访问增加 `ra_access_source` 与 `ra_share_resource_id`，用于区分普通空间下载和分享资源下载，且不把分享虚拟 ID 当作真实 file_id。
 
+公开空间 Git 资源增量：`014_space_resource_type.sql` 为 `pcd_space_table` 增加 `resource_type`，历史空间回填 `file`；Git Service 的 `pcd_git_*` 表位于独立 `pcd_git` Schema，由 `PrivateCloudDisk-git-service/db/migration/V1__git_core.sql` 自管理，不与主业务库建立跨服务外键。
+
 ### 用户与认证
 
 | 表名 | 说明 | 主键 | 关键索引 |

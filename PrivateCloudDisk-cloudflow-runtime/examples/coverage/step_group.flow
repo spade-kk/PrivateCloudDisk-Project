@@ -1,0 +1,11 @@
+# 覆盖目标：[V1.2-STEP-GROUP] step group 组合步骤。
+# 预期：组内步骤扁平化为普通 task 节点；组 ID 作为顺序边界参与调度。
+workflow "step_group" {
+    variables { flag: boolean = true }
+    step start { action builtin.file.list {} output result }
+    step group pipeline {
+        step agg { action builtin.file.list {} }
+        step publish { action builtin.file.list {} }
+    }
+    step finish { action builtin.file.list {} }
+}

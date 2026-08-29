@@ -126,7 +126,13 @@ public class DeviceIdentityFilter implements GlobalFilter, Ordered {
 
     private static final List<ExcludedPath> EXCLUDED_PATHS = Arrays.asList(
             new ExcludedPath("/api/v1/client/register-challenge", "POST"),
-            new ExcludedPath("/api/v1/client/register", "POST")
+            new ExcludedPath("/api/v1/client/register", "POST"),
+            // [REQ-GIT-AUDIT-2.1~2.50/4.3] Git CLI 采用 Basic/PAT 或 SSH，而不是平台
+            // 设备签名。原行为携带任意不完整设备头的 Git clone/fetch/push 会被该过滤器
+            // 提前拒绝；新行为只跳过 .git 协议根，仍由 Git Service 做 PAT、权限与限流。
+            // 管理 API /api/v1/git/repos/** 不匹配该模式，继续执行现有设备/JWT 策略。
+            new ExcludedPath("/api/v1/git/*.git/**", "*"),
+            new ExcludedPath("/git/*.git/**", "*")
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();

@@ -25,7 +25,7 @@ import java.net.URI;
  * 本拦截器在 HTTP 请求到达 WebSocket 协议处理器之前，
  * 将 URI 重写为不含查询字符串的形式（{@code /ws}），
  * 同时将原始 URI（含查询参数）存储到 Channel 属性中，
- * 供后续 {@link AuthHandler} 提取 token 使用。
+ * 供后续 {@link V2AuthHandler} 提取 token 使用。
  * </p>
  *
  * @author PrivateCloudDisk Team
@@ -42,7 +42,7 @@ public class HttpRequestInterceptor extends ChannelInboundHandlerAdapter {
         if (msg instanceof HttpRequest request) {
             String rawUri = request.uri();
 
-            // 将原始 URI 保存到 Channel 属性，供 AuthHandler 提取 token
+            // 将原始 URI 保存到 Channel 属性，供 V2AuthHandler 提取 token
             ctx.channel().attr(
                     io.netty.util.AttributeKey.valueOf(ORIGINAL_URI_ATTR)
             ).set(rawUri);

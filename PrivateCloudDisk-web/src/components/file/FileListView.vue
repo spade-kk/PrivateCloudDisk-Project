@@ -34,7 +34,12 @@
                 icon-size="1rem"
               />
             </template>
-            <i v-else :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary' : '']"></i>
+            <FileTypeIcon
+              v-else
+              :file-name="node.node_name"
+              :is-directory="node.node_type === 'FOLDER'"
+              class="text-base"
+            />
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-2">
@@ -85,9 +90,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { getFileExtension, formatFileSize } from '@/utils/helpers'
-import { getFileIconClass } from '@/utils/fileIcon'
 import { isImage, isOffice, isPdf, isVideo } from '@/utils/previewHelper'
 import ThumbnailImage from './ThumbnailImage.vue'
+import FileTypeIcon from './FileTypeIcon.vue'
 import FileHoverPreview from './FileHoverPreview.vue'
 import FileTagBubble from '@/components/tag/FileTagBubble.vue'
 import type { TagVO } from '@/api/modules/tags'
@@ -107,7 +112,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star', 'contextmenu'])
 
-const iconClass = (node: FileNode) => getFileIconClass(node.node_name)
 const isSelected = (id: string) => props.selectedIds.has(id)
 const isStarred = (id: string) => props.starredIds.has(id)
 const isImageFile = (fileName: string) => isImage(fileName)

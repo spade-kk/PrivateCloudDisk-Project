@@ -18,6 +18,8 @@ import org.project.service.ex.ServiceException;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -140,6 +142,48 @@ public class SpacePermissionServiceImpl implements SpacePermissionService {
         if (!allowed) {
             throw new OverstepAuthorityException("当前空间角色无权执行该操作: " + operation.name());
         }
+    }
+
+    @Override
+    public Set<String> resolveAutomationPermissions(SpaceContextHolder.SpaceContext context) {
+        String role = context.role() == null ? "" : context.role().toLowerCase(Locale.ROOT);
+        Set<String> granted = new LinkedHashSet<>();
+        if ("owner".equals(role) || "admin".equals(role)) {
+            granted.addAll(Set.of(
+                    "file.content.read_staging", "file.content.write_pre_activation",
+                    "file.content.read", "file.metadata.read", "file.metadata.write",
+                    "file.read", "file.write", "file.delete", "file.share",
+                    "workflow.execute", "workflow.manage"
+            ));
+            return granted;
+        }
+        if ("public_viewer".equals(role) || "public_uploader".equals(role)) {
+            granted.add("file.content.read");
+            granted.add("file.metadata.read");
+            if ("public_uploader".equals(role)) granted.add("file.write");
+            return granted;
+        }
+        SpacePermissionEntity permission =
+                spacePermissionMapper.findBySpaceUserNode(context.spaceId(), context.userId(), null);
+        if (hasPermission(permission, SpacePermissionEntity::getCanRead)
+                || "viewer".equals(role) || "editor".equals(role)) {
+            granted.add("file.content.read");
+            granted.add("file.metadata.read");
+            granted.add("file.read");
+        }
+        if (hasPermission(permission, SpacePermissionEntity::getCanWrite) ||
+                hasPermission(permission, SpacePermissionEntity::getCanEdit) || "editor".equals(role)) {
+            granted.add("file.metadata.write");
+            granted.add("file.write");
+        }
+        if (hasPermission(permission, SpacePermissionEntity::getCanDelete)) granted.add("file.delete");
+        if (hasPermission(permission, SpacePermissionEntity::getCanShare)) granted.add("file.share");
+        if (hasPermission(permission, SpacePermissionEntity::getCanManage)) granted.add("workflow.manage");
+        if (hasPermission(permission, SpacePermissionEntity::getCanView)
+                || hasPermission(permission, SpacePermissionEntity::getCanRead)) {
+            granted.add("workflow.execute");
+        }
+        return granted;
     }
 
     private boolean hasPermission(

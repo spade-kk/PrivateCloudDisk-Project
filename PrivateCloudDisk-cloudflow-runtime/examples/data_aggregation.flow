@@ -1,0 +1,44 @@
+workflow "data_aggregation" {
+    metadata {
+        display_name = "数据聚合"
+        description = "并行收集数据后生成汇总结果"
+        version = "1.0"
+    }
+    trigger { manual {} }
+    variables {
+        source_node_id = input.string(required = true)
+        output_node_id = input.string(required = true)
+    }
+    parallel {
+        step collect_excel {
+            action file.list {
+                node = vars.source_node_id
+                filter { extension = "xlsx" }
+            }
+            output excel_files
+        }
+        step collect_csv {
+            action file.list {
+                node = vars.source_node_id
+                filter { extension = "csv" }
+            }
+            output csv_files
+        }
+    }
+    step aggregate {
+        depends_on collect_excel, collect_csv
+        action data.aggregate {
+            excel = steps.collect_excel.output
+            csv = steps.collect_csv.output
+        }
+        timeout = 10m
+        output report
+    }
+    step save {
+        depends_on aggregate
+        action file.save {
+            source = steps.aggregate.output
+            target = vars.output_node_id
+        }
+    }
+}

@@ -50,7 +50,7 @@ public class ImMessage {
     /** 扩展内容（JSON 格式） */
     private String extra;
 
-    /** 消息状态：0-发送中 1-已发送 2-已送达 3-已读 4-失败 5-已撤回 */
+    /** 消息状态：0-准备中(PREPARING) 1-已送达(DELIVERED) 2-已读(READ) 3-失败(FAILED)；5-已撤回 6-已删除（可见性状态） */
     private Integer status;
 
     /** 服务端消息序列号 */

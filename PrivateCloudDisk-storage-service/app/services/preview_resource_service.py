@@ -52,7 +52,7 @@ class PreviewResourceService:
         resources = await preview_resource_repository.list_by_file(
             file_id, user_id, space_id=effective_space_id,
         )
-        logger.info(resources)
+
         try:
             await redis_client.setex(key, settings.preview_resource_cache_ttl, json.dumps(resources, ensure_ascii=False))
         except Exception as exc:

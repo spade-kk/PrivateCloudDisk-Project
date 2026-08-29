@@ -1,6 +1,4 @@
-------
-
-## **CloudFlow DSL 示例**
+# **CloudFlow DSL 示例**
 
 ```cloudflow
 workflow "weekly_sales_report" {

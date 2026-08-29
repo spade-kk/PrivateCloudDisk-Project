@@ -2,6 +2,7 @@ package org.project.im.server;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * IM WebSocket 长连接推送服务 — 启动类
@@ -20,6 +21,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @since 1.0.0
  */
 @SpringBootApplication
+@EnableScheduling
 public class ImServerApplication {
 
     public static void main(String[] args) {

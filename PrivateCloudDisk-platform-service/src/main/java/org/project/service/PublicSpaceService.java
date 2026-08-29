@@ -13,6 +13,8 @@ import java.util.UUID;
  */
 public interface PublicSpaceService {
     PublicSpaceDetailVO getRepository(UUID spaceId, UUID visitorId);
+    /** [REQ-GIT-SPACE-12.4] 文件上传入口调用，阻止 Git 资源误走文件会话。 */
+    void requireFileResource(UUID spaceId, UUID visitorId);
     PublicSpaceNodeVO getRoot(UUID spaceId, UUID visitorId);
     List<PublicSpaceNodeVO> getChildren(UUID spaceId, UUID nodeId, UUID visitorId);
     String getReadme(UUID spaceId, UUID visitorId);

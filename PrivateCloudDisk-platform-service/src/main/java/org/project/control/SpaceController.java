@@ -31,7 +31,7 @@ public class SpaceController extends BaseController {
             @Valid @RequestBody CreateSpaceRequest request,
             @RequestHeader("X-User-Id") String userId) {
         SpaceEntity space = spaceService.createSpace(
-                UUID.fromString(userId), request.getSpaceName(), request.getSpaceType(),
+                UUID.fromString(userId), request.getSpaceName(), request.getSpaceType(), request.getResourceType(),
                 request.getSpaceDescription(), request.getSpaceVisibility(), request.getJoinPolicy());
         // 公开仓库的权限开关由独立设置接口维护；创建接口保持旧请求体兼容，避免老客户端被迫升级。
         if ("public".equals(space.getSpaceType())) {

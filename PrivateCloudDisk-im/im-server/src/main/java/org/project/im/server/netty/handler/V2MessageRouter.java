@@ -23,7 +23,6 @@ import org.springframework.stereotype.Component;
  * ─────────────────────────────────────
  * HEARTBEAT              → 心跳响应
  * SEND_MESSAGE           → messagePushService.handleV2Message()
- * MESSAGE_ACK            → messagePushService.handleV2Ack()
  * READ_MESSAGE, TYPING   → messagePushService
  * SYNC_OFFLINE           → messagePushService.handleSyncOffline()
  * CALL_* / SIGNALING_*   → signalingHandler.handleV2()
@@ -69,7 +68,6 @@ public class V2MessageRouter {
 
             // ---- 消息收发 ----
             case SEND_MESSAGE -> messagePushService.handleV2Message(ctx, envelope, dispatched, sessionKeys);
-            case MESSAGE_ACK -> messagePushService.handleV2Ack(ctx, dispatched);
             case RECALL_MESSAGE -> messagePushService.handleV2Recall(ctx, dispatched);
             case READ_MESSAGE -> messagePushService.handleV2Read(ctx, dispatched);
             case TYPING -> messagePushService.handleV2Typing(ctx, dispatched);
@@ -109,6 +107,9 @@ public class V2MessageRouter {
             IMSessionKeys sessionKeys) {
 
         try {
+            // 刷新用户在线映射的 TTL，避免长连接在线状态被误判为离线
+            sessionManager.refreshUserMapping(sessionKeys.getUserId());
+
             IMProtocolV2.IMEnvelope heartbeat = IMProtocolV2.IMEnvelope.newBuilder()
                     .setVersion(2)
                     .setMessageId("hb-" + System.currentTimeMillis())

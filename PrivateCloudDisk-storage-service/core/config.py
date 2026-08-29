@@ -115,7 +115,7 @@ class Settings(BaseSettings):
     file_content_ready_dlq: str = "pcd.automation.file.content.ready.dlq"
     file_content_processed_dlq: str = "pcd.storage.file.content.processed.dlq"
     file_content_processed_retry_delays_seconds: str = "5,30,120"
-    # REQ-WORKER-TASKBUS-2026-07：内容预处理是核心任务链中的短暂可选步骤；无 Automation
+    # 内容预处理是核心任务链中的短暂可选步骤；无 Automation
     # 消费者时由 timeout sentinel 快速触发 fail-open，不让上传等待原来的 180 秒。
     file_preprocess_deadline_seconds: int = 15
     file_preprocess_sweeper_interval_seconds: float = 3.0
@@ -124,8 +124,11 @@ class Settings(BaseSettings):
     storage_outbox_batch_size: int = 50
     storage_outbox_publish_lease_seconds: int = 60
     # Runtime → Storage Broker 内部调用凭证。生产环境必须通过 Secret 注入且禁止配置公网路由。
-    plugin_runtime_internal_token: str = ""
-    pcd_internal_service_token: str = ""
+    plugin_runtime_internal_token: str = "test"
+    pcd_internal_service_token: str = "test"
+    # Git Object Broker 的单对象及单次 Range 上限；均可按部署覆盖。
+    git_object_max_bytes: int = 2 * 1024 * 1024 * 1024
+    git_object_max_range_bytes: int = 64 * 1024 * 1024
     file_preprocess_candidate_max_bytes: int = 10 * 1024 * 1024 * 1024
     file_preprocess_candidate_max_expansion_ratio: float = 2.0
 

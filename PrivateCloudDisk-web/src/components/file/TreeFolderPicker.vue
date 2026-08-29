@@ -12,7 +12,7 @@
           :class="{ 'column-active': selectedNodeId && isNodeInColumn(column, selectedNodeId) }"
         >
           <div class="column-header">
-            <i class="fa fa-folder-o mr-1.5 text-primary/70"></i>
+            <FileTypeIcon file-name="root" is-directory class="mr-1.5 text-primary/70" />
             <span class="truncate">{{ colIndex === 0 ? '根目录' : (breadcrumbNodes[colIndex - 1]?.node_name || '') }}</span>
             <span class="ml-auto pl-2 text-[10px] text-neutral-400">{{ column.length }}</span>
           </div>
@@ -28,7 +28,7 @@
               @click="handleNodeClick(node, colIndex)"
             >
               <span class="row-icon" :class="isFolderNode(node) ? 'folder' : 'file'">
-                <i :class="isFolderNode(node) ? 'fa fa-folder' : 'fa fa-file-o'"></i>
+                <FileTypeIcon :file-name="node.node_name" :is-directory="isFolderNode(node)" />
               </span>
               <span class="row-name truncate">{{ node.node_name }}</span>
               <i v-if="isFolderNode(node)" class="fa fa-angle-right row-arrow"></i>
@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
+import FileTypeIcon from './FileTypeIcon.vue'
 
 const props = defineProps({
   folderTree: {

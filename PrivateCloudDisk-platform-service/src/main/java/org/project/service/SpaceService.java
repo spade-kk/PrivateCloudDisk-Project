@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface SpaceService {
-    SpaceEntity createSpace(UUID userId, String spaceName, String spaceType, String spaceDescription, String spaceVisibility, String joinPolicy);
+    SpaceEntity createSpace(UUID userId, String spaceName, String spaceType, String resourceType,
+                            String spaceDescription, String spaceVisibility, String joinPolicy);
     SpaceEntity getSpaceById(UUID spaceId, UUID userId);
     List<SpaceEntity> getUserSpaces(UUID userId);
     List<SpaceEntity> getUserSpacesByType(UUID userId, String spaceType);

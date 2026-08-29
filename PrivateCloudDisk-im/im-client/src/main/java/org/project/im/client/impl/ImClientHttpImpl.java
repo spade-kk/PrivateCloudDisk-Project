@@ -86,23 +86,6 @@ public class ImClientHttpImpl implements ImClient {
         }
     }
 
-    @Override
-    public Result<Void> sendSystemNotice(List<String> userIds, String title, String content) {
-        for (String userId : userIds) {
-            MessageDTO notice = MessageDTO.builder()
-                    .conversationId("SYSTEM_" + userId)
-                    .conversationType(3)
-                    .messageType(MessageType.SYSTEM_NOTICE.getCode())
-                    .senderId("SYSTEM")
-                    .receiverId(userId)
-                    .content(title + "\n" + content)
-                    .sendTime(LocalDateTime.now())
-                    .build();
-            rabbitTemplate.convertAndSend(MQ_EXCHANGE_MESSAGE, MQ_ROUTING_SYSTEM, notice);
-        }
-        return Result.success(null);
-    }
-
     // ==================== 会话相关 ====================
 
     @Override
@@ -272,6 +255,47 @@ public class ImClientHttpImpl implements ImClient {
         } catch (Exception e) {
             log.error("获取在线用户数失败", e);
             return 0;
+        }
+    }
+
+    // ==================== 离线消息与历史消息拉取 ====================
+
+    @Override
+    public Result<List<MessageDTO>> getOfflineMessages(String userId, int limit) {
+        String url = platformBaseUrl + "/api/v1/messages/offline?userId={userId}&limit={limit}";
+        try {
+            ResponseEntity<Result<List<MessageDTO>>> response = restTemplate.exchange(
+                    url, HttpMethod.GET, null,
+                    new ParameterizedTypeReference<Result<List<MessageDTO>>>() {}, userId, limit);
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("拉取离线消息失败", e);
+            return Result.error(500, "拉取离线消息失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Result<List<MessageDTO>> getHistoryByCursor(String conversationId, String userId,
+                                                       int limit, Long cursor, LocalDateTime before) {
+        StringBuilder url = new StringBuilder(platformBaseUrl)
+                .append("/api/v1/messages/history/cursor")
+                .append("?conversationId=").append(conversationId)
+                .append("&userId=").append(userId)
+                .append("&limit=").append(limit);
+        if (cursor != null) {
+            url.append("&cursor=").append(cursor);
+        }
+        if (before != null) {
+            url.append("&before=").append(before);
+        }
+        try {
+            ResponseEntity<Result<List<MessageDTO>>> response = restTemplate.exchange(
+                    url.toString(), HttpMethod.GET, null,
+                    new ParameterizedTypeReference<Result<List<MessageDTO>>>() {});
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("游标分页查询历史消息失败", e);
+            return Result.error(500, "游标分页查询历史消息失败: " + e.getMessage());
         }
     }
 }

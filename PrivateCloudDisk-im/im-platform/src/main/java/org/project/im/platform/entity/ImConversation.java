@@ -10,9 +10,10 @@ import java.time.LocalDateTime;
 /**
  * 会话实体
  * <p>
- * 对应数据库表 im_conversation，存储用户会话信息。
+ * 对应数据库表 pcd_im_conversation，存储用户会话元数据。
  * 每个会话关联两个用户（单聊）或一个用户和一个群组（群聊）。
- * 会话 ID 由 {@code userId + targetId} 生成，确保唯一性。
+ * 共享 sessionId 由 {@code minUserId*maxUserId} 或 {@code group*groupId} 生成；
+ * 每位参与者各有一行元数据，使置顶、免打扰及 Redis 未读摘要互不覆盖。
  * </p>
  *
  * @author PrivateCloudDisk Team
@@ -27,42 +28,27 @@ public class ImConversation {
     /** 主键 ID */
     private Long id;
 
-    /** 会话唯一 ID */
-    private String conversationId;
+    /** 共享会话 ID（同时对应消息表 conversation_id） */
+    private String sessionId;
 
     /** 会话类型：1-单聊 2-群聊 */
-    private Integer conversationType;
+    private Integer sessionType;
 
     /** 当前用户 ID */
     private String userId;
 
-    /** 对方 ID（单聊为对方 userId，群聊为 groupId） */
-    private String targetId;
-
-    /** 最后一条消息内容 */
-    private String lastMessage;
-
-    /** 最后一条消息类型 */
-    private Integer lastMessageType;
-
-    /** 最后一条消息时间 */
-    private LocalDateTime lastMessageTime;
-
-    /** 未读消息数 */
-    private Integer unreadCount;
+    /** 对端 ID（单聊为对方 userId，群聊为 groupId） */
+    private String peerId;
 
     /** 是否置顶：0-否 1-是 */
-    private Boolean isTop;
+    private Boolean isPinned;
 
     /** 是否免打扰：0-否 1-是 */
     private Boolean isMuted;
 
-    /** 状态：0-正常 1-已删除 */
-    private Integer status;
-
     /** 创建时间 */
-    private LocalDateTime createTime;
+    private LocalDateTime createdAt;
 
     /** 更新时间 */
-    private LocalDateTime updateTime;
+    private LocalDateTime updatedAt;
 }

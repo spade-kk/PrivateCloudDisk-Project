@@ -41,6 +41,12 @@ public class GroupDTO implements Serializable {
     /** 群主昵称 */
     private String ownerName;
 
+    /** 当前查看者在群内的角色；列表/详情接口按请求用户填充。 */
+    private Integer currentUserRole;
+
+    /** 当前查看者对应的群会话 ID（固定为 group*{groupId}）。 */
+    private String conversationId;
+
     /** 群公告 */
     private String announcement;
 

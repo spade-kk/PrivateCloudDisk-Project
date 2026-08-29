@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS pcd_space_table (
     space_name          VARCHAR(200)     NOT NULL                              COMMENT '空间名称',
     space_type          ENUM('personal', 'private', 'enterprise', 'public', 'team')
                                         NOT NULL                              COMMENT '空间类型',
+    resource_type       VARCHAR(32)      NOT NULL DEFAULT 'file'               COMMENT '资源实现类型：file/git，预留 dataset/docker/model',
     space_owner_id      BINARY(16)      NOT NULL                              COMMENT '空间创建者/所有者',
     space_quota         BIGINT          NOT NULL DEFAULT 10737418240          COMMENT '空间配额（字节），默认10GB',
     space_used          BIGINT          NOT NULL DEFAULT 0                    COMMENT '已用容量（字节）',

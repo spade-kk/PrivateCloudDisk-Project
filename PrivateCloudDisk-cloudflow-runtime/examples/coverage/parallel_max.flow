@@ -1,0 +1,9 @@
+# 覆盖目标：[V1.2-PARALLEL] 分支级并发限制 parallel(max_concurrency=3)。
+# 预期：IR 生成 node_type=parallel 的控制节点，parallel 配置含 maxConcurrency=3。
+workflow "parallel_max" {
+    parallel(max_concurrency = 3) {
+        step a { action builtin.file.list {} }
+        step b { action builtin.file.list {} }
+        step c { action builtin.file.list {} }
+    }
+}

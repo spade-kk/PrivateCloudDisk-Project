@@ -1,0 +1,5 @@
+# 覆盖目标：简写 plugin.<plugin_id>.<function> action。
+# 预期：IR action.provider=plugin、pluginId=my_plugin、function=func_name。
+workflow "plugin_action" {
+    step invoke { action plugin.my_plugin.func_name { param = "value" } }
+}

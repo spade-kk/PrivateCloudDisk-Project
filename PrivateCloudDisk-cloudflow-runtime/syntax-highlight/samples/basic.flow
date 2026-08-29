@@ -1,0 +1,35 @@
+# 基础示例：覆盖声明关键字、字符串、数字、时长、变量引用、steps 引用、依赖与重试
+workflow "basic" {
+    metadata {
+        display_name = "基础流程"
+        version = "1.0.0"
+        changelog = """
+        初始化版本
+        第二行变更说明
+        """
+    }
+    variables {
+        count = 3
+        ratio = 0.618
+        scientific = 1.5e3
+        label = "打招呼"
+        template = "hello ${vars.name}"
+        ttl = 30s
+    }
+    trigger { manual {} }
+    runtime { timeout = 5m; max_parallel = 2 }
+    steps {
+        step greet {
+            depends_on init
+            retry { max_attempts = 3; strategy = "exponential"; backoff = "linear" }
+            action log.message { text = vars.label }
+        }
+        step loop {
+            depends_on greet if vars.count > 0
+            foreach item in vars.items {
+                output msg = steps.greet.output.text
+                delay 100ms
+            }
+        }
+    }
+}

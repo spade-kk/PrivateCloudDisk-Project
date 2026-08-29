@@ -1,0 +1,9 @@
+# 覆盖目标：parallel 分支与并行节点。
+# 预期：IR 包含 parallel 节点与两个 branch 根节点。
+workflow "parallel" {
+    runtime { max_parallel = 2 }
+    parallel {
+        step task1 { action builtin.file.copy {} }
+        step task2 { action builtin.file.move {} }
+    }
+}

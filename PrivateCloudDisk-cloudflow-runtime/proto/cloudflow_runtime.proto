@@ -9,6 +9,12 @@ service CloudFlowRuntime {
   rpc CancelExecution(CancelExecutionRequest) returns (ExecutionStatus);
 }
 
+// Capability Agent 由 Workflow/Plugin 平台实现，Rust Runtime 只通过此受控接口调用能力，
+// 不直接访问核心业务数据库或文件系统。
+service CapabilityAgent {
+  rpc Invoke(InvokeCapabilityRequest) returns (InvokeCapabilityResponse);
+}
+
 message CompileRequest { string source = 1; string user_id = 2; string space_id = 3; }
 message CompileResponse { bool valid = 1; string plan_hash = 2; string error_code = 3; string error_message = 4; }
 message StartExecutionRequest { string execution_id = 1; string plan_hash = 2; string user_id = 3; string space_id = 4; }
@@ -16,3 +22,25 @@ message StartExecutionResponse { string execution_id = 1; string status = 2; }
 message GetExecutionRequest { string execution_id = 1; }
 message CancelExecutionRequest { string execution_id = 1; }
 message ExecutionStatus { string execution_id = 1; string status = 2; string error_code = 3; string error_summary = 4; }
+
+message InvokeCapabilityRequest {
+  string execution_id = 1;
+  string step_id = 2;
+  uint32 attempt = 3;
+  string capability = 4;
+  string input_json = 5;
+  string user_id = 6;
+  string space_id = 7;
+  repeated string declared_permissions = 8;
+  repeated string granted_permissions = 9;
+  string idempotency_key = 10;
+  string trace_id = 11;
+}
+
+message InvokeCapabilityResponse {
+  bool success = 1;
+  string output_json = 2;
+  string error_code = 3;
+  string error_summary = 4;
+  bool retryable = 5;
+}

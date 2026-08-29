@@ -1,0 +1,9 @@
+# 覆盖目标：while 与 assert 扩展语法。
+# 预期：IR 包含 kind=while 的 loop 与 assert 节点；while 受 maxIterations 防护。
+workflow "while_assert" {
+    variables { remaining: number = 0 enabled = true }
+    assert { vars.enabled }
+    while { vars.remaining > 0 } {
+        step poll { action builtin.file.list {} }
+    }
+}

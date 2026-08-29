@@ -20,6 +20,8 @@ export interface PublicSpaceDetail {
   usedBytes: number
   createdAt?: string
   updatedAt?: string
+  /** [REQ-GIT-SPACE-2.4] 公开空间按资源类型选择文件浏览器或 Git 仓库视图。 */
+  resourceType?: 'file' | 'git' | string
 }
 
 export interface PublicSpaceNode {

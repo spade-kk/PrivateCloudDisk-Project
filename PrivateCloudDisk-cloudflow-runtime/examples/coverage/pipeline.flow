@@ -1,0 +1,11 @@
+# 覆盖目标：[V1.2-PIPELINE] map/filter/reduce 集合管道操作。
+# 预期：IR 值生成 {"$pipeline": {"input": ..., "op": ...}}，
+#      filter 保留谓词、map 投影字段、reduce 聚合。
+workflow "pipeline" {
+    variables {
+        files: array = [{"name": "a", "size": 50}, {"name": "b", "size": 200}, {"name": "c", "size": 120}]
+        big_names = vars.files | filter(size > 100) | map(name)
+        total = vars.files | filter(size > 100) | map(size) | reduce(sum)
+    }
+    step summarize { action builtin.file.list {} output result }
+}

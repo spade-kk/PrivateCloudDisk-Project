@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package pcd.im.v2;
+
+// ==================== 消息类型枚举 ====================
+
+enum IMMessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  TEXT = 1;
+  IMAGE = 2;
+  FILE = 3;
+  VOICE = 4;
+  VIDEO = 5;
+  STICKER = 10;
+  LOCATION = 11;
+  REPLY = 12;
+  VOICE_CALL = 13;
+  VIDEO_CALL = 14;
+  SYSTEM_NOTICE = 50;
+  READ_RECEIPT = 51;
+  MSG_TYPING = 52;
+  MSG_HEARTBEAT = 90;
+  ERROR = 92;
+  RECEIPT = 93;
+  CUSTOM = 100;
+}
+
+enum IMCommandType {
+  COMMAND_UNSPECIFIED = 0;
+  LOGIN = 101;
+  LOGOUT = 102;
+  HEARTBEAT = 103;
+  SEND_MESSAGE = 201;
+  RECALL_MESSAGE = 203;
+  READ_MESSAGE = 204;
+  TYPING = 205;
+  CREATE_CONVERSATION = 301;
+  GET_CONVERSATIONS = 302;
+  DELETE_CONVERSATION = 303;
+  TOP_CONVERSATION = 304;
+  GET_HISTORY = 305;
+  CREATE_GROUP = 401;
+  JOIN_GROUP = 402;
+  LEAVE_GROUP = 403;
+  KICK_MEMBER = 404;
+  MUTE_MEMBER = 405;
+  DISSOLVE_GROUP = 406;
+  GET_GROUP_MEMBERS = 407;
+  SYSTEM_NOTIFY = 901;
+  ERROR_NOTIFY = 902;
+  SYNC_OFFLINE = 1001;
+}
+
+enum IMConversationType {
+  CONVERSATION_UNSPECIFIED = 0;
+  PRIVATE = 1;
+  GROUP = 2;
+  SYSTEM = 3;
+  BROADCAST = 4;
+}
+
+enum DeviceType {
+  DESKTOP = 0;
+  MOBILE = 1;
+  WEB = 2;
+  SERVER = 3;
+  IOT = 4;
+}
+
+enum IMMessageStatus {
+  STATUS_UNSPECIFIED = 0;
+  SENDING = 1;
+  SENT = 2;
+  DELIVERED = 3;
+  READ = 4;
+  FAILED = 5;
+  RECALLED = 6;
+}
+
+enum ReceiptStatus {
+  RECEIPT_STATUS_UNSPECIFIED = 0;
+  RECEIPT_DELIVERED = 1;
+  RECEIPT_PUSH_FAILED = 2;
+  RECEIPT_SEND_FAILED = 3;
+}
+
+message EncryptionMeta {
+  uint32 key_version = 1;
+  uint32 algorithm = 2;
+  bytes iv = 3;
+  bytes auth_tag = 4;
+}
+
+message IMEnvelope {
+  uint32 version = 1;
+  string message_id = 2;
+  IMCommandType command = 3;
+  IMMessageType message_type = 4;
+  string sender_id = 5;
+  string receiver_id = 6;
+  string conversation_id = 7;
+  IMConversationType conversation_type = 8;
+  string sender_name = 9;
+  string sender_avatar = 10;
+  uint64 seq = 11;
+  uint64 server_seq = 12;
+  IMMessageStatus status = 13;
+  uint64 timestamp = 14;
+  EncryptionMeta inner_encryption = 15;
+  bytes encrypted_payload = 16;
+  string reply_to = 17;
+  uint64 expire_at = 18;
+  string extra_json = 19;
+  DeviceType sender_device_type = 20;
+  string sender_platform = 21;
+  string sender_app_version = 22;
+  string trace_id = 23;
+  uint32 priority = 24;
+}
+
+message TextPayload {
+  string content = 1;
+  repeated string mentioned_user_ids = 2;
+  bool is_at_all = 3;
+  map<string, string> emoji_map = 4;
+  bool is_markdown = 5;
+}
+
+message ImagePayload {
+  string url = 1;
+  string thumbnail_url = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  uint64 size = 5;
+  string format = 6;
+  string md5 = 7;
+  bool is_animated = 8;
+  string alt_text = 9;
+}
+
+message FilePayload {
+  string url = 1;
+  string file_name = 2;
+  uint64 size = 3;
+  string extension = 4;
+  string md5 = 5;
+  string mime_type = 6;
+  string disk_file_id = 7;
+}
+
+message SystemPayload {
+  string notice_type = 1;
+  string content = 2;
+  repeated string related_user_ids = 3;
+  string params_json = 4;
+}
+
+message ReadReceiptPayload {
+  repeated string message_ids = 1;
+  string conversation_id = 2;
+}
+
+message TypingPayload {
+  string conversation_id = 1;
+  bool is_typing = 2;
+}
+
+message ReceiptPayload {
+  string original_message_id = 1;
+  string conversation_id = 2;
+  string sender_id = 3;
+  string receiver_id = 4;
+  ReceiptStatus status = 5;
+  uint32 fail_code = 6;
+  string fail_reason = 7;
+  uint64 receipt_at = 8;
+}
+
+message CustomPayload {
+  string custom_type = 1;
+  bytes data = 2;
+}

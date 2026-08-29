@@ -64,8 +64,8 @@ enum IMMessageType {
 
   // ---- 控制消息 ----
   MSG_HEARTBEAT = 90;  // 心跳
-  ACK = 91;            // 消息确认
   ERROR = 92;          // 错误通知
+  RECEIPT = 93;        // 推送回执（已送达/推送失败/发送失败）
 
   // ---- 扩展预留 (100-199) ----
   CUSTOM = 100;        // 自定义消息（业务扩展）
@@ -83,7 +83,6 @@ enum IMCommandType {
 
   // 消息收发
   SEND_MESSAGE = 201;
-  MESSAGE_ACK = 202;
   RECALL_MESSAGE = 203;
   READ_MESSAGE = 204;
   TYPING = 205;
@@ -502,14 +501,38 @@ message TypingPayload {
   bool is_typing = 2;
 }
 
-// ---- 消息确认 ----
-message AckPayload {
-  // 被确认的消息 ID
-  string acknowledged_message_id = 1;
-  // 确认的消息序列号
-  uint64 acknowledged_seq = 2;
-  // 确认类型: 1=客户端收到 2=服务端已处理
-  uint32 ack_type = 3;
+// ---- 推送回执（送达/失败通知）----
+// 服务端在消息推送成功或失败后，向发送方推送的回执通知。
+// 用于客户端展示消息是否推送成功（如发送失败红点/红色感叹号），
+// 并支持同一账户多端（网页/手机）通过 WebSocket 同步聊天动作。
+enum ReceiptStatus {
+  // 未指定
+  RECEIPT_STATUS_UNSPECIFIED = 0;
+  // 已送达（消息已推送到接收方连接）
+  RECEIPT_DELIVERED = 1;
+  // 推送失败（未找到接收方连接或推送异常）
+  RECEIPT_PUSH_FAILED = 2;
+  // 发送失败（IM Business 业务层校验/入库失败）
+  RECEIPT_SEND_FAILED = 3;
+}
+
+message ReceiptPayload {
+  // 被回执的原始消息 ID
+  string original_message_id = 1;
+  // 会话 ID
+  string conversation_id = 2;
+  // 原始发送方用户 ID（即回执接收方）
+  string sender_id = 3;
+  // 原始接收方用户 ID
+  string receiver_id = 4;
+  // 回执状态
+  ReceiptStatus status = 5;
+  // 失败原因码（仅失败时有效）
+  uint32 fail_code = 6;
+  // 失败原因描述（仅失败时有效）
+  string fail_reason = 7;
+  // 回执产生时间（Unix 毫秒）
+  uint64 receipt_at = 8;
 }
 
 // ---- 自定义扩展消息 ----

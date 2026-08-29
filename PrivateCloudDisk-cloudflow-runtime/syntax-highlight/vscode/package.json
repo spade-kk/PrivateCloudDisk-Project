@@ -1,0 +1,42 @@
+{
+  "name": "cloudflow-language",
+  "displayName": "CloudFlow DSL Language",
+  "description": "CloudFlow 工作流 DSL 语法高亮 + 代码补全（由 grammar.pest + AST.rs 生成的统一规范转换而来）。",
+  "version": "1.2.0",
+  "publisher": "privateclouddisk",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": ["Programming Languages"],
+  "keywords": ["cloudflow", "workflow", "dsl"],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:cloudflow"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "cloudflow",
+        "aliases": ["CloudFlow", "cloudflow"],
+        "extensions": [".flow", ".cloudflow"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cloudflow",
+        "scopeName": "source.cloudflow",
+        "path": "./syntaxes/cloudflow.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "cloudflow",
+        "path": "./snippets/cloudflow.code-snippets"
+      }
+    ]
+  },
+  "scripts": {
+    "vsce:package": "vsce package --out cloudflow-language-1.2.0.vsix"
+  }
+}

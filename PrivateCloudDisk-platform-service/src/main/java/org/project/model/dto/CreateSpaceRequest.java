@@ -22,6 +22,13 @@ public class CreateSpaceRequest {
     @Pattern(regexp = "^(personal|private|enterprise|public|team)$", message = "空间类型无效")
     private String spaceType;
 
+    /**
+     * [REQ-GIT-SPACE-2.2/12.1] 资源实现类型；旧客户端不传时保持 file。
+     * 当前只开放 file/git，dataset/docker/model 由后续 Provider 注册后再放开。
+     */
+    @Pattern(regexp = "^(file|git)$", message = "资源类型无效")
+    private String resourceType = "file";
+
     /** 空间描述，最长 500 字符 */
     @Size(max = 500, message = "空间描述长度不能超过500个字符")
     private String spaceDescription;

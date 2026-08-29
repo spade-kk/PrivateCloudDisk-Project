@@ -106,6 +106,7 @@ const routes: RouteRecordRaw[] = [
   // 公开空间（仓库）独立工作区：必须登录，且不复用控制台 Layout/文件浏览器。
   { path: '/repo/:spaceId', name: 'PublicSpaceRepository', component: () => import('@/views/public-space/PublicSpaceView.vue'), meta: { title: '公开仓库', requiresAuth: true, publicRepository: true } },
   { path: '/repo/:spaceId/settings', name: 'PublicSpaceRepositorySettings', component: () => import('@/views/public-space/PublicSpaceSettingsView.vue'), meta: { title: '仓库设置', requiresAuth: true, publicRepository: true } },
+  { path: '/git/social', name: 'GitSocialRepositories', component: () => import('@/views/public-space/GitSocialRepositoriesView.vue'), meta: { title: '我的 Star 与 Fork', requiresAuth: true, publicRepository: true } },
   { path: '/user/:username', name: 'PublicUserProfile', component: () => import('@/views/public-space/UserProfileView.vue'), meta: { title: '用户主页', requiresAuth: true, publicRepository: true } },
   { path: '/explore', name: 'ExplorePublicSpaces', component: () => import('@/views/public-space/ExplorePublicSpacesView.vue'), meta: { title: '探索公开仓库', requiresAuth: true, publicRepository: true } },
 
@@ -117,6 +118,15 @@ const routes: RouteRecordRaw[] = [
   { path: '/space/:spaceId/settings', name: 'SpaceSettings', component: () => import('@/views/space/SpaceSettingsView.vue'), meta: { title: '空间设置', requiresAuth: true, collaborationWorkspace: true } },
   { path: '/space/:spaceId/members/approvals', name: 'SpaceApprovals', component: () => import('@/views/space/SpaceApprovalsView.vue'), meta: { title: '加入审批', requiresAuth: true, collaborationWorkspace: true } },
   { path: '/space/:spaceId/plugins', name: 'SpacePlugins', component: () => import('@/views/plugins/SpacePluginManagementView.vue'), meta: { title: '空间插件管理', requiresAuth: true, collaborationWorkspace: true } },
+
+  // 联系人管理使用独立工作区，消息中心仍保留在 /app Layout 内。
+  { path: '/im/add-friend', name: 'ImAddFriend', component: () => import('@/views/im/AddFriendView.vue'), meta: { title: '添加好友', requiresAuth: true, imWorkspace: true } },
+  { path: '/im/friend-requests', name: 'ImFriendRequests', component: () => import('@/views/im/FriendRequestsView.vue'), meta: { title: '好友申请', requiresAuth: true, imWorkspace: true } },
+  // GROUP-CHAT-20260810 [4.1]：独立创建群聊工作区，避免在窄右侧面板中完成多成员选择流程。
+  { path: '/im/create-group', name: 'ImCreateGroup', component: () => import('@/views/im/CreateGroupView.vue'), meta: { title: '创建群聊', requiresAuth: true, imWorkspace: true } },
+
+  // 开发模式图标目录：用于验证文件类型映射与未知后缀 SVG，不进入普通导航。
+  { path: '/dev/file-icons', name: 'FileIconPreview', component: () => import('@/views/dev/FileIconPreviewView.vue'), meta: { title: '文件图标预览' } },
 
   // ============================================================
   // 独立文件预览工作区
@@ -158,7 +168,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'recent', name: 'Recent', component: () => import('@/views/RecentView.vue'), meta: { title: '最近使用', requiresAuth: true } },
       { path: 'versions', name: 'Versions', component: () => import('@/views/versions/VersionsView.vue'), meta: { title: '版本历史', requiresAuth: true } },
       { path: 'shares', name: 'Shares', component: () => import('@/views/SharesView.vue'), meta: { title: '分享管理', requiresAuth: true } },
-      { path: 'notifications', name: 'Notifications', component: () => import('@/views/NotificationsView.vue'), meta: { title: '通知中心', requiresAuth: true } },
+      // 原 NotificationsView 保留用于代码回溯；
+      // 路由切换到独立消息中心视图，仍作为 Layout 子路由保留平台主菜单。
+      { path: 'notifications', name: 'Notifications', component: () => import('@/views/MessageCenterView.vue'), meta: { title: '消息中心', requiresAuth: true } },
       { path: 'transfers', name: 'Transfers', component: () => import('@/views/TransfersView.vue'), meta: { title: '传输管理', requiresAuth: true } },
       { path: 'trash', name: 'Trash', component: () => import('@/views/TrashView.vue'), meta: { title: '回收站', requiresAuth: true } },
       { path: 'storage', name: 'Storage', component: () => import('@/views/StorageView.vue'), meta: { title: '存储空间', requiresAuth: true } },
@@ -183,7 +195,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'spaces', name: 'Spaces', component: () => import('@/views/SpaceManagementView.vue'), meta: { title: '空间管理', requiresAuth: true } },
       // 插件生态与自动化工作流：均复用全局空间上下文和 X-Space-Id 请求头。
       { path: 'plugins', name: 'PluginManagement', component: () => import('@/views/plugins/PluginManagementView.vue'), meta: { title: '插件管理', requiresAuth: true } },
-      // 旧的插件创建页面组件是 PluginEditorView 已经保留
+      // [IDE-CLEANUP-001] 旧 PluginEditorView 已移除，插件创建统一进入专业 IDE。
       { path: 'plugins/new/:type(cloud|local)', name: 'PluginCreate', component: () => import('@/views/plugins/PluginIdeView.vue'), meta: { title: '创建插件', requiresAuth: true } },
       { path: 'plugins/:pluginId/executions', name: 'PluginExecutions', component: () => import('@/views/plugins/PluginExecutionsView.vue'), meta: { title: '插件执行记录', requiresAuth: true } },
       { path: 'plugin-market', name: 'PluginMarketplace', component: () => import('@/views/plugins/PluginMarketplaceView.vue'), meta: { title: '插件市场', requiresAuth: true } },

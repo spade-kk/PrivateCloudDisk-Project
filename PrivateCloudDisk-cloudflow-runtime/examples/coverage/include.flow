@@ -1,0 +1,6 @@
+# 覆盖目标：受路径沙箱保护的 include 模块合并。
+# 预期：Compiler 导入 modules/common.flow 中的 step，并保留 include 审计信息到 IR extensions。
+workflow "include_workflow" {
+    include "modules/common.flow"
+    step after_include { depends_on shared_step action builtin.notification.send { title = "included" } }
+}

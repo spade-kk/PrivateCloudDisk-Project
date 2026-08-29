@@ -28,6 +28,8 @@ export interface SpaceInfo {
   allowPublicBrowse?: boolean
   allowPublicDownload?: boolean
   allowPublicUpload?: boolean
+  /** [REQ-GIT-SPACE-2.2] 空间挂载的具体资源实现；旧接口缺省为 file。 */
+  resourceType?: 'file' | 'git' | 'dataset' | 'docker' | 'model' | string
 }
 
 export interface SpaceMember {
@@ -114,6 +116,7 @@ export interface CreateSpaceParams {
   allowPublicBrowse?: boolean
   allowPublicDownload?: boolean
   allowPublicUpload?: boolean
+  resourceType?: 'file' | 'git'
 }
 
 export interface UpdateSpaceParams {
@@ -304,6 +307,7 @@ export function getPublicUserProfileApi(userId: string): Promise<{ code: number;
   return get(`business/users/${userId}/profile`)
 }
 
-export function searchSpaceUsersApi(keyword: string, limit = 20): Promise<{ code: number; data: PublicUserProfile[] }> {
-  return get('business/users/search', { q: keyword, limit })
+/** USER-DIRECTORY-20260810：IM、空间邀请和其他业务统一复用主业务用户目录。 */
+export function searchSpaceUsersApi(keyword: string, limit = 20, page = 1): Promise<{ code: number; data: PublicUserProfile[] }> {
+  return get('business/users/search', { q: keyword, limit, page, size: limit })
 }

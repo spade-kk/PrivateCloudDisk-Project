@@ -59,4 +59,27 @@ public class InternalAutomationController {
             SpaceContextHolder.clear();
         }
     }
+
+    /**
+     * [CLOUDFLOW-SEC-004] 返回执行时重新解析的自动化权限快照。
+     * Workflow Service 只能将该结果与 DSL 声明权限取交集，禁止把声明字段直接当作 granted。
+     */
+    @PostMapping("/permissions")
+    public Map<String, Object> permissions(
+            @Valid @RequestBody InternalAutomationAuthorizeRequest request
+    ) {
+        UUID userId = UUID.fromString(request.userId());
+        SpaceContextHolder.SpaceContext context =
+                spacePermissionService.resolveContext(userId, request.spaceId());
+        SpaceContextHolder.set(context);
+        try {
+            spacePermissionService.requireOperation(context, SpaceOperation.READ);
+            return Map.of(
+                    "space_id", context.spaceId().toString(),
+                    "granted_permissions", spacePermissionService.resolveAutomationPermissions(context)
+            );
+        } finally {
+            SpaceContextHolder.clear();
+        }
+    }
 }

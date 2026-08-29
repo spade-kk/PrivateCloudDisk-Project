@@ -57,27 +57,10 @@ workflow "weekly_sales_report" {
     step save_report {
         name = "保存报告"
         depends_on generate_report
-        action file.s {
+        action file.save {
             source = generate_report.output.file_id
             target = vars.report_node_id
-        }    if report_data.total_sales > 100000 {
-
-
-        step approve {
-
-
-            action approval.request {
-
-                users=[
-                    "manager"
-                ]
-
-            }
-
         }
-
-
-    }
     }
 
     on_failure {
@@ -88,7 +71,5 @@ workflow "weekly_sales_report" {
                 message = "失败步骤：${workflow.failed_step}"
             }
         }
-    } 
-    a { step {} h{ h = 9 }  }
-    
+    }
 }

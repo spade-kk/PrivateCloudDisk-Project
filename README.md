@@ -12,6 +12,7 @@ PrivateCloudDisk 是面向团队与业务的私有云文件平台，围绕文件
 - 在线预览：图片、PDF、Office、Markdown、代码、压缩包、音频和视频等入口，实际格式以配置为准。
 - 空间协作：个人空间、团队空间、成员、角色、权限、资源范围和空间级插件。
 - 平台扩展：云插件、本地扩展、插件运行时、能力中心、工作流 DSL、调度、插件市场和工作流市场。
+- 公开空间 Git 仓库：空间资源抽象、Git Smart HTTP/SSH、分支/Tag、提交索引、合并请求、PAT/SSH Key、Webhook 与 `git.push.completed` 工作流触发。
 - 实时通信：消息、会话、群组、通知、WebSocket 推送和 WebRTC 音视频通话。
 - 多客户端：Vue Web、React 管理后台、Electron、uni-app、原生 iOS/Android/macOS/Windows 和 Go CLI。
 
@@ -36,6 +37,7 @@ PrivateCloudDisk 是面向团队与业务的私有云文件平台，围绕文件
 | `platform-service-backend` | Spring Boot / `8081` | 用户、目录树、文件元数据、空间、成员权限、分享、标签、收藏、回收站和配额 |
 | `file-service-backend` | FastAPI / `8000` | 分片上传、合并、校验、下载、Range、预览令牌、缩略图和存储访问 |
 | `file-service-worker` | Python Worker | 消费文件生命周期事件，执行异步处理、扫描、缩略图和索引 |
+| `git-service-backend` | Go + system Git / `8091`, SSH `2222` | 公开空间 Git 仓库、Smart HTTP/SSH、Object 索引、权限、MR、Hook 和 push Outbox；Object 通过 Storage Broker 共享物理存储 |
 | `billing-service-backend` | Spring Boot / `8083` | 订单、订阅、优惠券、发票、退款和支付回调，按配置启用 |
 | `notification-service` | Go | 验证码、模板、邮件、短信、系统通知、设备和 WebSocket 推送 |
 | `im-platform-backend` | Spring Boot / `8088` | 会话、消息、群组、好友和通话记录等 IM 业务 |
@@ -92,6 +94,7 @@ PrivateCloudDisk-project/
 ├── PrivateCloudDisk-gateway-service/       # API 网关
 ├── PrivateCloudDisk-platform-service/      # 核心业务
 ├── PrivateCloudDisk-storage-service/       # 文件 I/O
+├── PrivateCloudDisk-git-service/           # 公开空间 Git 仓库
 ├── PrivateCloudDisk-notification-service/  # 通知
 ├── PrivateCloudDisk-im/                    # IM
 ├── PrivateCloudDisk-client-registration-service/
@@ -137,5 +140,8 @@ docker compose --profile automation up -d
 - [开发指南](./docs/development.md)
 - [安全说明](./docs/security.md)
 - [空间集成审计](./docs/SPACE_FULL_INTEGRATION_AUDIT.md)
+- [Git 资源抽象审计](./docs/GIT_SPACE_RESOURCE_AUDIT.md)
+- [Git 仓库架构设计](./docs/GIT_REPOSITORY_ARCHITECTURE.md)
+- [Git 仓库使用指南](./docs/GIT_REPOSITORY_USER_GUIDE.md)
 - [插件自动化平台设计](./docs/PLUGIN_AUTOMATION_PLATFORM_DESIGN.md)
 - [插件开发指南](./docs/PLUGIN_DEVELOPER_GUIDE.md)

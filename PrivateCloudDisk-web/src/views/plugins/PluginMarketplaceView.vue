@@ -1,113 +1,173 @@
 <template>
-  <div class="space-y-5">
-    <PageHeader title="插件市场" description="发现经过审核的云插件与多平台客户端扩展">
-      <template #actions><router-link class="secondary-button" to="/app/plugins"><i class="fa fa-arrow-left"></i> 我的插件</router-link></template>
+  <div class="plugin-market-page space-y-5">
+    <PageHeader title="插件市场" description="发现经过审核的云插件与多平台客户端扩展" :breadcrumbs="breadcrumbs">
+      <template #actions>
+        <router-link class="market-outline-button" to="/app"><i class="fa fa-arrow-left"></i>控制面板</router-link>
+        <router-link class="market-outline-button" to="/app/plugins"><i class="fa fa-puzzle-piece"></i>我的插件</router-link>
+        <router-link class="market-primary-button" to="/developer/plugins/new/cloud"><i class="fa fa-plus"></i>提交插件</router-link>
+      </template>
     </PageHeader>
-    <section class="market-hero">
-      <div><p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">Marketplace</p><h2 class="mt-2 text-2xl font-bold text-neutral-900">让每个空间拥有专属工具</h2><p class="mt-2 text-sm text-neutral-500">安装前清晰展示权限，运行时始终受用户和空间权限最小交集约束。</p></div>
-      <div class="relative w-full max-w-md"><i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"></i><input v-model.trim="query" class="market-search" placeholder="搜索插件、能力或开发者" @keyup.enter="load" /></div>
-    </section>
-    <div class="flex gap-2 overflow-x-auto">
-      <button v-for="item in filters" :key="item.value" class="filter-pill" :class="{ active: type === item.value }" @click="type = item.value; load()">{{ item.label }}</button>
-    </div>
-    <PageState
-      v-if="loading || error || !items.length"
-      :type="loading ? 'loading' : error ? 'error' : 'empty'"
-      :icon="loading ? 'fa fa-spinner fa-spin' : error ? 'fa fa-exclamation-triangle' : 'fa fa-shopping-bag'"
-      :title="loading ? '正在加载插件市场' : error ? '插件市场加载失败' : '暂无已审核插件'"
-      :description="error || '市场只展示通过安全审核的不可变版本。'"
-      :action-text="error ? '重新加载' : ''"
-      action-icon="fa fa-refresh"
-      @action="load"
-    />
-    <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <article v-for="item in items" :key="item.pluginId" class="market-card">
-        <div class="flex items-start gap-3"><span class="market-icon" :class="item.pluginType === 'LOCAL_PLUGIN' ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-primary'"><i :class="item.pluginType === 'LOCAL_PLUGIN' ? 'fa fa-desktop' : 'fa fa-cloud'"></i></span><div class="min-w-0 flex-1"><h2 class="truncate font-bold text-neutral-800">{{ item.name }}</h2><p class="text-xs text-neutral-400">{{ item.authorDisplayName }} · v{{ item.latestVersion }}</p></div><span class="rounded-lg bg-neutral-100 px-2 py-1 text-[10px] font-bold text-neutral-500">{{ item.pluginType === 'LOCAL_PLUGIN' ? '本地' : '云端' }}</span></div>
-        <router-link class="mt-4 block line-clamp-3 min-h-[60px] text-sm leading-5 text-neutral-500 hover:text-primary" :to="`/developer/marketplace/plugins/${item.pluginId}`">{{ item.description || '暂无描述' }}</router-link>
-        <div class="mt-4 flex items-center gap-4 text-xs text-neutral-400"><span class="text-amber-500"><i class="fa fa-star"></i> {{ Number(item.averageRating).toFixed(1) }}</span><span><i class="fa fa-download"></i> {{ item.installationCount }}</span><span><i class="fa fa-comment-o"></i> {{ item.ratingCount }}</span></div>
-        <div class="mt-4 flex gap-2 border-t border-neutral-100 pt-4"><router-link class="detail-button" :to="`/developer/marketplace/plugins/${item.pluginId}`">查看详情</router-link><button class="install-button" @click="openInstall(item)"><i class="fa fa-plus-circle"></i> 安装插件</button></div>
-      </article>
-    </div>
 
-    <div v-if="installingItem" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4" @click.self="installingItem = null">
-      <section class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
-        <div class="flex items-start justify-between"><div><h2 class="text-lg font-bold">安装 {{ installingItem.name }}</h2><p class="mt-1 text-xs text-neutral-400">请确认插件申请的权限</p></div><button class="icon-button" @click="installingItem = null"><i class="fa fa-times"></i></button></div>
-        <div class="mt-4 max-h-72 space-y-2 overflow-y-auto">
-          <label v-for="permission in installPermissions" :key="permission" class="flex items-center gap-3 rounded-xl border border-neutral-200 p-3 text-sm text-neutral-600"><input v-model="grantedPermissions" type="checkbox" :value="permission" class="accent-primary" /><i class="fa fa-check-circle text-success"></i><span>{{ permissionLabel(permission) }}</span></label>
+    <section class="plugin-market-hero">
+      <div class="plugin-market-hero__content">
+        <p class="market-eyebrow">MARKETPLACE</p>
+        <h2>为个人和空间选择合适的工具</h2>
+        <p>市场只展示已发布版本；安装前会显示声明权限，运行时仍受账号和当前空间的最小权限交集限制。</p>
+        <form class="plugin-search" @submit.prevent="submitSearch">
+          <i class="fa fa-search"></i>
+          <input v-model.trim="query" autocomplete="off" placeholder="搜索插件、能力、作者或分类" @focus="suggestionsOpen = true" @input="scheduleSearch" />
+          <button v-if="query" type="button" class="plugin-search__clear" aria-label="清除搜索" @click="clearSearch"><i class="fa fa-times"></i></button>
+          <button type="submit">搜索</button>
+        </form>
+        <div v-if="suggestionsOpen && query && searchSuggestions.length" class="market-search-suggestions" role="listbox" aria-label="插件搜索建议">
+          <button v-for="item in searchSuggestions" :key="item.pluginId" type="button" role="option" @mousedown.prevent="selectSuggestion(item)"><span class="plugin-mini-icon"><i :class="pluginIcon(item)"></i></span><span><b>{{ item.name }}</b><small>{{ item.authorDisplayName || '未知作者' }} · {{ item.categoryCode || '未分类' }}</small></span><i class="fa fa-angle-right"></i></button>
         </div>
-        <div class="mt-5 flex flex-col gap-2 sm:flex-row">
-          <button class="secondary-button flex-1 justify-center" @click="install(false)">安装到个人</button>
-          <button class="primary-button flex-1 justify-center" :disabled="spaceStore.isPersonalSpace" @click="install(true)">安装到当前空间</button>
-        </div>
-        <p v-if="spaceStore.isPersonalSpace" class="mt-2 text-center text-xs text-neutral-400">选择团队/企业空间后可安装到空间</p>
+        <div class="market-hotwords"><span>热门分类</span><button v-for="category in hotCategories" :key="category" type="button" @click="useCategory(category)">{{ category }}</button></div>
+      </div>
+      <aside class="plugin-market-hero__aside">
+        <div><i class="fa fa-shield"></i><div><b>权限透明</b><span>安装前确认声明权限</span></div></div>
+        <div><i class="fa fa-refresh"></i><div><b>版本不可变</b><span>运行版本可追溯</span></div></div>
+        <div><i class="fa fa-cubes"></i><div><b>{{ installedPluginIds.size }}</b><span>当前账号已安装</span></div></div>
+      </aside>
+    </section>
+
+    <section class="market-toolbar" aria-label="插件筛选">
+      <div class="market-tabs" role="tablist">
+        <button v-for="filter in typeFilters" :key="filter.value" type="button" role="tab" :aria-selected="type === filter.value" :class="{ active: type === filter.value }" @click="setType(filter.value)"><i :class="filter.icon"></i>{{ filter.label }}<small>{{ countByType(filter.value) }}</small></button>
+      </div>
+      <label class="market-sort">排序<select v-model="sortBy" @change="syncRoute"><option value="relevance">最相关</option><option value="published">最近更新</option><option value="installs">安装最多</option><option value="rating">评分最高</option></select></label>
+    </section>
+
+    <section v-if="loading" class="plugin-grid plugin-grid--skeleton"><article v-for="index in 6" :key="index" class="plugin-card plugin-card--skeleton"><span></span><span></span><span></span><span></span></article></section>
+    <section v-else-if="error" class="market-state market-state--error"><i class="fa fa-exclamation-triangle"></i><h2>插件市场暂时无法加载</h2><p>{{ error }}</p><button type="button" @click="load">重新加载</button></section>
+
+    <template v-else>
+      <section v-if="!query && !type" class="market-section">
+        <div class="market-section__heading"><div><p class="market-eyebrow">TRENDING</p><h2>本周热门插件</h2><p>按市场接口返回的累计安装次数排序。</p></div><button type="button" class="market-link" @click="sortBy = 'installs'; syncRoute()">查看完整榜单<i class="fa fa-arrow-right"></i></button></div>
+        <div class="plugin-ranking"><button v-for="(plugin, index) in rankingPlugins" :key="plugin.pluginId" type="button" @click="openDetail(plugin)"><b :class="{ gold: index === 0, silver: index === 1, bronze: index === 2 }">{{ index + 1 }}</b><span class="plugin-mini-icon" :class="plugin.pluginType === 'LOCAL_PLUGIN' ? 'is-local' : ''"><i :class="pluginIcon(plugin)"></i></span><span class="plugin-ranking__main"><strong>{{ plugin.name }}</strong><small>{{ plugin.categoryCode || '未分类' }} · {{ plugin.installationCount }} 次安装</small></span><i class="fa fa-angle-right"></i></button><div v-if="!rankingPlugins.length" class="market-inline-empty">暂无市场插件</div></div>
       </section>
-    </div>
+
+      <section class="market-content-grid">
+        <aside class="market-categories">
+          <div class="market-categories__head"><h2>插件分类</h2><button v-if="categoryFilter" type="button" @click="categoryFilter = ''; syncRoute()">清除</button></div>
+          <button type="button" :class="{ active: !categoryFilter }" @click="categoryFilter = ''; syncRoute()"><i class="fa fa-th-large"></i>全部分类<span>{{ items.length }}</span></button>
+          <button v-for="category in categories" :key="category.name" type="button" :class="{ active: categoryFilter === category.name }" @click="categoryFilter = category.name; syncRoute()"><i :class="category.icon"></i>{{ category.name }}<span>{{ category.count }}</span></button>
+          <div class="market-categories__notice"><i class="fa fa-info-circle"></i><p>分类、兼容平台和权限均来自插件市场投影；未返回的字段不会猜测展示。</p></div>
+        </aside>
+        <section class="market-results">
+          <div class="market-section__heading market-section__heading--compact"><div><p class="market-eyebrow">{{ query ? 'SEARCH RESULTS' : 'ALL PLUGINS' }}</p><h2>{{ query ? `“${query}” 的结果` : '浏览插件' }}</h2></div><span>{{ filteredItems.length }} 个结果</span></div>
+          <div v-if="pagedItems.length" class="plugin-grid">
+            <article v-for="item in pagedItems" :key="item.pluginId" class="plugin-card">
+              <div class="plugin-card__header"><span class="plugin-icon" :class="item.pluginType === 'LOCAL_PLUGIN' ? 'is-local' : item.pluginType === 'WORKFLOW_PLUGIN' ? 'is-workflow' : ''"><i :class="pluginIcon(item)"></i></span><div class="min-w-0 flex-1"><button type="button" class="plugin-name" @click="openDetail(item)">{{ item.name }}</button><p>v{{ item.latestVersion }} · {{ typeLabel(item.pluginType) }}</p></div><span v-if="installedPluginIds.has(item.pluginId)" class="plugin-installed"><i class="fa fa-check"></i>已安装</span></div>
+              <button type="button" class="plugin-description" @click="openDetail(item)">{{ item.description || '开发者暂未填写插件说明。' }}</button>
+              <div class="plugin-tags"><span><i class="fa fa-tag"></i>{{ item.categoryCode || '未分类' }}</span><span v-for="platform in platforms(item).slice(0, 2)" :key="platform">{{ platform }}</span></div>
+              <div class="plugin-author"><span>{{ initial(item.authorDisplayName) }}</span><b>{{ item.authorDisplayName || '未知作者' }}</b><time :title="item.publishedAt">{{ formatDate(item.publishedAt) }}</time></div>
+              <div class="plugin-metrics"><span class="plugin-rating"><i class="fa fa-star"></i>{{ formatRating(item.averageRating) }}<small>({{ item.ratingCount }})</small></span><span><i class="fa fa-download"></i>{{ item.installationCount }}</span><span><i class="fa fa-key"></i>{{ permissions(item).length }}</span></div>
+              <div class="plugin-card__actions"><button type="button" class="plugin-detail-button" @click="openDetail(item)">查看详情</button><button type="button" class="plugin-install-button" :disabled="installing" @click="openInstall(item)"><i :class="installedPluginIds.has(item.pluginId) ? 'fa fa-cog' : 'fa fa-plus-circle'"></i>{{ installedPluginIds.has(item.pluginId) ? '管理安装' : '安装插件' }}</button></div>
+            </article>
+          </div>
+          <div v-else class="market-state"><i class="fa fa-search"></i><h2>未找到匹配插件</h2><p>尝试删除部分筛选条件，或使用插件名称、作者和功能分类重新搜索。</p><button v-if="query || type || categoryFilter" type="button" @click="resetFilters">清除筛选</button></div>
+          <nav v-if="totalPages > 1" class="market-pagination" aria-label="插件分页"><button type="button" :disabled="page === 1" @click="goPage(page - 1)">上一页</button><span>第 {{ page }} / {{ totalPages }} 页</span><button type="button" :disabled="page === totalPages" @click="goPage(page + 1)">下一页</button></nav>
+        </section>
+        <aside class="market-sidebar" aria-label="插件市场推荐">
+          <section><header><h2>热门榜单</h2><span>Top {{ sidebarRanking.length }}</span></header><button v-for="(plugin, index) in sidebarRanking" :key="plugin.pluginId" type="button" @click="openDetail(plugin)"><b :class="rankClass(index)">{{ index + 1 }}</b><span class="plugin-mini-icon"><i :class="pluginIcon(plugin)"></i></span><span><strong>{{ plugin.name }}</strong><small>{{ plugin.installationCount }} 次安装 · {{ formatRating(plugin.averageRating) }} 分</small></span></button><p v-if="!sidebarRanking.length">暂无已发布插件</p></section>
+          <section><header><h2>最近发布</h2><i class="fa fa-clock-o"></i></header><button v-for="plugin in latestPlugins" :key="`latest-${plugin.pluginId}`" type="button" @click="openDetail(plugin)"><span class="plugin-mini-icon"><i :class="pluginIcon(plugin)"></i></span><span><strong>{{ plugin.name }}</strong><small>{{ formatDate(plugin.publishedAt) }}</small></span></button><p v-if="!latestPlugins.length">暂无发布时间数据</p></section>
+          <section class="market-sidebar__note"><i class="fa fa-shield"></i><p>推荐、排行均根据市场接口中的真实安装次数、评分与发布时间计算；不会虚构热度或作者数据。</p></section>
+        </aside>
+      </section>
+    </template>
+
+    <Teleport to="body">
+      <div v-if="installingItem" class="plugin-install-modal" role="presentation" @click.self="closeInstall">
+        <section class="plugin-install-dialog" role="dialog" aria-modal="true" aria-labelledby="plugin-install-title">
+          <header><div><p class="market-eyebrow">INSTALL PLUGIN</p><h2 id="plugin-install-title">安装 {{ installingItem.name }}</h2><p>确认需要授予的权限，并选择安装范围。</p></div><button type="button" aria-label="关闭安装窗口" @click="closeInstall"><i class="fa fa-times"></i></button></header>
+          <div class="plugin-install-dialog__body"><div class="install-summary"><span class="plugin-icon" :class="installingItem.pluginType === 'LOCAL_PLUGIN' ? 'is-local' : ''"><i :class="pluginIcon(installingItem)"></i></span><div><b>{{ installingItem.name }}</b><p>v{{ installingItem.latestVersion }} · {{ typeLabel(installingItem.pluginType) }}</p></div></div><h3>声明权限</h3><div v-if="installPermissions.length" class="permission-list"><label v-for="permission in installPermissions" :key="permission"><input v-model="grantedPermissions" type="checkbox" :value="permission" /><span><b>{{ permissionLabel(permission) }}</b><small>{{ permission }}</small></span></label></div><div v-else class="permission-empty"><i class="fa fa-shield"></i>该版本未声明额外权限。</div><p class="install-note"><i class="fa fa-info-circle"></i>取消某项权限可能使插件无法完成其声明能力；服务端会继续进行最终权限校验。</p></div>
+          <footer><button type="button" class="plugin-detail-button" @click="closeInstall">取消</button><button type="button" class="plugin-install-button" :disabled="installing || grantedPermissions.length !== installPermissions.length" @click="install(false)"><i v-if="installing" class="fa fa-spinner fa-spin"></i>安装到个人</button><button type="button" class="plugin-install-button plugin-install-button--space" :disabled="installing || spaceStore.isPersonalSpace || grantedPermissions.length !== installPermissions.length" @click="install(true)"><i class="fa fa-users"></i>安装到当前空间</button></footer><p v-if="spaceStore.isPersonalSpace" class="install-space-tip">切换到团队或企业空间后可安装为共享工具。</p>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
-import PageState from '@/components/common/PageState.vue'
-import { installPluginForSpaceApi, installPluginForUserApi, listPluginMarketplaceApi, type MarketplacePlugin } from '@/api/modules/plugins'
+import { installPluginForSpaceApi, installPluginForUserApi, listPluginInstallationsApi, listPluginMarketplaceApi, type MarketplacePlugin, type PluginType } from '@/api/modules/plugins'
 import { useSpaceStore } from '@/stores/spaceStore'
 import { useToastStore } from '@/stores/toastStore'
 
-const spaceStore = useSpaceStore()
-const toast = useToastStore()
-const items = ref<MarketplacePlugin[]>([])
-const loading = ref(false)
-const error = ref('')
-const query = ref('')
-const type = ref('')
-const installingItem = ref<MarketplacePlugin | null>(null)
-const installPermissions = ref<string[]>([])
-const grantedPermissions = ref<string[]>([])
-const filters = [{ label: '全部', value: '' }, { label: '云插件', value: 'CLOUD_PLUGIN' }, { label: '本地插件', value: 'LOCAL_PLUGIN' }]
+const router = useRouter(); const route = useRoute(); const spaceStore = useSpaceStore(); const toast = useToastStore()
+const items = ref<MarketplacePlugin[]>([]); const installedPluginIds = ref(new Set<string>()); const loading = ref(false); const installing = ref(false); const error = ref('')
+const query = ref(''); const type = ref<PluginType | ''>(''); const categoryFilter = ref(''); const sortBy = ref<'relevance' | 'published' | 'installs' | 'rating'>('relevance'); const page = ref(1)
+const installingItem = ref<MarketplacePlugin | null>(null); const installPermissions = ref<string[]>([]); const grantedPermissions = ref<string[]>([]); const suggestionsOpen = ref(false)
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+const pageSize = 9
+const breadcrumbs = [{ label: '控制面板', to: '/app' }, { label: '插件市场' }]
+const typeFilters = [{ label: '全部', value: '' as const, icon: 'fa fa-th-large' }, { label: '云插件', value: 'CLOUD_PLUGIN' as const, icon: 'fa fa-cloud' }, { label: '本地扩展', value: 'LOCAL_PLUGIN' as const, icon: 'fa fa-desktop' }, { label: '工作流插件', value: 'WORKFLOW_PLUGIN' as const, icon: 'fa fa-random' }]
+const categories = computed(() => Array.from(items.value.reduce((result, item) => { const name = item.categoryCode || '未分类'; result.set(name, (result.get(name) || 0) + 1); return result }, new Map<string, number>()).entries()).map(([name, count]) => ({ name, count, icon: categoryIcon(name) })).sort((a, b) => b.count - a.count))
+const hotCategories = computed(() => categories.value.slice(0, 5).map(item => item.name))
+const filteredItems = computed(() => {
+  const term = query.value.toLocaleLowerCase(); const result = items.value.filter(item => (!type.value || item.pluginType === type.value) && (!categoryFilter.value || (item.categoryCode || '未分类') === categoryFilter.value) && (!term || `${item.name} ${item.description || ''} ${item.authorDisplayName || ''} ${item.categoryCode || ''}`.toLocaleLowerCase().includes(term)))
+  return [...result].sort((a, b) => sortBy.value === 'installs' ? b.installationCount - a.installationCount : sortBy.value === 'rating' ? b.averageRating - a.averageRating : sortBy.value === 'published' ? dateValue(b.publishedAt) - dateValue(a.publishedAt) : Number(b.name.toLocaleLowerCase().startsWith(term)) - Number(a.name.toLocaleLowerCase().startsWith(term)) || dateValue(b.publishedAt) - dateValue(a.publishedAt))
+})
+const rankingPlugins = computed(() => [...items.value].sort((a, b) => b.installationCount - a.installationCount).slice(0, 5))
+const sidebarRanking = computed(() => [...items.value].sort((a, b) => b.installationCount - a.installationCount || b.averageRating - a.averageRating).slice(0, 10))
+const latestPlugins = computed(() => [...items.value].sort((a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt)).slice(0, 5))
+const searchSuggestions = computed(() => { const term = query.value.toLocaleLowerCase(); return term ? items.value.filter(item => `${item.name} ${item.description || ''} ${item.authorDisplayName || ''} ${item.categoryCode || ''}`.toLocaleLowerCase().includes(term)).slice(0, 6) : [] })
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize)))
+const pagedItems = computed(() => filteredItems.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+
+function dateValue(value?: string) { const result = value ? new Date(value).getTime() : 0; return Number.isFinite(result) ? result : 0 }
+function countByType(value: PluginType | '') { return value ? items.value.filter(item => item.pluginType === value).length : items.value.length }
+function pluginIcon(item: MarketplacePlugin) { return item.pluginType === 'LOCAL_PLUGIN' ? 'fa fa-desktop' : item.pluginType === 'WORKFLOW_PLUGIN' ? 'fa fa-random' : 'fa fa-cloud' }
+function typeLabel(value: PluginType) { return value === 'LOCAL_PLUGIN' ? '本地扩展' : value === 'WORKFLOW_PLUGIN' ? '工作流插件' : '云插件' }
+function categoryIcon(value: string) { const normalized = value.toLocaleLowerCase(); return normalized.includes('ai') ? 'fa fa-magic' : normalized.includes('file') ? 'fa fa-folder-open-o' : normalized.includes('data') ? 'fa fa-table' : normalized.includes('notice') ? 'fa fa-bell-o' : 'fa fa-puzzle-piece' }
+function initial(value?: string) { return (value || '?').slice(0, 1).toUpperCase() }
+function formatDate(value?: string) { return value ? new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(value)) : '发布时间未提供' }
+function formatRating(value: number) { return Number.isFinite(value) ? value.toFixed(1) : '—' }
+function rankClass(index: number) { return index === 0 ? 'rank-gold' : index === 1 ? 'rank-silver' : index === 2 ? 'rank-bronze' : '' }
+function platforms(item: MarketplacePlugin) { try { const parsed = JSON.parse(item.supportedPlatformsJson || '[]'); return Array.isArray(parsed) ? parsed.map(String) : [] } catch { return [] } }
+function permissions(item: MarketplacePlugin) { try { const parsed = JSON.parse(item.permissionConfig || '[]'); return Array.isArray(parsed) ? parsed.map(String) : [] } catch { return [] } }
+function permissionLabel(value: string) { const labels: Record<string, string> = { 'file.content.read': '读取文件内容', 'file.metadata.read': '读取文件元数据', 'file.metadata.write': '修改文件元数据', 'file.content.write_pre_activation': '激活前写入文件内容', 'client.file.read': '读取用户选定的本地文件', 'client.file.upload': '上传文件到空间', 'client.ui.show': '展示插件界面', 'client.system.notify': '发送系统通知', 'plugin.log.write': '记录脱敏日志' }; return labels[value] || '使用声明能力' }
+function hydrateRoute() { query.value = typeof route.query.q === 'string' ? route.query.q : ''; type.value = typeFilters.some(item => item.value === route.query.type) ? route.query.type as PluginType : ''; categoryFilter.value = typeof route.query.category === 'string' ? route.query.category : ''; sortBy.value = ['published', 'installs', 'rating'].includes(String(route.query.sort)) ? route.query.sort as typeof sortBy.value : 'relevance'; page.value = Math.max(1, Number(route.query.page) || 1) }
+function syncRoute() { page.value = Math.min(page.value, totalPages.value); void router.replace({ query: { ...(query.value ? { q: query.value } : {}), ...(type.value ? { type: type.value } : {}), ...(categoryFilter.value ? { category: categoryFilter.value } : {}), ...(sortBy.value !== 'relevance' ? { sort: sortBy.value } : {}), ...(page.value > 1 ? { page: String(page.value) } : {}) } }) }
+function setType(value: PluginType | '') { type.value = value; page.value = 1; syncRoute() }
+function useCategory(value: string) { categoryFilter.value = value; page.value = 1; syncRoute() }
+function submitSearch() { suggestionsOpen.value = false; page.value = 1; syncRoute(); void load() }
+function clearSearch() { suggestionsOpen.value = false; query.value = ''; page.value = 1; syncRoute(); void load() }
+function scheduleSearch() { if (searchTimer) clearTimeout(searchTimer); searchTimer = setTimeout(() => { page.value = 1; syncRoute(); void load() }, 300) }
+function resetFilters() { query.value = ''; type.value = ''; categoryFilter.value = ''; sortBy.value = 'relevance'; page.value = 1; syncRoute(); void load() }
+function selectSuggestion(item: MarketplacePlugin) { query.value = item.name; suggestionsOpen.value = false; page.value = 1; syncRoute(); void load() }
+function goPage(value: number) { page.value = Math.min(Math.max(value, 1), totalPages.value); syncRoute(); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+function openDetail(item: MarketplacePlugin) { void router.push(`/developer/marketplace/plugins/${encodeURIComponent(item.pluginId)}`) }
+function openInstall(item: MarketplacePlugin) { installingItem.value = item; installPermissions.value = permissions(item); grantedPermissions.value = [...installPermissions.value] }
+function closeInstall() { if (!installing.value) installingItem.value = null }
 async function load() {
   loading.value = true; error.value = ''
-  try { items.value = (await listPluginMarketplaceApi(type.value, query.value)).data }
-  catch (err: any) { error.value = err?.message || '市场加载失败' }
+  try { const [marketplace, installations] = await Promise.all([listPluginMarketplaceApi('', query.value), listPluginInstallationsApi()]); items.value = marketplace.data || []; installedPluginIds.value = new Set((installations.data || []).map(item => item.pluginId)); page.value = Math.min(page.value, totalPages.value) }
+  catch (cause: unknown) { error.value = cause instanceof Error ? cause.message : '市场数据请求失败，请稍后重试。'; items.value = [] }
   finally { loading.value = false }
 }
-function openInstall(item: MarketplacePlugin) {
-  installingItem.value = item
-  try { installPermissions.value = JSON.parse(item.permissionConfig || '[]') } catch { installPermissions.value = [] }
-  grantedPermissions.value = [...installPermissions.value]
-}
 async function install(toSpace: boolean) {
-  if (!installingItem.value || !grantedPermissions.value.length) {
-    toast.showToast('至少授权一项插件权限', 'warning'); return
-  }
-  try {
-    if (toSpace) await installPluginForSpaceApi(installingItem.value.pluginId, installingItem.value.latestVersion, grantedPermissions.value)
-    else await installPluginForUserApi(installingItem.value.pluginId, installingItem.value.latestVersion, grantedPermissions.value)
-    toast.showToast(toSpace ? '插件已安装到当前空间' : '插件已安装到个人账号', 'success')
-    installingItem.value = null
-  } catch (err: any) { toast.showToast(err?.message || '安装失败', 'error') }
+  if (!installingItem.value) return
+  /* [REQ-PLUGIN-MARKET-7.8~7.17] 安装保持既有 SDK 调用；新界面仅在客户端确认声明权限和安装范围，不绕过服务端授权。 */
+  installing.value = true
+  try { if (toSpace) await installPluginForSpaceApi(installingItem.value.pluginId, installingItem.value.latestVersion, grantedPermissions.value); else await installPluginForUserApi(installingItem.value.pluginId, installingItem.value.latestVersion, grantedPermissions.value); installedPluginIds.value = new Set([...installedPluginIds.value, installingItem.value.pluginId]); toast.showToast(toSpace ? '插件已安装到当前空间' : '插件已安装到个人账号', 'success'); installingItem.value = null }
+  catch (cause: unknown) { toast.showToast(cause instanceof Error ? cause.message : '插件安装失败', 'error') }
+  finally { installing.value = false }
 }
-function permissionLabel(value: string) {
-  const labels: Record<string, string> = {
-    'file.content.read': '读取已激活文件内容', 'file.metadata.read': '读取文件元数据',
-    'file.metadata.write': '修改文件元数据', 'file.content.write_pre_activation': '激活前修改文件内容',
-    'client.file.read': '读取用户选择的本地文件', 'client.file.upload': '上传文件到网盘',
-    'client.ui.show': '显示插件界面', 'client.system.notify': '发送系统通知',
-    'plugin.log.write': '记录脱敏执行日志',
-  }
-  return labels[value] || value
-}
+
+watch(() => route.query, hydrateRoute, { immediate: true, deep: true })
+watch([type, categoryFilter, sortBy], () => { page.value = 1 })
+watch(totalPages, value => { page.value = Math.min(page.value, value) })
 onMounted(load)
+onBeforeUnmount(() => { if (searchTimer) clearTimeout(searchTimer) })
 </script>
 
 <style scoped>
-.market-hero { @apply flex flex-col gap-5 overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-blue-50 via-white to-violet-50 p-6 sm:flex-row sm:items-center sm:justify-between lg:p-8; }
-.market-search { @apply w-full rounded-2xl border border-white bg-white/90 py-3.5 pl-11 pr-4 text-sm shadow-lg shadow-primary/5 outline-none focus:border-primary/30; }
-.market-card { @apply rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg; }
-.market-icon { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg; }
-.filter-pill { @apply whitespace-nowrap rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs font-semibold text-neutral-500; }
-.filter-pill.active { @apply border-primary bg-primary text-white; }
-.install-button { @apply inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 text-sm font-semibold text-white transition hover:bg-primary; }
-.detail-button { @apply inline-flex min-h-10 items-center justify-center rounded-xl border border-neutral-200 px-3 text-xs font-semibold text-neutral-600 hover:border-primary hover:text-primary; }
-.primary-button,.secondary-button { @apply inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-50; }
-.primary-button { @apply bg-primary text-white; }.secondary-button { @apply border border-neutral-200 bg-white text-neutral-600; }
+.market-outline-button,.market-primary-button { @apply inline-flex min-h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition; }.market-outline-button { @apply border border-neutral-200 bg-white text-neutral-600 hover:border-primary hover:text-primary; }.market-primary-button { @apply bg-primary text-white hover:bg-primary/90; }.plugin-market-hero { display:grid;gap:20px;overflow:hidden;border:1px solid rgb(219 234 254);border-radius:18px;background:radial-gradient(circle at 92% 8%,rgba(147,197,253,.5),transparent 30%),linear-gradient(135deg,#eff6ff,#fff 62%,#f5f3ff);padding:26px; }.market-eyebrow { margin:0;color:#0969da;font-size:11px;font-weight:800;letter-spacing:.15em; }.plugin-market-hero h2 { margin:7px 0 0;color:#1f2328;font-size:26px;letter-spacing:-.02em; }.plugin-market-hero__content>p:not(.market-eyebrow) { max-width:630px;margin:8px 0 0;color:#57606a;font-size:13px;line-height:1.7; }.plugin-search { display:flex;align-items:center;max-width:690px;min-height:45px;margin-top:18px;border:1px solid #8c959f;border-radius:8px;background:#fff;box-shadow:0 1px 2px rgba(31,35,40,.05); }.plugin-search>i { margin-left:14px;color:#57606a; }.plugin-search input { min-width:0;flex:1;border:0;outline:0;background:transparent;padding:0 9px;color:#24292f;font-size:13px; }.plugin-search:focus-within { border-color:#0969da;box-shadow:0 0 0 3px rgba(9,105,218,.14); }.plugin-search__clear { width:32px;color:#57606a; }.plugin-search>button:last-child { align-self:stretch;border-left:1px solid #d0d7de;background:#f6f8fa;padding:0 14px;color:#24292f;font-size:12px;font-weight:700; }.plugin-search>button:last-child:hover { background:#0969da;color:#fff; }.market-hotwords { display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:11px;color:#57606a;font-size:11px; }.market-hotwords button { border:1px solid #d0d7de;border-radius:999px;background:#fff;padding:3px 9px;color:#57606a; }.market-hotwords button:hover { border-color:#0969da;background:#ddf4ff;color:#0969da; }.plugin-market-hero__aside { display:grid;gap:8px;align-content:center;border:1px solid #d0d7de;border-radius:10px;background:rgba(255,255,255,.74);padding:12px; }.plugin-market-hero__aside>div { display:flex;align-items:center;gap:9px;padding:7px; }.plugin-market-hero__aside>div>i { display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:7px;background:#ddf4ff;color:#0969da; }.plugin-market-hero__aside b,.plugin-market-hero__aside span { display:block; }.plugin-market-hero__aside b { color:#24292f;font-size:12px; }.plugin-market-hero__aside span { margin-top:2px;color:#57606a;font-size:10px; }.market-toolbar { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #d0d7de; }.market-tabs { display:flex;overflow-x:auto; }.market-tabs button { display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;padding:10px 11px;color:#57606a;font-size:12px;white-space:nowrap; }.market-tabs button:hover,.market-tabs button.active { border-bottom-color:#fd8c73;color:#24292f;font-weight:700; }.market-tabs small { border-radius:999px;background:#eaeef2;padding:1px 5px;color:#57606a;font-size:9px; }.market-sort { display:flex;align-items:center;gap:6px;color:#57606a;font-size:12px; }.market-sort select { border:1px solid #d0d7de;border-radius:6px;background:#fff;padding:6px;color:#24292f;font-size:12px; }.market-section { margin-top:28px; }.market-section__heading { display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px; }.market-section__heading h2 { margin:4px 0 0;color:#24292f;font-size:20px; }.market-section__heading p { margin:5px 0 0;color:#57606a;font-size:12px;line-height:1.6; }.market-section__heading>span { color:#57606a;font-size:12px; }.market-link { display:inline-flex;align-items:center;gap:6px;margin-top:6px;color:#0969da;font-size:12px;white-space:nowrap; }.plugin-ranking { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));overflow:hidden;border:1px solid #d0d7de;border-radius:9px;background:#fff; }.plugin-ranking button { display:flex;min-width:0;align-items:center;gap:9px;border-right:1px solid #d8dee4;padding:12px;color:#24292f;text-align:left; }.plugin-ranking button:last-of-type { border-right:0; }.plugin-ranking button:hover { background:#f6f8fa; }.plugin-ranking>b { color:#57606a;font-size:13px; }.plugin-ranking>b.gold { color:#bf8700; }.plugin-ranking>b.silver { color:#6e7781; }.plugin-ranking>b.bronze { color:#9a6700; }.plugin-mini-icon,.plugin-icon { display:inline-flex;align-items:center;justify-content:center;background:#ddf4ff;color:#0969da; }.plugin-mini-icon { width:28px;height:28px;flex:0 0 28px;border-radius:7px;font-size:12px; }.plugin-mini-icon.is-local,.plugin-icon.is-local { background:#f3e8ff;color:#8250df; }.plugin-icon.is-workflow { background:#dcfce7;color:#1a7f37; }.plugin-ranking__main { min-width:0;flex:1; }.plugin-ranking strong,.plugin-ranking small { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }.plugin-ranking strong { font-size:12px; }.plugin-ranking small { margin-top:3px;color:#57606a;font-size:10px; }.market-content-grid { display:grid;align-items:start;gap:18px;grid-template-columns:205px minmax(0,1fr);margin-top:28px; }.market-categories { position:sticky;top:82px;border:1px solid #d0d7de;border-radius:8px;background:#fff;padding:11px; }.market-categories__head { display:flex;align-items:center;justify-content:space-between;padding:4px 6px 9px; }.market-categories__head h2 { margin:0;color:#24292f;font-size:13px; }.market-categories__head button { color:#0969da;font-size:11px; }.market-categories>button { display:flex;width:100%;align-items:center;gap:8px;border-radius:6px;padding:7px;color:#57606a;font-size:12px;text-align:left; }.market-categories>button:hover,.market-categories>button.active { background:#ddf4ff;color:#0969da;font-weight:600; }.market-categories>button i { width:15px;text-align:center; }.market-categories>button span { margin-left:auto;border-radius:999px;background:#eaeef2;padding:1px 5px;color:#57606a;font-size:9px; }.market-categories__notice { margin-top:11px;border-top:1px solid #d8dee4;padding:11px 5px 2px;color:#8c959f;font-size:10px;line-height:1.55; }.market-categories__notice i { float:left;margin:2px 5px 8px 0;color:#0969da; }.market-categories__notice p { margin:0; }.plugin-grid { display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(245px,1fr)); }.plugin-card { display:flex;min-height:286px;flex-direction:column;border:1px solid #d0d7de;border-radius:8px;background:#fff;padding:15px;box-shadow:0 1px 2px rgba(27,31,36,.04);transition:border-color .15s,box-shadow .15s,transform .15s; }.plugin-card:hover { border-color:#8c959f;box-shadow:0 7px 20px rgba(140,149,159,.18);transform:translateY(-2px); }.plugin-card__header { display:flex;align-items:flex-start;gap:9px; }.plugin-icon { width:38px;height:38px;flex:0 0 38px;border-radius:9px;font-size:16px; }.plugin-name { display:block;max-width:100%;overflow:hidden;color:#0969da;font-size:14px;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap; }.plugin-name:hover,.plugin-description:hover { text-decoration:underline; }.plugin-card__header p { margin:3px 0 0;color:#57606a;font-size:10px; }.plugin-installed { display:inline-flex;align-items:center;gap:3px;border:1px solid #1f883d66;border-radius:999px;padding:2px 6px;color:#1a7f37;font-size:9px;white-space:nowrap; }.plugin-description { display:-webkit-box;min-height:51px;overflow:hidden;margin-top:12px;color:#57606a;font-size:12px;line-height:1.7;text-align:left;-webkit-box-orient:vertical;-webkit-line-clamp:3; }.plugin-tags { display:flex;flex-wrap:wrap;gap:5px;margin-top:11px; }.plugin-tags span { border:1px solid #d0d7de;border-radius:999px;padding:2px 6px;color:#57606a;font-size:9px; }.plugin-tags i { margin-right:3px;color:#8250df; }.plugin-author { display:flex;min-width:0;align-items:center;gap:6px;margin-top:13px;color:#57606a;font-size:10px; }.plugin-author>span { display:inline-flex;width:19px;height:19px;flex:0 0 19px;align-items:center;justify-content:center;border-radius:50%;background:#eaeef2;color:#57606a;font-size:8px;font-weight:700; }.plugin-author b { overflow:hidden;max-width:116px;color:#57606a;text-overflow:ellipsis;white-space:nowrap; }.plugin-author time { margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }.plugin-metrics { display:flex;align-items:center;gap:11px;margin-top:12px;color:#57606a;font-size:10px; }.plugin-metrics i { margin-right:3px; }.plugin-rating { color:#9a6700; }.plugin-rating small { color:#57606a; }.plugin-card__actions { display:flex;gap:7px;margin-top:auto;padding-top:13px;border-top:1px solid #d8dee4; }.plugin-detail-button,.plugin-install-button { display:inline-flex;min-height:32px;align-items:center;justify-content:center;gap:5px;border-radius:6px;font-size:11px;font-weight:700; }.plugin-detail-button { border:1px solid #d0d7de;background:#f6f8fa;padding:0 10px;color:#24292f; }.plugin-detail-button:hover { border-color:#0969da;color:#0969da; }.plugin-install-button { flex:1;border:1px solid #1f883d;background:#1f883d;padding:0 10px;color:#fff; }.plugin-install-button:hover:not(:disabled) { background:#1a7f37; }.plugin-install-button:disabled { opacity:.6;cursor:not-allowed; }.plugin-install-button--space { border-color:#0969da;background:#0969da; }.plugin-install-button--space:hover:not(:disabled) { background:#0550ae; }.plugin-card--skeleton { gap:15px;min-height:285px; }.plugin-card--skeleton span { height:14px;border-radius:5px;background:linear-gradient(90deg,#eaeef2 25%,#f6f8fa 50%,#eaeef2 75%);background-size:200% 100%;animation:market-loading 1.2s infinite; }.plugin-card--skeleton span:first-child { width:39px;height:39px; }.plugin-card--skeleton span:nth-child(2) { width:64%; }.plugin-card--skeleton span:nth-child(3) { width:96%;height:48px; }.plugin-card--skeleton span:last-child { width:100%;margin-top:auto; }.market-state { display:flex;min-height:260px;flex-direction:column;align-items:center;justify-content:center;border:1px dashed #d0d7de;border-radius:8px;background:#fff;padding:26px;color:#57606a;text-align:center; }.market-state i { color:#8c959f;font-size:31px; }.market-state h2 { margin:12px 0 0;color:#24292f;font-size:16px; }.market-state p { max-width:470px;margin:6px 0 0;font-size:12px;line-height:1.6; }.market-state button { margin-top:14px;border:1px solid #d0d7de;border-radius:6px;background:#f6f8fa;padding:7px 12px;color:#24292f;font-size:12px; }.market-state--error i,.market-state--error h2 { color:#cf222e; }.market-pagination { display:flex;align-items:center;justify-content:center;gap:10px;margin-top:19px;color:#57606a;font-size:12px; }.market-pagination button { border:1px solid #d0d7de;border-radius:6px;background:#fff;padding:6px 10px;color:#24292f; }.market-pagination button:disabled { opacity:.5;cursor:not-allowed; }.plugin-install-modal { position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;overflow:auto;background:rgba(31,35,40,.48);padding:18px;backdrop-filter:blur(5px); }.plugin-install-dialog { width:min(580px,100%);max-height:calc(100dvh - 36px);overflow:auto;border:1px solid #d0d7de;border-radius:10px;background:#fff;color:#24292f;box-shadow:0 20px 60px rgba(31,35,40,.28); }.plugin-install-dialog>header { display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #d8dee4;padding:17px; }.plugin-install-dialog h2 { margin:5px 0 0;font-size:17px; }.plugin-install-dialog header p:not(.market-eyebrow) { margin:4px 0 0;color:#57606a;font-size:12px; }.plugin-install-dialog header>button { width:29px;height:29px;border-radius:6px;color:#57606a; }.plugin-install-dialog header>button:hover { background:#f6f8fa; }.plugin-install-dialog__body { padding:16px 17px; }.install-summary { display:flex;align-items:center;gap:10px;padding:11px;border:1px solid #d8dee4;border-radius:7px;background:#f6f8fa; }.install-summary b { font-size:13px; }.install-summary p { margin:3px 0 0;color:#57606a;font-size:11px; }.plugin-install-dialog__body h3 { margin:17px 0 8px;font-size:13px; }.permission-list { display:grid;gap:7px; }.permission-list label { display:flex;align-items:center;gap:9px;border:1px solid #d8dee4;border-radius:7px;padding:9px;cursor:pointer; }.permission-list label:has(input:checked) { border-color:#0969da;background:#ddf4ff66; }.permission-list input { width:14px;height:14px;accent-color:#0969da; }.permission-list b,.permission-list small { display:block; }.permission-list b { font-size:12px; }.permission-list small { margin-top:2px;color:#57606a;font:10px ui-monospace,SFMono-Regular,Menlo,monospace; }.permission-empty { display:flex;align-items:center;gap:7px;border:1px dashed #d0d7de;border-radius:7px;padding:12px;color:#57606a;font-size:12px; }.permission-empty i { color:#1a7f37; }.install-note { margin:12px 0 0;color:#57606a;font-size:11px;line-height:1.6; }.install-note i { margin-right:4px;color:#0969da; }.plugin-install-dialog footer { display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #d8dee4;padding:13px 17px; }.plugin-install-dialog footer .plugin-install-button { flex:1; }.install-space-tip { margin:0;padding:0 17px 14px;color:#8c959f;font-size:11px;text-align:center; }@keyframes market-loading { to { background-position:-200% 0; } }@media (min-width:960px) { .plugin-market-hero { grid-template-columns:minmax(0,1fr) 270px;padding:31px; } }@media (max-width:1120px) { .plugin-ranking { grid-template-columns:repeat(3,minmax(0,1fr)); }.plugin-ranking button:nth-child(3) { border-right:0; }.plugin-ranking button:nth-child(n+4) { border-top:1px solid #d8dee4; } }.plugin-ranking .market-inline-empty { padding:15px;color:#57606a;font-size:12px; }@media (max-width:760px) { .market-content-grid { grid-template-columns:1fr; }.market-categories { position:static;display:flex;overflow-x:auto;gap:4px;padding:8px; }.market-categories__head,.market-categories__notice { display:none; }.market-categories>button { width:auto;flex:0 0 auto;white-space:nowrap; }.plugin-ranking { grid-template-columns:1fr; }.plugin-ranking button,.plugin-ranking button:nth-child(3) { border-right:0;border-bottom:1px solid #d8dee4; }.plugin-ranking button:last-of-type { border-bottom:0; }.plugin-market-hero { margin:0 -2px;padding:21px; }.plugin-market-hero h2 { font-size:22px; }.plugin-search>button:last-child { padding:0 10px; }.plugin-grid { grid-template-columns:1fr; }.market-toolbar { align-items:flex-start;flex-direction:column;padding-bottom:7px; }.market-sort { padding-left:10px; } }:global(.dark) .plugin-market-page { color:#f0f6fc; }:global(.dark) .plugin-market-hero,:global(.dark) .plugin-market-hero__aside,:global(.dark) .plugin-ranking,:global(.dark) .market-categories,:global(.dark) .plugin-card,:global(.dark) .market-state,:global(.dark) .plugin-install-dialog,:global(.dark) .market-sort select { border-color:#30363d;background-color:#161b22; }:global(.dark) .plugin-market-hero { background-image:radial-gradient(circle at 92% 8%,rgba(56,139,253,.2),transparent 30%),linear-gradient(135deg,#161b22,#0d1117 62%,#161b22); }:global(.dark) .plugin-market-hero h2,:global(.dark) .plugin-market-hero__aside b,:global(.dark) .market-section__heading h2,:global(.dark) .market-categories__head h2,:global(.dark) .plugin-name,:global(.dark) .market-state h2,:global(.dark) .plugin-install-dialog { color:#f0f6fc; }:global(.dark) .plugin-market-hero__content>p:not(.market-eyebrow),:global(.dark) .plugin-market-hero__aside span,:global(.dark) .market-section__heading p,:global(.dark) .plugin-card__header p,:global(.dark) .plugin-description,:global(.dark) .plugin-author,:global(.dark) .plugin-metrics,:global(.dark) .market-state,:global(.dark) .permission-list small,:global(.dark) .install-note { color:#8b949e; }:global(.dark) .plugin-search,:global(.dark) .market-sort select,:global(.dark) .plugin-detail-button,:global(.dark) .market-pagination button,:global(.dark) .install-summary { border-color:#30363d;background:#0d1117;color:#c9d1d9; }:global(.dark) .plugin-search input { color:#f0f6fc; }:global(.dark) .plugin-card__actions,:global(.dark) .plugin-ranking button,:global(.dark) .market-categories__notice,:global(.dark) .plugin-install-dialog>header,:global(.dark) .plugin-install-dialog footer,:global(.dark) .permission-list label { border-color:#30363d; }:global(.dark) .plugin-ranking button:hover,:global(.dark) .market-categories>button:hover,:global(.dark) .market-categories>button.active { background:#21262d; }
+.market-content-grid { grid-template-columns:205px minmax(0,1fr) 250px; }.plugin-market-hero__content { position:relative; }.market-search-suggestions { position:absolute;z-index:12;top:100%;left:0;width:min(690px,100%);overflow:hidden;border:1px solid #d0d7de;border-radius:8px;background:#fff;box-shadow:0 12px 30px rgba(31,35,40,.16); }.market-search-suggestions button { display:flex;width:100%;align-items:center;gap:9px;border:0;border-bottom:1px solid #d8dee4;background:transparent;padding:9px 11px;color:#24292f;text-align:left; }.market-search-suggestions button:last-child { border-bottom:0; }.market-search-suggestions button:hover { background:#f6f8fa; }.market-search-suggestions button>span:nth-child(2) { min-width:0;flex:1; }.market-search-suggestions b,.market-search-suggestions small { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }.market-search-suggestions b { font-size:12px; }.market-search-suggestions small { margin-top:3px;color:#57606a;font-size:10px; }.market-search-suggestions>button>i:last-child { color:#8c959f; }.market-sidebar { position:sticky;top:82px;display:grid;gap:13px; }.market-sidebar>section { overflow:hidden;border:1px solid #d0d7de;border-radius:8px;background:#fff; }.market-sidebar header { display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #d8dee4;padding:10px 11px; }.market-sidebar h2 { margin:0;color:#24292f;font-size:13px; }.market-sidebar header span,.market-sidebar header i { color:#8c959f;font-size:10px; }.market-sidebar>section>button { display:flex;width:100%;align-items:center;gap:7px;border:0;border-bottom:1px solid #edf0f2;background:transparent;padding:8px 10px;color:#24292f;text-align:left; }.market-sidebar>section>button:hover { background:#f6f8fa; }.market-sidebar>section>button>b { width:14px;color:#8c959f;font-size:11px;text-align:center; }.market-sidebar>section>button>b.rank-gold { color:#bf8700; }.market-sidebar>section>button>b.rank-silver { color:#6e7781; }.market-sidebar>section>button>b.rank-bronze { color:#9a6700; }.market-sidebar>section>button>span:last-child { min-width:0;flex:1; }.market-sidebar strong,.market-sidebar small { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }.market-sidebar strong { font-size:11px; }.market-sidebar small { margin-top:2px;color:#57606a;font-size:9px; }.market-sidebar>section>p { margin:0;padding:12px;color:#8c959f;font-size:11px; }.market-sidebar__note { display:flex;gap:8px;padding:11px;color:#57606a;font-size:10px;line-height:1.6; }.market-sidebar__note i { color:#0969da; }.market-sidebar__note p { padding:0!important;color:inherit!important; }
+@media (max-width:1180px) { .market-content-grid { grid-template-columns:205px minmax(0,1fr); }.market-sidebar { grid-column:1 / -1;position:static;grid-template-columns:repeat(3,minmax(0,1fr)); }.market-sidebar__note { display:block; }.market-sidebar__note i { display:block;margin-bottom:5px; } } @media (max-width:760px) { .market-sidebar { grid-template-columns:1fr; }.market-search-suggestions { position:fixed;top:auto;left:12px;right:12px;width:auto;max-height:48dvh;overflow:auto; } }
+:global(.dark) .market-search-suggestions,:global(.dark) .market-sidebar>section { border-color:#30363d;background:#161b22; }:global(.dark) .market-search-suggestions button,:global(.dark) .market-sidebar>section>button { border-color:#30363d;color:#c9d1d9; }:global(.dark) .market-search-suggestions button:hover,:global(.dark) .market-sidebar>section>button:hover { background:#21262d; }:global(.dark) .market-sidebar h2 { color:#f0f6fc; }:global(.dark) .market-sidebar header { border-color:#30363d; }:global(.dark) .market-sidebar small,:global(.dark) .market-search-suggestions small,:global(.dark) .market-sidebar__note { color:#8b949e; }
 </style>

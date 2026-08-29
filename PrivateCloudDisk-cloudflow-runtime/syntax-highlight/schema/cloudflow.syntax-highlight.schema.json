@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://privateclouddisk.local/cloudflow.syntax-highlight.schema.json",
+  "title": "CloudFlow 统一语法高亮规范",
+  "description": "CloudFlow DSL 语法高亮唯一事实来源（Single Source of Truth），由 GRAMMAR.pest + AST.rs 生成。可转换为 VS Code TextMate、Monaco Monarch、Highlight.js 语言定义。",
+  "type": "object",
+  "required": ["$meta", "categories", "keywords", "operators", "punctation",
+               "comments", "strings", "numbers", "references", "identifiers",
+               "ast", "unclassifiedTokens"],
+  "additionalProperties": false,
+  "properties": {
+    "$meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["languageId", "languageName", "version", "scopeName",
+                   "fileExtensions", "lineComment", "description", "authors",
+                   "generatedFrom", "generatedAt", "sourceTokens"],
+      "properties": {
+        "languageId": {"type": "string"},
+        "languageName": {"type": "string"},
+        "version": {"type": "string"},
+        "scopeName": {"type": "string", "pattern": "^source\\.[a-z]+$"},
+        "fileExtensions": {"type": "array", "items": {"type": "string"}},
+        "lineComment": {"type": "string"},
+        "blockComment": {"type": "array", "items": {"type": "string"}},
+        "description": {"type": "string"},
+        "authors": {"type": "array", "items": {"type": "string"}},
+        "generatedFrom": {
+          "type": "object",
+          "required": ["grammar", "ast"],
+          "properties": {
+            "grammar": {"type": "string"},
+            "ast": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "generatedAt": {"type": "string", "format": "date-time"},
+        "sourceTokens": {"type": "object"}
+      }
+    },
+    "categories": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Za-z]+$": {
+          "type": "object",
+          "required": ["scope", "color", "label"],
+          "properties": {
+            "scope": {"type": "string"},
+            "color": {"type": "string"},
+            "label": {"type": "string"}
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "keywords": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "operators": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "punctation": {"type": "array", "items": {"type": "string"}},
+    "comments": {
+      "type": "object",
+      "required": ["line"],
+      "properties": {
+        "line": {
+          "type": "object",
+          "required": ["start", "scope"],
+          "properties": {
+            "start": {"type": "string"},
+            "scope": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "block": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "strings": {
+      "type": "object",
+      "required": ["double", "triple", "interpolation"],
+      "properties": {
+        "double": {"type": "object", "required": ["pattern", "scope"]},
+        "triple": {"type": "object", "required": ["pattern", "scope"]},
+        "interpolation": {"type": "object", "required": ["begin", "end", "scope"]}
+      },
+      "additionalProperties": false
+    },
+    "numbers": {
+      "type": "object",
+      "properties": {
+        "number": {"type": "object", "required": ["pattern", "scope"]},
+        "duration": {"type": "object", "required": ["pattern", "scope"]},
+        "boolean": {"type": "object"}
+      }
+    },
+    "references": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["prefix", "pattern", "scope"]
+      }
+    },
+    "identifiers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["pattern", "scope"]
+      }
+    },
+    "ast": {
+      "type": "object",
+      "required": ["nodeScopes", "flowVariantScopes", "containerScopes", "types"],
+      "properties": {
+        "nodeScopes": {"type": "object"},
+        "flowVariantScopes": {"type": "object"},
+        "containerScopes": {"type": "object"},
+        "types": {
+          "type": "object",
+          "required": ["structs", "enums", "flowNodeVariants"],
+          "properties": {
+            "structs": {"type": "array", "items": {"type": "string"}},
+            "enums": {"type": "array", "items": {"type": "string"}},
+            "flowNodeVariants": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "unmappedNodes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "unclassifiedTokens": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -46,6 +46,16 @@ public enum ResponseCode {
     CONVERSATION_NOT_FOUND(1011, "会话不存在"),
     DUPLICATE_MESSAGE(1012, "重复消息"),
 
+    // ==================== 消息发送权限校验错误 11xx ====================
+    RECEIVER_NOT_FOUND(1101, "接收方用户不存在"),
+    RECEIVER_STATUS_ABNORMAL(1102, "接收方账号状态异常"),
+    NOT_FRIEND(1103, "非好友关系，无法发送消息"),
+    BLACKLISTED(1104, "您已被对方拉黑，无法发送消息"),
+    GLOBAL_MUTED(1105, "您已被全局禁言"),
+    SESSION_NOT_EXIST(1106, "会话不存在，无法发送消息"),
+    MESSAGE_EMPTY(1107, "消息内容不能为空"),
+    MESSAGE_TYPE_NOT_SUPPORTED(1108, "不支持的消息类型"),
+
     // ==================== 连接错误 2xxx ====================
     CONNECTION_LIMIT_EXCEEDED(2001, "超出最大连接数限制"),
     TOKEN_EXPIRED(2002, "Token 已过期"),

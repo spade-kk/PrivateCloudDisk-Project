@@ -6,6 +6,7 @@
       'ide-shell--left-collapsed': leftCollapsed,
       'ide-shell--right-collapsed': rightCollapsed,
       'ide-shell--bottom-collapsed': bottomCollapsed,
+      'ide-shell--mobile-panel-open': mobilePanelOpen,
     }"
     aria-label="插件开发工作区"
   >
@@ -54,6 +55,18 @@
       </div>
     </header>
 
+    <!--
+      [IDE-RESP-2026-08 / 3.9、4.1、5.18] 小屏抽屉打开时由同一遮罩负责
+      关闭；桌面端不渲染，避免修改原有多栏工作区交互。
+    -->
+    <button
+      v-if="mobilePanelOpen"
+      class="ide-shell__mobile-scrim"
+      type="button"
+      aria-label="关闭当前 IDE 面板"
+      @click="$emit('close-mobile-panels')"
+    ></button>
+
     <div class="ide-shell__body">
       <aside v-if="!leftCollapsed" class="ide-shell__left" aria-label="项目导航面板">
         <slot name="sidebar"></slot>
@@ -93,6 +106,7 @@ withDefaults(defineProps<{
   leftCollapsed?: boolean
   rightCollapsed?: boolean
   bottomCollapsed?: boolean
+  mobilePanelOpen?: boolean
   dirty?: boolean
   saveState?: 'idle' | 'saving' | 'saved' | 'error'
 }>(), {
@@ -101,6 +115,7 @@ withDefaults(defineProps<{
   leftCollapsed: false,
   rightCollapsed: false,
   bottomCollapsed: false,
+  mobilePanelOpen: false,
   dirty: false,
   saveState: 'idle',
 })
@@ -110,6 +125,7 @@ defineEmits<{
   'toggle-right': []
   'toggle-bottom': []
   'toggle-fullscreen': []
+  'close-mobile-panels': []
 }>()
 </script>
 
@@ -121,8 +137,9 @@ defineEmits<{
   --ide-text: #cbd5e1;
   position: relative;
   display: flex;
+  height: min(820px, calc(100dvh - 32px));
   flex-direction: column;
-  min-height: min(820px, calc(100dvh - 32px));
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--ide-border);
   border-radius: 16px;
@@ -165,12 +182,12 @@ defineEmits<{
 .ide-shell__dirty { color: #fbbf24; font-size: 11px; }
 .ide-shell__saving { color: #93c5fd; font-size: 11px; }
 .ide-shell__saved { color: #86efac; font-size: 11px; }
-.ide-shell__body { display: flex; min-height: 0; flex: 1; }
+.ide-shell__body { display: flex; min-height: 0; flex: 1; overflow: hidden; }
 .ide-shell__left,
 .ide-shell__right { min-width: 0; overflow: auto; background: #f8fafc; color: #334155; }
 .ide-shell__left { width: 260px; flex: 0 0 260px; border-right: 1px solid #dbe4f0; }
 .ide-shell__right { width: 320px; flex: 0 0 320px; border-left: 1px solid #dbe4f0; }
-.ide-shell__main { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; background: #0f172a; }
+.ide-shell__main { display: flex; min-width: 0; min-height: 0; height: 100%; flex: 1; flex-direction: column; overflow: hidden; background: #0f172a; }
 .ide-shell__main > :first-child { min-height: 0; flex: 1; }
 .ide-shell__bottom { min-height: 160px; max-height: 42%; overflow: auto; border-top: 1px solid var(--ide-border); background: #111827; }
 .ide-shell__bottom-trigger { position: absolute; right: 14px; bottom: 10px; z-index: 2; display: inline-flex; min-height: 36px; align-items: center; gap: 7px; padding: 0 12px; border-radius: 9px; background: #273244; color: #cbd5e1; font-size: 12px; }
@@ -179,9 +196,11 @@ defineEmits<{
   .ide-shell__right { width: 290px; flex-basis: 290px; }
 }
 @media (max-width: 767px) {
-  .ide-shell { min-height: calc(100dvh - 16px); border-radius: 12px; }
+  .ide-shell { height: calc(100dvh - 16px); min-height: 0; border-radius: 12px; }
   .ide-shell__left,
-  .ide-shell__right { position: absolute; inset: 52px auto 0 0; z-index: 5; width: min(88vw, 320px); box-shadow: 12px 0 30px rgba(15, 23, 42, .22); }
+  /* [IDE-RESP-2026-08 / 遮罩层级修复] 原值 z-index: 5 会被 80 层蒙版覆盖。
+     抽屉必须在同一 Shell 的遮罩之上，且不跨越全局弹窗层。 */
+  .ide-shell__right { position: absolute; inset: 52px auto 0 0; z-index: var(--ide-z-drawer, 90); width: min(88vw, 320px); box-shadow: 12px 0 30px rgba(15, 23, 42, .22); }
   .ide-shell__right { right: 0; left: auto; box-shadow: -12px 0 30px rgba(15, 23, 42, .22); }
   .ide-shell__bottom { min-height: 130px; max-height: 40%; }
   .ide-shell__dirty,

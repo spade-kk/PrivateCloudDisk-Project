@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 会话服务接口
  * <p>
- * 提供会话的创建、查询、删除、置顶、免打扰等核心功能。
+ * 提供已存在会话的查询、置顶、免打扰和内部同步创建能力。
  * 会话是消息的容器，管理用户与另一方（个人或群组）的聊天窗口。
  * </p>
  *
@@ -29,7 +29,10 @@ public interface ConversationService {
      * @param conversationType 会话类型
      * @return 会话信息
      */
-    Result<ConversationDTO> getOrCreateConversation(String userId, String targetId, int conversationType);
+    Result<ConversationDTO> getExistingConversation(String userId, String peerId, int conversationType);
+
+    /** 仅供好友接受和群组加入事务内部调用，不暴露为外部创建会话 API。 */
+    void ensureConversationForParticipants(String userId, String peerId, int conversationType);
 
     /**
      * 获取用户会话列表
@@ -45,16 +48,7 @@ public interface ConversationService {
      * @param conversationId 会话 ID
      * @return 会话信息
      */
-    Result<ConversationDTO> getConversationDetail(String conversationId);
-
-    /**
-     * 删除会话（软删除）
-     *
-     * @param conversationId 会话 ID
-     * @param userId         用户 ID
-     * @return 操作结果
-     */
-    Result<Void> deleteConversation(String conversationId, String userId);
+    Result<ConversationDTO> getConversationDetail(String conversationId, String userId);
 
     /**
      * 置顶/取消置顶会话

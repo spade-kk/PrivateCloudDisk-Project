@@ -1,0 +1,7 @@
+# 覆盖目标：[V1.2-INTERVAL-TRIGGER] / [V1.2-WEBHOOK] 周期与 webhook 触发器详情。
+# 预期：IR trigger 生成 {type: interval, every: "5m"} 或 {type: http, path, method}。
+workflow "interval_webhook" {
+    trigger { interval = 5m }
+    step start { action builtin.file.list {} output result }
+    step finish { action builtin.file.list {} }
+}

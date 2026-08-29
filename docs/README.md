@@ -16,6 +16,14 @@
 | [插件自动化平台设计](./PLUGIN_AUTOMATION_PLATFORM_DESIGN.md) | 插件、Runtime、自动化、工作流、调度和市场 |
 | [插件开发指南](./PLUGIN_DEVELOPER_GUIDE.md) | 插件包、权限、SDK、工作流 DSL 与发布 |
 | [CloudFlow 编译器指南](./CLOUDFLOW_COMPILER_GUIDE.md) | Rust Compiler CLI、Workflow IR、Runtime HTTP 契约和验证命令 |
+| [CloudFlow DSL 规范](./CLOUDFLOW_DESIGN.md) | `.flow` 严格语法、AST、表达式和控制流 |
+| [CloudFlow IR 规范](./CLOUDFLOW_IR_DESIGN.md) | `workflow.cloudflow.io/v1` 机器契约与 DAG |
+| [CloudFlow 诊断规范](./CLOUDFLOW_ERROR_DESIGN.md) | CF 错误码、Span、CLI/HTTP 结构化诊断 |
+| [CloudFlow 合规审计](./CLOUDFLOW_COMPLIANCE_AUDIT.md) | 实现追踪、验证证据、风险与上线门禁 |
+| [CloudFlow V1.2 扩展](./CLOUDFLOW_V1.2_DSL_EXTENSION.md) | switch/for/管道/trigger 详配等 V1.2 新语法的实现与审计 |
+| [CloudFlow 语言扩展流程](./CLOUDFLOW_LANGUAGE_EXTENSION_GUIDE.md) | 新增关键字从 grammar 到 Runtime 的唯一工程流程 |
+| [CloudFlow 统一语法高亮](./CLOUDFLOW_SYNTAX_HIGHLIGHT.md) | 以 grammar+AST 生成 VS Code/Monaco/Highlight.js 高亮规则 |
+| [CloudFlow 统一代码补全](./CLOUDFLOW_COMPLETION.md) | 以 grammar+AST+config 生成 VS Code/Monaco 补全与结构提示 |
 | [事件契约](../contracts/README.md) | 文件生命周期和插件清单 Schema |
 
 ## 阅读顺序

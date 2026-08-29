@@ -246,7 +246,6 @@ import { loadMarkdownItWithPlugins } from '@/utils/markdownCdn'
 import { loadMermaid } from '@/utils/mermaidCdn'
 import { loadKaTeX } from '@/utils/katexCdn'
 import { loadHighlight, getHighlightSync, injectHighlightTheme } from '@/utils/highlightCdn'
-import Loading from 'element-plus/es/components/loading/src/service.mjs'
 
 // ============================================================
 // Props
@@ -415,7 +414,7 @@ const initMarkdownIt = async (): Promise<void> => {
       
     })
 
-    // AUDIT FIX [2.3]（需求一-5）:
+    //（需求一-5）:
     // 原行为没有等待高亮库，首次 render 永远走无高亮降级；新行为等待同一并行 Promise，
     // 失败仍返回 null，不影响 Markdown 主渲染。
     await hljsPromise

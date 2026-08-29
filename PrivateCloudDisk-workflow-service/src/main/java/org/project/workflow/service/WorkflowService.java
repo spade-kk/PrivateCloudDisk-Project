@@ -15,12 +15,14 @@ import org.project.workflow.model.WorkflowModels.WorkflowRow;
 import org.project.workflow.model.WorkflowModels.WorkflowVersionRow;
 import org.project.workflow.repository.ExecutionMapper;
 import org.project.workflow.repository.WorkflowMapper;
+import org.project.workflow.repository.WorkflowOutboxMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -33,6 +35,7 @@ public class WorkflowService {
     private final PlatformAuthorizationClient authorizationClient;
     private final SchedulerClient schedulerClient;
     private final ObjectMapper objectMapper;
+    private final WorkflowOutboxMapper outboxMapper;
 
     public WorkflowService(
             WorkflowMapper workflowMapper,
@@ -40,7 +43,8 @@ public class WorkflowService {
             WorkflowDslValidator validator,
             PlatformAuthorizationClient authorizationClient,
             SchedulerClient schedulerClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            WorkflowOutboxMapper outboxMapper
     ) {
         this.workflowMapper = workflowMapper;
         this.executionMapper = executionMapper;
@@ -48,6 +52,7 @@ public class WorkflowService {
         this.authorizationClient = authorizationClient;
         this.schedulerClient = schedulerClient;
         this.objectMapper = objectMapper;
+        this.outboxMapper = outboxMapper;
     }
 
     @Transactional
@@ -203,6 +208,7 @@ public class WorkflowService {
         return requireExecution(executionId, userId);
     }
 
+    @Transactional
     public void cancel(String executionId, String userId) {
         if (executionMapper.requestCancel(executionId, userId) != 1) {
             throw new WorkflowApiException(
@@ -210,6 +216,11 @@ public class WorkflowService {
                     "执行不存在、已结束或无权取消"
             );
         }
+        outboxMapper.insert(
+                UUID.randomUUID().toString(), executionId,
+                "cloudflow.execution.cancel.v1", "cloudflow.execution.cancel",
+                json(Map.of("executionId", executionId))
+        );
     }
 
     public void archive(String workflowId, String userId, String spaceId) {
@@ -288,14 +299,66 @@ public class WorkflowService {
         String idempotencyKey = "schedule:" + scheduleId + ":" + scheduledAt;
         try {
             String executionId = UUID.randomUUID().toString();
+            if (spaceId != null && !spaceId.isBlank()) {
+                authorizationClient.requireExecute(userId, spaceId);
+            }
+            ValidationReport report = requireValid(version.dslText(), userId, spaceId);
+            String traceId = UUID.randomUUID().toString().replace("-", "");
             executionMapper.insertExecution(
                     executionId, workflowId, versionId, userId, blank(spaceId),
-                    "SCHEDULE", scheduleId, json(inputs), UUID.randomUUID().toString().replace("-", ""),
+                    "SCHEDULE", scheduleId, json(inputs), traceId,
                     scheduleId, null, idempotencyKey, null
+            );
+            enqueueCloudFlowExecution(
+                    executionId, workflowId, userId, blank(spaceId), inputs, traceId, report
             );
             return executionMapper.findById(executionId);
         } catch (DuplicateKeyException exception) {
             // 至少一次 MQ 投递下，同一 schedule_id + scheduled_at 只产生一个执行实例。
+            return null;
+        }
+    }
+
+    /**
+     * [REQ-GIT-CI-10.2/13.4] 将 Git push 事实接入既有 CloudFlow 执行链。
+     * 新行为仅增加 EVENT 触发源；DSL 校验、权限复核、不可变版本和 Runtime Outbox
+     * 全部复用原实现。eventId + workflowId 构成幂等键，容忍 RabbitMQ 至少一次投递。
+     */
+    @Transactional
+    public ExecutionRow runGitPush(
+            String workflowId,
+            String userId,
+            String spaceId,
+            String eventId,
+            Map<String, Object> inputs
+    ) {
+        requireUuid(workflowId, "工作流标识无效");
+        requireUuid(userId, "Git 事件用户身份无效");
+        requireUuid(spaceId, "Git 事件空间标识无效");
+        WorkflowRow workflow = workflowMapper.findById(workflowId);
+        WorkflowVersionRow version = workflow == null ? null : workflowMapper.findLatestVersion(workflowId);
+        if (workflow == null || version == null || !version.immutable()
+                || !"PUBLISHED".equals(workflow.status())) {
+            throw new WorkflowApiException(
+                    "WF-GIT-VERSION", HttpStatus.CONFLICT, "Git 绑定的工作流尚未发布或已不可用"
+            );
+        }
+        String idempotencyKey = "git:" + eventId + ":" + workflowId;
+        try {
+            authorizationClient.requireExecute(userId, spaceId);
+            ValidationReport report = requireValid(version.dslText(), userId, spaceId);
+            String executionId = UUID.randomUUID().toString();
+            String traceId = UUID.randomUUID().toString().replace("-", "");
+            executionMapper.insertExecution(
+                    executionId, workflowId, version.versionId(), userId, spaceId,
+                    "EVENT", eventId, json(inputs), traceId,
+                    eventId, null, idempotencyKey, null
+            );
+            enqueueCloudFlowExecution(
+                    executionId, workflowId, userId, spaceId, inputs, traceId, report
+            );
+            return executionMapper.findById(executionId);
+        } catch (DuplicateKeyException duplicate) {
             return null;
         }
     }
@@ -317,10 +380,18 @@ public class WorkflowService {
         }
         String executionId = UUID.randomUUID().toString();
         try {
+            if (spaceId != null && !spaceId.isBlank()) {
+                authorizationClient.requireExecute(userId, spaceId);
+            }
+            ValidationReport report = requireValid(version.dslText(), userId, spaceId);
+            String traceId = UUID.randomUUID().toString().replace("-", "");
             executionMapper.insertExecution(
                     executionId, workflow.workflowId(), version.versionId(), userId, spaceId,
-                    "MANUAL", null, json(inputs), UUID.randomUUID().toString().replace("-", ""),
+                    "MANUAL", null, json(inputs), traceId,
                     null, null, idempotencyKey, retryOf
+            );
+            enqueueCloudFlowExecution(
+                    executionId, workflow.workflowId(), userId, spaceId, inputs, traceId, report
             );
         } catch (DuplicateKeyException exception) {
             throw new WorkflowApiException(
@@ -329,6 +400,39 @@ public class WorkflowService {
             );
         }
         return executionMapper.findById(executionId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void enqueueCloudFlowExecution(
+            String executionId,
+            String workflowId,
+            String userId,
+            String spaceId,
+            Map<String, Object> inputs,
+            String traceId,
+            ValidationReport report
+    ) {
+        Map<String, Object> security = report.normalized().get("security") instanceof Map<?, ?> value
+                ? (Map<String, Object>) value : Map.of();
+        List<String> declared = security.get("permissions") instanceof List<?> values
+                ? values.stream().map(String::valueOf).toList() : List.of();
+        // [CLOUDFLOW-SEC-004] 原行为把 DSL 声明权限直接复制为 granted，无法证明空间当前实际授权；
+        // 新行为在入队前读取 Platform 的执行时权限快照，Runtime/Capability Hub 还会再次取交集。
+        List<String> granted = authorizationClient.resolveGrantedPermissions(userId, spaceId);
+        Map<String, Object> command = new LinkedHashMap<>();
+        command.put("executionId", executionId);
+        command.put("workflowId", workflowId);
+        command.put("userId", userId);
+        command.put("spaceId", spaceId);
+        command.put("ir", report.normalized());
+        command.put("variables", inputs == null ? Map.of() : inputs);
+        command.put("declaredPermissions", declared);
+        command.put("grantedPermissions", granted);
+        command.put("traceId", traceId);
+        outboxMapper.insert(
+                UUID.randomUUID().toString(), executionId,
+                "cloudflow.execution.start.v1", "cloudflow.execution.start", json(command)
+        );
     }
 
     private WorkflowRow requireAccessible(String workflowId, String userId, String spaceId) {

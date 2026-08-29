@@ -28,6 +28,8 @@ spring:
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
     listener:
       simple:
         acknowledge-mode: manual
@@ -56,7 +58,19 @@ pcd:
   scheduler-url: ${SCHEDULER_SERVICE_URL:http://localhost:8088}
   internal-service-token: ${PCD_INTERNAL_SERVICE_TOKEN:test}
   worker:
-    enabled: ${WORKFLOW_WORKER_ENABLED:true}
+    # [CLOUDFLOW-RUNTIME-EXEC-001] Rust Runtime 是唯一生产执行面；旧 Java Worker 默认关闭，仅用于迁移回滚。
+    enabled: ${WORKFLOW_LEGACY_WORKER_ENABLED:false}
     poll-delay-ms: ${WORKFLOW_WORKER_POLL_DELAY_MS:1000}
     stale-seconds: ${WORKFLOW_WORKER_STALE_SECONDS:180}
     max-step-output-bytes: ${WORKFLOW_MAX_STEP_OUTPUT_BYTES:16384}
+  outbox:
+    poll-delay-ms: ${WORKFLOW_OUTBOX_POLL_DELAY_MS:500}
+
+# [CLOUDFLOW-INTEGRATION-001] 新配置使用完整编译 URL；旧 pcd.cloudflow-runtime-url 暂留给
+# 已部署环境迁移，不再由 DSL 校验客户端读取。不可用策略固定 fail-closed。
+cloudflow:
+  runtime:
+    compile-url: ${CLOUDFLOW_RUNTIME_COMPILE_URL:${CLOUDFLOW_RUNTIME_URL:http://localhost:8091}/api/v1/compile}
+    circuit-failure-threshold: ${CLOUDFLOW_RUNTIME_CIRCUIT_FAILURE_THRESHOLD:3}
+    circuit-open-seconds: ${CLOUDFLOW_RUNTIME_CIRCUIT_OPEN_SECONDS:15}
+    unavailable-policy: REJECT

@@ -52,6 +52,8 @@ const SENSITIVE_API_PATTERNS = [
 export class ApiError extends Error {
   /** HTTP 状态码，网络错误时可能为 undefined */
   status?: number
+  /** 后端统一错误信封中的业务错误码，便于页面做精确提示或重试。 */
+  code?: string
   /** 原始 Axios 响应对象 */
   response?: unknown
   /** 原始 Axios 错误对象 */
@@ -230,6 +232,8 @@ service.interceptors.response.use(
     console.warn(error)
     if (error.response) {
       const status = error.response.status
+      const responseBody = error.response.data as { message?: unknown; code?: unknown } | undefined
+      const responseMessage = typeof responseBody?.message === 'string' ? responseBody.message : ''
       switch (status) {
         case 401:
           /*
@@ -255,6 +259,10 @@ service.interceptors.response.use(
           break
         case 404:
           message = '请求资源不存在'
+          break
+        case 400:
+          // [CLOUDFLOW-REQUEST-001] 优先展示后端统一错误信封，避免 JSON 契约错误只显示“连接错误 400”。
+          message = responseMessage || '请求参数不合法，请检查请求体后重试'
           break
         case 429:
           message = '请求过于频繁，请稍后再试'
@@ -283,6 +291,9 @@ service.interceptors.response.use(
     return Promise.reject(
       new ApiError(message, {
         status: error.response?.status,
+        code: typeof (error.response?.data as { code?: unknown } | undefined)?.code === 'string'
+          ? (error.response?.data as { code: string }).code
+          : undefined,
         response: error.response,
         originalError: error,
         isNetworkError,

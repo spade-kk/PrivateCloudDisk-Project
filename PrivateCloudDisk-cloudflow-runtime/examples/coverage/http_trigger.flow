@@ -1,0 +1,6 @@
+# 覆盖目标：HTTP 触发器路径解析。
+# 预期：IR trigger.type 为 http，并携带稳定的 webhook path。
+workflow "http_trigger" {
+    trigger { http { path = "/webhooks/cloudflow-demo" } }
+    step record { action builtin.log { message = "http accepted" } }
+}

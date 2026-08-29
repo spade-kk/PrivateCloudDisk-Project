@@ -1,0 +1,9 @@
+.vscodeignore
+**/*.map
+**/*.ts
+**/node_modules/**
+syntax-highlight/**
+build/**
+samples/**
+schema/**
+generator/**

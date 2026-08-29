@@ -1,5 +1,53 @@
 # **CloudFlow Workflow IR 设计规范文档 V1.0**
 
+## 0. 规范性约定（2026-08-02）
+
+> 本节收敛早期草案中 `graph`位置和字段命名的不一致。后续所有 Compiler、Runtime、Workflow Service 及 IDE 交互均以此契约为准。
+
+- `graph` 只存在于 `spec.graph`，根层不得重复出现。
+- `spec.graph.edges` 是 DAG 调度权威数据；节点上的 `dependsOn` 只是便于读取的同源投影，二者不得相互矛盾。
+- JSON 字段使用 camelCase，版本固定为 `apiVersion: workflow.cloudflow.io/v1`、`kind: Workflow`。
+- 变量引用生成 `{ "$ref": "vars.name" }` 或 `{ "$ref": "steps.id.output" }`；表达式生成结构化 `$expr`，不用与普通字符串无法区分的占位符。
+- `extensions` 只用于版本兼容扩展；异常处理节点保存在 `extensions.handlerGraphs`的独立图中，不得在主 DAG 成功路径中直接调度。
+
+### 0.1 V1.1 强类型值与动态控制流补充（2026-08-08）
+
+> **需求关联：CloudFlow 变量系统审计与 Runtime 动态执行增强。** `spec.variables` 的每一项
+> 除 `type`、`required`、`default` 外可带 `value` 与 `source`。`source=input` 表示调用方可提供的
+> 输入；`source=local` 表示编译器确定的本地变量，运行时不得被启动请求覆盖；`source=deferred` 表示
+> 有显式类型但在启动时无值。
+
+值编码是强制的：`10`、`true`、`[1,2]`、`{"a":1}` 保持原生 JSON 类型；引用为
+`{"$ref":"vars.x"}`；表达式为结构化
+`{"$expr":{"operator":"+","left":{"$ref":"vars.a"},"right":1}}`。Runtime 必须拒绝将
+字符串当作 number/boolean/array/object 的隐式转换。
+
+`loopConfig` 现支持：
+
+```json
+{
+  "kind": "foreach",
+  "iterator": "item",
+  "collection": {"$ref": "vars.items"},
+  "body": ["process"],
+  "maxIterations": 1000
+}
+```
+
+`kind=while` 时以 `condition` 替代 `collection`/`iterator`。动态子步骤使用稳定 ID
+`<control-node-id>[<iteration>].<node-id>` 持久化，例如 `loop-42[3].process`；同一动态实例的
+重试才递增其自身 attempt，控制节点输出记录迭代总数。因此并行 foreach 元素可独立审计、重放和关联
+输出，不会被误判为同一静态步骤。`assert` 映射为 `type=assert` 与 `condition`，失败代码为 `CF2202`。
+`wait approval` 进入 `WAITING_APPROVAL` 子状态，恢复请求的审批值保存到
+`variables.__wait.<nodeId>`，再按 `$ref` 注入后续节点。
+
+Compiler 保留顶层 Flow 的源码顺序，并仅在控制节点前后增加顺序边：普通 `step` 的并行性仍由
+`dependsOn`/`edges` 决定；控制节点成为边界，避免 wait、try、loop 后的副作用提前执行。
+
+`include "relative.flow"` 不是 Runtime 节点：受信任文件模式在编译期完成受根目录、循环与深度限制的
+模块合并，随后将模块路径审计信息写入 `extensions.includes`。HTTP/IDE 源码编译拒绝 include，避免
+Runtime 或浏览器取得任意文件系统读取能力。
+
 ## **1. Workflow IR 定位**
 
 Workflow IR（Intermediate Representation，工作流中间表示）是：
@@ -103,8 +151,6 @@ JSON格式：
     "runtime": {},
 
     "security": {},
-
-    "graph": {},
 
     "extensions": {}
 }
@@ -221,7 +267,13 @@ EventFlow
     "variables": {},
 
 
-    "nodes": [],
+    "graph": {
+
+        "nodes": [],
+
+        "edges": []
+
+    },
 
 
     "outputs": {}
@@ -397,9 +449,13 @@ subworkflow
 
 "action":{
 
+"provider":"builtin",
+
 "service":"file",
 
-"method":"list"
+"method":"list",
+
+"arguments":{}
 
 }
 
@@ -1061,11 +1117,15 @@ SKIPPED
 ],
 
 
-"plugin":{
+"action":{
 
-"id":"report",
+"provider":"plugin",
 
-"function":"generate"
+"pluginId":"report",
+
+"function":"generate",
+
+"arguments":{}
 
 }
 
@@ -1185,3 +1245,42 @@ State Store
 ```
 
 这个 IR 设计就是整个 CloudFlow 平台的核心契约，相当于 Kubernetes 的 API Object，也是后续**图形化编排、AI生成工作流、DSL双向转换、插件市场能力发现**的基础。
+
+---
+
+## V1.2 IR 扩展
+
+向后兼容新增（均带 serde default + skip_serializing_if，旧 IR 仍可解析）：
+
+- `node.retryOn: string[]`（步骤可重试异常白名单）。
+- `node.onTimeout: string`（fail/continue/retry）。
+- `node.switchConfig: object`：`{ subject: <expr>, cases: [{value, body:[id]}], default: [id] }`。
+- `node.delayMs: number`（delay 节点）。
+- `node.type="switch" | "delay"` 新控制节点类型。
+- `metadata.namespace`、`metadata.changelog`、`metadata.tags`。
+- `spec.environment: map<string, json>`。
+- `extensions.importAliases: map<alias, path>`。
+
+### V1.2 IR 扩展 Tranche 2（2026-08-18）
+
+- `loopConfig.kind ∈ {foreach, while, for, for-range}`：`for-range` 携带 `from`/`to`（可求值的
+  `$ref`/`$expr`），`for` 携带 `collection`；均为对既有 `loopConfig` 字段的向后兼容扩展。
+- `node.type="validate" | "break" | "continue"`：校验节点（`condition` 为布尔表达式）与循环控制节点。
+- `parallel.maxConcurrency: number`：分支级并发数上限（缺省沿用 `runtime.maxParallel`）。
+- `node.condition` 可承载三元/比较等结构化 `$expr`，不再局限于单一运算符形态。
+
+### V1.2 IR 扩展 Tranche 3（2026-08-18）
+
+- `node.type="notify" | "return"`：内建通知节点与步骤级提前返回节点。
+- `node.notifyConfig: { channel, recipient, message }`：通知渠道/接收者/消息。
+- `node.onError: { nodes: string[] }`：步骤失败时的错误处理子节点 ID 列表。
+- `node.dependsCondition: <bool 表达式>`：条件依赖；求值 false 时该节点无需等待静态依赖完成。
+- 值编码新增：
+  - `{"$template": [段1, 段2, ...]}`：字符串模板，段为字符串字面量或 `{"$ref": ...}`。
+  - `{"$pipeline": {"input": <expr>, "op": {"op": "filter"|"map"|"reduce", "predicate"/"field"/"function"}}}`：
+    map/filter/reduce 集合管道。
+- `TriggerIr.type ∈ {manual, schedule, event, http, interval}`：`interval` 带 `every`；`http` 带
+  `method`（GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS）。
+- `spec.audit: { level: low|medium|high, description? }`：工作流级审计注解。
+- step group 为编译期组合语法：组在编译阶段展开为普通 `task` 节点（组名仅在语义层 CF4418 校验），
+  IR 不新增步组节点，避免幻影边。

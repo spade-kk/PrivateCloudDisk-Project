@@ -12,15 +12,20 @@ fn demo_file_is_compilable_and_runtime_builds_dag() {
     )
     .expect("Demo CloudFlow must compile");
     let runtime = RuntimeEngine::load("contract-demo", ir).expect("IR must be loadable");
-    assert_eq!(
-        runtime.topological_order().expect("DAG"),
-        vec![
-            "collect_files",
-            "aggregate_data",
-            "generate_report",
-            "save_report"
-        ]
-    );
+    // [CLOUDFLOW-COVERAGE-001] 示例可在主链后追加控制流；契约仅固定核心步骤的
+    // 依赖顺序，不能把测试写成拒绝合法扩展节点的白名单。
+    let order = runtime.topological_order().expect("DAG");
+    for (before, after) in [
+        ("collect_files", "aggregate_data"),
+        ("aggregate_data", "generate_report"),
+        ("generate_report", "save_report"),
+    ] {
+        assert!(
+            order.iter().position(|value| value == before)
+                < order.iter().position(|value| value == after),
+            "核心依赖顺序必须保持 {before} -> {after}: {order:?}"
+        );
+    }
 }
 
 #[test]

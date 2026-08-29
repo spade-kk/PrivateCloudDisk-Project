@@ -27,6 +27,7 @@ import {
   CallStatus,
   CallMode,
   NetworkQuality,
+  CommandType,
 } from '@/api/im/types'
 import { useImClient } from '@/composables/useImClient'
 
@@ -117,7 +118,7 @@ export function useCall() {
 
     // 3. 设置信令发送器
     webrtcService.setSignalingSender((command, payload) => {
-      imClient?.sendSignaling(command, payload)
+      imClient.value?.sendSignaling(command, payload)
     })
 
     // 4. 设置事件回调
@@ -324,10 +325,10 @@ export function useCall() {
    */
   async function fetchIceConfig(): Promise<IceServerConfig> {
     return new Promise((resolve) => {
-      imClient?.sendSignaling(2601, {}) // CALL_ICE_SERVERS
+      imClient.value?.sendSignaling(CommandType.CALL_ICE_SERVERS, {})
 
       // 临时监听 ICE 服务器响应
-      const unsubscribe = imClient?.onCommand(2601 as any, (protocol) => {
+      const unsubscribe = imClient.value?.onCommand(CommandType.CALL_ICE_SERVERS, (protocol) => {
         const payload = protocol.payload as IceServerConfig
         resolve(payload)
         unsubscribe?.()
@@ -349,10 +350,10 @@ export function useCall() {
    * 设置信令监听器
    */
   function setupSignalingListeners(): void {
-    if (!imClient) return
+    if (!imClient.value) return
 
     // 监听来电
-    imClient.onCommand(2001 as any, (protocol) => {
+    imClient.value?.onCommand(CommandType.CALL_INVITE, (protocol) => {
       const payload = protocol.payload as CallInvitePayload
       incomingCallInfo.value = payload
       hasIncomingCall.value = true
@@ -360,32 +361,32 @@ export function useCall() {
     })
 
     // 监听通话取消
-    imClient.onCommand(2004 as any, () => {
+    imClient.value?.onCommand(CommandType.CALL_CANCEL, () => {
       hasIncomingCall.value = false
       incomingCallInfo.value = null
       resetCallState()
     })
 
     // 监听 Offer
-    imClient.onCommand(2101 as any, (protocol) => {
+    imClient.value?.onCommand(CommandType.SIGNALING_OFFER, (protocol) => {
       const payload = protocol.payload as SdpPayload
       webrtcService?.handleOffer(payload)
     })
 
     // 监听 Answer
-    imClient.onCommand(2102 as any, (protocol) => {
+    imClient.value?.onCommand(CommandType.SIGNALING_ANSWER, (protocol) => {
       const payload = protocol.payload as SdpPayload
       webrtcService?.handleAnswer(payload)
     })
 
     // 监听 ICE Candidate
-    imClient.onCommand(2103 as any, (protocol) => {
+    imClient.value?.onCommand(CommandType.SIGNALING_ICE, (protocol) => {
       const payload = protocol.payload as IceCandidatePayload
       webrtcService?.handleIceCandidate(payload)
     })
 
     // 监听编码参数调整
-    imClient.onCommand(2202 as any, (protocol) => {
+    imClient.value?.onCommand(2202 as any, (protocol) => {
       const payload = protocol.payload as { encoderParams: EncoderParams }
       if (payload.encoderParams) {
         webrtcService?.handleEncoderAdjust(payload.encoderParams)
@@ -393,27 +394,27 @@ export function useCall() {
     })
 
     // 监听建议降级语音
-    imClient.onCommand(2305 as any, () => {
+    imClient.value?.onCommand(CommandType.CALL_SWITCH_TO_VOICE, () => {
       webrtcService?.handleSuggestDowngrade()
     })
 
     // 监听通话挂断
-    imClient.onCommand(2005 as any, () => {
+    imClient.value?.onCommand(CommandType.CALL_HANGUP, () => {
       resetCallState()
     })
 
     // 监听通话拒绝
-    imClient.onCommand(2003 as any, () => {
+    imClient.value?.onCommand(CommandType.CALL_REJECT, () => {
       resetCallState()
     })
 
     // 监听通话超时
-    imClient.onCommand(2007 as any, () => {
+    imClient.value?.onCommand(CommandType.CALL_TIMEOUT, () => {
       resetCallState()
     })
 
     // 监听忙线
-    imClient.onCommand(2006 as any, () => {
+    imClient.value?.onCommand(CommandType.CALL_BUSY, () => {
       callError.value = '对方正在通话中'
       resetCallState()
     })

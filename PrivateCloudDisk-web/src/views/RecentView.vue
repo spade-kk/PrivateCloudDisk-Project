@@ -81,14 +81,11 @@
                     class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                     :class="item.target_type === 'folder' ? 'bg-warning/10' : 'bg-primary/5'"
                   >
-                    <i
-                      :class="[
-                        item.target_type === 'folder'
-                          ? 'fa fa-folder text-warning'
-                          : getIconForFile(item.target_name),
-                        'text-lg'
-                      ]"
-                    ></i>
+                    <FileTypeIcon
+                      :file-name="item.target_name"
+                      :is-directory="item.target_type === 'folder'"
+                      class="text-lg"
+                    />
                   </div>
                   <span class="max-w-[280px] truncate text-sm font-medium text-neutral-700">
                     {{ item.target_name }}
@@ -127,14 +124,11 @@
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
             :class="item.target_type === 'folder' ? 'bg-warning/10' : 'bg-primary/5'"
           >
-            <i
-              :class="[
-                item.target_type === 'folder'
-                  ? 'fa fa-folder text-warning'
-                  : getIconForFile(item.target_name),
-                'text-xl'
-              ]"
-            ></i>
+            <FileTypeIcon
+              :file-name="item.target_name"
+              :is-directory="item.target_type === 'folder'"
+              class="text-xl"
+            />
           </div>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-neutral-700">{{ item.target_name }}</p>
@@ -159,7 +153,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useRecentStore } from '@/stores/recentStore'
-import { getFileIconClass } from '@/utils/fileIcon'
+import FileTypeIcon from '@/components/file/FileTypeIcon.vue'
 import { isVideo } from '@/utils/previewHelper'
 import type { RecentAccessVO, AccessType } from '@/api/modules/recent'
 import { useSpaceStore } from '@/stores/spaceStore'
@@ -210,18 +204,6 @@ const accessTypeIcon = (type: AccessType): string => {
     open: 'fa fa-eye text-secondary',
   }
   return map[type] || 'fa fa-circle'
-}
-
-// ============================================================
-// 文件图标（仅返回图标类，不包含颜色类，颜色由父容器控制）
-// ============================================================
-
-/** 获取文件图标（仅 FA 图标类名，不含颜色） */
-const getIconForFile = (fileName: string): string => {
-  const full = getFileIconClass(fileName)
-  // 提取纯图标类名（去掉颜色类如 text-danger/text-blue-600 等）
-  const iconClass = full.split(' ').find(c => c.startsWith('fa-'))
-  return iconClass || 'fa fa-file-o'
 }
 
 // ============================================================

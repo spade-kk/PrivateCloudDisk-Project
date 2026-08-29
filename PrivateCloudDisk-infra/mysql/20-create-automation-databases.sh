@@ -2,6 +2,7 @@
 set -eu
 
 # 插件生态 Sprint 0：为插件、自动化、工作流与调度服务建立独立 Schema 和最小权限账号。
+# [REQ-GIT-SPACE-3.1/3.3] 新增 Git Service 独立 Schema；不复用主业务 root 账号，避免仓库服务扩大主库权限面。
 # 该脚本只在 MySQL 数据卷首次初始化时执行；存量环境请使用运维迁移流程创建账号，
 # 不得为了重跑初始化脚本删除生产数据卷。
 : "${MYSQL_ROOT_PASSWORD:?必须配置 MYSQL_ROOT_PASSWORD}"
@@ -11,6 +12,7 @@ set -eu
 : "${CLOUDFLOW_DATASOURCE_PASSWORD:?必须配置 CLOUDFLOW_DATASOURCE_PASSWORD}"
 : "${SCHEDULER_DATASOURCE_PASSWORD:?必须配置 SCHEDULER_DATASOURCE_PASSWORD}"
 : "${CLIENT_REGISTRATION_DB_PASSWORD:?必须配置 CLIENT_REGISTRATION_DB_PASSWORD}"
+: "${GIT_DATASOURCE_PASSWORD:?必须配置 GIT_DATASOURCE_PASSWORD}"
 
 escape_sql_literal() {
   printf '%s' "$1" | sed "s/'/''/g"
@@ -22,6 +24,7 @@ workflow_password="$(escape_sql_literal "$WORKFLOW_DATASOURCE_PASSWORD")"
 cloudflow_password="$(escape_sql_literal "$CLOUDFLOW_DATASOURCE_PASSWORD")"
 scheduler_password="$(escape_sql_literal "$SCHEDULER_DATASOURCE_PASSWORD")"
 client_registration_password="$(escape_sql_literal "$CLIENT_REGISTRATION_DB_PASSWORD")"
+git_password="$(escape_sql_literal "$GIT_DATASOURCE_PASSWORD")"
 
 mysql --protocol=socket -uroot -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL
 CREATE DATABASE IF NOT EXISTS pcd_plugin
@@ -33,6 +36,8 @@ CREATE DATABASE IF NOT EXISTS pcd_workflow
 CREATE DATABASE IF NOT EXISTS pcd_cloudflow
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 CREATE DATABASE IF NOT EXISTS pcd_scheduler
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE DATABASE IF NOT EXISTS pcd_git
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
 CREATE USER IF NOT EXISTS 'pcd_plugin'@'%' IDENTIFIED BY '${plugin_password}';
@@ -65,5 +70,10 @@ CREATE USER IF NOT EXISTS 'pcd_client'@'%' IDENTIFIED BY '${client_registration_
 ALTER USER 'pcd_client'@'%' IDENTIFIED BY '${client_registration_password}';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
   ON private_cloud_disk.* TO 'pcd_client'@'%';
+
+CREATE USER IF NOT EXISTS 'pcd_git'@'%' IDENTIFIED BY '${git_password}';
+ALTER USER 'pcd_git'@'%' IDENTIFIED BY '${git_password}';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
+  ON pcd_git.* TO 'pcd_git'@'%';
 FLUSH PRIVILEGES;
 EOSQL

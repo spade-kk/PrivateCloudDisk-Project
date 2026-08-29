@@ -1,0 +1,251 @@
+syntax = "proto3";
+
+package pcd.im.mq;
+
+option java_package = "org.project.im.common.mq";
+option java_multiple_files = false;
+option java_outer_classname = "IMMQProto";
+option go_package = "privateclouddisk/im-router/pkg/proto;proto";
+
+// ================================================================
+// IM MQ 消息定义 — 命令队列与事件队列
+// ================================================================
+// 命令队列（Command Queue）：表示"要做某件事"
+//   A. im.message.send.command   — 消息发送命令（IM Server → IM Business）
+//   B. im.message.push.command   — 消息推送命令（IM Business → IM Router）
+//
+// 事件队列（Event Queue）：表示"某件事已经发生"
+//   C. im.message.delivered.event — 消息送达事件（IM Server → IM Business + IM Router）
+//   D. im.message.failed.event    — 消息失败事件（IM Server → IM Business + IM Router）
+//   E. im.user.online.event       — 用户上线事件（IM Server → IM Business）
+//   F. im.user.offline.event      — 用户离线事件（IM Server → IM Business）
+//   G. im.message.read.event      — 消息已读事件（IM Server → IM Business）
+//   H. im.message.send.failed.event — 消息发送失败事件（IM Business → IM Router）
+// ================================================================
+
+// ==================== MQ 消息公共头部 ====================
+
+message MQMessageHeader {
+  // 事件/命令类型标识
+  string event_type = 1;
+  // 消息 ID（全局唯一，用于幂等）
+  string message_id = 2;
+  // 时间戳（毫秒）
+  uint64 timestamp = 3;
+  // 链路追踪 ID
+  string trace_id = 4;
+  // 来源节点 ID（产生此消息的服务节点）
+  string source_node = 5;
+  // 重试次数
+  uint32 retry_count = 6;
+}
+
+// ==================== 统一推送消息类型枚举 ====================
+// 驱动 IM Router 的送达/失败回调通知策略，杜绝"通知类消息再次触发通知"的死循环。
+// 所有推送相关消息体（PushMessageCommand / MessageDeliveredEvent / MessageFailedEvent /
+// PushMessageRequest 等）通过 message_type 字段引用本枚举。
+enum MessageType {
+  // 未指定（向后兼容：旧消息不含该字段时按 CHAT_MESSAGE 处理）
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  // 普通聊天消息（文本、图片、文件等），接收方为最终用户
+  CHAT_MESSAGE = 1;
+  // 回执通知（告知发送方消息已送达/推送失败/发送失败）。
+  // 回执本身无发送方概念，推送后不再触发新的回执，用于切断闭环。
+  RECEIPT = 2;
+  // 服务端错误消息（如权限拒绝、禁言）
+  ERROR_MESSAGE = 4;
+  // 系统通知（如用户上线、群事件）
+  SYSTEM_NOTIFICATION = 5;
+  // 自定义业务通知（预留扩展）
+  CUSTOM_NOTIFICATION = 6;
+}
+
+// ==================== 命令队列消息 ====================
+
+// A. 消息发送命令（IM Server → IM Business）
+// 用途：IM Business 对消息进行权限校验、会话检查、内容过滤等业务处理后，
+//       将消息持久化，并产生 PushMessageCommand 进入推送流程。
+message SendMessageCommand {
+  MQMessageHeader header = 1;
+  // 发送者用户 ID
+  string sender_id = 2;
+  // 接收者 ID（单聊=用户ID，群聊=群组ID）
+  string receiver_id = 3;
+  // 会话类型: 1=单聊, 2=群聊, 3=系统
+  uint32 conversation_type = 4;
+  // 消息类型（对应 IMMessageType 枚举值）
+  uint32 message_type = 5;
+  // 消息内容（Protobuf 序列化的负载，如 TextPayload）
+  bytes payload_bytes = 6;
+  // 客户端消息序列号
+  uint64 client_seq = 7;
+  // 发送者设备类型
+  uint32 sender_device_type = 8;
+  // 发送者平台标识
+  string sender_platform = 9;
+  // 引用消息 ID（回复消息时使用）
+  string reply_to = 10;
+  // 扩展字段（JSON）
+  string extra_json = 11;
+}
+
+// B. 消息推送命令（IM Business → IM Router）
+// 用途：将已持久化的消息推送到目标用户的实时连接。
+message PushMessageCommand {
+  MQMessageHeader header = 1;
+  // 消息 ID（数据库持久化后的全局唯一 ID）
+  string message_id = 2;
+  // 接收者用户 ID
+  string receiver_id = 3;
+  // 发送者用户 ID
+  string sender_id = 4;
+  // 会话 ID
+  string conversation_id = 5;
+  // 会话类型: 1=单聊, 2=群聊, 3=系统
+  uint32 conversation_type = 6;
+  // 消息内容类型（对应 IMMessageType 枚举值，如 TEXT=1/IMAGE=2，用于选择 Payload Codec）
+  uint32 content_type = 7;
+  // 消息内容（Protobuf 序列化的 IMEnvelope 二进制帧，用于 WebSocket 下发）
+  bytes envelope_bytes = 8;
+  // 服务端消息序列号
+  uint64 server_seq = 9;
+  // 消息时间戳（毫秒）
+  uint64 message_timestamp = 10;
+  // 是否为离线消息补偿推送
+  bool is_offline_compensation = 11;
+  // 统一推送消息类型（驱动回调通知策略，见 MessageType 枚举）
+  MessageType message_type = 12;
+}
+
+// ==================== 事件队列消息 ====================
+
+// C. 消息送达事件（IM Server → IM Business + IM Router）
+message MessageDeliveredEvent {
+  MQMessageHeader header = 1;
+  // 消息 ID
+  string message_id = 2;
+  // 接收者用户 ID（确认送达的用户）
+  string receiver_id = 3;
+  // 发送者用户 ID
+  string sender_id = 4;
+  // 会话 ID
+  string conversation_id = 5;
+  // 送达时间戳（毫秒）
+  uint64 delivered_at = 6;
+  // 统一推送消息类型（驱动 IM Router 回调通知策略，见 MessageType 枚举）
+  MessageType message_type = 7;
+  // 原始消息 ID（追溯最原始的聊天消息；通知类消息指向其触发的原始消息）
+  string original_message_id = 8;
+  // 原始发送者用户 ID（追溯最原始的发送方；便于 Router/Business 判断是否回调）
+  string original_sender_id = 9;
+}
+
+// D. 消息失败事件（IM Server → IM Business + IM Router）
+message MessageFailedEvent {
+  MQMessageHeader header = 1;
+  // 消息 ID
+  string message_id = 2;
+  // 接收者用户 ID
+  string receiver_id = 3;
+  // 发送者用户 ID
+  string sender_id = 4;
+  // 会话 ID
+  string conversation_id = 5;
+  // 失败原因码: 1=未找到接收方连接, 2=推送异常/其他
+  uint32 fail_code = 6;
+  // 失败原因描述
+  string fail_reason = 7;
+  // 失败时间戳（毫秒）
+  uint64 failed_at = 8;
+  // 统一推送消息类型（驱动回调通知策略，见 MessageType 枚举）
+  MessageType message_type = 9;
+  // 原始消息 ID（追溯最原始的聊天消息；通知类消息指向其触发的原始消息）
+  string original_message_id = 10;
+  // 原始发送者用户 ID（追溯最原始的发送方；便于 Router/Business 判断是否回调）
+  string original_sender_id = 11;
+}
+
+// E. 用户上线事件（IM Server → IM Business）
+message UserOnlineEvent {
+  MQMessageHeader header = 1;
+  // 用户 ID
+  string user_id = 2;
+  // IM Server 节点 ID
+  string server_node_id = 3;
+  // 设备类型
+  uint32 device_type = 4;
+  // 客户端平台标识
+  string platform = 5;
+  // 客户端版本
+  string client_version = 6;
+  // 上线时间戳（毫秒）
+  uint64 online_at = 7;
+  // 连接 ID（Channel 唯一标识）
+  string connection_id = 8;
+}
+
+// F. 用户离线事件（IM Server → IM Business）
+message UserOfflineEvent {
+  MQMessageHeader header = 1;
+  // 用户 ID
+  string user_id = 2;
+  // IM Server 节点 ID
+  string server_node_id = 3;
+  // 离线原因: 1=正常断开, 2=心跳超时, 3=踢出, 4=异常断开
+  uint32 offline_reason = 4;
+  // 离线时间戳（毫秒）
+  uint64 offline_at = 5;
+  // 连接 ID
+  string connection_id = 6;
+}
+
+// G. 消息已读事件（IM Server → IM Business）
+message MessageReadEvent {
+  MQMessageHeader header = 1;
+  // 用户 ID（执行已读操作的用户）
+  string user_id = 2;
+  // 会话 ID
+  string conversation_id = 3;
+  // 已读的消息 ID 列表
+  repeated string message_ids = 4;
+  // 已读时间戳（毫秒）
+  uint64 read_at = 5;
+}
+
+// ==================== 发送失败错误码枚举 ====================
+
+// 消息发送失败错误码，用于 MessageSendFailedEvent.error_code
+enum SendFailedErrorCode {
+  SEND_FAILED_UNSPECIFIED = 0;
+  // 权限校验不通过（发送方/接收方不存在、非好友、黑名单、禁言等）
+  SEND_FAILED_PERMISSION_DENIED = 1;
+  // 会话校验失败（会话不存在且不允许自动创建等）
+  SEND_FAILED_SESSION_NOT_FOUND = 2;
+  // 消息持久化到数据库失败（重试耗尽）
+  SEND_FAILED_DB_ERROR = 3;
+  // 其他业务逻辑处理过程中抛出的非预期异常
+  SEND_FAILED_UNKNOWN = 99;
+}
+
+// H. 消息发送失败事件（IM Business → IM Router）
+// 用途：IM Business 在消费 im.message.send.command 时，若权限校验、会话校验、
+//       数据库写入等环节失败，则产生此事件。IM Router 消费后向发送方推送失败通知。
+message MessageSendFailedEvent {
+  MQMessageHeader header = 1;
+  // 原始消息 ID（对应 SendMessageCommand 中的消息）
+  string message_id = 2;
+  // 发送方用户 ID
+  string sender_id = 3;
+  // 接收方 ID（单聊=用户ID，群聊=群组ID）
+  string receiver_id = 4;
+  // 失败原因代码（对应 SendFailedErrorCode 枚举值）
+  uint32 error_code = 5;
+  // 失败原因描述
+  string error_message = 6;
+  // 失败时间戳（毫秒）
+  uint64 timestamp = 7;
+  // 会话类型: 1=单聊, 2=群聊, 3=系统
+  uint32 conversation_type = 8;
+  // 会话 ID
+  string conversation_id = 9;
+}

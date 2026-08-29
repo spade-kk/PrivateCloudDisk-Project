@@ -15,6 +15,7 @@ import org.project.im.platform.service.MessageService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -68,8 +69,7 @@ public class MessageController {
     @Operation(summary = "标记会话消息已读")
     public Result<Void> markAsRead(
             @Parameter(description = "会话 ID") 
-            @RequestParam @NotBlank(message = "会话ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "会话ID必须是有效的UUID格式") String conversationId,
+            @RequestParam @NotBlank(message = "会话ID不能为空") String conversationId,
             @Parameter(description = "用户 ID") 
             @RequestParam @NotBlank(message = "用户ID不能为空")
             @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId) {
@@ -80,8 +80,7 @@ public class MessageController {
     @Operation(summary = "分页查询历史消息")
     public Result<List<MessageDTO>> getHistory(
             @Parameter(description = "会话 ID") 
-            @RequestParam @NotBlank(message = "会话ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "会话ID必须是有效的UUID格式") String conversationId,
+            @RequestParam @NotBlank(message = "会话ID不能为空") String conversationId,
             @Parameter(description = "用户 ID") 
             @RequestParam @NotBlank(message = "用户ID不能为空")
             @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId,
@@ -94,14 +93,43 @@ public class MessageController {
     @Operation(summary = "增量同步消息（从指定序号之后拉取）")
     public Result<List<MessageDTO>> syncMessages(
             @Parameter(description = "会话 ID") 
-            @RequestParam @NotBlank(message = "会话ID不能为空")
-            @Pattern(regexp = UUID_REGEX, message = "会话ID必须是有效的UUID格式") String conversationId,
+            @RequestParam @NotBlank(message = "会话ID不能为空") String conversationId,
             @Parameter(description = "用户 ID") 
             @RequestParam @NotBlank(message = "用户ID不能为空")
             @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId,
             @Parameter(description = "上次拉取的最大序号") @RequestParam @Positive(message = "序号必须为正数") Long serverSeq,
             @Parameter(description = "拉取条数") @RequestParam(defaultValue = "50") @Min(value = 1, message = "拉取条数最小为1") int limit) {
         return messageService.getMessagesAfter(conversationId, userId, serverSeq, limit);
+    }
+
+    @GetMapping("/offline")
+    @Operation(summary = "拉取当前用户离线消息（状态为 PREPARING，拉取后标记为已送达）")
+    public Result<List<MessageDTO>> getOfflineMessages(
+            @Parameter(description = "用户 ID")
+            @RequestParam @NotBlank(message = "用户ID不能为空")
+            @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId,
+            @Parameter(description = "最大拉取条数（默认 100，最大 100）")
+            @RequestParam(defaultValue = "100") @Min(value = 1, message = "拉取条数最小为1") int limit) {
+        return messageService.getOfflineMessages(userId, limit);
+    }
+
+    @GetMapping("/history/cursor")
+    @Operation(summary = "游标分页查询历史消息（仅返回已送达/已读/失败终态，不含未送达消息）")
+    public Result<List<MessageDTO>> getHistoryByCursor(
+            @Parameter(description = "会话 ID")
+            @RequestParam @NotBlank(message = "会话ID不能为空") String conversationId,
+            @Parameter(description = "用户 ID")
+            @RequestParam @NotBlank(message = "用户ID不能为空")
+            @Pattern(regexp = UUID_REGEX, message = "用户ID必须是有效的UUID格式") String userId,
+            @Parameter(description = "每页条数（默认 20，最大 100）")
+            @RequestParam(defaultValue = "20") @Min(value = 1, message = "每页条数最小为1") int limit,
+            @Parameter(description = "上一页最小 server_seq（游标，首次不传）")
+            @RequestParam(required = false) Long cursor,
+            @Parameter(description = "可选，仅拉取该时间之前的消息")
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime before) {
+        return messageService.getHistoryByCursor(conversationId, userId, limit, cursor, before);
     }
 
     @GetMapping("/{messageId}")

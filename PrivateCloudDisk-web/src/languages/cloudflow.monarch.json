@@ -1,0 +1,159 @@
+{
+  "defaultToken": "",
+  "ignoreCase": false,
+  "tokenizer": {
+    "root": [
+      [
+        "#.*$",
+        "comment.line.number-sign.cloudflow"
+      ],
+      [
+        "\"\"\"",
+        {
+          "token": "string.quoted.triple.cloudflow",
+          "next": "@triple"
+        }
+      ],
+      [
+        "\"",
+        {
+          "token": "string.quoted.double.cloudflow",
+          "next": "@double"
+        }
+      ],
+      [
+        "\\b\\d+(?:ms|s|m|h|d)\\b",
+        "constant.numeric.duration.cloudflow"
+      ],
+      [
+        "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b",
+        "constant.numeric.cloudflow"
+      ],
+      [
+        "\\bvars\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "variable.other.vars.cloudflow"
+      ],
+      [
+        "\\bsteps\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "variable.other.steps.cloudflow"
+      ],
+      [
+        "\\bworkflow\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "variable.other.system.cloudflow"
+      ],
+      [
+        "!=|\\&\\&|<=|==|=>|>=|\\|\\||!|%|\\*|\\+|\\-|/|:|<|=|>|\\?|\\|",
+        "keyword.operator.cloudflow"
+      ],
+      [
+        "\\b(?:continue|on_error|parallel|validate|default|finally|foreach|assert|expect|notify|return|switch|break|catch|delay|while|case|else|wait|for|try|if|in)\\b",
+        "keyword.control.cloudflow"
+      ],
+      [
+        "\\b(?:max_concurrency|max_attempts|max_parallel|retry_policy|environment|depends_on|on_failure|on_timeout|condition|namespace|variables|duration|handlers|interval|metadata|retry_on|schedule|strategy|workflow|backoff|include|runtime|timeout|trigger|action|import|manual|output|audit|event|group|retry|steps|http|name|step|with|tag|use|as)\\b",
+        "keyword.declaration.cloudflow"
+      ],
+      [
+        "\\b(?:filter|reduce|map)\\b",
+        "entity.name.function.cloudflow"
+      ],
+      [
+        "\\b(?:boolean|number|object|string|array|space|file|user)\\b",
+        "support.type.cloudflow"
+      ],
+      [
+        "\\b(?:false|true)\\b",
+        "constant.language.boolean.cloudflow"
+      ],
+      [
+        "\\b(?:input)\\b",
+        "storage.modifier.cloudflow"
+      ],
+      [
+        "\\(|\\)|,|\\.|;|\\[|\\]|\\{|\\}",
+        "punctuation.separator.cloudflow"
+      ],
+      [
+        "\\b[A-Za-z_][A-Za-z0-9_-]*\\b",
+        "entity.name.variable.other.cloudflow"
+      ]
+    ],
+    "triple": [
+      [
+        "\"\"\"",
+        "string.quoted.triple.cloudflow",
+        "@pop"
+      ],
+      [
+        "\\$\\{",
+        "variable.other.embedded.cloudflow",
+        "@interp"
+      ],
+      [
+        "[^\\\"\\\\]+",
+        "string.quoted.triple.cloudflow"
+      ],
+      [
+        "\\\\.",
+        "string.quoted.triple.cloudflow"
+      ]
+    ],
+    "double": [
+      [
+        "\"",
+        "string.quoted.double.cloudflow",
+        "@pop"
+      ],
+      [
+        "\\$\\{",
+        "variable.other.embedded.cloudflow",
+        "@interp"
+      ],
+      [
+        "\\\\\\$\\{",
+        "string.quoted.double.cloudflow"
+      ],
+      [
+        "\\\\.",
+        "string.quoted.double.cloudflow"
+      ],
+      [
+        "[^\\\"\\\\$]+",
+        "string.quoted.double.cloudflow"
+      ]
+    ],
+    "interp": [
+      [
+        "\\}",
+        {
+          "token": "variable.other.embedded.cloudflow",
+          "next": "@pop"
+        }
+      ],
+      [
+        "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b",
+        "constant.numeric.cloudflow"
+      ],
+      [
+        "\\bvars\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "variable.other.vars.cloudflow"
+      ],
+      [
+        "\\bsteps\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "variable.other.steps.cloudflow"
+      ],
+      [
+        "\\bworkflow\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "variable.other.system.cloudflow"
+      ],
+      [
+        "!=|\\&\\&|<=|==|=>|>=|\\|\\||!|%|\\*|\\+|\\-|/|:|<|=|>|\\?|\\|",
+        "keyword.operator.cloudflow"
+      ],
+      [
+        "\\b[A-Za-z_][A-Za-z0-9_-]*\\b",
+        "entity.name.variable.other.cloudflow"
+      ]
+    ]
+  }
+}

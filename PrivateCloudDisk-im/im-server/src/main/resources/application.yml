@@ -1,6 +1,12 @@
 # ============================================================
-# IM Server — Netty WebSocket 推送服务配置
+# IM Server — Netty WebSocket + gRPC 推送服务配置 v2.0
 # ============================================================
+# 重构要点：
+#   1. 移除 V1 JSON 协议端口配置（netty.websocket.port-v2）
+#   2. 新增 gRPC 服务端口配置（im.server.grpc-port）
+#   3. 新增节点 ID 配置（用于分布式 Session 管理）
+# ============================================================
+
 server:
   port: ${IM_SERVER_HTTP_PORT:8089}
 
@@ -45,15 +51,25 @@ spring:
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
 
+# ==================== IM Server 节点配置 ====================
+im:
+  server:
+    # 节点 ID（多节点部署时必须唯一，用于 Redis 注册和 gRPC 路由）
+    node-id: ${IM_SERVER_NODE_ID:im-server-1}
+    # gRPC 服务端口（供 IM Router 调用）
+    grpc-port: ${IM_SERVER_GRPC_PORT:9092}
+    # gRPC 最大入站消息大小（默认 4MB）
+    grpc-max-inbound-size: 4194304
+
 # ==================== Netty 配置 ====================
 netty:
-  # WebSocket 监听端口
+  # WebSocket 监听端口（仅 V2 二进制协议）
   websocket:
     port: ${NETTY_WS_PORT:9090}
   # Boss 线程数（接收连接）
   boss:
     threads: 1
-  # Worker 线程数（处理 I/O）
+  # Worker 线程数（处理 I/O，建议 = CPU 核心数 * 2）
   worker:
     threads: ${NETTY_WORKER_THREADS:8}
   # 业务线程数
@@ -61,7 +77,7 @@ netty:
     threads: ${NETTY_BUSINESS_THREADS:16}
   # 连接超时（秒）
   connect-timeout: 30
-  # WebSocket 路径
+  # WebSocket 路径（统一 /ws，不再区分 V1/V2）
   websocket-path: /ws
 
 # ==================== 日志配置 ====================
@@ -72,32 +88,21 @@ logging:
 
 # ==================== WebRTC 配置 ====================
 webrtc:
-  # STUN/TURN ICE 服务器配置
   ice:
-    # STUN 服务器列表（用于 P2P NAT 穿透）
     stun-servers:
       - stun:stun.l.google.com:19302
       - stun:stun1.l.google.com:19302
-    # TURN 服务器列表（用于中继转发，确保 100% 连通性）
     turn-servers:
       - urls:
           - turn:${TURN_SERVER_HOST:turn.example.com}:3478?transport=udp
           - turn:${TURN_SERVER_HOST:turn.example.com}:3478?transport=tcp
         username: ${TURN_USERNAME:privateclouddisk}
         credential: ${TURN_CREDENTIAL:change_me_in_production}
-    # ICE 传输策略：all（优先 P2P）| relay（仅中继）
     transport-policy: all
-    # ICE Candidate 池大小
     candidate-pool-size: 2
-  # 通话邀请超时（秒）
   call-invite-timeout: 60
-  # 空闲通话清理（分钟）
   idle-call-cleanup: 30
-  # 自适应编码参数
   adaptive-encoder:
-    # 参数切换冷却时间（毫秒）
     switch-cooldown-ms: 3000
-    # 历史质量快照保留数量
     history-size: 10
-    # 网络质量上报间隔（毫秒）
     quality-report-interval: 2000

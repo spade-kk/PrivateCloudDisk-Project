@@ -7,7 +7,7 @@
       </div>
       <div class="mb-4 space-y-2">
         <div class="flex min-w-0 items-center gap-2">
-          <i :class="['fa', iconClass, 'text-xl shrink-0']"></i>
+          <FileTypeIcon :file-name="file?.name || ''" class="text-xl shrink-0" />
           <span class="font-medium text-neutral-700 truncate">{{ file?.name }}</span>
         </div>
         <div class="text-sm text-neutral-500">大小：{{ formatFileSize(file?.size || 0) }}</div>
@@ -23,12 +23,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { formatFileSize } from '@/utils/helpers'
-import { getFileIconClass } from '@/utils/fileIcon'
+import FileTypeIcon from '@/components/file/FileTypeIcon.vue'
 
 const props = defineProps(['visible', 'file'])
 defineEmits(['close', 'confirm'])
 
-const iconClass = computed(() => getFileIconClass(props.file?.name || ''))
 </script>

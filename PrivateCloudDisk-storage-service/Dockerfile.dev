@@ -13,4 +13,9 @@ COPY . .
 
 EXPOSE 8000
 
-CMD [ "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# [FIX-GIT-OBJECT-BROKER-20260817]
+# 原实现启动 legacy `server:app`，该入口未注册 `/internal/v1/git/objects/*`。
+# Git Service 推送时会因此收到 Storage Service 的 404，最终将 Smart HTTP 响应转为 503。
+# 开发环境与生产环境统一启动模块化入口，确保 Git Object Broker、上传/下载和内部路由使用同一份应用注册表。
+# 原行为：只启动 legacy server.py；新行为：启动 app.main:app；影响：Git Object 共享存储写入恢复，同时保留现有业务路由。
+CMD [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

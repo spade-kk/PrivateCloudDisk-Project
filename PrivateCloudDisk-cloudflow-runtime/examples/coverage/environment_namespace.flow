@@ -1,0 +1,7 @@
+# 覆盖目标：[V1.2-ENVIRONMENT] 环境变量声明 + [V1.2-NAMESPACE] 命名空间。
+# 预期：spec.environment 含 NODE_ENV/MAX_RETRY；metadata.namespace=com.example.workflows。
+workflow "environment_namespace" {
+    namespace com.example.workflows
+    environment { NODE_ENV = "production" MAX_RETRY = 3 }
+    step worker { action builtin.file.list {} }
+}

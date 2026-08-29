@@ -165,9 +165,48 @@ export function archiveWorkflowApi(workflowId: string): Promise<WorkflowApiRespo
   })
 }
 
-export function validateWorkflowApi(dsl: string, graph: Record<string, unknown> = {}):
-Promise<WorkflowApiResponse<{ valid: boolean; issues: Array<{ code: string; path: string; message: string }>; sha256: string }>> {
-  return post('workflows/validate', { dsl, graph })
+export interface WorkflowValidationIssue {
+  code: string
+  path: string
+  message: string
+  line?: number | null
+  column?: number | null
+  severity?: 'ERROR' | 'WARNING' | 'INFO' | string
+  category?: string | null
+  cliOutput?: string | null
+  suggestions?: string[]
+  help?: string | null
+  documentationUrl?: string | null
+}
+
+export interface WorkflowValidationResult {
+  valid: boolean
+  issues: WorkflowValidationIssue[]
+  sha256: string
+  /** Rust Compiler 返回的 workflow.cloudflow.io/v1 IR，是可视化画布的机器真源。 */
+  normalized?: Record<string, any>
+}
+
+/**
+ * 将编辑器/旧快照中的源码统一为字符串。
+ *
+ * [CLOUDFLOW-REQUEST-001] 后端的规范请求仍是 { dsl: string }；兼容 source/dsl/text
+ * 包装对象，避免恢复旧编辑态时把 Object 直接交给 Jackson 的 String 字段。
+ */
+export function normalizeWorkflowDslSource(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object') {
+    const payload = value as Record<string, unknown>
+    for (const key of ['source', 'dsl', 'text']) {
+      if (typeof payload[key] === 'string') return payload[key] as string
+    }
+  }
+  throw new TypeError('CloudFlow DSL 请求必须是字符串')
+}
+
+export function validateWorkflowApi(dsl: unknown, graph: Record<string, unknown> = {}):
+Promise<WorkflowApiResponse<WorkflowValidationResult>> {
+  return post('workflows/validate', { dsl: normalizeWorkflowDslSource(dsl), graph })
 }
 
 export function publishWorkflowApi(workflowId: string, version: number):

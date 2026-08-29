@@ -60,7 +60,7 @@ CREATE TABLE pcd_capability_registry (
     capability_key VARCHAR(255) NOT NULL,
     source_type VARCHAR(24) NOT NULL,
     source_id VARCHAR(128) NULL,
-    source_version VARCHAR(32) NULL,
+    source_version VARCHAR(80) NULL,
     display_name VARCHAR(120) NOT NULL,
     description VARCHAR(1000) NULL,
     input_schema_json JSON NOT NULL,

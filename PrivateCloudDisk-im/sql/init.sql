@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `pcd_im_message` (
     `receiver_id` VARCHAR(64) NOT NULL COMMENT '接收者 ID（单聊为对方 userId，群聊为 groupId）',
     `content` TEXT COMMENT '消息内容',
     `extra` TEXT COMMENT '扩展内容（JSON 格式）',
-    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '消息状态：0-发送中 1-已发送 2-已送达 3-已读 4-失败 5-已撤回 6-已删除',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '消息状态：0-准备中(PREPARING) 1-已送达(DELIVERED) 2-已读(READ) 3-失败(FAILED)；5-已撤回 6-已删除（可见性状态）',
     `server_seq` BIGINT NOT NULL DEFAULT 0 COMMENT '服务端消息序列号',
     `reply_to` VARCHAR(64) DEFAULT NULL COMMENT '引用消息 ID',
     `send_time` DATETIME DEFAULT NULL COMMENT '发送时间',
@@ -30,25 +30,69 @@ CREATE TABLE IF NOT EXISTS `pcd_im_message` (
 -- ==================== 会话表 ====================
 CREATE TABLE IF NOT EXISTS `pcd_im_conversation` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
-    `conversation_id` VARCHAR(128) NOT NULL COMMENT '会话唯一 ID',
-    `conversation_type` TINYINT NOT NULL DEFAULT 1 COMMENT '会话类型：1-单聊 2-群聊',
+    `session_id` VARCHAR(160) NOT NULL COMMENT '共享会话 ID：单聊 minUserId*maxUserId，群聊 group*groupId',
+    `session_type` TINYINT NOT NULL DEFAULT 1 COMMENT '会话类型：1-SINGLE 2-GROUP',
     `user_id` VARCHAR(64) NOT NULL COMMENT '当前用户 ID',
-    `target_id` VARCHAR(64) NOT NULL COMMENT '对方 ID（单聊为对方 userId，群聊为 groupId）',
-    `last_message` VARCHAR(500) DEFAULT NULL COMMENT '最后一条消息内容',
-    `last_message_type` TINYINT DEFAULT NULL COMMENT '最后一条消息类型',
-    `last_message_time` DATETIME DEFAULT NULL COMMENT '最后一条消息时间',
-    `unread_count` INT NOT NULL DEFAULT 0 COMMENT '未读消息数',
-    `is_top` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否置顶：0-否 1-是',
+    `peer_id` VARCHAR(64) NOT NULL COMMENT '对端 ID（单聊为对方 userId，群聊为 groupId）',
+    `is_pinned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否置顶：0-否 1-是',
     `is_muted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否免打扰：0-否 1-是',
-    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0-正常 1-已删除',
-    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_conversation_id` (`conversation_id`),
+    UNIQUE KEY `uk_user_peer` (`user_id`, `peer_id`),
     KEY `idx_user_id` (`user_id`),
-    KEY `idx_user_target` (`user_id`, `target_id`, `conversation_type`),
-    KEY `idx_last_message_time` (`last_message_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 会话表';
+    KEY `idx_session_user` (`session_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 会话元数据表；最后消息和未读数由 Redis Hash 管理';
+
+-- ==================== 好友申请与好友关系表 ====================
+CREATE TABLE IF NOT EXISTS `pcd_im_friend_request` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    `request_id` VARCHAR(64) NOT NULL COMMENT '申请唯一 ID',
+    `requester_id` VARCHAR(64) NOT NULL COMMENT '申请人 ID',
+    `recipient_id` VARCHAR(64) NOT NULL COMMENT '接收人 ID',
+    `verification_message` VARCHAR(255) DEFAULT NULL COMMENT '验证信息',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0-待处理 1-已接受 2-已拒绝 3-已撤销',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_request_id` (`request_id`),
+    KEY `idx_recipient_status` (`recipient_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 好友申请表';
+
+CREATE TABLE IF NOT EXISTS `pcd_im_friendship` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    `user_id` VARCHAR(64) NOT NULL COMMENT '用户 ID',
+    `friend_id` VARCHAR(64) NOT NULL COMMENT '好友 ID',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '0-有效 1-已解除',
+    `remark` VARCHAR(64) DEFAULT NULL COMMENT '当前用户对好友的私有备注',
+    `is_starred` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否星标联系人：0-否 1-是',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_friend` (`user_id`, `friend_id`),
+    KEY `idx_friend_user` (`friend_id`, `user_id`),
+    KEY `idx_user_starred` (`user_id`, `status`, `is_starred`, `updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 对称好友关系表';
+
+-- 好友管理扩展：黑名单决定 IM 消息拒收，拒收申请规则只影响未来好友申请。
+CREATE TABLE IF NOT EXISTS `pcd_im_blacklist` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    `user_id` VARCHAR(64) NOT NULL COMMENT '拉黑操作人 ID',
+    `blocked_user_id` VARCHAR(64) NOT NULL COMMENT '被拉黑用户 ID',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_blocked` (`user_id`,`blocked_user_id`),
+    KEY `idx_blocked_user` (`blocked_user_id`,`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 用户黑名单表';
+
+CREATE TABLE IF NOT EXISTS `pcd_im_friend_request_block` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+    `user_id` VARCHAR(64) NOT NULL COMMENT '不再接收申请的用户 ID',
+    `blocked_user_id` VARCHAR(64) NOT NULL COMMENT '被拒收申请的用户 ID',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_request_blocked` (`user_id`,`blocked_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM 好友申请拒收规则表';
 
 -- ==================== 群组表 ====================
 CREATE TABLE IF NOT EXISTS `pcd_im_group` (

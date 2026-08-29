@@ -1,0 +1,13 @@
+# 覆盖目标：[V1.2-RETURN] 步骤级提前返回。
+# 预期：return 生成 inputs.output 引用；运行期以 SUCCESS(CF4417) 提前结束。
+workflow "return" {
+    variables { should_stop: boolean = true }
+    step decide {
+        action builtin.file.list {}
+    }
+    step bail {
+        action builtin.file.list {}
+        if { vars.should_stop == true } { return vars.should_stop }
+        notify { channel = "email" to = "ops@corp" message = "unreachable" }
+    }
+}

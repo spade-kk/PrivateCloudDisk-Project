@@ -1,0 +1,9 @@
+#[test]
+fn debug_lookup() {
+    let context = serde_json::json!({"vars": {"name": "CloudFlow"}});
+    let r = super::lookup(&context, "vars.name");
+    println!("lookup vars.name -> {}", serde_json::to_string(&r).unwrap());
+    let segment = serde_json::json!({"$ref": "vars.name"});
+    let e = super::evaluate(&segment, &context);
+    println!("evaluate $ref -> {e:?}");
+}

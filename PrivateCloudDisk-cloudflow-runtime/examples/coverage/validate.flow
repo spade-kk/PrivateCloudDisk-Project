@@ -1,0 +1,8 @@
+# 覆盖目标：[V1.2-VALIDATE] 块级校验 validate { <bool 表达式> }。
+# 预期：IR 生成 node_type=validate 的控制节点，condition 保存布尔表达式。
+workflow "validate" {
+    variables { result: number = 3 }
+    step compute { action builtin.file.list {} }
+    validate { vars.result > 0 }
+    step persist { action builtin.file.list {} }
+}

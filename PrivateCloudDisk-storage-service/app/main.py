@@ -13,6 +13,7 @@ from fastapi.openapi.utils import get_openapi
 from app.api.v1.router import api_router
 from app.api.internal.preprocess_broker import router as preprocess_broker_router
 from app.api.internal.automation_broker import router as automation_broker_router
+from app.api.internal.git_object_broker import router as git_object_broker_router
 from app.middleware.timing import add_process_time_header
 from app.core.redis_client import redis_client
 from app.core.logging_config import setup_logging, get_logger
@@ -299,6 +300,8 @@ app.include_router(api_router)
 app.include_router(preprocess_broker_router)
 # 云插件激活后只读 Broker：同样仅允许 Runtime 从服务私网调用。
 app.include_router(automation_broker_router)
+# [REQ-GIT-OBJECT-6.3] Git Object Broker 仅供 git-service 私网调用，禁止 Gateway 配置公网路由。
+app.include_router(git_object_broker_router)
 
 
 # ==================== 健康检查端点 ====================

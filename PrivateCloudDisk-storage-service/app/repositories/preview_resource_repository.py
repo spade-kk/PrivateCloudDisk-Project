@@ -89,7 +89,6 @@ class PreviewResourceRepository:
             async with conn.cursor() as cursor:
                 await cursor.execute(sql, (file_id, space_id or user_id))
                 rows = await cursor.fetchall()
-                logging.info(rows)
         return [self._normalize(row) for row in rows]
 
     async def get_ready(

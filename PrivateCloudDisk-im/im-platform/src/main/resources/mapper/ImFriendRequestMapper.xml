@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.im.platform.mapper.ImFriendRequestMapper">
+    <resultMap id="BaseResultMap" type="org.project.im.platform.entity.ImFriendRequest">
+        <id column="id" property="id"/><result column="request_id" property="requestId"/>
+        <result column="requester_id" property="requesterId"/><result column="recipient_id" property="recipientId"/>
+        <result column="verification_message" property="verificationMessage"/><result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/><result column="updated_at" property="updatedAt"/>
+    </resultMap>
+    <sql id="Columns">request_id, requester_id, recipient_id, verification_message, status, created_at, updated_at</sql>
+    <insert id="insert" parameterType="org.project.im.platform.entity.ImFriendRequest">INSERT INTO pcd_im_friend_request (<include refid="Columns"/>) VALUES (#{requestId},#{requesterId},#{recipientId},#{verificationMessage},#{status},#{createdAt},#{updatedAt})</insert>
+    <select id="selectByRequestId" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friend_request WHERE request_id=#{requestId}</select>
+    <update id="acceptIfPending">UPDATE pcd_im_friend_request SET status=1,updated_at=NOW() WHERE request_id=#{requestId} AND recipient_id=#{recipientId} AND status=0</update>
+    <update id="rejectIfPending">UPDATE pcd_im_friend_request SET status=2,updated_at=NOW() WHERE request_id=#{requestId} AND recipient_id=#{recipientId} AND status=0</update>
+    <select id="selectPendingByRecipientId" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friend_request WHERE recipient_id=#{recipientId} AND status=0 ORDER BY created_at DESC</select>
+    <select id="selectByRecipientId" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friend_request WHERE recipient_id=#{recipientId} ORDER BY created_at DESC LIMIT #{offset},#{size}</select>
+    <select id="countByRecipientId" resultType="long">SELECT COUNT(1) FROM pcd_im_friend_request WHERE recipient_id=#{recipientId}</select>
+    <select id="selectByRequesterId" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friend_request WHERE requester_id=#{requesterId} ORDER BY created_at DESC LIMIT #{offset},#{size}</select>
+    <select id="countByRequesterId" resultType="long">SELECT COUNT(1) FROM pcd_im_friend_request WHERE requester_id=#{requesterId}</select>
+    <update id="cancelIfPending">UPDATE pcd_im_friend_request SET status=3,updated_at=NOW() WHERE request_id=#{requestId} AND requester_id=#{requesterId} AND status=0</update>
+    <select id="selectPendingBetween" resultMap="BaseResultMap">SELECT id,<include refid="Columns"/> FROM pcd_im_friend_request WHERE requester_id=#{requesterId} AND recipient_id=#{recipientId} AND status=0 ORDER BY created_at DESC LIMIT 1</select>
+</mapper>

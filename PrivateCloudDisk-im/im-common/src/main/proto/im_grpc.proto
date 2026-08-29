@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package pcd.im.grpc;
+
+option java_package = "org.project.im.common.grpc";
+option java_multiple_files = false;
+option java_outer_classname = "IMGrpcProto";
+option go_package = "privateclouddisk/im-router/pkg/proto;proto";
+
+// 引用 im_mq.proto 中定义的统一推送消息类型枚举
+import "im_mq.proto";
+
+// ================================================================
+// IM gRPC 服务定义 — IM Router ↔ IM Server 通信
+// ================================================================
+// IM Router 通过 gRPC 调用 IM Server 的 PushMessage 接口，
+// 将消息推送到目标用户的 WebSocket 连接。
+// IM Server 通过 gRPC 回调 Router 的 DeliveredEvent/FailedEvent 接口，
+// 通知消息送达/失败状态。
+// ================================================================
+
+// ==================== IM Server gRPC 服务（Router → Server） ====================
+
+service IMServerService {
+  // 推送消息到目标用户（通过 WebSocket 下发）
+  rpc PushMessage(PushMessageRequest) returns (PushMessageResponse);
+
+  // 批量推送消息（群聊场景）
+  rpc BatchPushMessages(BatchPushMessageRequest) returns (BatchPushMessageResponse);
+
+  // 检查用户是否在线（健康检查）
+  rpc CheckUserOnline(CheckUserOnlineRequest) returns (CheckUserOnlineResponse);
+
+  // 踢出用户连接（管理员操作）
+  rpc KickUser(KickUserRequest) returns (KickUserResponse);
+}
+
+// ==================== IM Router gRPC 服务（Server → Router） ====================
+
+service IMRouterService {
+  // 消息送达事件通知
+  rpc NotifyDelivered(NotifyDeliveredRequest) returns (NotifyDeliveredResponse);
+
+  // 消息失败事件通知
+  rpc NotifyFailed(NotifyFailedRequest) returns (NotifyFailedResponse);
+}
+
+// ==================== 请求/响应消息 ====================
+
+// --- PushMessage ---
+
+message PushMessageRequest {
+  // 消息 ID（全局唯一）
+  string message_id = 1;
+  // 接收者用户 ID
+  string receiver_id = 2;
+  // 发送者用户 ID
+  string sender_id = 3;
+  // 会话 ID
+  string conversation_id = 4;
+  // 会话类型: 1=单聊, 2=群聊, 3=系统
+  uint32 conversation_type = 5;
+  // 消息内容类型（对应 IMMessageType 枚举值，用于选择 Payload Codec）
+  uint32 content_type = 6;
+  // 消息内容（Protobuf 序列化的 IMEnvelope 二进制帧）
+  bytes envelope_bytes = 7;
+  // 消息序列号
+  uint64 server_seq = 8;
+  // 时间戳（毫秒）
+  uint64 timestamp = 9;
+  // 是否为离线消息补偿推送
+  bool is_offline_compensation = 10;
+  // 链路追踪 ID
+  string trace_id = 11;
+  // 统一推送消息类型（驱动回调通知策略，见 im_mq.MessageType 枚举）
+  pcd.im.mq.MessageType message_type = 12;
+  // 原始消息 ID（追溯最原始的聊天消息；通知类消息指向其触发的原始消息）
+  string original_message_id = 13;
+  // 原始发送者用户 ID（追溯最原始的发送方）
+  string original_sender_id = 14;
+}
+
+message PushMessageResponse {
+  // 推送结果: 0=成功, 1=用户不在线, 2=推送失败
+  uint32 code = 1;
+  // 结果描述
+  string message = 2;
+}
+
+// --- BatchPushMessages ---
+
+message BatchPushMessageRequest {
+  // 接收者用户 ID 列表
+  repeated string receiver_ids = 1;
+  // 消息内容（与 PushMessageRequest 相同的结构，但 receiver_id 由外层指定）
+  string message_id = 2;
+  string sender_id = 3;
+  string conversation_id = 4;
+  uint32 conversation_type = 5;
+  uint32 message_type = 6;
+  bytes envelope_bytes = 7;
+  uint64 server_seq = 8;
+  uint64 timestamp = 9;
+  string trace_id = 10;
+}
+
+message BatchPushMessageResponse {
+  // 成功推送的用户数
+  uint32 success_count = 1;
+  // 失败推送的用户数
+  uint32 failed_count = 2;
+  // 失败的用户 ID 列表
+  repeated string failed_user_ids = 3;
+}
+
+// --- CheckUserOnline ---
+
+message CheckUserOnlineRequest {
+  string user_id = 1;
+}
+
+message CheckUserOnlineResponse {
+  bool online = 1;
+  // 用户连接的 IM Server 节点 ID
+  string server_node_id = 2;
+}
+
+// --- KickUser ---
+
+message KickUserRequest {
+  string user_id = 1;
+  // 踢出原因
+  string reason = 2;
+}
+
+message KickUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- NotifyDelivered ---
+
+message NotifyDeliveredRequest {
+  // 消息 ID
+  string message_id = 1;
+  // 接收者用户 ID（确认送达的用户）
+  string receiver_id = 2;
+  // 发送者用户 ID
+  string sender_id = 3;
+  // 会话 ID
+  string conversation_id = 4;
+  // 送达时间戳（毫秒）
+  uint64 delivered_at = 5;
+  // 链路追踪 ID
+  string trace_id = 6;
+}
+
+message NotifyDeliveredResponse {
+  bool success = 1;
+}
+
+// --- NotifyFailed ---
+
+message NotifyFailedRequest {
+  // 消息 ID
+  string message_id = 1;
+  // 接收者用户 ID
+  string receiver_id = 2;
+  // 发送者用户 ID
+  string sender_id = 3;
+  // 会话 ID
+  string conversation_id = 4;
+  // 失败原因
+  string fail_reason = 5;
+  // 失败时间戳（毫秒）
+  uint64 failed_at = 6;
+  // 链路追踪 ID
+  string trace_id = 7;
+}
+
+message NotifyFailedResponse {
+  bool success = 1;
+}

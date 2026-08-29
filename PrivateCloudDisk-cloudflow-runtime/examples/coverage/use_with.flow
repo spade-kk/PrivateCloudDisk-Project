@@ -1,0 +1,10 @@
+# 覆盖目标：[V1.2-USE-WITH] use/with <alias> 注入模块默认参数。
+# 预期：import "modules/params.flow" as params；step `use params` 把模块默认
+#      region="cn"、timeout=30 复制进 action 参数（未显式同名时不覆盖）。
+workflow "use_with" {
+    import "modules/params.flow" as params
+    step deploy {
+        use params
+        action builtin.file.list { node = "<node-id>" }
+    }
+}

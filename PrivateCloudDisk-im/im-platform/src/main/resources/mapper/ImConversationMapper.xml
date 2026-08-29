@@ -1,102 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.project.im.platform.mapper.ImConversationMapper">
-
     <resultMap id="BaseResultMap" type="org.project.im.platform.entity.ImConversation">
-        <id column="id" property="id"/>
-        <result column="conversation_id" property="conversationId"/>
-        <result column="conversation_type" property="conversationType"/>
-        <result column="user_id" property="userId"/>
-        <result column="target_id" property="targetId"/>
-        <result column="last_message" property="lastMessage"/>
-        <result column="last_message_type" property="lastMessageType"/>
-        <result column="last_message_time" property="lastMessageTime"/>
-        <result column="unread_count" property="unreadCount"/>
-        <result column="is_top" property="isTop"/>
-        <result column="is_muted" property="isMuted"/>
-        <result column="status" property="status"/>
-        <result column="create_time" property="createTime"/>
-        <result column="update_time" property="updateTime"/>
+        <id column="id" property="id"/><result column="session_id" property="sessionId"/>
+        <result column="session_type" property="sessionType"/><result column="user_id" property="userId"/>
+        <result column="peer_id" property="peerId"/><result column="is_pinned" property="isPinned"/>
+        <result column="is_muted" property="isMuted"/><result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
     </resultMap>
-
-    <sql id="BaseColumns">
-        conversation_id, conversation_type, user_id, target_id,
-        last_message, last_message_type, last_message_time,
-        unread_count, is_top, is_muted, status, create_time, update_time
-    </sql>
-
-    <insert id="insert" parameterType="org.project.im.platform.entity.ImConversation">
-        INSERT INTO pcd_im_conversation (<include refid="BaseColumns"/>)
-        VALUES (#{conversationId}, #{conversationType}, #{userId}, #{targetId},
-                #{lastMessage}, #{lastMessageType}, #{lastMessageTime},
-                #{unreadCount}, #{isTop}, #{isMuted}, #{status}, #{createTime}, #{updateTime})
-    </insert>
-
-    <select id="selectByConversationId" resultMap="BaseResultMap">
-        SELECT id, <include refid="BaseColumns"/>
-        FROM pcd_im_conversation
-        WHERE conversation_id = #{conversationId} AND status = 0
-    </select>
-
-    <select id="selectByUserId" resultMap="BaseResultMap">
-        SELECT id, <include refid="BaseColumns"/>
-        FROM pcd_im_conversation
-        WHERE user_id = #{userId} AND status = 0
-        ORDER BY COALESCE(last_message_time, create_time) DESC
-    </select>
-
-    <update id="updateLastMessage">
-        UPDATE pcd_im_conversation
-        SET last_message = #{lastMessage},
-            last_message_type = #{lastMessageType},
-            last_message_time = #{lastMessageTime},
-            update_time = NOW()
-        WHERE conversation_id = #{conversationId}
-    </update>
-
-    <update id="incrementUnreadCount">
-        UPDATE pcd_im_conversation
-        SET unread_count = unread_count + 1, update_time = NOW()
-        WHERE conversation_id = #{conversationId}
-    </update>
-
-    <update id="clearUnreadCount">
-        UPDATE pcd_im_conversation
-        SET unread_count = 0, update_time = NOW()
-        WHERE conversation_id = #{conversationId}
-    </update>
-
-    <update id="updateTopStatus">
-        UPDATE pcd_im_conversation
-        SET is_top = #{isTop}, update_time = NOW()
-        WHERE conversation_id = #{conversationId}
-    </update>
-
-    <update id="updateMuteStatus">
-        UPDATE pcd_im_conversation
-        SET is_muted = #{isMuted}, update_time = NOW()
-        WHERE conversation_id = #{conversationId}
-    </update>
-
-    <update id="softDelete">
-        UPDATE pcd_im_conversation
-        SET status = 1, update_time = NOW()
-        WHERE conversation_id = #{conversationId}
-    </update>
-
-    <select id="selectByUserIdAndTargetId" resultMap="BaseResultMap">
-        SELECT id, <include refid="BaseColumns"/>
-        FROM pcd_im_conversation
-        WHERE user_id = #{userId}
-          AND target_id = #{targetId}
-          AND conversation_type = #{conversationType}
-          AND status = 0
-    </select>
-
-    <select id="selectTotalUnreadCount" resultType="java.lang.Integer">
-        SELECT COALESCE(SUM(unread_count), 0)
-        FROM pcd_im_conversation
-        WHERE user_id = #{userId} AND status = 0
-    </select>
+    <sql id="BaseColumns">session_id, session_type, user_id, peer_id, is_pinned, is_muted, created_at, updated_at</sql>
+    <insert id="insert" parameterType="org.project.im.platform.entity.ImConversation">INSERT INTO pcd_im_conversation (<include refid="BaseColumns"/>) VALUES (#{sessionId},#{sessionType},#{userId},#{peerId},#{isPinned},#{isMuted},#{createdAt},#{updatedAt})</insert>
+    <select id="selectBySessionIdAndUserId" resultMap="BaseResultMap">SELECT id,<include refid="BaseColumns"/> FROM pcd_im_conversation WHERE session_id=#{sessionId} AND user_id=#{userId}</select>
+    <select id="selectByUserIdAndPeerId" resultMap="BaseResultMap">SELECT id,<include refid="BaseColumns"/> FROM pcd_im_conversation WHERE user_id=#{userId} AND peer_id=#{peerId} AND session_type=#{sessionType}</select>
+    <select id="selectByUserId" resultMap="BaseResultMap">SELECT id,<include refid="BaseColumns"/> FROM pcd_im_conversation WHERE user_id=#{userId} ORDER BY updated_at DESC</select>
+    <update id="updatePinned">UPDATE pcd_im_conversation SET is_pinned=#{isPinned},updated_at=NOW() WHERE session_id=#{sessionId} AND user_id=#{userId}</update>
+    <update id="updateMuted">UPDATE pcd_im_conversation SET is_muted=#{isMuted},updated_at=NOW() WHERE session_id=#{sessionId} AND user_id=#{userId}</update>
 </mapper>

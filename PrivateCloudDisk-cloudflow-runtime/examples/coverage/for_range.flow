@@ -1,0 +1,12 @@
+# 覆盖目标：[V1.2-FOR] 索引循环 for i in range(from, to) + break/continue。
+# 预期：IR 生成 node_type=loop、loopConfig.kind=for-range 的控制节点，
+#      循环体包含 node_type=break/continue 子节点。
+workflow "for_range" {
+    variables { limit: number = 5 }
+    step start { action builtin.file.list {} }
+    for i in range(0, vars.limit) {
+        if { i == 2 } { break }
+        step process { action builtin.file.list {} }
+    }
+    step finish { action builtin.file.list {} }
+}

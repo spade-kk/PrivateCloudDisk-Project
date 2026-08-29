@@ -111,6 +111,14 @@ public final class IMCryptoCodec {
      * @return 解密后的 Payload 字节
      */
     public static byte[] decryptLayer2(byte[] ciphertextWithIV, SecretKey derivedKey) {
+        int minSize = GCM_IV_LENGTH + (GCM_TAG_LENGTH / 8); // 12 + 16 = 28 字节
+        if (ciphertextWithIV == null || ciphertextWithIV.length < minSize) {
+            throw new SecurityException(
+                    "Layer 2 解密失败: 加密负载太短 (" + (ciphertextWithIV == null ? 0 : ciphertextWithIV.length)
+                    + " 字节)，至少需要 " + minSize + " 字节"
+                    + " (IV=" + GCM_IV_LENGTH + " + Tag=" + (GCM_TAG_LENGTH / 8) + ")。"
+                    + " 请检查客户端是否进行了 Layer 2 加密");
+        }
         byte[] iv = Arrays.copyOfRange(ciphertextWithIV, 0, GCM_IV_LENGTH);
         byte[] ciphertext = Arrays.copyOfRange(ciphertextWithIV, GCM_IV_LENGTH, ciphertextWithIV.length);
         return decryptAesGcm(ciphertext, derivedKey, iv);

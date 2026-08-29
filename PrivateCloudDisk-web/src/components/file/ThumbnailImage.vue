@@ -1,12 +1,13 @@
 <template>
   <div class="thumbnail-image-wrapper" :class="sizeClass">
-    <!-- 加载中：显示字体图标占位 + 加载指示器 -->
+    <!-- AUDIT FIX [7.1-7.20/8.14-8.18]：请求失败、空响应或图片解码失败均显示统一类型图标。 -->
     <template v-if="!loaded">
-      <i
-        :class="['fa', iconClass, iconColorClass]"
-        class="thumbnail-placeholder"
+      <FileTypeIcon
+        :file-name="fileName"
         :style="{ fontSize: iconSize }"
-      ></i>
+        class="thumbnail-placeholder"
+        :title="`${fileName} 缩略图不可用，显示文件类型图标`"
+      />
       <span v-if="loading" class="thumbnail-spinner"></span>
     </template>
 
@@ -19,15 +20,17 @@
       decoding="async"
       class="thumbnail-img"
       :style="{ objectFit: fit }"
+      @error="handleImageError"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { loadDocumentThumbnail, loadThumbnail, loadVideoThumbnail, type ThumbnailSize } from '@/utils/imageCache'
-import { getFileIconClass } from '@/utils/fileIcon'
 import { isOffice, isPdf, isVideo } from '@/utils/previewHelper'
+import { imageCache } from '@/utils/imageCache'
+import FileTypeIcon from './FileTypeIcon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -52,25 +55,24 @@ const emit = defineEmits<{
 const loading = ref(false)
 const loaded = ref(false)
 const objectUrl = ref<string | null>(null)
+let loadSequence = 0
 
 const alt = computed(() => props.fileName || '图片缩略图')
 const sizeClass = computed(() => `thumbnail-${props.size}`)
 
-const iconClass = computed(() => {
-  const cls = getFileIconClass(props.fileName)
-  return cls ? cls[0] : 'fa-file-image-o'
-})
-
-const iconColorClass = computed(() => {
-  const cls = getFileIconClass(props.fileName)
-  return cls ? cls[1] : 'text-purple-500'
-})
+function releaseObjectUrl() {
+  if (!objectUrl.value) return
+  imageCache.evictUrl(objectUrl.value)
+  objectUrl.value = null
+}
 
 async function loadImage() {
+  const sequence = ++loadSequence
+  releaseObjectUrl()
+  loaded.value = false
   if (!props.fileId) return
 
   loading.value = true
-  loaded.value = false
 
   try {
     // 视频文件使用独立的视频缩略图接口（ffmpeg 首帧）
@@ -81,20 +83,30 @@ async function loadImage() {
       : isDocumentFile
         ? await loadDocumentThumbnail(props.fileId, props.size)
         : await loadThumbnail(props.fileId, props.size)
+    if (sequence !== loadSequence || !url) throw new Error('thumbnail response is empty')
     objectUrl.value = url
     loaded.value = true
     emit('load')
   } catch {
+    if (sequence !== loadSequence) return
     loaded.value = false
     emit('error')
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
+}
+
+function handleImageError() {
+  // 浏览器可能在 HTTP 200 空响应、错误 MIME 或 Blob 解码失败时才触发这里。
+  loaded.value = false
+  loading.value = false
+  releaseObjectUrl()
+  emit('error')
 }
 
 // fileId 变化时重新加载
 watch(
-  () => props.fileId,
+  () => [props.fileId, props.fileName, props.size],
   () => {
     loadImage()
   },
@@ -102,6 +114,11 @@ watch(
 
 onMounted(() => {
   loadImage()
+})
+
+onBeforeUnmount(() => {
+  ++loadSequence
+  releaseObjectUrl()
 })
 </script>
 

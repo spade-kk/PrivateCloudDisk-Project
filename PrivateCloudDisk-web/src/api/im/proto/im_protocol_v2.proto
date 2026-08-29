@@ -1,0 +1,582 @@
+syntax = "proto3";
+
+package pcd.im.v2;
+
+
+// ================================================================
+// PrivateCloudDisk IM v2 — 企业级二进制应用层协议
+// ================================================================
+// 架构:
+//   ┌──────────────────────────────────────────────────────┐
+//   │  Wire Format (WebSocket Binary Frame)                │
+//   │  [4B TotalLen] [4B HeaderLen] [Header] [Body] [32B HMAC] │
+//   └──────────────────────────────────────────────────────┘
+//                        │
+//            ┌───────────┴───────────┐
+//            ▼                       ▼
+//   ┌─────────────────┐    ┌──────────────────────┐
+//   │ Layer 1: Header  │    │ Layer 2: Body/Payload │
+//   │ AES-256-GCM 加密  │    │ AES-256-GCM 加密      │
+//   │ (Session Key)    │    │ (Derived Key)         │
+//   └─────────────────┘    └──────────────────────┘
+//            │                       │
+//            ▼                       ▼
+//   ┌─────────────────┐    ┌──────────────────────┐
+//   │ IMEnvelope      │    │ 按 message_type 分发:  │
+//   │ - message_type   │    │ TEXT  → TextPayload   │
+//   │ - sender_id      │    │ IMAGE → ImagePayload  │
+//   │ - receiver_id    │    │ VOICE → VoicePayload  │
+//   │ - timestamp      │    │ VIDEO → VideoPayload  │
+//   │ - seq            │    │ FILE  → FilePayload   │
+//   │ - ...            │    │ STICKER→StickerPayload│
+//   └─────────────────┘    │ CALL  → CallPayload    │
+//                          │ ...                    │
+//                          └──────────────────────┘
+// ================================================================
+
+// ==================== 消息类型枚举 ====================
+
+enum IMMessageType {
+  // 未知/未指定
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+
+  // ---- 基础消息 ----
+  TEXT = 1;          // 文本消息（含 @提及、表情符号）
+  IMAGE = 2;         // 图片消息（含缩略图）
+  FILE = 3;          // 文件消息
+  VOICE = 4;         // 语音消息
+  VIDEO = 5;         // 视频消息
+
+  // ---- 富媒体消息 ----
+  STICKER = 10;      // 表情包（静态/动态）
+  LOCATION = 11;     // 位置消息
+  REPLY = 12;        // 引用/回复消息
+  VOICE_CALL = 13;   // 语音通话通知
+  VIDEO_CALL = 14;   // 视频通话通知
+
+  // ---- 系统消息 ----
+  SYSTEM_NOTICE = 50;  // 系统通知（入群、退群等）
+  READ_RECEIPT = 51;   // 已读回执
+  MSG_TYPING = 52;     // 正在输入
+
+  // ---- 控制消息 ----
+  MSG_HEARTBEAT = 90;  // 心跳
+  ERROR = 92;          // 错误通知
+  RECEIPT = 93;        // 推送回执（已送达/推送失败/发送失败）
+
+  // ---- 扩展预留 (100-199) ----
+  CUSTOM = 100;        // 自定义消息（业务扩展）
+}
+
+// ==================== 命令类型枚举 ====================
+
+enum IMCommandType {
+  COMMAND_UNSPECIFIED = 0;
+
+  // 连接管理
+  LOGIN = 101;
+  LOGOUT = 102;
+  HEARTBEAT = 103;
+
+  // 消息收发
+  SEND_MESSAGE = 201;
+  RECALL_MESSAGE = 203;
+  READ_MESSAGE = 204;
+  TYPING = 205;
+
+  // 会话管理
+  CREATE_CONVERSATION = 301;
+  GET_CONVERSATIONS = 302;
+  DELETE_CONVERSATION = 303;
+  TOP_CONVERSATION = 304;
+  GET_HISTORY = 305;
+
+  // 群组管理
+  CREATE_GROUP = 401;
+  JOIN_GROUP = 402;
+  LEAVE_GROUP = 403;
+  KICK_MEMBER = 404;
+  MUTE_MEMBER = 405;
+  DISSOLVE_GROUP = 406;
+  GET_GROUP_MEMBERS = 407;
+
+  // 系统通知
+  SYSTEM_NOTIFY = 901;
+  ERROR_NOTIFY = 902;
+
+  // 离线同步
+  SYNC_OFFLINE = 1001;
+
+  // WebRTC 通话信令
+  CALL_INVITE = 2001;
+  CALL_ACCEPT = 2002;
+  CALL_REJECT = 2003;
+  CALL_CANCEL = 2004;
+  CALL_HANGUP = 2005;
+  CALL_BUSY = 2006;
+  CALL_TIMEOUT = 2007;
+  SIGNALING_OFFER = 2101;
+  SIGNALING_ANSWER = 2102;
+  SIGNALING_ICE = 2103;
+  CALL_QUALITY_REPORT = 2201;
+  CALL_SCREEN_SHARE_START = 2301;
+  CALL_SCREEN_SHARE_STOP = 2302;
+  CALL_MUTE_TOGGLE = 2303;
+  CALL_CAMERA_TOGGLE = 2304;
+  CALL_SWITCH_TO_VOICE = 2305;
+  CALL_SWITCH_TO_VIDEO = 2306;
+  CALL_ROOM_CREATE = 2401;
+  CALL_ROOM_JOIN = 2402;
+  CALL_ROOM_LEAVE = 2403;
+  CALL_ICE_SERVERS = 2501;
+}
+
+// ==================== 会话类型枚举 ====================
+
+enum IMConversationType {
+  CONVERSATION_UNSPECIFIED = 0;
+  PRIVATE = 1;   // 单聊
+  GROUP = 2;      // 群聊
+  SYSTEM = 3;     // 系统通知
+  BROADCAST = 4;  // 广播
+}
+
+// ==================== 设备类型枚举 ====================
+
+enum DeviceType {
+  DESKTOP = 0;
+  MOBILE = 1;
+  WEB = 2;
+  SERVER = 3;
+  IOT = 4;
+}
+
+// ==================== 加密算法枚举 ====================
+
+enum IMEncryptionAlgorithm {
+  ENCRYPTION_UNSPECIFIED = 0;
+  AES_256_GCM = 1;
+  AES_256_CBC = 2;
+  CHACHA20_POLY1305 = 3;
+  SM4_GCM = 4;
+}
+
+// ==================== 消息状态枚举 ====================
+
+enum IMMessageStatus {
+  STATUS_UNSPECIFIED = 0;
+  SENDING = 1;    // 发送中
+  SENT = 2;       // 已发送
+  DELIVERED = 3;  // 已送达
+  READ = 4;       // 已读
+  FAILED = 5;     // 失败
+  RECALLED = 6;   // 已撤回
+}
+
+// ==================== 加密元数据 ====================
+
+message EncryptionMeta {
+  // 密钥版本（用于密钥轮换）
+  uint32 key_version = 1;
+  // 加密算法标识: 1=AES-256-GCM
+  uint32 algorithm = 2;
+  // 初始化向量 (12 bytes for GCM)
+  bytes iv = 3;
+  // GCM 认证标签 (16 bytes)
+  bytes auth_tag = 4;
+}
+
+// ==================== Layer 1: 外层信封（IMEnvelope） ====================
+// 此消息整体使用 AES-256-GCM 加密后传输
+// 解密后得到 message_type 等信息，用于分发到 Layer 2 解密
+
+message IMEnvelope {
+  // 协议版本
+  uint32 version = 1;
+
+  // 消息唯一 ID（全局唯一，雪花算法 或 UUID）
+  string message_id = 2;
+
+  // 命令类型
+  IMCommandType command = 3;
+
+  // 消息类型（用于 Layer 2 负载分发）
+  IMMessageType message_type = 4;
+
+  // 发送者 ID
+  string sender_id = 5;
+
+  // 接收者 ID（单聊=用户ID，群聊=群组ID）
+  string receiver_id = 6;
+
+  // 会话 ID
+  string conversation_id = 7;
+
+  // 会话类型
+  IMConversationType conversation_type = 8;
+
+  // 发送者名称
+  string sender_name = 9;
+
+  // 发送者头像 URL
+  string sender_avatar = 10;
+
+  // 消息序列号（客户端递增，用于去重和排序）
+  uint64 seq = 11;
+
+  // 服务端序列号（服务端分配）
+  uint64 server_seq = 12;
+
+  // 消息状态
+  IMMessageStatus status = 13;
+
+  // 时间戳（毫秒）
+  uint64 timestamp = 14;
+
+  // 加密元数据（Layer 2 负载的解密参数）
+  EncryptionMeta inner_encryption = 15;
+
+  // Layer 2 加密负载（二进制，需二次解密）
+  bytes encrypted_payload = 16;
+
+  // 引用消息 ID（回复消息时使用）
+  string reply_to = 17;
+
+  // 消息过期时间（Unix 毫秒时间戳，0=永不过期）
+  uint64 expire_at = 18;
+
+  // 扩展字段（JSON 序列化，用于非敏感的元数据）
+  string extra_json = 19;
+
+  // 发送者设备类型
+  DeviceType sender_device_type = 20;
+
+  // 发送者平台
+  string sender_platform = 21;
+
+  // 发送者应用版本
+  string sender_app_version = 22;
+
+  // 链路追踪 ID
+  string trace_id = 23;
+
+  // 消息优先级 (0=普通, 1=高, 2=紧急)
+  uint32 priority = 24;
+}
+
+// ==================== Layer 2: 负载定义 ====================
+
+// ---- 文本消息 ----
+message TextPayload {
+  // 文本内容
+  string content = 1;
+  // @提及的用户 ID 列表
+  repeated string mentioned_user_ids = 2;
+  // 是否 @所有人
+  bool is_at_all = 3;
+  // 内嵌表情符号（短码映射，如 :smile: → 自定义表情 ID）
+  map<string, string> emoji_map = 4;
+  // Markdown 标记（支持 Markdown 的文本）
+  bool is_markdown = 5;
+}
+
+// ---- 图片消息 ----
+message ImagePayload {
+  // 图片原始 URL
+  string url = 1;
+  // 缩略图 URL
+  string thumbnail_url = 2;
+  // 图片宽度（像素）
+  uint32 width = 3;
+  // 图片高度（像素）
+  uint32 height = 4;
+  // 图片大小（字节）
+  uint64 size = 5;
+  // 图片格式: jpeg, png, gif, webp, heic
+  string format = 6;
+  // 图片 MD5 哈希
+  string md5 = 7;
+  // 是否为动图
+  bool is_animated = 8;
+  // 图片描述（无障碍）
+  string alt_text = 9;
+}
+
+// ---- 语音消息 ----
+message VoicePayload {
+  // 音频 URL
+  string url = 1;
+  // 音频时长（秒）
+  uint32 duration = 2;
+  // 音频大小（字节）
+  uint64 size = 3;
+  // 音频格式: aac, opus, mp3
+  string format = 4;
+  // 采样率
+  uint32 sample_rate = 5;
+  // 是否已播放（客户端标记）
+  bool is_played = 6;
+  // 语音转文字结果
+  string transcription = 7;
+}
+
+// ---- 视频消息 ----
+message VideoPayload {
+  // 视频 URL
+  string url = 1;
+  // 封面图 URL
+  string cover_url = 2;
+  // 视频时长（秒）
+  uint32 duration = 3;
+  // 视频宽度（像素）
+  uint32 width = 4;
+  // 视频高度（像素）
+  uint32 height = 5;
+  // 视频大小（字节）
+  uint64 size = 6;
+  // 视频格式: mp4, mov, avi, mkv
+  string format = 7;
+  // 视频 MD5 哈希
+  string md5 = 8;
+}
+
+// ---- 文件消息 ----
+message FilePayload {
+  // 文件 URL
+  string url = 1;
+  // 文件名
+  string file_name = 2;
+  // 文件大小（字节）
+  uint64 size = 3;
+  // 文件扩展名
+  string extension = 4;
+  // 文件 MD5 哈希
+  string md5 = 5;
+  // MIME 类型
+  string mime_type = 6;
+  // 云盘文件 ID（与网盘系统关联）
+  string disk_file_id = 7;
+}
+
+// ---- 表情包消息 ----
+message StickerPayload {
+  // 表情包 ID
+  string sticker_id = 1;
+  // 表情包集合 ID（表情包所在的包）
+  string sticker_pack_id = 2;
+  // 表情 URL（静态/动态）
+  string url = 3;
+  // 缩略图 URL
+  string thumbnail_url = 4;
+  // 表情宽度
+  uint32 width = 5;
+  // 表情高度
+  uint32 height = 6;
+  // 是否为动态表情
+  bool is_animated = 7;
+  // 表情格式: webp, gif, apng, lottie
+  string format = 8;
+  // 表情描述/关键词
+  string description = 9;
+}
+
+// ---- 位置消息 ----
+message LocationPayload {
+  // 纬度
+  double latitude = 1;
+  // 经度
+  double longitude = 2;
+  // 地址描述
+  string address = 3;
+  // 地点名称
+  string name = 4;
+  // 静态地图图片 URL
+  string static_map_url = 5;
+}
+
+// ---- 引用/回复消息 ----
+message ReplyPayload {
+  // 被引用的消息 ID
+  string quoted_message_id = 1;
+  // 被引用的消息发送者 ID
+  string quoted_sender_id = 2;
+  // 被引用的消息内容摘要
+  string quoted_content_preview = 3;
+  // 被引用的消息类型
+  IMMessageType quoted_message_type = 4;
+  // 回复的具体内容（嵌套另一个 Payload 类型）
+  // 实际消息类型由外层 Envelope.message_type 决定
+  bytes reply_content = 5;
+}
+
+// ---- 通话/信令负载 ----
+message CallPayload {
+  // 通话 ID
+  string call_id = 1;
+  // 发送者 ID
+  string sender_id = 2;
+  // 房间 ID
+  string room_id = 3;
+  // 通话时长（秒）
+  uint32 duration = 4;
+  // 通话状态: 0=振铃 1=通话中 2=已结束 3=未接听 4=已拒绝 5=已取消
+  uint32 status = 5;
+  // SDP 内容
+  string sdp = 6;
+  // ICE Candidate 列表（JSON 序列化）
+  repeated string ice_candidates = 7;
+  // 通话质量评分 (0-100)
+  uint32 quality = 8;
+  // 参与方 ID 列表
+  repeated string participants = 9;
+  // 原因描述（拒绝/挂断原因）
+  string reason = 10;
+  // 扩展数据（JSON）
+  string extra_json = 11;
+  // 是否屏幕共享
+  bool is_screen_share = 12;
+  // 是否静音
+  bool is_muted = 13;
+  // 是否关闭摄像头
+  bool is_camera_off = 14;
+}
+
+// ---- Webrtc WebRTC 信令负载 ----
+message WebRTCSignalingPayload {
+  // 信令类型: offer, answer, ice-candidate, renegotiate
+  string signaling_type = 1;
+  // SDP 内容
+  string sdp = 2;
+  // ICE Candidate
+  message IceCandidate {
+    string candidate = 1;
+    string sdp_mid = 2;
+    int32 sdp_mline_index = 3;
+  }
+  IceCandidate ice_candidate = 3;
+  // 通话 ID
+  string call_id = 4;
+  // 通话质量报告
+  message QualityReport {
+    float packet_loss_rate = 1;
+    uint32 round_trip_time_ms = 2;
+    uint32 jitter_ms = 3;
+    uint32 bitrate_kbps = 4;
+    uint32 frame_rate = 5;
+    string resolution = 6;
+  }
+  QualityReport quality_report = 5;
+  // 编码器调整建议
+  string encoder_adjustment = 6;
+}
+
+// ---- 系统通知 ----
+message SystemPayload {
+  // 通知类型: group_join, group_leave, group_name_change, kick, mute, unmute, dissolve
+  string notice_type = 1;
+  // 通知内容
+  string content = 2;
+  // 相关用户 ID 列表
+  repeated string related_user_ids = 3;
+  // 通知参数（JSON）
+  string params_json = 4;
+}
+
+// ---- 已读回执 ----
+message ReadReceiptPayload {
+  // 已读的消息 ID 列表
+  repeated string message_ids = 1;
+  // 会话 ID
+  string conversation_id = 2;
+}
+
+// ---- 正在输入 ----
+message TypingPayload {
+  // 会话 ID
+  string conversation_id = 1;
+  // 是否正在输入
+  bool is_typing = 2;
+}
+
+// ---- 推送回执（送达/失败通知）----
+// 服务端在消息推送成功或失败后，向发送方推送的回执通知。
+// 用于客户端展示消息是否推送成功（如发送失败红点/红色感叹号），
+// 并支持同一账户多端（网页/手机）通过 WebSocket 同步聊天动作。
+enum ReceiptStatus {
+  // 未指定
+  RECEIPT_STATUS_UNSPECIFIED = 0;
+  // 已送达（消息已推送到接收方连接）
+  RECEIPT_DELIVERED = 1;
+  // 推送失败（未找到接收方连接或推送异常）
+  RECEIPT_PUSH_FAILED = 2;
+  // 发送失败（IM Business 业务层校验/入库失败）
+  RECEIPT_SEND_FAILED = 3;
+}
+
+message ReceiptPayload {
+  // 被回执的原始消息 ID
+  string original_message_id = 1;
+  // 会话 ID
+  string conversation_id = 2;
+  // 原始发送方用户 ID（即回执接收方）
+  string sender_id = 3;
+  // 原始接收方用户 ID
+  string receiver_id = 4;
+  // 回执状态
+  ReceiptStatus status = 5;
+  // 失败原因码（仅失败时有效）
+  uint32 fail_code = 6;
+  // 失败原因描述（仅失败时有效）
+  string fail_reason = 7;
+  // 回执产生时间（Unix 毫秒）
+  uint64 receipt_at = 8;
+}
+
+// ---- 自定义扩展消息 ----
+message CustomPayload {
+  // 自定义类型标识
+  string custom_type = 1;
+  // 自定义数据（JSON 或自定义二进制）
+  bytes data = 2;
+}
+
+// ==================== 密钥交换消息 ====================
+
+message KeyExchangeRequest {
+  // 客户端 ECDH 公钥（X.509 编码）
+  bytes client_public_key = 1;
+  // 支持的加密算法列表
+  repeated uint32 supported_algorithms = 2;
+  // 客户端随机数（防重放）
+  bytes client_nonce = 3;
+}
+
+message KeyExchangeResponse {
+  // 服务端 ECDH 公钥（X.509 编码）
+  bytes server_public_key = 1;
+  // 协商的加密算法
+  uint32 algorithm = 2;
+  // 会话密钥 ID（用于后续消息的 key_version）
+  uint32 session_key_id = 3;
+  // 服务端随机数
+  bytes server_nonce = 4;
+  // 会话过期时间（Unix 秒）
+  uint64 session_expire_at = 5;
+  // 服务端签名（RSA 签名，防伪造）
+  bytes server_signature = 6;
+}
+
+// ==================== 认证消息 ====================
+
+message AuthPayload {
+  // 认证 Token
+  string token = 1;
+  // 设备 ID
+  string device_id = 2;
+  // 设备类型: web, android, ios, windows, mac
+  string device_type = 3;
+  // 客户端版本
+  string client_version = 4;
+  // 密钥交换请求（首次认证时携带）
+  KeyExchangeRequest key_exchange = 5;
+}

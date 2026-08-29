@@ -1,0 +1,37 @@
+workflow "file_approval" {
+    metadata {
+        display_name = "文件审批"
+        description = "文件进入归档目录前发起审批并等待平台能力返回结果"
+        version = "1.0"
+    }
+    trigger { event { name = "FileUploaded" } }
+    variables {
+        file_id = input.file(required = true)
+        archive_node_id = input.string(required = true)
+    }
+    step request_approval {
+        action approval.request {
+            file = vars.file_id
+            timeout = 24h
+        }
+        retry { max_attempts = 2 strategy = "exponential" }
+        output approval
+    }
+    step archive_file {
+        depends_on request_approval
+        condition { steps.request_approval.output.approved == true }
+        action file.move {
+            file = vars.file_id
+            target = vars.archive_node_id
+        }
+    }
+    on_failure {
+        step notify_owner {
+            action notification.send {
+                channel = "user"
+                title = "文件审批流程失败"
+                message = "请在工作流执行记录中查看失败节点"
+            }
+        }
+    }
+}

@@ -230,7 +230,7 @@
                           <td data-label="名称">
                             <div class="file-name-cell">
                               <span class="file-icon" :class="isFolderItem(item) ? 'file-icon--folder' : 'file-icon--file'">
-                                <i :class="isFolderItem(item) ? 'fa fa-folder' : getFileIcon(item)" aria-hidden="true"></i>
+                                <FileTypeIcon :file-name="getItemName(item)" :is-directory="isFolderItem(item)" class="text-lg" />
                               </span>
                               <div>
                                 <p class="file-name">{{ getItemName(item) }}</p>
@@ -325,6 +325,7 @@ import {
 } from '@/api/modules/shares'
 import { releaseDownloadGrantApi } from '@/api/modules/downloads'
 import { releasePreviewGrantApi } from '@/api/modules/previewContent'
+import FileTypeIcon from '@/components/file/FileTypeIcon.vue'
 
 type ShareListItem = ShareResourceVO | ShareContentItem
 
@@ -407,24 +408,6 @@ function getItemSize(item: ShareListItem) {
 
 function getItemFileType(item: ShareListItem) {
   return item.file_type || ''
-}
-
-function getFileIcon(item: ShareListItem) {
-  const name = getItemName(item)
-  const extension = name.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase() || getItemFileType(item).toLowerCase()
-  const iconMap: Record<string, string> = {
-    pdf: 'fa fa-file-pdf-o icon-danger', doc: 'fa fa-file-word-o icon-blue', docx: 'fa fa-file-word-o icon-blue',
-    xls: 'fa fa-file-excel-o icon-green', xlsx: 'fa fa-file-excel-o icon-green', ppt: 'fa fa-file-powerpoint-o icon-orange',
-    pptx: 'fa fa-file-powerpoint-o icon-orange', jpg: 'fa fa-file-image-o icon-cyan', jpeg: 'fa fa-file-image-o icon-cyan',
-    png: 'fa fa-file-image-o icon-cyan', gif: 'fa fa-file-image-o icon-cyan', webp: 'fa fa-file-image-o icon-cyan',
-    mp4: 'fa fa-file-video-o icon-purple', mov: 'fa fa-file-video-o icon-purple', mkv: 'fa fa-file-video-o icon-purple',
-    mp3: 'fa fa-file-audio-o icon-pink', wav: 'fa fa-file-audio-o icon-pink', flac: 'fa fa-file-audio-o icon-pink',
-    zip: 'fa fa-file-archive-o icon-amber', rar: 'fa fa-file-archive-o icon-amber', '7z': 'fa fa-file-archive-o icon-amber',
-    txt: 'fa fa-file-text-o icon-slate', md: 'fa fa-file-text-o icon-slate', json: 'fa fa-file-code-o icon-teal',
-    js: 'fa fa-file-code-o icon-amber', ts: 'fa fa-file-code-o icon-blue', py: 'fa fa-file-code-o icon-green',
-    java: 'fa fa-file-code-o icon-orange', html: 'fa fa-file-code-o icon-orange', css: 'fa fa-file-code-o icon-blue',
-  }
-  return iconMap[extension] || 'fa fa-file-o icon-blue'
 }
 
 function getReadableError(error: unknown, fallback: string) {

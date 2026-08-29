@@ -21,6 +21,8 @@ volumes:
   ai-models:
   # 插件包只由 Plugin Service 读写，Runtime 通过受信内部接口按摘要下载。
   plugin-repo:
+  # [REQ-GIT-SPACE-3.1/6.1] Git 裸仓库只作协议缓存；权威对象由 StorageProvider 共享存储池持久化。
+  git-repo-cache:
   # 下载文件卷（与 uploader 共享，可选 bind mount 替代）
   # 若使用 bind mount 方式（CI/CD 直接 rsync），取消下面注释：
   #   frontend 和 uploader 均改为 bind mount 到 ./downloads/binaries
@@ -45,12 +47,16 @@ services:
       PLUGIN_DATASOURCE_PASSWORD: ${PLUGIN_DATASOURCE_PASSWORD:?必须设置插件数据库密码}
       AUTOMATION_DATASOURCE_PASSWORD: ${AUTOMATION_DATASOURCE_PASSWORD:?必须设置自动化数据库密码}
       WORKFLOW_DATASOURCE_PASSWORD: ${WORKFLOW_DATASOURCE_PASSWORD:?必须设置工作流数据库密码}
+      CLOUDFLOW_DATASOURCE_PASSWORD: ${CLOUDFLOW_DATASOURCE_PASSWORD:?必须设置 CloudFlow 数据库密码}
       SCHEDULER_DATASOURCE_PASSWORD: ${SCHEDULER_DATASOURCE_PASSWORD:?必须设置调度数据库密码}
       CLIENT_REGISTRATION_DB_PASSWORD: ${CLIENT_REGISTRATION_DB_PASSWORD:?必须设置客户端注册数据库密码}
+      GIT_DATASOURCE_PASSWORD: ${GIT_DATASOURCE_PASSWORD:?必须设置 Git 数据库密码}
     volumes:
       - mysql-data:/var/lib/mysql
       # 新部署自动创建生命周期闸门表；存量部署需按发布说明单独执行该迁移。
       - ./PrivateCloudDisk-db/008_file_preprocess_lifecycle.sql:/docker-entrypoint-initdb.d/30-file-preprocess-lifecycle.sql:ro
+      # [REQ-GIT-SPACE-2.2] 新部署补充空间资源类型；存量环境按迁移说明执行 014 脚本。
+      - ./PrivateCloudDisk-db/014_space_resource_type.sql:/docker-entrypoint-initdb.d/31-space-resource-type.sql:ro
     command: --default-authentication-plugin=mysql_native_password
     restart: always
     healthcheck:
@@ -219,12 +225,14 @@ services:
     depends_on:
       - platform-service-backend
       - file-service-backend
+      - git-service-backend
     environment:
       BUSINESS_SERVICE_URL: http://platform-service-backend:8081
       FILE_SERVICE_URL: http://file-service-backend:8000
       PLUGIN_SERVICE_URL: http://plugin-service-backend:8085
       WORKFLOW_SERVICE_URL: http://workflow-service-backend:8087
       CLIENT_REGISTRATION_SERVICE_URL: http://client-registration-service:8089
+      GIT_SERVICE_URL: http://git-service-backend:8091
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
       # SkyWalking Agent
@@ -455,6 +463,9 @@ services:
       PREVIEW_TEXT_MAX_BYTES: ${PREVIEW_TEXT_MAX_BYTES:-10485760}
       PREVIEW_IMAGE_MAX_BYTES: ${PREVIEW_IMAGE_MAX_BYTES:-26214400}
       PREVIEW_MAX_RANGE_BYTES: ${PREVIEW_MAX_RANGE_BYTES:-8388608}
+      # [REQ-GIT-SPACE-6.2] Git 对象内部代理使用独立限额，避免沿用浏览器预览边界。
+      GIT_OBJECT_MAX_BYTES: ${GIT_OBJECT_MAX_BYTES:-2147483648}
+      GIT_OBJECT_MAX_RANGE_BYTES: ${GIT_OBJECT_MAX_RANGE_BYTES:-67108864}
       THUMBNAIL_TTL: 3600
       OPERATION_TOKEN_ISSUE_FILE_LIMIT: 10
       OPERATION_TOKEN_ISSUE_FILE_WINDOW_SECONDS: 60
@@ -534,6 +545,67 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  # -------------------- Git Repository Service --------------------
+  git-service-backend:
+    build: ./PrivateCloudDisk-git-service
+    container_name: backend-git-service
+    networks:
+      - app-networks
+    expose:
+      - "8091"
+      - "2222"
+    ports:
+      - "${GIT_SSH_HOST_PORT:-2222}:2222"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      platform-service-backend:
+        condition: service_started
+      file-service-backend:
+        condition: service_started
+    environment:
+      GIT_HTTP_ADDR: :8091
+      GIT_SSH_ADDR: :2222
+      GIT_DATABASE_DSN: pcd_git:${GIT_DATASOURCE_PASSWORD:?必须设置 Git 数据库密码}@tcp(mysql:3306)/pcd_git?parseTime=true&multiStatements=true&charset=utf8mb4
+      GIT_AUTO_MIGRATE: "true"
+      GIT_MIGRATION_PATH: /app/db/migration/V1__git_core.sql
+      GIT_REPO_ROOT: /data/git/repos
+      GIT_SSH_HOST_KEY_PATH: /data/git/ssh/host_ed25519
+      PLATFORM_SERVICE_URL: http://platform-service-backend:8081
+      STORAGE_SERVICE_URL: http://file-service-backend:8000
+      PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      GIT_RABBITMQ_URL: amqp://${RABBITMQ_USERNAME:?必须设置 RabbitMQ 用户名}:${RABBITMQ_PASSWORD:?必须设置 RabbitMQ 密码}@rabbitmq:5672/
+      GIT_EVENT_EXCHANGE: pcd.git.event.exchange
+      GIT_HTTP_CLONE_BASE_URL: ${GIT_HTTP_CLONE_BASE_URL:-http://localhost:8080/git}
+      GIT_SSH_CLONE_HOST: ${GIT_SSH_CLONE_HOST:-localhost}
+      GIT_SSH_CLONE_PORT: ${GIT_SSH_HOST_PORT:-2222}
+      # [REQ-GIT-AUDIT-2.48/3.12/6.12~6.15] Git 协议自身的 pack、握手和认证保护；
+      # 与 Storage Broker 的 GIT_OBJECT_* 限额分离，避免公开 Git 流量无上限占用容器。
+      GIT_MAX_PROTOCOL_CONCURRENT: ${GIT_MAX_PROTOCOL_CONCURRENT:-64}
+      GIT_MAX_PROTOCOL_REQUEST_BYTES: ${GIT_MAX_PROTOCOL_REQUEST_BYTES:-2147483648}
+      GIT_MAX_PROTOCOL_RESPONSE_BYTES: ${GIT_MAX_PROTOCOL_RESPONSE_BYTES:-33554432}
+      GIT_COMMAND_TIMEOUT: ${GIT_COMMAND_TIMEOUT:-10m}
+      GIT_SSH_HANDSHAKE_TIMEOUT: ${GIT_SSH_HANDSHAKE_TIMEOUT:-15s}
+      GIT_AUTH_FAILURE_LIMIT: ${GIT_AUTH_FAILURE_LIMIT:-10}
+      GIT_AUTH_FAILURE_WINDOW: ${GIT_AUTH_FAILURE_WINDOW:-5m}
+      GIT_AUTH_FAILURE_COOLDOWN: ${GIT_AUTH_FAILURE_COOLDOWN:-15m}
+    volumes:
+      - git-repo-cache:/data/git
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8091/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
 
   # -------------------- Plugin Service 插件生命周期与包仓库 --------------------
   plugin-service-backend:
@@ -652,6 +724,9 @@ services:
       PLUGIN_SERVICE_URL: http://plugin-service-backend:8085
       PLUGIN_RUNTIME_URL: ${PLUGIN_RUNTIME_URL:?必须配置专用沙箱节点 Runtime 地址}
       CLOUDFLOW_RUNTIME_URL: ${CLOUDFLOW_RUNTIME_URL:?必须配置 CloudFlow Runtime 地址}
+      CLOUDFLOW_RUNTIME_COMPILE_URL: ${CLOUDFLOW_RUNTIME_COMPILE_URL:-http://cloudflow-runtime:8091/api/v1/compile}
+      WORKFLOW_LEGACY_WORKER_ENABLED: "false"
+      WORKFLOW_OUTBOX_POLL_DELAY_MS: ${WORKFLOW_OUTBOX_POLL_DELAY_MS:-500}
       SCHEDULER_SERVICE_URL: http://scheduler-service-backend:8088
       PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
     read_only: true
@@ -685,10 +760,20 @@ services:
     environment:
       # Tokio SocketAddr 需要显式 host；旧的 ":8091" 只适用于部分框架，Rust Runtime 使用 0.0.0.0。
       CLOUDFLOW_LISTEN_ADDRESS: 0.0.0.0:8091
-      CLOUDFLOW_DATASOURCE_URL: mysql://mysql:3306/pcd_cloudflow
+      CLOUDFLOW_RUNTIME_MODE: production
+      CLOUDFLOW_DATABASE_URL: ${CLOUDFLOW_DATABASE_URL:?必须设置包含专用账号的 CloudFlow MySQL DSN}
       CLOUDFLOW_DATASOURCE_USERNAME: pcd_cloudflow
       CLOUDFLOW_DATASOURCE_PASSWORD: ${CLOUDFLOW_DATASOURCE_PASSWORD:?必须设置 CloudFlow 数据库密码}
+      CLOUDFLOW_RABBITMQ_URL: ${CLOUDFLOW_RABBITMQ_URL:?必须设置 CloudFlow RabbitMQ AMQP DSN}
+      CLOUDFLOW_AGENT_LISTEN_ADDRESS: 0.0.0.0:50061
+      CLOUDFLOW_CAPABILITY_AGENT_GRPC_URL: http://127.0.0.1:50061
+      CLOUDFLOW_WORKFLOW_CAPABILITY_URL: http://workflow-service-backend:8087/internal/v1/capabilities/invoke
+      CLOUDFLOW_WORKER_CONCURRENCY: ${CLOUDFLOW_WORKER_CONCURRENCY:-8}
+      CLOUDFLOW_STALE_SECONDS: ${CLOUDFLOW_STALE_SECONDS:-180}
+      CLOUDFLOW_ACTION_TIMEOUT_SECONDS: ${CLOUDFLOW_ACTION_TIMEOUT_SECONDS:-120}
       PCD_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      CLOUDFLOW_HTTP_MAX_CONCURRENCY: ${CLOUDFLOW_HTTP_MAX_CONCURRENCY:-32}
+      CLOUDFLOW_CORS_ALLOWED_ORIGINS: ${CLOUDFLOW_CORS_ALLOWED_ORIGINS:-}
       RUST_LOG: ${LOG_LEVEL:-INFO}
     read_only: true
     tmpfs:
@@ -787,6 +872,8 @@ services:
 
       # JVM 内存限制
       JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/"
+      # USER-DIRECTORY-20260810：IM 通过主业务公共用户目录获取公开资料，不访问用户表。
+      PLATFORM_SERVICE_URL: http://platform-service-backend:8081
       # SkyWalking Agent
       SW_AGENT_NAME: PrivateCloudDisk-im-platform
       SW_AGENT_BACKEND: skywalking-oap:11800
@@ -956,7 +1043,7 @@ services:
       args:
         # Vite 构建环境变量
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.hellomyservice.xyz/api/v1}
-        VITE_IM_WS_URL: ${VITE_IM_WS_URL:-wss:ws.hellomyservice.xyz}
+        VITE_IM_WS_URL: ${VITE_IM_WS_URL:-wss://ws.hellomyservice.xyz}
         VITE_TURNSTILE_SITE_KEY: ${VITE_TURNSTILE_SITE_KEY:-0x4AAAAAADf7Z44g-izJGKIB}
         VITE_CHUNK_SIZE: ${VITE_CHUNK_SIZE:-5242880}
         VITE_MAX_CONCURRENT_UPLOADS: ${VITE_MAX_CONCURRENT_UPLOADS:-3}

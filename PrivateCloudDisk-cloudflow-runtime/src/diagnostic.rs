@@ -1,6 +1,6 @@
 //! CloudFlow 统一编译诊断模型。
 
-use miette::miette;
+use miette::{LabeledSpan, MietteDiagnostic, NamedSource};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -9,6 +9,7 @@ pub enum Severity {
     Error,
     Warning,
     Info,
+    Fatal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -39,8 +40,13 @@ pub struct Diagnostic {
     pub source: SourceContext,
     pub suggestions: Vec<String>,
     pub help: Option<String>,
+    #[serde(rename = "documentationUrl")]
+    pub documentation_url: String,
     #[serde(rename = "cliOutput")]
     pub cli_output: String,
+    /// 仅用于 CLI 的 miette 源码渲染，禁止通过 HTTP/JSON 暴露完整源码副本。
+    #[serde(skip)]
+    pub full_source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -49,6 +55,9 @@ pub struct CompileDiagnostics {
 }
 
 impl Diagnostic {
+    // 诊断构造器的参数与 CLOUDFLOW_ERROR_DESIGN.md 的固定字段逐项对应，
+    // 保持显式参数可以避免调用侧遗漏源码位置或修复建议。
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         code: &str,
         category: &str,
@@ -66,8 +75,11 @@ impl Diagnostic {
             .nth(line.saturating_sub(1))
             .unwrap_or("")
             .to_string();
-        let width = end
-            .saturating_sub(start)
+        // offset 使用 UTF-8 byte，终端指针使用字符列；不能直接拿 byte 长度绘制中文源码 span。
+        let width = source
+            .get(start.min(source.len())..end.min(source.len()))
+            .map(|value| value.lines().next().unwrap_or(value).chars().count())
+            .unwrap_or(1)
             .max(1)
             .min(line_text.chars().count().max(1));
         let pointer = format!(
@@ -76,8 +88,24 @@ impl Diagnostic {
             "^".repeat(width)
         );
         let message = message.into();
+        let suggestion_text = if suggestions.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "\n\n建议：\n{}",
+                suggestions
+                    .iter()
+                    .map(|value| format!("- {value}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        };
+        let help_text = help
+            .as_ref()
+            .map(|value| format!("\n\n帮助：{value}"))
+            .unwrap_or_default();
         let cli_output = format!(
-            "ERROR {code}\n\n{file}:{line}:{column}\n\n{message}\n\n{line_text}\n{pointer}"
+            "ERROR {code}\n\n{file}:{line}:{column}\n\n{message}\n\n{line} | {line_text}\n  | {pointer}{suggestion_text}{help_text}"
         );
         Self {
             code: code.into(),
@@ -94,13 +122,30 @@ impl Diagnostic {
             source: SourceContext { line_text, pointer },
             suggestions,
             help,
+            documentation_url: format!("/docs/cloudflow/errors/{code}"),
             cli_output,
+            full_source: source.to_owned(),
         }
     }
 
-    /// 通过 miette 生成 CLI 兼容的 Report；JSON/CLI 的字段仍由本结构统一输出。
+    /// 通过 miette 生成带源码标注的 CLI Report；JSON/CLI 字段仍由本结构统一输出。
     pub fn miette_report(&self) -> miette::Report {
-        miette!("{} {}\n{}", self.code, self.message, self.cli_output)
+        let label = LabeledSpan::new_with_span(
+            Some(self.message.clone()),
+            self.location.start_offset
+                ..self.location.end_offset.max(self.location.start_offset + 1),
+        );
+        let mut diagnostic = MietteDiagnostic::new(self.message.clone())
+            .with_code(self.code.clone())
+            .with_labels([label])
+            .with_url(self.documentation_url.clone());
+        if let Some(help) = &self.help {
+            diagnostic = diagnostic.with_help(help.clone());
+        }
+        miette::Report::new(diagnostic).with_source_code(NamedSource::new(
+            self.location.file.clone(),
+            self.full_source.clone(),
+        ))
     }
 }
 

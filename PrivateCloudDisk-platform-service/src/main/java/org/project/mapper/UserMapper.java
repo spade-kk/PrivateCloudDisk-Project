@@ -31,8 +31,13 @@ public interface UserMapper {
 
     UserEntity findUserByNameOrAccount(@Param("username") String username);
 
-    /** [SPACE-COLLAB-USER-01] 仅用于邀请搜索，返回最小公开资料所需的用户行。 */
-    List<UserEntity> searchPublicUsers(@Param("keyword") String keyword, @Param("limit") int limit);
+    /**
+     * [USER-DIRECTORY-20260810] 平台统一公开用户目录搜索；只返回公开资料所需字段。
+     * 邮箱仅用于匹配，不作为返回字段。
+     */
+    List<UserEntity> searchPublicUsers(@Param("keyword") String keyword,
+                                       @Param("offset") int offset,
+                                       @Param("size") int size);
 
     /**
      * 插入用户数据

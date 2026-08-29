@@ -1,0 +1,6 @@
+# 覆盖目标：事件触发器的严格字段解析。
+# 预期：IR trigger.type 为 event，事件名称保留为 FileUploaded。
+workflow "event_trigger" {
+    trigger { event { name = "FileUploaded" } }
+    step record { action builtin.log { message = "event accepted" } }
+}

@@ -1,0 +1,7 @@
+# 覆盖目标：schedule trigger、timezone 与 runtime 配置。
+# 预期：IR trigger.type=schedule，runtime.maxParallel=2。
+workflow "schedule_trigger" {
+    trigger { schedule { cron = "0 8 * * *" timezone = "Asia/Shanghai" } }
+    runtime { timeout = 5m max_parallel = 2 }
+    step heartbeat { action builtin.notification.send { channel = "system" } }
+}

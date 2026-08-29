@@ -2,6 +2,7 @@ package org.project.im.platform.service;
 
 import org.project.im.common.dto.GroupDTO;
 import org.project.im.common.dto.GroupMemberDTO;
+import org.project.im.common.dto.PageResult;
 import org.project.im.common.dto.Result;
 
 import java.util.List;
@@ -29,12 +30,24 @@ public interface GroupService {
     Result<GroupDTO> createGroup(String ownerId, String groupName, String avatar);
 
     /**
+     * 创建群并同步创建所有初始成员的群会话。
+     *
+     * <p>GROUP-CHAT-20260810 [4.11-4.13]：旧方法只确保群主会话存在；新方法在同一个
+     * 本地事务中加入选中成员并写入各自的 {@code group*{groupId}} 会话元数据，不引入
+     * MQ 编排，避免创建完成后成员无法立即进入群聊。</p>
+     */
+    Result<GroupDTO> createGroup(String ownerId, String groupName, String avatar, List<String> memberIds, Integer joinMode);
+
+    /**
      * 获取群组详情
      *
      * @param groupId 群组 ID
      * @return 群组信息
      */
     Result<GroupDTO> getGroupDetail(String groupId);
+
+    /** 按查看者权限返回群详情及其群内角色。 */
+    Result<GroupDTO> getGroupDetail(String groupId, String viewerId);
 
     /**
      * 获取用户加入的群组列表
@@ -44,6 +57,9 @@ public interface GroupService {
      */
     Result<List<GroupDTO>> getUserGroups(String userId);
 
+    /** 分页获取当前用户的正常群组。 */
+    Result<PageResult<GroupDTO>> getUserGroups(String userId, int page, int size);
+
     /**
      * 加入群组
      *
@@ -52,6 +68,9 @@ public interface GroupService {
      * @return 操作结果
      */
     Result<Void> joinGroup(String groupId, String userId);
+
+    /** 管理员/群主邀请成员；每位新成员会话同步创建。 */
+    Result<Void> inviteMembers(String groupId, String operatorId, List<String> userIds);
 
     /**
      * 退出群组
@@ -71,6 +90,9 @@ public interface GroupService {
      * @return 操作结果
      */
     Result<Void> kickMember(String groupId, String ownerId, String targetUid);
+
+    /** 群主设置或取消管理员，角色仅允许 ADMIN/MEMBER。 */
+    Result<Void> updateMemberRole(String groupId, String operatorId, String targetUid, int role);
 
     /**
      * 禁言成员
@@ -129,4 +151,11 @@ public interface GroupService {
      * @return 操作结果
      */
     Result<Void> updateAnnouncement(String groupId, String operatorId, String announcement);
+
+    /** 更新群名称、头像、公告、简介和入群策略；未给出的字段保持原值。 */
+    Result<GroupDTO> updateGroup(String groupId, String operatorId, String groupName, String avatar,
+                                 String announcement, String description, Integer joinMode);
+
+    /** 群成员分页查询，非成员不得读取成员资料。 */
+    Result<PageResult<GroupMemberDTO>> getGroupMembers(String groupId, String viewerId, int page, int size);
 }

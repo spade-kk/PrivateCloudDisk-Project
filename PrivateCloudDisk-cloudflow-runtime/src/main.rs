@@ -1,337 +1,266 @@
-//! CloudFlow Runtime HTTP 适配与最小执行状态 API。
-//!
-//! HTTP、JSON、请求体上限和超时均交给 Tokio/Axum/serde/tower-http，避免手写协议解析。
+//! CloudFlow Runtime 入口：配置 Axum、MySQL、RabbitMQ、gRPC Agent 与优雅关闭。
 
-use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
-    response::IntoResponse,
-    routing::{get, post},
-    Json, Router,
-};
 use cloudflow_runtime::{
-    compile_source_named, compiler::validate_ir, diagnostic::Diagnostic, ir::WorkflowIrV1,
-    semantic::InMemoryCapabilityCatalog,
+    agent::{
+        proto::capability_agent_server::CapabilityAgentServer, CapabilityAgentProxy,
+        GrpcCapabilityInvoker,
+    },
+    broker::RabbitRuntimeBus,
+    config::{RuntimeConfig, RuntimeMode},
+    execution::ExecutionCoordinator,
+    http::{build_router_with_coordinator, HttpConfig},
+    persistence::RuntimeStore,
 };
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, sync::Arc};
-use tokio::sync::RwLock;
-use tower_http::{limit::RequestBodyLimitLayer, timeout::TimeoutLayer, trace::TraceLayer};
-
-const MAX_BODY: usize = 2 * 1024 * 1024;
-
-#[derive(Clone)]
-struct AppState {
-    token: String,
-    capabilities: Vec<String>,
-    executions: Arc<RwLock<HashMap<String, ExecutionRecord>>>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CompileRequest {
-    source: String,
-    #[serde(default)]
-    filename: String,
-    #[serde(default)]
-    #[serde(rename = "userId")]
-    _user_id: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "spaceId")]
-    _space_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CompileResponse {
-    valid: bool,
-    ir: Option<WorkflowIrV1>,
-    diagnostics: Vec<Diagnostic>,
-    compiler_version: &'static str,
-}
-
-#[derive(Debug, Deserialize)]
-struct IrRequest {
-    ir: WorkflowIrV1,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum ExecutionStatus {
-    Created,
-    Ready,
-    Running,
-    Waiting,
-    Success,
-    Failed,
-    Cancelled,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct ExecutionRecord {
-    execution_id: String,
-    status: ExecutionStatus,
-    error: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct StartExecutionRequest {
-    ir: WorkflowIrV1,
-    #[serde(default)]
-    #[serde(rename = "variables")]
-    _variables: serde_json::Value,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StartExecutionResponse {
-    execution_id: String,
-    status: ExecutionStatus,
-}
+use std::{env, net::SocketAddr, process::ExitCode, sync::Arc, time::Duration};
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     if env::args().any(|arg| arg == "--healthcheck") {
-        println!("ok");
-        return;
+        return healthcheck().await;
     }
+    init_tracing();
     let address = env::var("CLOUDFLOW_LISTEN_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8091".into());
-    let token = env::var("PCD_INTERNAL_SERVICE_TOKEN").unwrap_or_default();
-    let capabilities = env::var("CLOUDFLOW_CAPABILITIES")
-        .unwrap_or_default()
-        .split(',')
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-        .map(str::to_owned)
-        .collect();
-    let state = AppState {
-        token,
-        capabilities,
-        executions: Arc::new(RwLock::new(HashMap::new())),
+    let parsed_address = match address.parse::<SocketAddr>() {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("CloudFlow Runtime 监听地址无效：{error}");
+            return ExitCode::from(78);
+        }
     };
-    let app = Router::new()
-        .route(
-            "/health/live",
-            get(|| async { Json(serde_json::json!({"status":"UP"})) }),
+    let service_token = env::var("PCD_INTERNAL_SERVICE_TOKEN").unwrap_or_default();
+    if service_token.trim().is_empty() {
+        eprintln!("CloudFlow Runtime 拒绝启动：PCD_INTERNAL_SERVICE_TOKEN 未配置");
+        return ExitCode::from(78);
+    }
+    let config = HttpConfig {
+        service_token,
+        capabilities: split_env("CLOUDFLOW_CAPABILITIES"),
+        max_concurrency: env::var("CLOUDFLOW_HTTP_MAX_CONCURRENCY")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(32),
+        allowed_origins: split_env("CLOUDFLOW_CORS_ALLOWED_ORIGINS"),
+    };
+    let runtime_config = match RuntimeConfig::from_env() {
+        Ok(value) => value,
+        Err(error) => {
+            error!(%error, "CloudFlow Runtime 配置无效");
+            return ExitCode::from(78);
+        }
+    };
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let mut background_tasks = Vec::new();
+    let coordinator = if runtime_config.mode == RuntimeMode::Production {
+        let store = match RuntimeStore::connect(
+            runtime_config
+                .database_url
+                .as_deref()
+                .expect("validated database URL"),
+            runtime_config.database_max_connections,
         )
-        .route(
-            "/health/ready",
-            get(|| async { Json(serde_json::json!({"status":"UP","compilerVersion":"0.2.0"})) }),
+        .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                error!(%error, "CloudFlow Runtime 数据库连接失败");
+                return ExitCode::from(1);
+            }
+        };
+        if let Err(error) = store.migrate().await {
+            error!(%error, "CloudFlow Runtime 数据库迁移失败");
+            return ExitCode::from(1);
+        }
+        let agent_address = match runtime_config
+            .capability_agent_listen_address
+            .as_deref()
+            .expect("validated Agent listen address")
+            .parse::<SocketAddr>()
+        {
+            Ok(value) => value,
+            Err(error) => {
+                error!(%error, "CLOUDFLOW_AGENT_LISTEN_ADDRESS 无效");
+                return ExitCode::from(78);
+            }
+        };
+        let agent_proxy = CapabilityAgentProxy::new(
+            runtime_config
+                .workflow_capability_url
+                .clone()
+                .expect("validated Workflow capability URL"),
+            config.service_token.clone(),
+            runtime_config.action_timeout,
+        );
+        let mut agent_shutdown = shutdown_rx.clone();
+        background_tasks.push(tokio::spawn(async move {
+            let result = tonic::transport::Server::builder()
+                .concurrency_limit_per_connection(32)
+                .timeout(Duration::from_secs(130))
+                .add_service(CapabilityAgentServer::new(agent_proxy))
+                .serve_with_shutdown(agent_address, async move {
+                    loop {
+                        if *agent_shutdown.borrow() {
+                            break;
+                        }
+                        if agent_shutdown.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                })
+                .await;
+            if let Err(error) = result {
+                error!(%error, "CloudFlow Capability Agent gRPC 服务已停止");
+            }
+        }));
+        let invoker = match GrpcCapabilityInvoker::connect(
+            runtime_config
+                .capability_agent_url
+                .as_deref()
+                .expect("validated capability agent URL"),
+            &config.service_token,
+            runtime_config.action_timeout,
         )
-        .route("/internal/v1/cloudflow/compile", post(compile_handler))
-        .route("/internal/v1/compile", post(compile_handler))
-        .route(
-            "/internal/v1/cloudflow/validate-ir",
-            post(validate_ir_handler),
+        .await
+        {
+            Ok(value) => Arc::new(value),
+            Err(error) => {
+                error!(%error, "CloudFlow Runtime gRPC Capability Agent 连接失败");
+                return ExitCode::from(1);
+            }
+        };
+        let coordinator = ExecutionCoordinator::new(
+            store.clone(),
+            invoker,
+            runtime_config.worker_concurrency,
+            runtime_config.stale_seconds,
+            runtime_config.poll_interval,
+            runtime_config.action_timeout,
+        );
+        let bus = match RabbitRuntimeBus::connect(
+            runtime_config
+                .rabbitmq_url
+                .as_deref()
+                .expect("validated RabbitMQ URL"),
         )
-        .route("/internal/v1/cloudflow/executions", post(start_execution))
-        .route(
-            "/internal/v1/cloudflow/executions/:execution_id",
-            get(get_execution),
-        )
-        .route(
-            "/internal/v1/cloudflow/executions/:execution_id/cancel",
-            post(cancel_execution),
-        )
-        .with_state(state)
-        .layer(RequestBodyLimitLayer::new(MAX_BODY))
-        .layer(TimeoutLayer::with_status_code(
-            StatusCode::REQUEST_TIMEOUT,
-            std::time::Duration::from_secs(30),
-        ))
-        // TraceLayer 不记录 Header/Body，避免服务令牌或用户源码泄露到日志。
-        .layer(TraceLayer::new_for_http());
-    let listener = match tokio::net::TcpListener::bind(&address).await {
+        .await
+        {
+            Ok(value) => value,
+            Err(error) => {
+                error!(%error, "CloudFlow Runtime RabbitMQ 连接或拓扑声明失败");
+                return ExitCode::from(1);
+            }
+        };
+        let worker = coordinator.clone();
+        let worker_shutdown = shutdown_rx.clone();
+        background_tasks.push(tokio::spawn(async move {
+            worker.run_workers(worker_shutdown).await;
+        }));
+        let consumer_bus = bus.clone();
+        let consumer = coordinator.clone();
+        let consumer_shutdown = shutdown_rx.clone();
+        background_tasks.push(tokio::spawn(async move {
+            if let Err(error) = consumer_bus
+                .run_command_consumer(consumer, consumer_shutdown)
+                .await
+            {
+                error!(%error, "CloudFlow MQ command consumer 已停止");
+            }
+        }));
+        let publisher_shutdown = shutdown_rx.clone();
+        background_tasks.push(tokio::spawn(async move {
+            bus.run_outbox_publisher(store, publisher_shutdown).await;
+        }));
+        info!("CloudFlow Runtime 已启用持久化生产执行面");
+        Some(coordinator)
+    } else {
+        info!("CloudFlow Runtime 以 compiler 模式启动，不接收生产执行");
+        None
+    };
+    let listener = match tokio::net::TcpListener::bind(parsed_address).await {
         Ok(value) => value,
         Err(error) => {
             eprintln!("CloudFlow Runtime 无法绑定监听地址: {error}");
-            return;
+            return ExitCode::from(1);
         }
     };
-    println!("pcd-cloudflow-runtime listening on {address}");
-    if let Err(error) = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+    info!(%address, "pcd-cloudflow-runtime listening");
+    let signal_sender = shutdown_tx.clone();
+    let server_result = axum::serve(listener, build_router_with_coordinator(config, coordinator))
+        .with_graceful_shutdown(async move {
+            shutdown_signal().await;
+            let _ = signal_sender.send(true);
+        })
+        .await;
+    let _ = shutdown_tx.send(true);
+    for task in background_tasks {
+        let _ = tokio::time::timeout(Duration::from_secs(20), task).await;
+    }
+    if let Err(error) = server_result {
+        error!(%error, "CloudFlow Runtime 已停止");
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
+fn init_tracing() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .json()
+        .with_target(false)
+        .try_init();
+}
+
+async fn healthcheck() -> ExitCode {
+    let configured =
+        env::var("CLOUDFLOW_LISTEN_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8091".into());
+    let Ok(mut address) = configured.parse::<SocketAddr>() else {
+        return ExitCode::from(1);
+    };
+    if address.ip().is_unspecified() {
+        address.set_ip("127.0.0.1".parse().expect("static loopback address"));
+    }
+    let url = format!("http://{address}/health/ready");
+    match reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .expect("healthcheck client")
+        .get(url)
+        .send()
         .await
     {
-        eprintln!("CloudFlow Runtime 已停止: {error}");
+        Ok(response) if response.status().is_success() => ExitCode::SUCCESS,
+        Ok(response) => {
+            eprintln!("CloudFlow Runtime 健康检查失败: HTTP {}", response.status());
+            ExitCode::from(1)
+        }
+        Err(error) => {
+            eprintln!("CloudFlow Runtime 健康检查失败: {error}");
+            ExitCode::from(1)
+        }
     }
+}
+
+fn split_env(name: &str) -> Vec<String> {
+    env::var(name)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-fn authorized(headers: &HeaderMap, state: &AppState) -> bool {
-    if state.token.is_empty() {
-        return false;
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut terminate = signal(SignalKind::terminate()).expect("install SIGTERM handler");
+        tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
     }
-    headers
-        .get("X-PCD-Service-Token")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v == state.token)
-        .unwrap_or(false)
-}
-
-async fn compile_handler(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(request): Json<CompileRequest>,
-) -> impl IntoResponse {
-    if !authorized(&headers, &state) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(CompileResponse {
-                valid: false,
-                ir: None,
-                diagnostics: vec![],
-                compiler_version: "0.2.0",
-            }),
-        );
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
     }
-    let filename = if request.filename.is_empty() {
-        "<request>"
-    } else {
-        request.filename.as_str()
-    };
-    let mut catalog = InMemoryCapabilityCatalog::default();
-    // 只有显式配置能力目录时才启用强校验，避免 IDE 在尚未同步 Capability Hub 时误拒绝。
-    if !state.capabilities.is_empty() {
-        catalog.insert("__catalog_enabled__");
-        for capability in &state.capabilities {
-            catalog.insert(capability);
-        }
-    }
-    match compile_source_named(&request.source, filename, &catalog) {
-        Ok(ir) => (
-            StatusCode::OK,
-            Json(CompileResponse {
-                valid: true,
-                ir: Some(ir),
-                diagnostics: vec![],
-                compiler_version: "0.2.0",
-            }),
-        ),
-        Err(error) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(CompileResponse {
-                valid: false,
-                ir: None,
-                diagnostics: error.diagnostics,
-                compiler_version: "0.2.0",
-            }),
-        ),
-    }
-}
-
-async fn validate_ir_handler(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(request): Json<IrRequest>,
-) -> impl IntoResponse {
-    if !authorized(&headers, &state) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"valid": false, "diagnostics": []})),
-        );
-    }
-    let errors = validate_ir(&request.ir);
-    let status = if errors.is_empty() {
-        StatusCode::OK
-    } else {
-        StatusCode::UNPROCESSABLE_ENTITY
-    };
-    (
-        status,
-        Json(serde_json::json!({"valid": errors.is_empty(), "errors": errors})),
-    )
-}
-
-async fn start_execution(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(request): Json<StartExecutionRequest>,
-) -> impl IntoResponse {
-    if !authorized(&headers, &state) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"code":"AUTH-UNAUTHENTICATED"})),
-        );
-    }
-    let errors = validate_ir(&request.ir);
-    if !errors.is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({"code":"CF1301","errors":errors})),
-        );
-    }
-    let execution_id = format!("cf-{}", uuid_like_id(&request.ir));
-    let record = ExecutionRecord {
-        execution_id: execution_id.clone(),
-        status: ExecutionStatus::Ready,
-        error: None,
-    };
-    state
-        .executions
-        .write()
-        .await
-        .insert(execution_id.clone(), record.clone());
-    (
-        StatusCode::ACCEPTED,
-        Json(serde_json::json!(StartExecutionResponse {
-            execution_id,
-            status: record.status
-        })),
-    )
-}
-
-async fn get_execution(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    axum::extract::Path(execution_id): axum::extract::Path<String>,
-) -> impl IntoResponse {
-    if !authorized(&headers, &state) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"code":"AUTH-UNAUTHENTICATED"})),
-        );
-    }
-    match state.executions.read().await.get(&execution_id).cloned() {
-        Some(record) => (StatusCode::OK, Json(serde_json::json!(record))),
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"code":"CF4040"})),
-        ),
-    }
-}
-
-async fn cancel_execution(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    axum::extract::Path(execution_id): axum::extract::Path<String>,
-) -> impl IntoResponse {
-    if !authorized(&headers, &state) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"code":"AUTH-UNAUTHENTICATED"})),
-        );
-    }
-    let mut executions = state.executions.write().await;
-    if let Some(record) = executions.get_mut(&execution_id) {
-        record.status = ExecutionStatus::Cancelled;
-        return (StatusCode::OK, Json(serde_json::json!(record)));
-    }
-    (
-        StatusCode::NOT_FOUND,
-        Json(serde_json::json!({"code":"CF4040"})),
-    )
-}
-
-fn uuid_like_id(ir: &WorkflowIrV1) -> String {
-    use sha2::{Digest, Sha256};
-    let bytes = serde_json::to_vec(ir).unwrap_or_default();
-    let mut hash = Sha256::new();
-    hash.update(bytes);
-    format!("{:x}", hash.finalize())[..24].to_owned()
 }

@@ -45,6 +45,7 @@
         FROM pcd_im_message
         WHERE conversation_id = #{conversationId}
           AND status != 6
+          AND status != 0
         ORDER BY server_seq DESC
         LIMIT #{offset}, #{limit}
     </select>
@@ -66,12 +67,15 @@
     </update>
 
     <update id="batchUpdateRead">
+        <!-- 四态持久化枚举中 READ=2、FAILED=3；原 SQL 写入 3 会把已读消息误标为失败。 -->
         UPDATE pcd_im_message
-        SET status = 3, update_time = NOW()
+        SET status = 2, update_time = NOW()
         WHERE conversation_id = #{conversationId}
           AND receiver_id = #{receiverId}
+          AND status != 2
           AND status != 3
           AND status != 5
+          AND status != 6
     </update>
 
     <update id="recallMessage">
@@ -93,5 +97,47 @@
           AND status != 6
         ORDER BY server_seq DESC
         LIMIT 1
+    </select>
+
+    <select id="countUnreadByConversationIdAndReceiver" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM pcd_im_message
+        WHERE conversation_id=#{conversationId} AND receiver_id=#{receiverId}
+          AND status IN (0,1)
+    </select>
+
+    <select id="selectOfflineMessages" resultMap="BaseResultMap">
+        SELECT id, <include refid="BaseColumns"/>
+        FROM pcd_im_message
+        WHERE receiver_id = #{receiverId}
+          AND status = #{status}
+        ORDER BY server_seq DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="batchUpdateStatus">
+        UPDATE pcd_im_message
+        SET status = #{status}, update_time = NOW()
+        WHERE message_id IN
+        <foreach collection="messageIds" item="mid" open="(" separator="," close=")">
+            #{mid}
+        </foreach>
+    </update>
+
+    <select id="selectHistoryByCursor" resultMap="BaseResultMap">
+        SELECT id, <include refid="BaseColumns"/>
+        FROM pcd_im_message
+        WHERE conversation_id = #{conversationId}
+          AND status IN
+        <foreach collection="statuses" item="st" open="(" separator="," close=")">
+            #{st}
+        </foreach>
+        <if test="cursor != null">
+          AND server_seq &lt; #{cursor}
+        </if>
+        <if test="before != null">
+          AND send_time &lt; #{before}
+        </if>
+        ORDER BY server_seq DESC
+        LIMIT #{limit}
     </select>
 </mapper>

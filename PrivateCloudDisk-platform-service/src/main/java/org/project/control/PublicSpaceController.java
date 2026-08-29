@@ -73,6 +73,9 @@ public class PublicSpaceController extends BaseController {
             @Valid @RequestBody CreateUploadsSessionRequest request,
             @RequestHeader("X-User-Id") String userId,
             jakarta.servlet.http.HttpServletRequest servletRequest) {
+        // [REQ-GIT-SPACE-12.4] 原行为所有公开空间均可创建文件上传会话；
+        // 新行为 Git 资源只允许 git push，防止产生无法在 Git 引用中访问的孤立文件。
+        publicSpaceService.requireFileResource(UUID.fromString(spaceId), UUID.fromString(userId));
         UUID uploadId = uploadsService.createPublicUploadsSession(UUID.fromString(spaceId), request.getTotal_chunks(),
                 request.getFile_size(), request.getFile_checksum(), request.getChunks_max_size(), request.getFile_name(),
                 request.getFile_type(), UUID.fromString(userId), UUID.fromString(request.getNode_id()),

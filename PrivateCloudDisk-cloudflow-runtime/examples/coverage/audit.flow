@@ -1,0 +1,6 @@
+# 覆盖目标：[V1.2-AUDIT] 工作流级审计注解。
+# 预期：IR spec.audit 生成 {level: "high", description: "..."}。
+workflow "audit" {
+    audit { level = "high" description = "财务数据合规审计" }
+    step start { action builtin.file.list {} output result }
+}

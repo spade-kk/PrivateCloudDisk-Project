@@ -5,6 +5,7 @@
         <id column="space_id" property="spaceId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="space_name" property="spaceName"/>
         <result column="space_type" property="spaceType"/>
+        <result column="resource_type" property="resourceType"/>
         <result column="space_owner_id" property="spaceOwnerId" typeHandler="org.project.util.UUIDBinaryTypeHandler"/>
         <result column="space_quota" property="spaceQuota"/>
         <result column="space_used" property="spaceUsed"/>
@@ -92,13 +93,20 @@
         ORDER BY space_updated_at DESC;
     </select>
 
+    <!--
+      [REQ-SPACE-CREATE-NULL-ALLOW-PUBLIC] INSERT 防御层：
+      原行为：调用方未初始化 allow_public_* 时，显式 #{...} 会把 NULL 写入 NOT NULL 列，数据库 DEFAULT 不会触发；
+      新行为：Mapper 对历史/内部调用方继续兜底为非空值，避免团队/企业/私人空间创建被约束异常阻断。
+      正常创建路径仍由 SpaceServiceImpl 按空间类型明确赋值；仅影响异常缺省调用，不覆盖已传入的 false。
+    -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="spaceId" parameterType="org.project.model.entity.SpaceEntity">
-        INSERT INTO pcd_space_table (space_id, space_name, space_type, space_owner_id, space_quota, space_used,
+        INSERT INTO pcd_space_table (space_id, space_name, space_type, resource_type, space_owner_id, space_quota, space_used,
             space_file_count, space_visibility, join_policy, allow_public_browse, allow_public_download, allow_public_upload,
             space_description, space_avatar_path, space_im_group_id, space_status)
-        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceName}, #{spaceType},
+        VALUES (#{spaceId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceName}, #{spaceType}, #{resourceType},
             #{spaceOwnerId,typeHandler=org.project.util.UUIDBinaryTypeHandler}, #{spaceQuota}, #{spaceUsed},
-            #{spaceFileCount}, #{spaceVisibility}, COALESCE(#{joinPolicy}, 'invite_only'), #{allowPublicBrowse}, #{allowPublicDownload}, #{allowPublicUpload},
+            #{spaceFileCount}, #{spaceVisibility}, COALESCE(#{joinPolicy}, 'invite_only'),
+            COALESCE(#{allowPublicBrowse}, FALSE), COALESCE(#{allowPublicDownload}, FALSE), COALESCE(#{allowPublicUpload}, FALSE),
             #{spaceDescription}, #{spaceAvatarPath}, #{spaceImGroupId}, #{spaceStatus})
     </insert>
 

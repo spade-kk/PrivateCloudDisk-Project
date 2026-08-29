@@ -9,7 +9,7 @@
         </div>
         <button
           class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
-          @click="showCreateDialog = true"
+          @click="openCreateDialog"
         >
           <i class="fa fa-plus"></i>
           创建空间
@@ -37,6 +37,18 @@
           <option value="usage-desc">使用率从高到低</option>
           <option value="name">按名称排序</option>
         </select>
+        <select
+          v-model="spaceTypeFilter"
+          class="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-600 outline-none focus:border-primary"
+          aria-label="空间类型筛选"
+        >
+          <option value="all">全部空间类型</option>
+          <option value="personal">个人空间</option>
+          <option value="private">私有空间</option>
+          <option value="team">团队空间</option>
+          <option value="enterprise">企业空间</option>
+          <option value="public">公共空间</option>
+        </select>
         <span v-if="quotaLoading" class="text-xs text-neutral-400">
           <i class="fa fa-spinner fa-spin mr-1"></i>正在同步配额
         </span>
@@ -57,9 +69,16 @@
         </button>
       </div>
 
-      <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div v-else-if="displayedSpaces.length === 0" class="flex flex-col items-center justify-center rounded-xl border border-dashed bg-white py-20 text-neutral-400">
+        <i class="fa fa-search text-4xl"></i>
+        <p class="mt-3 text-sm">没有符合筛选条件的空间</p>
+        <button class="mt-3 text-sm text-primary hover:underline" @click="resetSpaceFilters">清除筛选</button>
+      </div>
+
+      <div v-else class="space-management-results">
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <div
-          v-for="space in displayedSpaces"
+          v-for="space in pagedSpaces"
           :key="space.spaceId"
           class="group cursor-pointer rounded-xl border bg-white p-5 shadow-sm transition hover:shadow-md"
           :class="space.spaceId === spaceStore.currentSpaceId ? 'ring-2 ring-primary' : ''"
@@ -118,7 +137,7 @@
           <div class="mt-3 flex items-center gap-2 border-t pt-3">
             <button
               class="flex-1 rounded-lg px-2 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/5"
-              @click.stop="enterSpace(space.spaceId)"
+              @click.stop="enterSpace(space)"
             >
               进入空间
             </button>
@@ -138,6 +157,12 @@
             </button>
           </div>
         </div>
+      </div>
+      <nav v-if="totalSpacePages > 1" class="mt-6 flex items-center justify-center gap-3 text-sm text-neutral-500" aria-label="空间分页">
+        <button class="rounded-lg border bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50" :disabled="spacePage === 1" @click="spacePage -= 1">上一页</button>
+        <span>第 {{ spacePage }} / {{ totalSpacePages }} 页 · 共 {{ displayedSpaces.length }} 个空间</span>
+        <button class="rounded-lg border bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50" :disabled="spacePage === totalSpacePages" @click="spacePage += 1">下一页</button>
+      </nav>
       </div>
     </div>
 
@@ -190,7 +215,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSpaceStore } from '@/stores/spaceStore'
 import { useAuthStore } from '@/stores/authStore'
 import { deleteSpaceApi } from '@/api/modules/space'
@@ -200,6 +225,7 @@ import CreateSpaceDialog from '@/components/space/CreateSpaceDialog.vue'
 import SpaceManageDialog from '@/components/space/SpaceManageDialog.vue'
 
 const router = useRouter()
+const route = useRoute()
 const spaceStore = useSpaceStore()
 const authStore = useAuthStore()
 
@@ -210,6 +236,9 @@ const spaceQuotas = ref<SpaceQuotaInfo[]>([])
 const quotaLoading = ref(false)
 const spaceKeyword = ref('')
 const spaceSort = ref<'personal-first' | 'usage-desc' | 'name'>('personal-first')
+const spaceTypeFilter = ref<'all' | SpaceInfo['spaceType']>('all')
+const spacePage = ref(1)
+const spacePageSize = 12
 
 const currentUserId = authStore.user?.id || ''
 const quotaMap = computed(() => new Map(spaceQuotas.value.map((quota) => [quota.space_id, quota])))
@@ -217,7 +246,8 @@ const quotaMap = computed(() => new Map(spaceQuotas.value.map((quota) => [quota.
 const displayedSpaces = computed(() => {
   const keyword = spaceKeyword.value.toLocaleLowerCase('zh-CN')
   const result = spaceStore.spaces.filter((space) => (
-    !keyword || space.spaceName.toLocaleLowerCase('zh-CN').includes(keyword)
+    (!keyword || space.spaceName.toLocaleLowerCase('zh-CN').includes(keyword))
+    && (spaceTypeFilter.value === 'all' || space.spaceType === spaceTypeFilter.value)
   ))
   return [...result].sort((left, right) => {
     if (spaceSort.value === 'name') return left.spaceName.localeCompare(right.spaceName, 'zh-CN')
@@ -227,6 +257,8 @@ const displayedSpaces = computed(() => {
     return Number(right.spaceType === 'personal') - Number(left.spaceType === 'personal')
   })
 })
+const totalSpacePages = computed(() => Math.max(1, Math.ceil(displayedSpaces.value.length / spacePageSize)))
+const pagedSpaces = computed(() => displayedSpaces.value.slice((spacePage.value - 1) * spacePageSize, spacePage.value * spacePageSize))
 
 function spaceUsage(space: SpaceInfo): SpaceQuotaInfo {
   return quotaMap.value.get(space.spaceId) || {
@@ -302,14 +334,21 @@ async function selectSpace(spaceId: string) {
   await spaceStore.switchSpace(spaceId)
 }
 
-async function enterSpace(spaceId: string) {
+async function enterSpace(space: SpaceInfo) {
   /*
-   * 空间管理能力全量集成（需求四-1/2）：
-   * 原行为切换请求与路由跳转并发，目标页可能先携带旧空间头加载；
-   * 新行为等待切换提交成功后再进入文件页，消除旧数据闪烁。
+   * [REQ-SPACE-MANAGEMENT-6.1~6.4]
+   * 原行为只接收 spaceId，并对所有空间统一跳转 /app；PUBLIC 空间的资源入口
+   * 实际是独立仓库路由 /repo/{spaceId}，因此点击“进入空间”看似没有响应或进入了
+   * 错误的文件工作区。新行为保留非公开空间先切换当前空间再进入 /app 的逻辑，
+   * 公开空间不污染控制台当前空间，直接打开其资源抽象对应的仓库页面。
+   * 影响范围：空间管理卡片入口；不改变个人、团队、企业及私有空间的原有切换语义。
    */
-  if (await spaceStore.switchSpace(spaceId)) {
-    await router.push({ path: '/app', query: { space_id: spaceId } })
+  if (space.spaceType === 'public') {
+    await router.push({ path: `/repo/${encodeURIComponent(space.spaceId)}` })
+    return
+  }
+  if (await spaceStore.switchSpace(space.spaceId)) {
+    await router.push({ path: '/app', query: { space_id: space.spaceId } })
   }
 }
 
@@ -318,8 +357,28 @@ function openManage(space: SpaceInfo) {
 }
 
 async function onSpaceCreated(spaceId: string) {
+  /* [REQ-SPACE-MANAGEMENT-6.19] 创建完成后依据新空间类型进入其真实资源入口，避免公共空间被错误当作控制台文件空间。 */
   await spaceStore.refreshSpaces()
+  const created = spaceStore.spaces.find((space) => space.spaceId === spaceId)
+  if (created?.spaceType === 'public') {
+    await router.push({ path: `/repo/${encodeURIComponent(spaceId)}` })
+    return
+  }
   await spaceStore.switchSpace(spaceId)
+  await router.push({ path: '/app', query: { space_id: spaceId } })
+}
+
+function openCreateDialog() {
+  /* [REQ-SPACE-MANAGEMENT-6.18] 使用路由状态统一直接打开与跨页面“创建空间”入口。 */
+  showCreateDialog.value = true
+  void router.replace({ query: { ...route.query, create: '1' } })
+}
+
+function resetSpaceFilters() {
+  spaceKeyword.value = ''
+  spaceTypeFilter.value = 'all'
+  spaceSort.value = 'personal-first'
+  spacePage.value = 1
 }
 
 function confirmDelete(space: SpaceInfo) {
@@ -342,4 +401,12 @@ onMounted(async () => {
 })
 
 watch(() => spaceStore.revision, () => void loadSpaceQuotas())
+watch([spaceKeyword, spaceTypeFilter, spaceSort], () => { spacePage.value = 1 })
+watch(totalSpacePages, (value) => { spacePage.value = Math.min(spacePage.value, value) })
+watch(() => route.query.create, (value) => { if (value === '1') showCreateDialog.value = true }, { immediate: true })
+watch(showCreateDialog, (visible) => {
+  if (visible || route.query.create !== '1') return
+  const query = { ...route.query }; delete query.create
+  void router.replace({ query })
+})
 </script>

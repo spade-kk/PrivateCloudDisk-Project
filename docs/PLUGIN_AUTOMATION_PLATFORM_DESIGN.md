@@ -1427,28 +1427,102 @@ SDK 返回的 handle 是当前安装实例、当前客户端和当前用户绑�
 
 ### 12.1 正式格式
 
-```text
+以下示例与 `CLOUDFLOW_DEMO_DESIGN.md` 的销售周报示例保持同一语义；空白仅为文档排版压缩。
+该示例同时作为 Rust Compiler golden test，任何规范变更都必须先更新测试固件：
+
+```cloudflow
 workflow "weekly_sales_report" {
-    metadata { display_name = "销售周报" version = "1.0" }
-    trigger { schedule { cron = "0 8 * * 1" timezone = "Asia/Shanghai" } }
-    runtime { timeout = 30m max_parallel = 4 retry_policy { max_attempts = 3 strategy = "exponential" } }
+    metadata {
+        display_name = "销售周报"
+        description = """
+        每周一自动生成销售周报
+        收集销售数据
+        分析统计
+        生成Excel报告
+        保存到企业空间
+        通知相关人员
+        """
+        version = "1.0"
+    }
+    trigger {
+        schedule {
+            cron = "0 8 * * 1"
+            timezone = "Asia/Shanghai"
+        }
+    }
+    runtime {
+        timeout = 30m
+        max_parallel = 4
+        retry_policy {
+            max_attempts = 3
+            strategy = "exponential"
+        }
+    }
+    variables {
+        sales_node_id = input.string(required = true)
+        template_file_id = input.string(required = true)
+        report_node_id = input.string(required = true)
+    }
     step collect_files {
-        action file.list { node = vars.sales_node_id filter { extension = "xlsx" } }
+        name = "收集销售文件"
+        action file.list {
+            node = vars.sales_node_id
+            filter { extension = "xlsx" }
+        }
         output excel_files
     }
     step aggregate_data {
+        name = "销售数据统计"
         depends_on collect_files
-        action data.aggregate_excel { input { files = collect_files.output } group_by = "region" }
+        action data.aggregate_excel {
+            input { files = collect_files.output }
+            group_by = "region"
+            metrics {
+                sum("sales")
+                average("profit")
+            }
+        }
         output report_data
     }
     step generate_report {
+        name = "生成销售报告"
         depends_on aggregate_data
         condition { aggregate_data.output.row_count > 0 }
-        action plugin { id = "8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7" function = "generate_report" version = "1" }
-        retry { max_attempts = 2 backoff = exponential }
+        action plugin {
+            id = "8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7"
+            function = "generate_report"
+            version = "1"
+            input {
+                data = aggregate_data.output
+                template = vars.template_file_id
+            }
+        }
+        retry {
+            max_attempts = 2
+            backoff = exponential
+        }
         output report_file
     }
-    step save_report { depends_on generate_report action file.save { source = generate_report.output.file_id target = vars.report_node_id } }
+    step save_report {
+        name = "保存报告"
+        depends_on generate_report
+        action file.save {
+            source = generate_report.output.file_id
+            target = vars.report_node_id
+        }
+    }
+    on_failure {
+        step notify_failure {
+            action notification.send {
+                channel = "user"
+                title = "销售周报生成失败"
+                message = """
+                失败步骤:
+                ${workflow.failed_step}
+                """
+            }
+        }
+    }
 }
 ```
 
@@ -1466,10 +1540,14 @@ CloudFlow 是块结构语言，不再接受 `automation.pcd/v1` YAML。前端可
 
 ### 12.3 控制结构
 
-- `if`：条件执行。
-- `catch`：指定失败后的能力步骤，由执行计划记录补偿关系。
-- `for_each`：由后续 CloudFlow 版本扩展；MVP 禁止隐式循环，避免图模型与运行计划不一致。
-- `needs`：声明依赖，形成 DAG。
+- `if/else`：条件分支，条件必须由受限表达式 AST 表示。
+- `foreach`：显式遍历集合，IR 使用 `loop` 节点保存迭代器、集合引用和 body。
+- `parallel`：并行分支，受 `runtime.max_parallel` 限制。
+- `try/catch/finally`：显式失败分支和最终分支，不依赖隐式异常字符串解析。
+- `wait`：人工审批或外部信号等待节点，支持独立超时。
+- `while`：受 `runtime.max_iterations` 约束的条件循环；达到上限以 `CF2201` 失败，禁止无限执行。
+- `assert`：对业务前置条件进行运行时断言；失败可由相邻 `try/catch/finally` 接管。
+- `depends_on`：声明步骤依赖，Compiler 统一生成 `graph.edges`。
 - 最大 200 个步骤，最大 DAG 深度 50。
 - 循环引用在保存时拒绝。
 
@@ -1485,6 +1563,15 @@ CREATED -> QUEUED -> RUNNING -> SUCCEEDED
 
 每一步单独持久化；Worker 崩溃后从最后一个已提交步骤恢复。跨服务操作不使用全局数据库事务，
 采用幂等命令 + Saga 补偿。具有副作用的能力必须声明 `idempotency_key` 和可选 compensation。
+
+`foreach`/`while` 的每个迭代由控制节点检查点与稳定动态步骤 ID
+`<control>[iteration].<node>` 持久化，且迭代内并发不超过 `max_parallel`；重试只增加当前动态实例的
+attempt，避免并发元素共享同一审计记录；
+`wait approval` 进入 `WAITING_APPROVAL` 子状态，只能通过 Runtime 内部 resume 接口携带审批结果继续。
+变量同时支持 `input.<type>`、显式类型本地值与类型推断本地值；IR 以 JSON 原生字面量、`$ref`、`$expr`
+传递，禁止把不同类型的值降级为字符串。`include "relative.flow"` 已在 CLI/受信任文件模式启用，
+但被限制在入口工作流目录、带循环/路径逃逸校验，且不允许模块覆盖 trigger/runtime；IDE/HTTP 内联模式
+仍明确拒绝。`match/case` 待多分支 IR 与画布审计完成后再启用。
 
 ### 12.5 失败重跑
 
@@ -1529,6 +1616,124 @@ CREATED -> QUEUED -> RUNNING -> SUCCEEDED
 - 自动保存 Draft，发布必须显式确认。
 - 加载、空状态、离线、冲突、后端校验失败均有恢复入口。
 - 支持 `prefers-reduced-motion`、完整键盘操作和屏幕阅读器标签。
+
+### 13.4 FlowGram 对标的企业级可视化工作流 IDE（v0.5）
+
+> **需求关联：前端工作流创建页面企业级 IDE 增强。** 本节以 CloudFlow V1.1 AST、
+> `workflow.cloudflow.io/v1` IR 和 Runtime 编译接口为约束，升级工作流画布；它不是独立的
+> “低代码格式”，任何可编辑节点均必须可确定性序列化为合法的 `.flow` 源码。
+
+#### 13.4.1 编码前审计结论与边界
+
+| 审计对象 | 已有能力 | v0.5 改造结论 |
+|---|---|---|
+| `WorkflowEditorView.vue` | Vue Flow、能力列表、单一 action 节点、手工小地图、局部快照历史、Runtime 校验 | 拆为工作流工作区、画布、节点库、属性检查器和状态仓；禁止继续把所有状态堆在页面级 `ref`。 |
+| Vue Flow | `@vue-flow/core`、Background、Controls 和内置 MiniMap 已安装 | 使用其受控 nodes/edges、selection、缩放和 MiniMap，不以 CSS 点位模拟小地图。 |
+| Runtime IR | task/plugin/condition/loop/parallel/try/wait/assert、`controlParent`、`controlBranch`、`children` 已可逆投影 | 源码切回画布必须先调用 Runtime；前端只从已校验 IR 建图，不能用正则猜测控制流。 |
+| CloudFlow 语法 | 支持 if/else、foreach、while、parallel、try/catch/finally、wait、assert、retry、timeout、typed variables、表达式 | 每一种 DSL 节点均有对应可视节点和配置表单。`match/case`、多 catch、HTTP method、循环独立并发数和独立 Output 顶层节点尚无 DSL 语义，IDE 不显示为可保存节点。 |
+| UI 辅助元素 | DSL 未定义群组、便签、锁定、视图和面板位置 | 仅作为 `graphJson.ui` / 本地布局元数据保存，绝不写入 DSL 或改变 Runtime 行为；从源码投影失败时予以保留但标记为“非执行注释”。 |
+
+特别说明：条件的多分支体验由**嵌套 if/else**表达，不能生成不存在的 `else if` 关键字；工作流“输出”
+通过 Task 节点的 `output <name>` 属性声明，不能创建独立的 Runtime 节点。这两个限制是防止画布产生
+“看上去能运行、实际无法编译”的必要约束。
+
+#### 13.4.2 信息架构与组件树
+
+```text
+WorkflowEditorView
+├── WorkflowIdeStore                         # DSL、Graph、历史、布局、网络与校验状态
+├── WorkflowIdeToolbar                       # 保存/运行/发布/撤销/命令面板/专注模式
+├── WorkflowIdeShell                         # 可调整左/中/右/下分区，持久化尺寸
+│   ├── WorkflowNodeLibrary                  # Trigger / Task / 控制流 / 便签 / 模板
+│   ├── WorkflowCanvas
+│   │   ├── VueFlow + Background + Controls + MiniMap
+│   │   ├── WorkflowVisualNode               # 统一节点壳与类型化端口
+│   │   ├── WorkflowVisualEdge               # 普通/条件/异常数据流
+│   │   ├── WorkflowCanvasNavigator          # 适合画布、缩放、鸟瞰与性能读数
+│   │   └── WorkflowContextMenu
+│   ├── WorkflowInspectorTabs
+│   │   ├── NodeProperties                   # 类型化属性、retry、timeout、schema 参数
+│   │   ├── WorkflowVariables                # 强类型变量与引用统计
+│   │   ├── WorkflowSettings                 # metadata / trigger / runtime
+│   │   └── WorkflowHelp
+│   └── BottomPanel
+│       ├── Output / Problems / Execution / Debug
+│       └── CloudFlow DSL Preview (Monaco)
+└── Monaco Source Mode                       # Runtime 编译后回投画布
+```
+
+`WorkflowIdeStore` 与插件 IDE store 隔离；路由离开后清理编辑态，布局偏好以
+`pcd.workflow-ide.layout.<workflow-id-or-new>` 写入 localStorage。空间上下文继续由
+`request.ts` 自动附加 `X-Space-Id`，工作流页面不得在业务表单中重复传递 `space_id`。
+
+#### 13.4.3 DSL 与可视化节点的严格一一映射
+
+| 画布节点 | CloudFlow 源码 | IR 节点 | 特殊可视化规则 |
+|---|---|---|---|
+| Trigger | `trigger { manual/schedule/event/http { ... } }` | `spec.trigger` | 画布唯一入口；切换类型会清理不适用字段。 |
+| Task / Plugin / API | `step id { action ... }` | `task` / `plugin` | provider、参数、`depends_on`、`output`、`retry`、`timeout` 均直接映射。 |
+| If / Else | `if { expr } { ... } else { ... }` | `condition` | true/false 端口使用带标签虚线；多层分支通过嵌套 condition。 |
+| ForEach / While | `foreach item in expr { ... }` / `while { expr } { ... }` | `loop` | 双击进入 body 子画布；并发来自 `runtime.max_parallel`，不得伪造局部字段。 |
+| Parallel | `parallel { ... }` | `parallel` | 每个子节点是分支；普通依赖边不得跨越容器边界。 |
+| Try / Catch / Finally | `try { ... } catch error { ... } finally { ... }` | `try` | 三个分区对应 `controlBranch`；单 catch binding 是当前语言上限。 |
+| Wait / Assert | `wait approval { timeout = ... }` / `assert { expr }` | `wait` / `assert` | wait 使用顺序屏障；assert 失败显示可捕获错误。 |
+| Variable / Expression | `variables { ... }`、`vars.x`、`steps.x.output` | `spec.variables`、`$ref`、`$expr` | 引用选择器只列出当前作用域、上游输出和合法内置函数。 |
+
+边的语义有且只有三类：普通实线为依赖、条件虚线为 `trueBranch/falseBranch`、错误点线为
+`catch/finally`。每次连接先执行端口与容器校验，并进行环检测；失败仅提示，绝不修改 DSL。
+
+#### 13.4.4 交互、状态与 API 时序
+
+```text
+用户修改画布 ─┐
+              ├─ 记录最多 50 个结构快照 → 300 ms 防抖序列化 DSL → Monaco 预览
+用户修改源码 ─┘
+                     │
+                     └─ POST /workflows/validate → Workflow Service → CloudFlow Runtime /api/v1/compile
+                                                        │
+              成功：保存 IR、清除诊断、允许保存/发布  ◄────┘
+              失败：Problems + Monaco marker + node/edge errorKey 高亮
+```
+
+- `Ctrl/Cmd+S` 保存、`Ctrl/Cmd+Z` / `Ctrl/Cmd+Shift+Z` 撤销重做、`Delete` 删除选中项、
+  `Ctrl/Cmd+C/V/A` 复制粘贴和全选、`Space + 拖拽` 平移、`Ctrl/Cmd+滚轮` 缩放、
+  `Ctrl/Cmd+Shift+P` 命令面板；快捷键表可由 F1 或 `?` 打开。
+- 保存、发布和测试始终先编译。Compiler 不可用时 fail-closed：明确显示可重试故障，不保存未校验 DSL。
+- 离线时锁定写操作并保留本地快照；浏览器恢复 online 后提示重新校验。自动保存仅保存已通过的草稿。
+- 错误不只依赖颜色：节点有图标、文本、`aria-describedby` 和 Problems 可聚焦项；动画尊重
+  `prefers-reduced-motion`。桌面完整三栏、平板抽屉化、移动端以源码/节点列表编辑为主。
+
+#### 13.4.5 性能、可观测性与非功能约束
+
+- 节点与边采用受控 DTO、批量 mutation 和 `requestAnimationFrame` 合并 UI 刷新；100+ 节点场景
+  不在拖动中重复序列化或访问网络，拖动结束才写入历史和 DSL。
+- 自动布局采用无环分层布局，支持从左到右/从上到下；对非法环只给出问题，不改写用户图。
+- MiniMap 使用 Vue Flow 内置组件并可折叠；画布性能面板只在开发者选项开启，显示 node/edge 数、
+  最近绘制耗时和近似 FPS，不上传行为数据。
+- 导出 PNG/SVG 只针对当前用户已加载的工作流，不包含鉴权头、变量实际值、执行日志或隐藏的敏感参数。
+- 图形状态不能替代服务端权限/CloudFlow 编译校验；Capability Schema、工作流归属和空间权限仍由 API/Runtime
+  最终校验。
+
+#### 13.4.6 v0.5.1 实施校正：真实节点形状、投影 MiniMap 与安全导出
+
+> **改动原因：CF-IDE-2026-08。** v0.5 初稿将当前依赖描述为“内置 MiniMap 已安装”，
+> 但实际 `PrivateCloudDisk-web/package.json` 仅声明 `@vue-flow/core`、`background` 和
+> `controls`，没有可直接使用的 `@vue-flow/minimap` 运行时组件。为避免设计文档引导实现
+> 去导入不存在的包，本节保留原有组件树描述，并明确实际实现边界与替代方案。
+
+- `WorkflowCanvas` 继续使用同一份 `nodes`、`edges` 与 Vue Flow viewport，提供可折叠、点击、
+  拖拽和双击聚焦的投影 MiniMap；它不是 CSS 静态点位，也不保存第二份图模型。
+- 条件节点不得再把整张默认矩形节点 `rotate(45deg)`。实际 DOM 使用未旋转的内容层和独立 SVG
+  diamond path；触发器、并行、断言也使用对应几何轮廓，因此文字、可访问区域和 Handle 均处于
+  正确的坐标系。
+- 连线的 `kind`、`parentId`、`branch` 是唯一 DSL 语义；`route`、`lineStyle`、`color`、
+  `label`、`description`、变量映射仅保存到 graphJson，不能改变编译或权限含义。
+- 不在没有审计依赖的情况下引入截图/PDF 库。当前导出从画布模型生成转义后的 SVG，支持 SVG/PNG
+  下载；PDF 使用浏览器原生打印“保存为 PDF”路径。导出不会附带执行日志、鉴权头或变量实际值。
+- 初次进入 IDE 的引导突出节点库、画布、属性面板和 Runtime 校验操作，完成标记仅保存在浏览器
+  `pcd.workflow-ide.onboarding.v1`，不进入工作流文件与数据库。
+- 100+ 节点流畅度仍需在浏览器集成环境实测；开发者性能面板显示的是近似 FPS、节点数和边数，
+  不能替代性能基准报告。
 
 ---
 
@@ -1684,6 +1889,11 @@ main
 6. ACK 原消息。
 7. Outbox Publisher 发布并等待 confirm。
 8. 标记 Outbox SENT。
+
+CloudFlow Runtime 的 Inbox 领取态会写入 `PROCESSING` 并持有 5 分钟数据库租约；进程崩溃后
+租约到期允许下一实例接管，租约内重复投递直接 ACK。Outbox 连续发布失败最多 10 次，超过上限
+转为 `DEAD` 终态并告警，人工重放必须携带管理员身份、原因和审计记录，不能通过无限轮询掩盖
+Broker 故障。
 
 Redis 只缓存触发器和热点去重结果，不决定消息是否已经完成。
 
@@ -3599,14 +3809,15 @@ cloudflowc --version
 CLI 成功输出格式化 IR；失败退出码非零，诊断写 stderr。HTTP 内部接口使用同一 Compiler：
 
 ```text
-POST /internal/v1/cloudflow/compile
+POST /api/v1/compile                       # Workflow Service 当前使用的统一编译入口
+POST /internal/v1/cloudflow/compile        # 兼容别名，迁移期保留
 POST /internal/v1/cloudflow/validate-ir
 POST /internal/v1/cloudflow/executions
 GET  /internal/v1/cloudflow/executions/{execution_id}
 POST /internal/v1/cloudflow/executions/{execution_id}/cancel
 ```
 
-接口必须通过 `X-PCD-Service-Token`、`Content-Type: application/json`、body 上限、请求超时和
+编译接口必须通过 `X-PCD-Service-Token`、`Content-Type: application/json`、1 MiB body 上限、30 秒请求超时和
 `serde_json` 反序列化；禁止把 Compiler 错误重新包装成 Rust Debug 字符串。
 
 ### C.5 统一错误诊断契约
@@ -3674,6 +3885,145 @@ API 节点只能调用受授权的内部服务，所有副作用带 `execution_i
 | Workflow Service | Java `CloudFlowRuntimeClient` 委托 Runtime；删除 Java 正则/行解析；保留旧检查点的 steps 投影 | `./gradlew compileJava --offline`、`./gradlew test --offline` 通过 |
 | 前端/文档 | IDE 默认实例、画布生成器、官网示例和开发指南迁移到 Demo 风格；新增 Compiler Guide 与 `.flow` golden 文件 | `npm run build -- --outDir /tmp/pcd-web-dist-cloudflow-v3` 通过 |
 
+> 2026-08-02 合规复审以 C.10/C.11 的结果为准：C.9 是第一版落地快照，不再作为当前语法
+> 严格性、HTTP 路径和测试数量的验收证据。
+
 仍属于发布门禁而非本地完成项：Runtime 对 MQ/Plugin Agent 的真实 action adapter、数据库状态恢复、
 Outbox/Inbox、gRPC Agent、并发压测和沙箱逃逸测试。这些接口已预留，必须在 CI/集群通过后才允许把
 工作流版本标记为 `PUBLISHED`；本地编译通过不等同于生产联调完成。
+
+### C.10 严格编译链合规修订设计（2026-08-02）
+
+本节是对 C.9 的复审修订。复审发现旧实现虽然已经使用 Pest/Axum，但仍存在“语法能被解析却没有
+形成 AST/IR”的静默接受路径：通用 `named_block` 允许未知顶层块和未知步骤子块，通用
+`control_block` 只校验大括号而不构建控制流节点，表达式仍以原始字符串进入 IR。此类输入不得再被
+视为有效 CloudFlow。
+
+#### C.10.1 严格语法与兼容边界
+
+- 根节点固定为 `workflow "name" { ... }`，顶层只允许 `metadata`、`variables`、`trigger`、
+  `runtime`、`steps`、`handlers`、直接 `step` 与 `on_failure`；未知块进入可恢复诊断节点并产生
+  `CF1202`，不会进入 IR。
+- `step` 内只允许 `name`、`action`、`depends_on`、`condition`、`retry`、`timeout`、`output` 及
+  显式控制流；动态业务参数只允许出现在 `action` 参数对象内部，避免把“能力参数可扩展”误用为
+  “语言关键字可扩展”。
+- 关键字大小写敏感；字符串只接受双引号或文档规定的三引号。表达式使用 Pest 优先级规则，支持
+  字面量、比较/算术/逻辑运算、白名单函数、`vars.*`、`steps.<id>.output` 和受控系统引用。
+- `CLOUDFLOW_DEMO_DESIGN.md` 中历史 `<step>.output` 写法作为 V1 单向迁移别名读取，并在 AST 中
+  立即规范化为 `steps.<step>.output`；新生成的 DSL 与 IR 不再输出该别名。
+
+#### C.10.2 AST、IR 与诊断
+
+AST 增加带 Span 的 `ValueNode/ExpressionNode`、`ConditionNode`、`LoopNode`、`ParallelNode`、
+`TryCatchNode`、`WaitNode`、`TimeoutConfig`。IR 使用显式 `$ref`/`$expr` 对象区分引用和字符串，
+控制流节点按 `condition/loop/parallel/try/wait` 类型生成，禁止把可执行表达式交给 `eval/exec`。
+
+Compiler 聚合可恢复语法错误和全部语义错误。JSON 诊断固定包含 `code/severity/category/message/
+location/source/suggestions/help/documentationUrl/cliOutput`；CLI 默认通过 miette 输出彩色人类诊断，
+`--output-format json` 输出相同诊断数组，`--no-color` 适配日志管道。
+
+#### C.10.3 CLI 与 Runtime HTTP 契约
+
+```text
+cloudflowc compile <file.flow> [-o workflow.ir.json]
+cloudflowc compile -i '<source>' [--target v1] [--check-only]
+cloudflowc compile <file.flow> --output-format json --no-color --explain
+```
+
+Runtime 使用 Tokio + Axum + serde_json + tower/tower-http，提供受内部服务令牌保护的
+`POST /api/v1/compile`，并保留旧 `/internal/v1/cloudflow/compile` 作为兼容别名；新增公开探针
+`GET /health`。编译请求体上限 1 MiB、30 秒超时、可配置并发上限和精确 Origin CORS 白名单；生产
+默认不允许任意来源。SIGINT/SIGTERM 都触发优雅关闭。请求可携带 `target_ir_version`，V1 仅接受
+`v1` 或 `workflow.cloudflow.io/v1`。
+
+#### C.10.4 Workflow Service 与 Web IDE 时序
+
+```text
+Web IDE -> Workflow Service /workflows/validate
+        -> CloudFlow Runtime /api/v1/compile (X-PCD-Service-Token)
+        -> Pest Parser -> AST -> Semantic -> Workflow IR/diagnostics
+        -> Workflow Service 透传结构化位置与 cliOutput
+        -> Monaco markers + Problems + 多行安全终端
+```
+
+Workflow Service 通过 `cloudflow.runtime.compile-url` 配置完整编译地址；旧
+`pcd.cloudflow-runtime-url` 仅保留部署迁移兼容。Runtime 不可用时采用 fail-closed：草稿/发布不以
+“未校验”状态绕过门禁，并返回可恢复的 `CF-RUNTIME-UNAVAILABLE`。前端使用 Vue 文本插值（自动
+HTML 转义）显示 `cliOutput`，配合 `white-space: pre-wrap` 和长行换行；禁止用 `v-html` 渲染编译器
+消息。
+
+#### C.10.5 测试与发布门禁
+
+Rust 门禁为 `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test --locked`
+和双二进制 release build。测试矩阵覆盖严格关键字、控制流 AST、引用/类型/DAG、CLI 参数及 JSON/
+彩色输出、HTTP 鉴权/大小限制/健康探针、Demo golden 和 100 步工作流 500ms 编译预算。Java 覆盖
+Runtime 成功/422/不可用映射；Web 至少执行类型检查和生产构建。真实 MQ、数据库恢复、Plugin
+Runtime action adapter 和集群压测仍是独立的生产发布门禁，不得以单元测试结果代替。
+
+### C.11 合规修复落地结果与需求追踪（2026-08-02）
+
+| 需求 | 实现位置 | 当前验证 |
+|---|---|---|
+| 严格 Pest 语法、未知块聚合、大小写/字符串/表达式拒绝 | `grammar.pest`、`parser.rs` | 非法顶层/步骤块、错误关键字、括号、字符串、表达式用例通过 |
+| 完整 AST 与显式控制流 IR | `ast.rs`、`compiler.rs`、`ir.rs` | `if/foreach/while/parallel/try/catch/finally/wait/assert/retry/timeout` AST/IR 测试通过；顶层 flow 顺序保留 |
+| 引用、变量值、依赖、能力与 DAG 语义 | `semantic.rs`、`runtime.rs` | `$ref/$expr`、缺失依赖、循环、插件格式、`graph.edges` 调度回归通过 |
+| `cloudflowc` CLI | `src/bin/cloudflowc.rs` | compile、文件/`-i`、`-o`、target、check-only、explain、JSON、no-color、compact 测试通过 |
+| 结构化诊断 | `diagnostic.rs` | code/severity/category/location/source/suggestions/help/documentationUrl/cliOutput 由 CLI/HTTP 共用 |
+| Runtime HTTP | `http.rs`、`main.rs` | `/api/v1/compile`、execution start/status/pause/retry/cancel/logs、健康探针、令牌、1 MiB、30 秒、并发、CORS、SIGTERM 测试通过 |
+| Workflow Service 单一编译真源 | `CloudFlowRuntimeClient`、`CloudFlowRuntimeProperties` | Java 不解析 DSL；结构化诊断与多行 cliOutput 映射测试通过；不可用时 fail-closed |
+| Web IDE 多行错误与 Monaco 定位 | `PluginMonacoEditor.vue`、`BottomPanel.vue`、`WorkflowEditorView.vue` | Vue 文本插值防注入，`pre-wrap` 保留换行，外部诊断映射 marker；源码转画布以 Runtime IR 为真源；生产构建通过 |
+| 文档与 CI | Compiler Guide、Runtime README、CHANGELOG、合规审计、security workflow | CI 增加 fmt/clippy/test/release 双二进制门禁 |
+
+本地 Rust 测试共 21 项（含 Demo golden、公开 `.flow` 示例、HTTP/CORS/执行控制、`graph.edges` 调度和 100 步性能）；`cargo clippy
+--locked --all-targets --all-features -- -D warnings` 通过。Java Runtime 客户端和 DSL 委托测试 4
+项通过；Web 生产构建通过。真实 RabbitMQ Agent、持久化 State Store/Outbox/Inbox、能力服务和沙箱
+的集群联调仍属于发布环境验收，不能由本地编译测试替代；在这些门禁完成前，不宣称生产执行面已
+高可用。
+
+> **状态覆盖说明（2026-08-08）**：上面的 C.11 是 2026-08-02 的历史快照，不再代表当前实现。
+> 以附录 C.12 为准；本轮已经补齐 Runtime 的 MySQL State Store、RabbitMQ Inbox/Outbox、Tonic
+> Capability Agent、生产 Worker 和 Workflow Service 事务 Outbox，但真实基础设施/业务集群门禁
+> 以及部分 CloudFlow 控制流执行语义仍未通过，不能把设计完成等同于生产 SLA。
+
+### C.12 CloudFlow 生产执行面复审结果（2026-08-08）
+
+| 能力 | 当前代码事实 | 验证/发布边界 |
+|---|---|---|
+| 编译器与双二进制 | Pest、完整 AST/IR、结构化诊断、`cloudflowc`、`cloudflow-runtime` | Rust fmt/clippy、28 项默认测试、release build 门禁；MySQL/Rabbit 动态集成由 CI 显式运行 |
+| 持久化执行 | `src/persistence.rs` + `migrations/0001_cloudflow_runtime.sql`：执行/步骤检查点、心跳、stale recovery、日志、状态控制 | CI 用 MySQL 8.4 显式运行契约；本机未启动数据库，不能宣称故障注入完成 |
+| Event Bus | `src/broker.rs`：Lapin durable topic、command queue/DLQ、QoS、Inbox 去重、Outbox publisher confirm；基础设施异常按 `retry_count` 有界重投，3 次后进入 DLQ | CI RabbitMQ 3.13 契约；Broker 分区、重复/乱序压测仍是发布门禁 |
+| Capability Agent | `src/agent.rs`：Tonic server/client，Reqwest 代理到 Workflow Capability Hub；Workflow Service 按声明权限与当前授予权限交集校验 | loopback gRPC→HTTP mock 契约通过；真实 Platform/Plugin Sandbox 联调未完成 |
+| Java 控制面 | `WorkflowOutboxPublisher` 同事务领取/发布，`CloudFlowExecutionEventConsumer` 回写 accepted/completed；旧 Worker 默认关闭 | 6 个 Workflow Service 测试通过；节点级实时投影和永久删除旧 Worker 待灰度 |
+| 控制流执行 | Runtime 已执行 foreach（`max_parallel` 分批）、while（maxIterations）、try/catch/finally、assert 与 wait/resume；控制节点的子图不再被静态重复领取 | 真实 MySQL 动态控制流契约已纳入 CI；独立迭代 ID、真实 Platform/Plugin Sandbox 故障注入仍为生产门禁 |
+| 前端 IDE | Monaco 外部诊断、Problems、终端安全换行；源码/画布使用 Runtime IR | 2 个 CloudFlow Web 测试、生产构建通过；全仓历史 `vue-tsc` 错误需独立治理 |
+
+生产启动必须使用 `CLOUDFLOW_RUNTIME_MODE=production`，并配置 MySQL、RabbitMQ、gRPC Agent、
+Capability Hub URL 和 `PCD_INTERNAL_SERVICE_TOKEN`；缺失依赖时 Runtime fail-fast。`compiler` 模式
+仅用于 IDE/本地编译，不得接收生产执行流量。旧 `WorkflowExecutionWorker` 只能作为显式回滚开关，
+默认 `WORKFLOW_LEGACY_WORKER_ENABLED=false`，同一 execution_id 禁止双执行。
+
+### C.13 IDE 响应式工作区实施说明（2026-08-16）
+
+> **[IDE-RESP-2026-08]** 本节只补充显示层与触控交互承载；插件、工作流的保存、校验、发布、
+> `X-Space-Id` 注入与 Runtime 编译链不修改。详细断点、审计发现和验收矩阵见
+> [`IDE_RESPONSIVE_LAYOUT.md`](./IDE_RESPONSIVE_LAYOUT.md)。
+
+工作流 IDE、云插件 IDE 和本地插件 IDE 共用五档断点：小手机 `<480px`、大手机
+`480–768px`、平板 `768–1024px`、小桌面 `1024–1366px`、大桌面 `>1366px`。在桌面端继续使用
+可拖拽多面板；在 1024px 以下，文件/节点库、属性面板与输出面板均收起为带遮罩的抽屉，避免辅助
+UI 压缩画布或 Monaco。
+
+- 响应式令牌与媒体查询集中在 `PrivateCloudDisk-web/src/assets/ide-responsive.css`，并通过
+  `.pcd-ide-responsive` 根类隔离，防止作用到控制台和预览器。
+- 触摸端保留所有业务动作：手机工具栏只显示核心动作，发布、测试、导出和引导由“更多操作”底部
+  抽屉承载；不因视觉收纳删除权限校验或 API 调用。
+- Monaco 在手机宽度关闭 minimap、保持 14px 字号、自动换行；这属于 Monaco 运行时选项，不能仅以
+  CSS 隐藏。
+- 工作流节点继续以真实 SVG 外轮廓显示条件、触发、并行与断言；小屏只缩放尺寸与元数据密度，不
+  回退为旋转矩形。
+- 为无障碍保留浏览器缩放能力，不使用 `user-scalable=no`。所有手机交互控件使用最小 44px 命中区，
+  而不是以缩小图标换取布局空间。
+
+响应式构建通过后仍需在已登录会话中完成 iOS Safari、Android Chrome 和平板横竖屏的真机验收，
+特别覆盖 Runtime 校验、保存/发布、抽屉遮罩、键盘弹起、触摸缩放和安全区；前端生产构建与静态
+契约测试不等同于真实 Runtime/认证集成验收。

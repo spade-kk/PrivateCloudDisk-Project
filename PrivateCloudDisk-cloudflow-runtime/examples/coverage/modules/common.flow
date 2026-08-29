@@ -1,0 +1,4 @@
+# 覆盖目标：可复用公共步骤模块；模块不得声明 metadata、trigger 或 runtime。
+workflow "coverage_common" {
+    step shared_step { action builtin.file.list {} output shared_output }
+}

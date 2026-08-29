@@ -120,6 +120,28 @@ public interface ExecutionMapper {
 
     @Update("""
             UPDATE pcd_workflow_execution
+               SET status='RUNNING', started_at=COALESCE(started_at, CURRENT_TIMESTAMP(3)),
+                   heartbeat_at=CURRENT_TIMESTAMP(3)
+             WHERE execution_id=UUID_TO_BIN(#{executionId}) AND status='QUEUED'
+            """)
+    int markRuntimeAccepted(@Param("executionId") String executionId);
+
+    @Update("""
+            UPDATE pcd_workflow_execution
+               SET status=#{status}, ended_at=CURRENT_TIMESTAMP(3), heartbeat_at=NULL,
+                   current_step=NULL, error_code=#{errorCode}, error_summary=#{errorSummary}
+             WHERE execution_id=UUID_TO_BIN(#{executionId})
+               AND status IN ('QUEUED','RUNNING')
+            """)
+    int markRuntimeCompleted(
+            @Param("executionId") String executionId,
+            @Param("status") String status,
+            @Param("errorCode") String errorCode,
+            @Param("errorSummary") String errorSummary
+    );
+
+    @Update("""
+            UPDATE pcd_workflow_execution
                SET cancel_requested=1
              WHERE execution_id=UUID_TO_BIN(#{executionId})
                AND user_id=UUID_TO_BIN(#{userId})

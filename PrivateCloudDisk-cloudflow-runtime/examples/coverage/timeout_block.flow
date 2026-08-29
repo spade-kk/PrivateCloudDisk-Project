@@ -1,0 +1,8 @@
+# 覆盖目标：[V1.2-TIMEOUT-BLOCK] timeout 块：duration + on_timeout。
+# 预期：step 节点 timeout="30s"、onTimeout="fail"。
+workflow "timeout_block" {
+    step with_timeout {
+        action builtin.file.list {}
+        timeout { duration = 30s on_timeout = "fail" }
+    }
+}

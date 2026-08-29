@@ -1,0 +1,27 @@
+# 覆盖目标：算术、比较、逻辑、函数、成员访问和三元表达式。
+# 预期：所有复杂值使用结构化 $expr 而不是字符串。
+workflow "expression_complex" {
+    variables {
+        x: number = 8
+        y: number = 2
+        files: array = ["a", "b"]
+        options: object = {"region": "cn", "enabled": true}
+    }
+    step collect { action builtin.file.list {} output result }
+    step evaluate {
+        depends_on collect
+        condition {
+            vars.x > 5 && !(vars.y > 10) ||
+            size(vars.files) > 0 && contains(vars.files, "a") &&
+            starts_with(vars.options.region, "c") && ends_with("CloudFlow", "Flow") &&
+            vars.x / vars.y >= 4 && vars.x % vars.y == 0
+        }
+        action builtin.notification.send {
+            score = vars.x * 2 + vars.y
+            selected = vars.x > 5 ? "high" : "low"
+            file_count = size(vars.files)
+            upstream = steps.collect.output.files
+            typed_object = {"region": vars.options.region, "count": size(vars.files)}
+        }
+    }
+}

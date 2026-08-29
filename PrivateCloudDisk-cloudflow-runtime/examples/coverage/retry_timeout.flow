@@ -1,0 +1,9 @@
+# 覆盖目标：step retry 与 timeout。
+# 预期：retry.maxAttempts=3、strategy=exponential、timeout=30s。
+workflow "retry_timeout" {
+    step retryable {
+        action builtin.file.list {}
+        retry { max_attempts = 3 strategy = "exponential" }
+        timeout = 30s
+    }
+}

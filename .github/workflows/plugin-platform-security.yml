@@ -9,11 +9,15 @@ on:
       - 'PrivateCloudDisk-plugin-service/**'
       - 'PrivateCloudDisk-automation-service/**'
       - 'PrivateCloudDisk-plugin-runtime-service/**'
+      - 'PrivateCloudDisk-cloudflow-runtime/**'
+      - 'PrivateCloudDisk-workflow-service/**'
       - 'PrivateCloudDisk-storage-service/**'
       - 'PrivateCloudDisk-platform-service/**'
       - 'PrivateCloudDisk-gateway-service/**'
       - 'PrivateCloudDisk-web/**'
       - 'contracts/**'
+      - 'docs/CLOUDFLOW_*.md'
+      - 'docs/PLUGIN_AUTOMATION_PLATFORM_DESIGN.md'
       - 'docker-compose.yml'
       - '.github/workflows/plugin-platform-security.yml'
   push:
@@ -22,11 +26,15 @@ on:
       - 'PrivateCloudDisk-plugin-service/**'
       - 'PrivateCloudDisk-automation-service/**'
       - 'PrivateCloudDisk-plugin-runtime-service/**'
+      - 'PrivateCloudDisk-cloudflow-runtime/**'
+      - 'PrivateCloudDisk-workflow-service/**'
       - 'PrivateCloudDisk-storage-service/**'
       - 'PrivateCloudDisk-platform-service/**'
       - 'PrivateCloudDisk-gateway-service/**'
       - 'PrivateCloudDisk-web/**'
       - 'contracts/**'
+      - 'docs/CLOUDFLOW_*.md'
+      - 'docs/PLUGIN_AUTOMATION_PLATFORM_DESIGN.md'
 
 permissions:
   contents: read
@@ -103,6 +111,55 @@ jobs:
         working-directory: PrivateCloudDisk-plugin-runtime-service
         run: go test ./...
 
+  cloudflow-rust:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: cloudflow_test
+          MYSQL_DATABASE: pcd_cloudflow
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pcloudflow_test"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      rabbitmq:
+        image: rabbitmq:3.13-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: PrivateCloudDisk-cloudflow-runtime
+      - name: CloudFlow 格式、静态分析、测试与双二进制构建
+        working-directory: PrivateCloudDisk-cloudflow-runtime
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets --all-features -- -D warnings
+          cargo test --locked --all-features
+          # [CLOUDFLOW-COVERAGE-001] 覆盖样例必须逐个经 CLI 编译，并验证生成 IR 的 JSON Schema 契约。
+          ./scripts/verify_coverage.sh
+          CLOUDFLOW_TEST_DATABASE_URL='mysql://root:cloudflow_test@127.0.0.1:3306/pcd_cloudflow' \
+          CLOUDFLOW_TEST_RABBITMQ_URL='amqp://guest:guest@127.0.0.1:5672/%2f' \
+            cargo test --locked --test cloudflow_infrastructure_contract \
+              mysql_inbox_outbox_recovery_and_rabbit_command_are_integrated -- --ignored --exact
+          # [CLOUDFLOW-RUNTIME-CONTROL-001] foreach/try/catch/finally/wait 不能只靠内存单测；
+          # 必须在真实 MySQL 检查点上验证暂停、恢复和动态子任务的状态收敛。
+          CLOUDFLOW_TEST_DATABASE_URL='mysql://root:cloudflow_test@127.0.0.1:3306/pcd_cloudflow' \
+            cargo test --locked --test cloudflow_infrastructure_contract \
+              mysql_dynamic_controls_and_wait_resume_are_recoverable -- --ignored --exact
+          cargo test --locked --test cloudflow_agent_contract \
+            grpc_agent_proxies_to_capability_hub_and_keeps_security_context -- --ignored --exact
+          cargo build --release --locked --bins
+
   web:
     runs-on: ubuntu-latest
     steps:
@@ -116,6 +173,7 @@ jobs:
         working-directory: PrivateCloudDisk-web
         run: |
           npm ci
+          npm run test:cloudflow
           npx vue-tsc --noEmit
           npm run build
 

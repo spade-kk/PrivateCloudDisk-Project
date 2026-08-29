@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -32,6 +33,8 @@ import java.util.regex.Pattern;
 
 /** 数据库检查点驱动的工作流 Worker；进程退出后从已提交步骤恢复。 */
 @Service
+@Deprecated(forRemoval = true)
+@ConditionalOnProperty(name = "pcd.worker.enabled", havingValue = "true")
 public class WorkflowExecutionWorker {
     private static final Logger log = LoggerFactory.getLogger(WorkflowExecutionWorker.class);
     private static final Pattern EXACT_EXPRESSION = Pattern.compile("^\\$\\{\\{\\s*([^}]+?)\\s*}}$");

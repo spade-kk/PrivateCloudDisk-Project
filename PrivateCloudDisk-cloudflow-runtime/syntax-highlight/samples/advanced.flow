@@ -1,0 +1,47 @@
+# 高级示例：覆盖 V1.2 新增语法（switch / for / parallel / notify / validate / 管道 / 插值 / 注解）
+import "common.flow" as common
+namespace com.example.workflows
+tag "finance"
+audit { level = "high"; description = "关键对账流程" }
+
+workflow "advanced" {
+    environment { NODE_ENV = "production" }
+    trigger {
+        interval = 5m
+        http { path = "/webhook/start"; method = "POST" }
+    }
+    runtime { retry_policy { max_attempts = 3; strategy = "exponential" } }
+    steps {
+        step group aggregation {
+            step collect { action data.fetch { query = vars.query } }
+            step filter_hot {
+                action data.transform {
+                    value = vars.rows | filter(size > 100) | map(name) | reduce(join)
+                }
+            }
+        }
+        step branch {
+            switch vars.status {
+                case "active" => { delay 1s }
+                case "inactive" => { notify { channel = "email"; to = vars.user_id } }
+                default => { assert vars.ok == true }
+            }
+        }
+        step loop {
+            for i in range(0, vars.max) {
+                if vars.skip != true { break }
+                continue
+            }
+        }
+        step fan {
+            parallel(max_concurrency = 3) {
+                step a { action svc.a {} }
+                step b { action svc.b {} }
+            }
+        }
+        step guard {
+            expect { vars.result > 0 }
+            on_error { notify { channel = "sms"; message = "失败" } }
+        }
+    }
+}

@@ -2,7 +2,12 @@
   <div class="repository-shell min-h-screen bg-[#f6f8fa] text-[#1f2328]">
     <header class="repository-header border-b border-[#d0d7de] bg-white">
       <div class="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-4 lg:px-8">
-        <button class="repo-icon-button" aria-label="返回" @click="router.back()"><i class="fa fa-arrow-left"></i></button>
+        <!-- [REQ-PUBLIC-REPOSITORY-3.1/3.25] 使用确定的控制台、探索入口替代仅依赖浏览器历史的返回按钮。 -->
+        <router-link class="repo-icon-button inline-flex items-center justify-center" to="/app" aria-label="返回控制面板"><i class="fa fa-cube"></i></router-link>
+        <nav class="order-3 flex w-full items-center gap-1 overflow-x-auto text-xs sm:order-none sm:w-auto sm:text-sm" aria-label="公开仓库导航">
+          <router-link class="rounded-md px-2.5 py-1.5 text-[#57606a] hover:bg-[#f6f8fa] hover:text-[#0969da]" to="/app"><i class="fa fa-arrow-left mr-1"></i>我的网盘</router-link>
+          <router-link class="rounded-md px-2.5 py-1.5 text-[#57606a] hover:bg-[#f6f8fa] hover:text-[#0969da]" to="/explore">探索仓库</router-link>
+        </nav>
         <button class="owner-avatar" :title="`进入 ${repository.ownerName} 的主页`" @click="router.push(`/user/${encodeURIComponent(repository.ownerName)}`)">
           <img v-if="repository.ownerAvatar" :src="repository.ownerAvatar" alt="" />
           <span v-else>{{ repository.ownerName?.slice(0, 1) || '?' }}</span>
@@ -20,6 +25,7 @@
           <button class="repo-action-button" title="即将支持" disabled><i class="fa fa-star-o mr-1"></i>Star</button>
           <button class="repo-action-button" title="即将支持" disabled><i class="fa fa-code-fork mr-1"></i>Fork</button>
           <button v-if="isOwner" class="repo-action-button primary" @click="router.push(`/repo/${spaceId}/settings`)"><i class="fa fa-cog mr-1"></i>设置</button>
+          <button v-if="authStore.user && !isOwner" class="repo-action-button" @click="router.push(`/repo/${spaceId}/settings`)"><i class="fa fa-key mr-1"></i>Git 凭证</button>
         </div>
       </div>
     </header>
@@ -29,6 +35,14 @@
         {{ pageError }}
         <button class="ml-3 underline" @click="reloadPage">重新加载</button>
       </div>
+      <GitRepositoryPanel
+        v-if="repository.resourceType === 'git'"
+        :space-id="spaceId"
+        :space-name="repository.spaceName"
+        :description="repository.description"
+        :is-owner="isOwner"
+      />
+      <template v-else>
       <nav class="repo-tabs mb-5" aria-label="仓库导航">
         <button :class="{ active: activeTab === 'files' }" @click="activeTab = 'files'"><i class="fa fa-code-fork mr-2"></i>文件</button>
         <button :class="{ active: activeTab === 'readme' }" @click="activeTab = 'readme'; loadReadme()"><i class="fa fa-book mr-2"></i>README</button>
@@ -126,6 +140,7 @@
           <p class="mt-1 text-xs text-[#57606a]">创建于 {{ formatDate(repository.createdAt) }}</p>
         </aside>
       </div>
+      </template>
     </main>
   </div>
 </template>
@@ -135,6 +150,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import MarkdownPreview from '@/components/preview/MarkdownPreview.vue'
+import GitRepositoryPanel from './GitRepositoryPanel.vue'
 import { fetchPreviewContentBlob } from '@/api/modules/previewContent'
 import { getPublicSpaceApi, getPublicSpaceChildrenApi, getPublicSpaceReadmeApi, getPublicSpaceRootApi, type PublicSpaceDetail, type PublicSpaceNode } from '@/api/modules/publicSpaces'
 import { createPublicUploadSessionApi } from '@/api/modules/publicSpaces'
@@ -145,7 +161,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const spaceId = String(route.params.spaceId)
-const repository = ref<PublicSpaceDetail>({ spaceId, spaceName: '加载中…', ownerId: '', ownerName: '', allowPublicBrowse: true, allowPublicDownload: true, allowPublicUpload: false, fileCount: 0, usedBytes: 0 })
+const repository = ref<PublicSpaceDetail>({ spaceId, spaceName: '加载中…', ownerId: '', ownerName: '', allowPublicBrowse: true, allowPublicDownload: true, allowPublicUpload: false, fileCount: 0, usedBytes: 0, resourceType: 'file' })
 const activeTab = ref<'files' | 'readme'>('files')
 const rootNode = ref<PublicSpaceNode | null>(null)
 const currentNode = ref<PublicSpaceNode | null>(null)
@@ -178,7 +194,7 @@ onMounted(async () => {
     await authStore.fetchUserInfo()
     const detail = await getPublicSpaceApi(spaceId)
     repository.value = detail.data
-    if (detail.data.allowPublicBrowse) {
+    if (detail.data.resourceType !== 'git' && detail.data.allowPublicBrowse) {
       const rootResponse = await getPublicSpaceRootApi(spaceId)
       rootNode.value = rootResponse.data
       await openDirectory(rootResponse.data)

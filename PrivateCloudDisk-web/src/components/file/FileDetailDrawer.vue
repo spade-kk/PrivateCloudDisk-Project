@@ -13,7 +13,11 @@
         </div>
         <div class="p-4 space-y-4">
           <div class="flex justify-center">
-            <i :class="['fa', iconClass, 'text-6xl']"></i>
+            <FileTypeIcon
+              :file-name="node?.node_name || ''"
+              :is-directory="node?.node_type === 'FOLDER'"
+              class="text-6xl"
+            />
           </div>
           <div class="space-y-2">
             <div><label class="text-neutral-500 text-sm">文件名</label><p class="font-medium break-all">{{ node?.node_name }}</p></div>
@@ -59,8 +63,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { formatFileSize, getFileExtension, formatTime } from '@/utils/helpers'
-import { getFileIconClass } from '@/utils/fileIcon'
 import { useRouter } from 'vue-router'
+import FileTypeIcon from './FileTypeIcon.vue'
 import TagBadge from '@/components/tag/TagBadge.vue'
 import TagPickerDialog from '@/components/tag/TagPickerDialog.vue'
 import { useTagStore } from '@/stores/tagStore'
@@ -93,8 +97,6 @@ watch(
   },
   { immediate: true },
 )
-
-const iconClass = computed(() => getFileIconClass(props.node?.node_name || ''))
 
 const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v', 'ts', 'm3u8']
 

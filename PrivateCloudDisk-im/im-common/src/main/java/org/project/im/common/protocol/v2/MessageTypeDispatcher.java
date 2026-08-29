@@ -37,7 +37,7 @@ import java.util.function.Function;
  *   ├── LOCATION→ LocationPayloadCodec → LocationPayload
  *   ├── SYSTEM  → SystemPayloadCodec → SystemPayload
  *   ├── CALL    → CallPayloadCodec → CallPayload
- *   ├── ACK     → AckPayloadCodec → AckPayload
+ *   ├── RECEIPT → ReceiptPayloadCodec → ReceiptPayload
  *   └── ...     → CustomPayloadCodec → CustomPayload
  * </pre>
  * <p>
@@ -95,9 +95,9 @@ public class MessageTypeDispatcher {
         register(IMProtocolV2.IMMessageType.MSG_TYPING,
                 new PayloadCodec<>("TYPING", IMProtocolV2.TypingPayload.class,
                         wrapParser(IMProtocolV2.TypingPayload::parseFrom)));
-        register(IMProtocolV2.IMMessageType.ACK,
-                new PayloadCodec<>("ACK", IMProtocolV2.AckPayload.class,
-                        wrapParser(IMProtocolV2.AckPayload::parseFrom)));
+        register(IMProtocolV2.IMMessageType.RECEIPT,
+                new PayloadCodec<>("RECEIPT", IMProtocolV2.ReceiptPayload.class,
+                        wrapParser(IMProtocolV2.ReceiptPayload::parseFrom)));
         register(IMProtocolV2.IMMessageType.CUSTOM,
                 new PayloadCodec<>("CUSTOM", IMProtocolV2.CustomPayload.class,
                         wrapParser(IMProtocolV2.CustomPayload::parseFrom)));
@@ -120,18 +120,19 @@ public class MessageTypeDispatcher {
     public static DispatchedMessage dispatch(IMProtocolV2.IMEnvelope envelope, IMSessionKeys sessionKeys) {
         IMProtocolV2.IMMessageType messageType = envelope.getMessageType();
 
+        // 无加密负载的消息类型（HEARTBEAT, TYPING 等）
+        // 必须在此检查 codec 之前，因为部分消息类型（如 HEARTBEAT）没有注册 codec
+        if (envelope.getEncryptedPayload().isEmpty()) {
+            log.debug("No encrypted payload for message type: {}", messageType);
+            return new DispatchedMessage(envelope, null);
+        }
+
         // 查找 Codec
         @SuppressWarnings("unchecked")
         PayloadCodec<Message> codec = (PayloadCodec<Message>) codecRegistry.get(messageType);
         if (codec == null) {
             throw new DispatchException("Unsupported message type: " + messageType
                     + " (code=" + messageType.getNumber() + ")");
-        }
-
-        // 无加密负载的消息类型（HEARTBEAT, ACK, TYPING 等）
-        if (envelope.getEncryptedPayload().isEmpty()) {
-            log.debug("No encrypted payload for message type: {}", messageType);
-            return new DispatchedMessage(envelope, null);
         }
 
         // Layer 2 解密
@@ -152,6 +153,8 @@ public class MessageTypeDispatcher {
                     + " — " + e.getMessage(), e);
         } catch (InvalidProtocolBufferException e) {
             throw new DispatchException("Payload protobuf parse failed for type: " + messageType, e);
+        } catch (Exception e) {
+            throw new DispatchException("Layer 2 decryption failed for type: " + messageType, e);
         }
     }
 
@@ -191,6 +194,42 @@ public class MessageTypeDispatcher {
                 com.google.protobuf.ByteString.copyFrom(encrypted.combined()));
 
         return envelopeBuilder.build();
+    }
+
+    /**
+     * 从原始（明文）Payload 字节构造双层加密的 Envelope。
+     * <p>
+     * 用于服务端下发消息：IM Business 将消息负载以明文 Protobuf 字节携带在
+     * Envelope 的 {@code encrypted_payload} 中，IM Server 推送前调用此方法，
+     * 依据 {@code messageType} 找到对应 PayloadCodec，完成 Layer 2 加密。
+     * 若 messageType 未注册或 payload 为空，则原样返回。
+     * </p>
+     *
+     * @param envelopeBuilder IMEnvelope Builder（需已设置 message_type）
+     * @param payloadBytes    明文负载 Protobuf 字节
+     * @param sessionKeys     会话密钥（用于派生 Layer 2 密钥）
+     * @return 填充了 Layer 2 加密负载的 Envelope
+     */
+    public static IMProtocolV2.IMEnvelope encodePayloadFromBytes(
+            IMProtocolV2.IMEnvelope.Builder envelopeBuilder,
+            byte[] payloadBytes,
+            IMSessionKeys sessionKeys) {
+        if (payloadBytes == null || payloadBytes.length == 0) {
+            return envelopeBuilder.build();
+        }
+        IMProtocolV2.IMMessageType type = envelopeBuilder.getMessageType();
+        @SuppressWarnings("unchecked")
+        PayloadCodec<Message> codec = (PayloadCodec<Message>) codecRegistry.get(type);
+        if (codec == null) {
+            // 未注册的消息类型：不加密负载，保持原样
+            return envelopeBuilder.build();
+        }
+        try {
+            Message payload = codec.parsePayload(payloadBytes);
+            return encodePayload(envelopeBuilder, payload, sessionKeys);
+        } catch (InvalidProtocolBufferException e) {
+            throw new DispatchException("Payload protobuf parse failed for type: " + type, e);
+        }
     }
 
     /**

@@ -14,6 +14,13 @@ public class SpaceEntity implements Serializable {
     private UUID spaceId;
     private String spaceName;
     private String spaceType;
+    /**
+     * [REQ-GIT-SPACE-2.2] 空间挂载的资源实现类型。
+     * 原行为：public 空间隐式等同文件仓库；新行为：空间只负责身份、成员和策略，
+     * file/git 由资源提供者实现。历史记录由数据库默认值继续解析为 file。
+     * 影响范围：公开空间详情、资源初始化与 Git Service 授权，不改变既有 spaceType 语义。
+     */
+    private String resourceType;
     private UUID spaceOwnerId;
     private Long spaceQuota;
     private Long spaceUsed;

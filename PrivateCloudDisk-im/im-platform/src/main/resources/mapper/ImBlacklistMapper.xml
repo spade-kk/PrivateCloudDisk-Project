@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.im.platform.mapper.ImBlacklistMapper">
+    <resultMap id="BaseResultMap" type="org.project.im.platform.entity.ImBlacklist">
+        <id column="id" property="id"/><result column="user_id" property="userId"/>
+        <result column="blocked_user_id" property="blockedUserId"/><result column="created_at" property="createdAt"/>
+    </resultMap>
+    <insert id="insertIgnore" parameterType="org.project.im.platform.entity.ImBlacklist">
+        INSERT IGNORE INTO pcd_im_blacklist (user_id,blocked_user_id,created_at)
+        VALUES (#{userId},#{blockedUserId},#{createdAt})
+    </insert>
+    <delete id="delete">DELETE FROM pcd_im_blacklist WHERE user_id=#{userId} AND blocked_user_id=#{blockedUserId}</delete>
+    <select id="exists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM pcd_im_blacklist WHERE user_id=#{userId} AND blocked_user_id=#{blockedUserId})</select>
+    <select id="selectByUserId" resultMap="BaseResultMap">SELECT id,user_id,blocked_user_id,created_at FROM pcd_im_blacklist WHERE user_id=#{userId} ORDER BY created_at DESC</select>
+</mapper>

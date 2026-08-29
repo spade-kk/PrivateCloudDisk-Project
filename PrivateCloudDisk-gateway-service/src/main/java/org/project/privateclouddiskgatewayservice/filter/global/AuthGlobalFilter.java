@@ -58,6 +58,25 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             new ExcludedPath("/api/v1/business/verification-code/register/resend", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/client/register-challenge", "POST"),             // 客户端注册挑战值
             new ExcludedPath("/api/v1/client/register", "POST"),                       // 客户端注册
+            /*
+             * [REQ-GIT-AUDIT-2.1~2.50/4.16] 原行为仅放行三条 Smart HTTP 路径，
+             * HEAD 与只读 dumb HTTP object/pack/refs 请求会被 Gateway JWT 拦截，
+             * 造成标准 Git CLI 与代理缓存兼容性断裂。新行为仅放行 .git 协议根下的
+             * GET/HEAD 和两条 Smart RPC POST，以及让 Git Service 明确拒绝的 object PUT；
+             * 所有 PAT、匿名公开读取、隐藏仓库掩码和写权限仍由 git-service 统一校验。
+             * /api/v1/git/repos/** 管理 API 不在白名单，继续使用 Gateway JWT。
+             */
+            new ExcludedPath("/api/v1/git/*.git/**", "GET"),
+            new ExcludedPath("/api/v1/git/*.git/**", "HEAD"),
+            new ExcludedPath("/api/v1/git/*.git/git-upload-pack", "POST"),
+            new ExcludedPath("/api/v1/git/*.git/git-receive-pack", "POST"),
+            new ExcludedPath("/api/v1/git/*.git/objects/**", "PUT"),
+            // [REQ-GIT-HTTP-4.7] 兼容标准 Git URL https://domain/git/{repo}.git；管理 API 仍保留 /api/v1 前缀。
+            new ExcludedPath("/git/*.git/**", "GET"),
+            new ExcludedPath("/git/*.git/**", "HEAD"),
+            new ExcludedPath("/git/*.git/git-upload-pack", "POST"),
+            new ExcludedPath("/git/*.git/git-receive-pack", "POST"),
+            new ExcludedPath("/git/*.git/objects/**", "PUT"),
             new ExcludedPath("/api/v1/business/admin/**", "*"),                        // 管理员接口（由 AdminGatewayFilter 处理）
             new ExcludedPath("/ws/**", "*")                                             // im websocket协议服务 方向代理路径地址 不需要网关鉴权直接放行下游
     );

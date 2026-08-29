@@ -28,7 +28,7 @@
       <!-- 内容 -->
       <div class="finder-content">
         <div class="finder-icon">
-          <!-- 图片/视频文件：使用缩略图，失败回退字体图标 -->
+          <!-- 缩略图失败由 ThumbnailImage 统一回退 FileTypeIcon。 -->
           <template v-if="node.node_type === 'FILE' && isThumbnailable(node.node_name)">
             <ThumbnailImage
               :file-id="node.node_id"
@@ -37,11 +37,13 @@
               icon-size="2rem"
             />
           </template>
-          <!-- 文件夹 / 非图片非视频文件：使用字体图标 -->
-          <i
+          <!-- 文件夹 / 非缩略图文件：与列表视图共用同一套类型目录。 -->
+          <FileTypeIcon
             v-else
-            :class="['fa', iconClass(node), node.node_type === 'FOLDER' ? 'fa-folder text-primary text-3xl' : 'text-2xl sm:text-3xl']"
-          ></i>
+            :file-name="node.node_name"
+            :is-directory="node.node_type === 'FOLDER'"
+            :class="node.node_type === 'FOLDER' ? 'text-4xl text-primary' : 'text-2xl sm:text-4xl'"
+          />
         </div>
         <h3 class="finder-name text-ellipsis-2">{{ node.node_name }}</h3>
         <p class="finder-meta">{{ node.node_type === 'FOLDER' ? '文件夹' : getFileExtension(node.node_name) }}</p>
@@ -72,15 +74,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { getFileExtension } from '@/utils/helpers'
-import { getFileIconClass } from '@/utils/fileIcon'
 import { isImage, isOffice, isPdf, isVideo } from '@/utils/previewHelper'
 import ThumbnailImage from './ThumbnailImage.vue'
+import FileTypeIcon from './FileTypeIcon.vue'
+import { getFileIconClass } from '@/utils/fileIcon'
 import FileHoverPreview from './FileHoverPreview.vue'
 import FileTagBubble from '@/components/tag/FileTagBubble.vue'
 import type { TagVO } from '@/api/modules/tags'
 
 interface FileNode { node_id: string; node_name: string; node_type: string; node_size?: number }
-
+const iconClass = (node: FileNode) => getFileIconClass(node.node_name)
 const props = withDefaults(defineProps<{
   nodes: FileNode[]
   selectedIds?: Set<string>
@@ -94,11 +97,8 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits(['itemClick', 'selection-change', 'action', 'star', 'contextmenu'])
 
-const iconClass = (node: FileNode) => getFileIconClass(node.node_name)
 const isSelected = (id: string) => props.selectedIds.has(id)
 const isStarred = (id: string) => props.starredIds.has(id)
-const isImageFile = (fileName: string) => isImage(fileName)
-const isVideoFile = (fileName: string) => isVideo(fileName)
 // AUDIT FIX [2.3/5.6]：仅将已有图片产物的图片、视频、PDF、Office 纳入缩略图和悬停预览。
 const isThumbnailable = (fileName: string) =>
   isImage(fileName) || isVideo(fileName) || isPdf(fileName) || isOffice(fileName)

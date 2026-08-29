@@ -1,159 +1,132 @@
 package org.project.im.platform.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.project.im.common.dto.ConversationDTO;
 import org.project.im.common.dto.Result;
+import org.project.im.platform.client.PlatformUserDirectoryClient;
 import org.project.im.platform.entity.ImConversation;
+import org.project.im.platform.entity.ImGroup;
 import org.project.im.platform.mapper.ImConversationMapper;
+import org.project.im.platform.mapper.ImFriendshipMapper;
+import org.project.im.platform.mapper.ImGroupMapper;
+import org.project.im.platform.mapper.ImGroupMemberMapper;
 import org.project.im.platform.service.ConversationService;
+import org.project.im.platform.service.ConversationSummaryCache;
+import org.project.im.platform.util.ConversationIdGenerator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * 会话服务实现
- * <p>
- * 会话的核心处理逻辑：
- * <ul>
- *   <li>创建/获取会话：单聊会话 ID 由双方 userId 排序后生成，确保唯一性</li>
- *   <li>会话列表：按最后消息时间倒序排列</li>
- *   <li>置顶/免打扰：更新会话元数据</li>
- * </ul>
- * </p>
+ * 会话元数据服务。
  *
- * @author PrivateCloudDisk Team
- * @since 1.0.0
+ * <p>AUDIT FIX [5.1-5.8] / IM-EMOJI-SESSION-20260810：原实现可由任意前端接口
+ * 创建或全局删除会话，且单条记录覆盖双方元数据。新行为只提供查询与个人置顶/免打扰；会话
+ * 仅由好友接受和群组加入的事务内部创建，摘要由 Redis 组装。</p>
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ConversationServiceImpl implements ConversationService {
 
     private final ImConversationMapper conversationMapper;
+    private final ConversationSummaryCache summaryCache;
+    private final ImFriendshipMapper friendshipMapper;
+    private final ImGroupMapper groupMapper;
+    private final ImGroupMemberMapper groupMemberMapper;
+    private final PlatformUserDirectoryClient userDirectoryClient;
+
+    @Override
+    public Result<ConversationDTO> getExistingConversation(String userId, String peerId, int conversationType) {
+        ImConversation conversation = conversationMapper.selectByUserIdAndPeerId(userId, peerId, conversationType);
+        return conversation == null ? Result.error(1011, "会话不存在") : Result.success(toDTO(conversation));
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Result<ConversationDTO> getOrCreateConversation(String userId, String targetId,
-                                                            int conversationType) {
-        // 生成确定性的会话 ID（单聊用双方 userId 排序生成）
-        String conversationId = generateConversationId(userId, targetId, conversationType);
-
-        ImConversation conversation = conversationMapper.selectByConversationId(conversationId);
-        if (conversation != null) {
-            return Result.success(convertToDTO(conversation));
+    public void ensureConversationForParticipants(String userId, String peerId, int conversationType) {
+        String sessionId = ConversationIdGenerator.generate(userId, peerId, conversationType);
+        ensureOne(sessionId, userId, peerId, conversationType);
+        if (conversationType == ConversationIdGenerator.SINGLE) {
+            ensureOne(sessionId, peerId, userId, conversationType);
         }
-        // 创建新会话
-        LocalDateTime now = LocalDateTime.now();
-        conversation = ImConversation.builder()
-                .conversationId(conversationId)
-                .conversationType(conversationType)
-                .userId(userId)
-                .targetId(targetId)
-                .unreadCount(0)
-                .isTop(false)
-                .isMuted(false)
-                .status(0)
-                .createTime(now)
-                .updateTime(now)
-                .build();
-        conversationMapper.insert(conversation);
-
-        log.info("会话创建成功: conversationId={}, userId={}, targetId={}", conversationId, userId, targetId);
-        return Result.success(convertToDTO(conversation));
     }
 
     @Override
     public Result<List<ConversationDTO>> getConversations(String userId) {
-        List<ImConversation> conversations = conversationMapper.selectByUserId(userId);
-        List<ConversationDTO> dtoList = conversations.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return Result.success(dtoList);
+        return Result.success(conversationMapper.selectByUserId(userId).stream().map(this::toDTO).toList());
     }
 
     @Override
-    public Result<ConversationDTO> getConversationDetail(String conversationId) {
-        ImConversation conversation = conversationMapper.selectByConversationId(conversationId);
-        if (conversation == null) {
-            return Result.error(1011, "会话不存在");
-        }
-        return Result.success(convertToDTO(conversation));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Result<Void> deleteConversation(String conversationId, String userId) {
-        ImConversation conversation = conversationMapper.selectByConversationId(conversationId);
-        if (conversation == null) {
-            return Result.error(1011, "会话不存在");
-        }
-        conversationMapper.softDelete(conversationId);
-
-        log.info("会话删除: conversationId={}, userId={}", conversationId, userId);
-        return Result.success(null);
+    public Result<ConversationDTO> getConversationDetail(String conversationId, String userId) {
+        ImConversation conversation = conversationMapper.selectBySessionIdAndUserId(conversationId, userId);
+        return conversation == null ? Result.error(1011, "会话不存在") : Result.success(toDTO(conversation));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> topConversation(String conversationId, String userId, boolean isTop) {
-        conversationMapper.updateTopStatus(conversationId, isTop);
-        return Result.success(null);
+        return conversationMapper.updatePinned(conversationId, userId, isTop) == 1
+                ? Result.success(null) : Result.error(1011, "会话不存在");
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> muteConversation(String conversationId, String userId, boolean isMuted) {
-        conversationMapper.updateMuteStatus(conversationId, isMuted);
-        return Result.success(null);
+        return conversationMapper.updateMuted(conversationId, userId, isMuted) == 1
+                ? Result.success(null) : Result.error(1011, "会话不存在");
     }
 
     @Override
     public Result<Integer> getTotalUnreadCount(String userId) {
-        int count = conversationMapper.selectTotalUnreadCount(userId);
-        return Result.success(count);
+        return Result.success(summaryCache.getTotalUnread(conversationMapper.selectByUserId(userId)));
     }
 
-    // ==================== 私有方法 ====================
+    private void ensureOne(String sessionId, String userId, String peerId, int sessionType) {
+        if (conversationMapper.selectBySessionIdAndUserId(sessionId, userId) != null) return;
+        LocalDateTime now = LocalDateTime.now();
+        conversationMapper.insert(ImConversation.builder().sessionId(sessionId).sessionType(sessionType).userId(userId)
+                .peerId(peerId).isPinned(false).isMuted(false).createdAt(now).updatedAt(now).build());
+    }
 
-    /**
-     * 生成会话 ID
-     * <p>
-     * 单聊：双方 userId 排序后拼接，确保 A-B 和 B-A 的会话 ID 一致
-     * 群聊：使用 groupId 直接作为会话 ID
-     * </p>
-     */
-    private String generateConversationId(String userId, String targetId, int conversationType) {
-        if (conversationType == 1) {
-            // 单聊：userId 排序后拼接
-            return userId.compareTo(targetId) < 0
-                    ? userId + "_" + targetId
-                    : targetId + "_" + userId;
+    private ConversationDTO toDTO(ImConversation conversation) {
+        ConversationSummaryCache.Summary summary = summaryCache.getOrLoad(conversation);
+        org.project.im.platform.entity.ImFriendship friendship = conversation.getSessionType() == ConversationIdGenerator.SINGLE
+                ? friendshipMapper.selectByUsers(conversation.getUserId(), conversation.getPeerId()) : null;
+        boolean canSend = conversation.getSessionType() == ConversationIdGenerator.SINGLE
+                ? friendship != null && friendship.getStatus() == 0
+                // GROUP-CHAT-20260810 [2.18/3.21/5.14]：群解散后继续保留群会话和
+                // 历史消息，但输入框必须置灰。旧行为只看成员表；新行为同时确认群仍为正常状态。
+                : groupMapper.selectByGroupId(conversation.getPeerId()) != null
+                && groupMemberMapper.existsByGroupIdAndUserId(conversation.getPeerId(), conversation.getUserId()) > 0;
+        String status = canSend ? "ACTIVE" : conversation.getSessionType() == ConversationIdGenerator.SINGLE
+                ? "FRIEND_REMOVED" : "GROUP_LEFT";
+        // PRIVATE-CHAT-20260810 [2.1/3.1/7.4]：会话表只保存关系元数据，昵称和头像必须
+        // 通过主业务用户目录补全，避免 IM 直接访问用户信息表；目录不可用时保留 peerId
+        // 作为稳定降级展示值，不影响历史消息、未读数和发送链路。
+        String conversationName = conversation.getPeerId();
+        String avatar = null;
+        if (conversation.getSessionType() == ConversationIdGenerator.SINGLE) {
+            PlatformUserDirectoryClient.PublicProfile profile = userDirectoryClient
+                    .findPublicProfile(conversation.getPeerId(), conversation.getUserId()).orElse(null);
+            if (profile != null) {
+                conversationName = profile.username() == null || profile.username().isBlank()
+                        ? profile.account() : profile.username();
+                avatar = profile.avatarPath();
+            }
+        } else {
+            ImGroup group = groupMapper.selectByGroupId(conversation.getPeerId());
+            if (group != null) {
+                conversationName = group.getGroupName();
+                avatar = group.getAvatar();
+            }
         }
-        // 群聊
-        return targetId;
-    }
-
-    /**
-     * 实体转 DTO
-     */
-    private ConversationDTO convertToDTO(ImConversation conversation) {
-        return ConversationDTO.builder()
-                .conversationId(conversation.getConversationId())
-                .conversationType(conversation.getConversationType())
-                .userId(conversation.getUserId())
-                .targetId(conversation.getTargetId())
-                .lastMessage(conversation.getLastMessage())
-                .lastMessageType(conversation.getLastMessageType())
-                .lastMessageTime(conversation.getLastMessageTime())
-                .unreadCount(conversation.getUnreadCount())
-                .isTop(conversation.getIsTop())
-                .isMuted(conversation.getIsMuted())
-                .createTime(conversation.getCreateTime())
-                .updateTime(conversation.getUpdateTime())
-                .build();
+        return ConversationDTO.builder().conversationId(conversation.getSessionId()).conversationType(conversation.getSessionType())
+                .conversationName(conversationName).avatar(avatar)
+                .userId(conversation.getUserId()).targetId(conversation.getPeerId()).lastMessage(summary.lastMessage())
+                .lastMessageType(summary.lastMessageType()).lastMessageTime(summary.lastMessageTime())
+                .unreadCount(summary.unreadCount()).isTop(conversation.getIsPinned()).isMuted(conversation.getIsMuted())
+                .canSend(canSend).sessionStatus(status).createTime(conversation.getCreatedAt()).updateTime(conversation.getUpdatedAt()).build();
     }
 }

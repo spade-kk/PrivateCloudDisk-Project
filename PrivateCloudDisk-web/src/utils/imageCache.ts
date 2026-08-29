@@ -187,6 +187,14 @@ class ImageCacheManager {
     this.removeEntry(url)
   }
 
+  /**
+   * 释放已经确认无法被浏览器解码的 object URL。
+   * AUDIT FIX [7.7/7.17/7.24]：避免坏 Blob 留在 LRU 中，下一次重试继续拿到空白图。
+   */
+  evictUrl(url: string): void {
+    this.removeEntry(url)
+  }
+
   evictOriginal(fileId: string, spaceId?: string): void {
     this.removeEntry(this.buildOriginalKey(fileId, spaceId))
   }
@@ -287,6 +295,12 @@ class ImageCacheManager {
 
     // axios blob 响应：response.data 是 Blob
     const blob: Blob = response.data
+    if (!blob || blob.size === 0) {
+      throw new Error('thumbnail response is empty')
+    }
+    if (blob.type.includes('json') || blob.type.includes('text/html')) {
+      throw new Error(`thumbnail response is not an image: ${blob.type}`)
+    }
     return blob
   }
 

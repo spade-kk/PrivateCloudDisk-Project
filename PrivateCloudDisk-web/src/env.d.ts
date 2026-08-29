@@ -17,6 +17,8 @@ interface ImportMetaEnv {
   readonly VITE_MAX_CONCURRENT_FILES: string
   readonly VITE_MAX_CONCURRENT_DOWNLOADS: string
   readonly VITE_UPLOAD_THRESHOLD: string
+  /** GIPHY 平台表情目录 API Key；未配置时仅展示本地已缓存或收藏的表情。 */
+  readonly VITE_GIPHY_API_KEY?: string
   /** Web 本地插件客户端注册白名单标识，生产环境应与注册服务配置一致。 */
   readonly VITE_WEB_PLUGIN_APP_ID?: string
   /** Web 客户端版本，用于本地插件兼容性分发。 */

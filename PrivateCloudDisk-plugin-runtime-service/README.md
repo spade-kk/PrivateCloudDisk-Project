@@ -20,6 +20,6 @@
 ## 快速开始
 
     go test ./...
-    go run ./cmd/runtime
+    PCD_INTERNAL_SERVICE_TOKEN=test go run ./cmd/runtime
 
 生产部署参考 deploy/ 下的 unit、sandbox 和环境变量示例。

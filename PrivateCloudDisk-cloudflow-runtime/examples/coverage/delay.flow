@@ -1,0 +1,7 @@
+# 覆盖目标：[V1.2-DELAY] 固定延迟步骤。
+# 预期：IR 生成 node_type=delay 的节点，delayMs=2000；顶层顺序屏障保持 first -> delay -> second。
+workflow "delay" {
+    step first { action builtin.file.list {} }
+    delay 2s
+    step second { action builtin.file.save {} }
+}

@@ -3,21 +3,27 @@ package org.project.workflow.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.project.workflow.config.WorkflowProperties;
+import org.project.workflow.client.PlatformAuthorizationClient;
+import org.project.workflow.exception.WorkflowApiException;
+import org.project.workflow.model.WorkflowModels.AgentCapabilityInvocation;
 import org.project.workflow.model.WorkflowModels.CapabilityInvocation;
 import org.project.workflow.model.WorkflowModels.CapabilityResult;
 import org.project.workflow.model.WorkflowModels.CapabilityRow;
 import org.project.workflow.repository.CapabilityMapper;
+import org.project.workflow.repository.CapabilityInvocationMapper;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 能力调用中心：注册、Schema 前置校验、路由和统一错误边界。 */
 @Service
@@ -27,17 +33,23 @@ public class CapabilityHubService {
     private final ObjectMapper objectMapper;
     private final RabbitTemplate rabbitTemplate;
     private final PluginCapabilityClient pluginCapabilityClient;
+    private final CapabilityInvocationMapper invocationMapper;
+    private final PlatformAuthorizationClient authorizationClient;
 
     public CapabilityHubService(
             CapabilityMapper mapper,
             ObjectMapper objectMapper,
             RabbitTemplate rabbitTemplate,
-            PluginCapabilityClient pluginCapabilityClient
+            PluginCapabilityClient pluginCapabilityClient,
+            CapabilityInvocationMapper invocationMapper,
+            PlatformAuthorizationClient authorizationClient
     ) {
         this.mapper = mapper;
         this.objectMapper = objectMapper;
         this.rabbitTemplate = rabbitTemplate;
         this.pluginCapabilityClient = pluginCapabilityClient;
+        this.invocationMapper = invocationMapper;
+        this.authorizationClient = authorizationClient;
     }
 
     public List<CapabilityRow> search(String sourceType, String query, int page, int size) {
@@ -75,6 +87,79 @@ public class CapabilityHubService {
                     sanitize(exception.getMessage())
             );
         }
+    }
+
+    /**
+     * Rust gRPC Agent 的最终权限与幂等边界。
+     *
+     * <p>[CLOUDFLOW-RUNTIME-AGENT-001] 原 Java Worker 可直接调用能力；新行为由 Rust Runtime
+     * 调度，Capability Hub 每次重新确认空间执行权限、能力声明权限，并以 step attempt 做持久化去重。</p>
+     */
+    @Transactional
+    public CapabilityResult invokeAgent(AgentCapabilityInvocation command) {
+        int claimed = invocationMapper.claim(
+                command.idempotencyKey(), command.executionId(), command.stepId(), command.attempt(),
+                command.capabilityKey(), command.userId(), blank(command.spaceId()), command.traceId()
+        );
+        if (claimed == 0) {
+            String completed = invocationMapper.completedResult(command.idempotencyKey());
+            if (completed == null) {
+                return CapabilityResult.retryableFailure(
+                        "WF-CAPABILITY-IN-PROGRESS", "相同能力调用正在处理中"
+                );
+            }
+            try {
+                return objectMapper.readValue(completed, CapabilityResult.class);
+            } catch (Exception exception) {
+                return CapabilityResult.failure(
+                        "WF-CAPABILITY-RESULT-CORRUPTED", "历史能力调用结果无法读取"
+                );
+            }
+        }
+        CapabilityResult result;
+        try {
+            if (command.spaceId() != null && !command.spaceId().isBlank()) {
+                authorizationClient.requireExecute(command.userId(), command.spaceId());
+            }
+            CapabilityRow capability = mapper.findByKey(command.capabilityKey());
+            if (capability == null || "DISABLED".equals(capability.status())) {
+                result = CapabilityResult.failure("WF-CAPABILITY-NOT-FOUND", "能力不存在或已下架");
+            } else {
+                List<String> required = readStringList(capability.requiredPermissionsJson());
+                var declared = new HashSet<>(safeList(command.declaredPermissions()));
+                var granted = new HashSet<>(safeList(command.grantedPermissions()));
+                // [CLOUDFLOW-SEC-004] 权限必须按“声明权限 ∩ 当前授权权限”计算有效集合。
+                // 原行为额外要求 granted 覆盖 declared，导致调用方只能把两套权限伪装成完全相同；
+                // 新行为只要求能力所需权限落在交集内，未实际授权的声明权限不会被放大为有效权限。
+                var effective = new HashSet<>(declared);
+                effective.retainAll(granted);
+                if (!effective.containsAll(required)) {
+                    result = CapabilityResult.failure(
+                            "WF-CAPABILITY-FORBIDDEN", "工作流声明权限与当前授权的最小交集不足"
+                    );
+                } else {
+                    result = invoke(new CapabilityInvocation(
+                            command.capabilityKey(), command.executionId(), command.stepId(),
+                            command.userId(), command.spaceId(),
+                            command.input() == null ? Map.of() : command.input()
+                    ));
+                }
+            }
+        } catch (WorkflowApiException exception) {
+            result = exception.status().is5xxServerError()
+                    ? CapabilityResult.retryableFailure(exception.code(), exception.getMessage())
+                    : CapabilityResult.failure(exception.code(), exception.getMessage());
+        } catch (RuntimeException exception) {
+            result = CapabilityResult.retryableFailure(
+                    "WF-CAPABILITY-AGENT-FAILED", sanitize(exception.getMessage())
+            );
+        }
+        try {
+            invocationMapper.complete(command.idempotencyKey(), objectMapper.writeValueAsString(result));
+        } catch (Exception exception) {
+            throw new IllegalStateException("能力调用结果持久化失败", exception);
+        }
+        return result;
     }
 
     public void upsertProjection(CapabilityRow capability) {
@@ -160,6 +245,18 @@ public class CapabilityHubService {
         } catch (Exception exception) {
             return List.of("能力输入 Schema 无法解析");
         }
+    }
+
+    private List<String> readStringList(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() { });
+        } catch (Exception exception) {
+            return List.of();
+        }
+    }
+
+    private static List<String> safeList(List<String> values) {
+        return values == null ? List.of() : values;
     }
 
     private static String blank(String value) {

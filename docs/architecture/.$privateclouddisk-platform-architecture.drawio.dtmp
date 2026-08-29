@@ -1,0 +1,512 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.5 Chrome/134.0.6998.205 Electron/35.3.0 Safari/537.36" version="27.0.5" pages="2">
+  <diagram name="全局拓扑" id="0">
+    <mxGraphModel dx="2170" dy="1860" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1700" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="diagram-title" value="PrivateCloudDisk 平台全局架构（审计版）" style="text;html=1;align=left;verticalAlign=middle;fontStyle=1;fontSize=24;fontColor=#17212b;" parent="1" vertex="1">
+          <mxGeometry x="40" y="18" width="2320" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="group-clients" value="多平台客户端" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="40" y="90" width="2320" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="node-web" value="Web SPA&#xa;Vue 3 + Vite" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-clients" vertex="1">
+          <mxGeometry x="30" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-admin" value="Admin Web&#xa;React + TypeScript" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-clients" vertex="1">
+          <mxGeometry x="400" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-desktop" value="桌面客户端&#xa;Electron / Win / macOS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-clients" vertex="1">
+          <mxGeometry x="770" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-mobile" value="移动客户端&#xa;uni-app / Android / iOS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-clients" vertex="1">
+          <mxGeometry x="1140" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-cli" value="CLI&#xa;Go" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-clients" vertex="1">
+          <mxGeometry x="1510" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-extensions" value="本地扩展与系统集成&#xa;客户端能力按端适配" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-clients" vertex="1">
+          <mxGeometry x="1880" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="group-edge" value="边缘接入层" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="40" y="330" width="2320" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="node-nginx" value="Nginx + Certbot 边缘层&#xa;TLS / 静态资源 / API 与 WS 反向代理" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;" parent="group-edge" vertex="1">
+          <mxGeometry x="220" y="45" width="470" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="node-apisix" value="APISIX&#xa;可选本地部署入口" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;dashed=1;" parent="group-edge" vertex="1">
+          <mxGeometry x="780" y="45" width="300" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="node-gateway" value="API Gateway&#xa;Spring Cloud Gateway · JWT · 限流 · 路由" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;" parent="group-edge" vertex="1">
+          <mxGeometry x="1410" y="45" width="580" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="group-core" value="核心业务与实时通信微服务" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="40" y="580" width="2320" height="390" as="geometry" />
+        </mxCell>
+        <mxCell id="node-platform" value="Platform Service&#xa;用户 / 空间 / 文件元数据 / 分享 / 权限" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="30" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-storage" value="Storage API&#xa;FastAPI · 上传下载 / 预览 / Range" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="340" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-worker" value="Storage Worker&#xa;Python · 文件 Task Bus 后处理" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="650" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-git" value="Git Service&#xa;Go · Smart HTTP / SSH / Object 映射" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="960" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-clientreg" value="Client Registration&#xa;Go / Gin · 设备身份与客户端注册" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="1270" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-billing" value="Billing Service&#xa;Spring Boot · 订阅 / 账单 / 支付适配" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="1580" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-ai" value="AI Service&#xa;FastAPI · 可选模型推理与异步任务" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="1890" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-implatform" value="IM Platform&#xa;Spring Boot · 会话 / 消息 / 群组 REST" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="30" y="210" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-imserver" value="IM Server&#xa;Netty WebSocket · Protobuf · 在线推送" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" parent="group-core" vertex="1">
+          <mxGeometry x="340" y="210" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-imrouter" value="IM Router&#xa;Go · Redis 路由 / gRPC 回调" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;dashed=1;" parent="group-core" vertex="1">
+          <mxGeometry x="650" y="210" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-notify" value="Notification Service&#xa;Go · 验证码 / 邮件短信 / 通知通道" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;dashed=1;" parent="group-core" vertex="1">
+          <mxGeometry x="960" y="210" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="group-automation" value="自动化、插件与工作流微服务（automation profile / 独立运行时）" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1010" width="2320" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="node-plugin" value="Plugin Service&#xa;插件定义 / 版本 / 市场 / 包仓库" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" parent="group-automation" vertex="1">
+          <mxGeometry x="30" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-pluginruntime" value="Plugin Runtime&#xa;Go + Python Sandbox · 受控执行" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;dashed=1;" parent="group-automation" vertex="1">
+          <mxGeometry x="340" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-automation-service" value="Automation Service&#xa;文件事件匹配 / Inbox-Outbox / 恢复" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" parent="group-automation" vertex="1">
+          <mxGeometry x="650" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-workflow" value="Workflow Service&#xa;DSL / 能力中心 / 执行记录 / 市场" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" parent="group-automation" vertex="1">
+          <mxGeometry x="960" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-scheduler" value="Scheduler Service&#xa;Cron / 租约 / 幂等触发" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" parent="group-automation" vertex="1">
+          <mxGeometry x="1270" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-cloudflow" value="CloudFlow Runtime&#xa;Rust · 编译 / IR / 持久化执行" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" parent="group-automation" vertex="1">
+          <mxGeometry x="1580" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="group-data" value="数据、中间件与可观测性" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="40" y="1380" width="2320" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="node-mysql" value="MySQL 8&#xa;主数据 + 各服务独立 schema" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="30" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-redis" value="Redis 7&#xa;缓存 / 在线状态 / 限流 / 锁" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="340" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-rabbit" value="RabbitMQ&#xa;Task Bus / 事件 / Outbox / DLQ" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="650" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-object" value="MinIO + uploads-data&#xa;对象 / 上传临时文件 / Git Object Provider" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="960" y="40" width="330" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-opensearch" value="OpenSearch&#xa;文件索引 / 内容检索 / 观测查询" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="1370" y="40" width="260" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-skywalking" value="SkyWalking OAP + UI&#xa;Tracing / Metrics / 日志观测" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="1710" y="40" width="360" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="node-legend" value="实线：HTTP / gRPC&#xa;虚线：RabbitMQ 异步事件 / Task Bus&#xa;点划线：数据或观测连接" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#f8f9fb;strokeColor=#9aa7b5;fontColor=#3e4b59;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="30" y="170" width="440" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="node-status-note" value="部署状态：无边框实线 = 根 Compose；虚线边框 = automation profile 或独立部署&#xa;以代码、Compose、README 与 Gateway 路由为准" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#f8f9fb;strokeColor=#9aa7b5;fontColor=#3e4b59;fontSize=13;spacing=8;" parent="group-data" vertex="1">
+          <mxGeometry x="510" y="170" width="1210" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-web" target="node-nginx" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-admin" target="node-nginx" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-desktop" target="node-nginx" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-mobile" target="node-nginx" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-cli" target="node-nginx" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-extensions" target="node-nginx" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="HTTPS / REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-nginx" target="node-gateway" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-nginx" target="node-imserver" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="730" y="520" />
+              <mxPoint x="2340" y="520" />
+              <mxPoint x="2340" y="1020" />
+              <mxPoint x="670" y="1020" />
+              <mxPoint x="670" y="861" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-9" value="可选入口" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-apisix" target="node-gateway" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-10" value="业务 API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-gateway" target="node-platform" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-11" value="文件 API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-gateway" target="node-storage" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-12" value="Git API / Smart HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-gateway" target="node-git" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-13" value="客户端身份" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-gateway" target="node-clientreg" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-14" value="插件市场" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-gateway" target="node-plugin" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-15" value="工作流 API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-gateway" target="node-workflow" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-16" value="内部回调" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-storage" target="node-platform" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-17" value="空间 / 权限" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-git" target="node-platform" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-18" value="Object Broker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-git" target="node-storage" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-19" value="消息推送" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-implatform" target="node-imserver" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-20" value="gRPC Push" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-imrouter" target="node-imserver" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-21" value="通知任务" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-notify" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-22" value="JDBC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-platform" target="node-mysql" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-23" value="缓存" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-platform" target="node-redis" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-24" value="业务事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-platform" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-25" value="并发 / 授权" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-storage" target="node-redis" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-26" value="文件任务" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-storage" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-27" value="I/O" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-storage" target="node-object" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-28" value="Task Bus" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-worker" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-29" value="处理文件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-worker" target="node-object" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-30" value="索引" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-worker" target="node-opensearch" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-31" value="IM 数据" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-implatform" target="node-mysql" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-32" value="在线 / 会话" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-implatform" target="node-redis" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-33" value="连接状态" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-imserver" target="node-redis" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-34" value="推送事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-imserver" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-35" value="git.push.completed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-git" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-36" value="运行时调用" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-plugin" target="node-pluginruntime" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-37" value="入口匹配" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-automation-service" target="node-plugin" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-38" value="插件执行" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-automation-service" target="node-pluginruntime" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-39" value="编译 / 执行" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-workflow" target="node-cloudflow" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-40" value="fire 事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-scheduler" target="node-workflow" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-41" value="Capability Agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-cloudflow" target="node-workflow" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-42" value="文件事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-automation-service" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-43" value="Outbox / 命令" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-workflow" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-44" value="调度事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-scheduler" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-45" value="持久命令" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-cloudflow" target="node-rabbit" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-46" value="插件元数据" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-plugin" target="node-mysql" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-47" value="工作流元数据" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-workflow" target="node-mysql" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-48" value="执行状态" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="node-cloudflow" target="node-mysql" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-49" value="追踪查询" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="node-cloudflow" target="node-opensearch" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-50" value="Tracing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-platform" target="node-skywalking" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-51" value="Tracing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-storage" target="node-skywalking" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-52" value="Tracing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="node-workflow" target="node-skywalking" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="服务依赖" id="1">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2600" pageHeight="1540" background="#f7f9fc">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="diagram-title" value="PrivateCloudDisk 微服务边界与依赖关系（审计版）" style="text;html=1;align=left;verticalAlign=middle;fontStyle=1;fontSize=24;fontColor=#17212b;" vertex="1" parent="1">
+          <mxGeometry x="40" y="18" width="2520" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="group-entry" value="入口与协议边界" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="2520" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="group-business" value="核心业务服务边界" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="1210" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="group-automation" value="自动化与插件服务边界" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="360" width="1240" height="800" as="geometry" />
+        </mxCell>
+        <mxCell id="group-data" value="共享基础设施与数据面" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontStyle=1;fontSize=16;rounded=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1220" width="2520" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="node-clients" value="Web / Admin / Desktop / Mobile / CLI&#xa;多端通过边缘层访问" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e1f0ff;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-entry">
+          <mxGeometry x="50" y="40" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="node-nginx" value="Nginx + Certbot&#xa;www / api / ws / admin 域名边缘" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;" vertex="1" parent="group-entry">
+          <mxGeometry x="560" y="40" width="430" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="node-gateway" value="Spring Cloud Gateway&#xa;/api/v1/business · files · im · git · plugins · workflows&#xa;/ws → IM Server" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;" vertex="1" parent="group-entry">
+          <mxGeometry x="1080" y="30" width="620" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="node-apisix" value="APISIX（deploy/local 可选）&#xa;独立于根 Compose" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;dashed=1;" vertex="1" parent="group-entry">
+          <mxGeometry x="1840" y="40" width="470" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="node-platform" value="Platform Service&#xa;Spring Boot + MyBatis&#xa;用户、空间、文件元数据、分享、权限、配额" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="50" y="40" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-storage" value="Storage API&#xa;FastAPI + Uvicorn&#xa;分片、下载、预览、Range、授权" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="420" y="40" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-worker" value="Storage Worker&#xa;Python + aio-pika&#xa;Merge / Hash / Virus / Index / Active" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="790" y="40" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-git" value="Git Service&#xa;Go&#xa;Smart HTTP、SSH、refs、Object、MR、审计" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="50" y="260" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-billing" value="Billing Service&#xa;Spring Boot&#xa;订阅、账单、支付适配（Compose）" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="420" y="260" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-clientreg" value="Client Registration&#xa;Go / Gin&#xa;客户端挑战、设备身份、扩展绑定" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="790" y="260" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-implatform" value="IM Platform&#xa;Spring Boot + MyBatis&#xa;消息、会话、好友、群组 HTTP" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="50" y="480" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-imserver" value="IM Server&#xa;Netty + Protobuf&#xa;WebSocket、握手、在线推送" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;" vertex="1" parent="group-business">
+          <mxGeometry x="420" y="480" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-imrouter" value="IM Router&#xa;Go + gRPC&#xa;用户在线路由与回调&#xa;独立于根 Compose" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;dashed=1;" vertex="1" parent="group-business">
+          <mxGeometry x="790" y="480" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-notify" value="Notification Service&#xa;Go&#xa;验证码、邮件短信、通知通道&#xa;独立于根 Compose" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#123b5d;fontSize=13;spacing=8;dashed=1;" vertex="1" parent="group-business">
+          <mxGeometry x="50" y="650" width="330" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="node-plugin" value="Plugin Service&#xa;Java / Spring Boot&#xa;插件市场、版本、包与权限" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="50" y="40" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-pluginruntime" value="Plugin Runtime&#xa;Go + Python Sandbox&#xa;manifest 校验与受控执行&#xa;独立运行时" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;dashed=1;" vertex="1" parent="group-automation">
+          <mxGeometry x="420" y="40" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-automation-service" value="Automation Service&#xa;Java / Spring Boot&#xa;文件事件匹配、Inbox/Outbox、恢复" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="790" y="40" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-workflow" value="Workflow Service&#xa;Java / Spring Boot&#xa;DSL、能力中心、执行、市场" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="50" y="260" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-scheduler" value="Scheduler Service&#xa;Java / Spring Boot&#xa;Cron、租约、幂等 fire" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="420" y="260" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-cloudflow" value="CloudFlow Runtime&#xa;Rust / Tokio / Axum&#xa;编译、IR、DAG 执行、状态" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="790" y="260" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-ai" value="AI Service&#xa;FastAPI + PyTorch/ONNX&#xa;可选推理 / 异步模型任务" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#e8dcf2;strokeColor=#9673a6;fontColor=#4d2f5e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="50" y="480" width="330" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-observability" value="SkyWalking Agent → OAP / UI&#xa;Java、Python、Go 服务统一观测" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="420" y="480" width="700" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="node-mysql" value="MySQL 8&#xa;private_cloud_disk + pcd_* schemas" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" vertex="1" parent="group-data">
+          <mxGeometry x="60" y="30" width="360" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="node-redis" value="Redis 7&#xa;缓存、限流、在线状态、锁、会话" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" vertex="1" parent="group-data">
+          <mxGeometry x="480" y="30" width="360" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="node-rabbit" value="RabbitMQ 3&#xa;Task Bus、Outbox、事件、DLQ" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a4a00;fontSize=13;spacing=8;" vertex="1" parent="group-data">
+          <mxGeometry x="900" y="30" width="360" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="node-object" value="MinIO / uploads-data&#xa;文件对象、Git Object Provider、预览产物" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" vertex="1" parent="group-data">
+          <mxGeometry x="1320" y="30" width="460" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="node-opensearch" value="OpenSearch 2.10&#xa;文件基础索引、内容索引、观测" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#24521e;fontSize=13;spacing=8;" vertex="1" parent="group-data">
+          <mxGeometry x="1840" y="30" width="360" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="node-note" value="边界原则：Platform 持有用户、空间与文件元数据；Storage 持有文件 I/O；Git 持有 Git 索引并通过 Storage 共享物理对象池；IM 不直接读用户表。" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#f8f9fb;strokeColor=#9aa7b5;fontColor=#3e4b59;fontSize=13;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="90" y="1130" width="1120" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="node-status" value="状态说明：根 Compose 默认服务 / automation profile 服务 / 仓库代码中存在的独立部署组件分别用实线或虚线边框标记。" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#f8f9fb;strokeColor=#9aa7b5;fontColor=#3e4b59;fontSize=13;spacing=8;" vertex="1" parent="group-automation">
+          <mxGeometry x="50" y="650" width="1070" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="HTTPS / WSS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-clients" target="node-nginx">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="反向代理" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-nginx" target="node-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="可选" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-apisix" target="node-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-gateway" target="node-platform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-gateway" target="node-storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="REST + Smart HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-gateway" target="node-git">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-gateway" target="node-implatform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-8" value="WSS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-gateway" target="node-imserver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-9" value="REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-gateway" target="node-plugin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-10" value="REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-gateway" target="node-workflow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-11" value="内部回调" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-storage" target="node-platform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-12" value="空间 / 权限" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="node-git" target="node-platform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-13" value="MQ / push" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-implatform" target="node-imserver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-14" value="gRPC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-imrouter" target="node-imserver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-15" value="HTTP / Broker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-plugin" target="node-pluginruntime">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-16" value="匹配入口" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-automation-service" target="node-plugin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-17" value="执行" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-automation-service" target="node-pluginruntime">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-18" value="编译 / 执行" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-workflow" target="node-cloudflow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-19" value="fire" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-scheduler" target="node-workflow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-20" value="Capability Agent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;strokeColor=#5f6b78;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-cloudflow" target="node-workflow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-21" value="JDBC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-platform" target="node-mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-22" value="缓存 / 限流" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-storage" target="node-redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-23" value="文件任务" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-storage" target="node-rabbit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-24" value="Task Bus" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-worker" target="node-rabbit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-25" value="文件 I/O" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-worker" target="node-object">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-26" value="Object Broker" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-git" target="node-object">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-27" value="在线 / 会话" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-implatform" target="node-redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-28" value="IM 数据" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-implatform" target="node-mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-29" value="连接状态" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-imserver" target="node-redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-30" value="插件元数据" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-plugin" target="node-mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-31" value="工作流元数据" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-workflow" target="node-mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-32" value="执行状态" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-cloudflow" target="node-mysql">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-33" value="命令 / DLQ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=8 4;strokeColor=#8a6f00;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="node-cloudflow" target="node-rabbit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-34" value="文件 / 内容索引" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-storage" target="node-opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-35" value="索引更新" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="node-worker" target="node-opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-36" value="观测查询" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=blockThin;endFill=1;endSize=8;dashed=1;dashPattern=2 3;strokeColor=#5f8c58;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="node-observability" target="node-opensearch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

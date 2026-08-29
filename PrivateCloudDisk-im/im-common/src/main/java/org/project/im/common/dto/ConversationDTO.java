@@ -62,6 +62,12 @@ public class ConversationDTO implements Serializable {
     /** 是否免打扰 */
     private Boolean isMuted;
 
+    /** 当前用户是否仍具备发送权限（好友已解除/已退出群组时为 false）。 */
+    private Boolean canSend;
+
+    /** 会话可用状态：ACTIVE、FRIEND_REMOVED、GROUP_LEFT。 */
+    private String sessionStatus;
+
     /** 总消息数 */
     private Long totalMessages;
 

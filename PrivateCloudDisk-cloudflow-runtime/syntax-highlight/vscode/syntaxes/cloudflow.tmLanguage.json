@@ -1,0 +1,154 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "CloudFlow",
+  "scopeName": "source.cloudflow",
+  "fileTypes": [
+    "flow",
+    "cloudflow"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#references"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#punctation"
+    },
+    {
+      "include": "#identifiers"
+    }
+  ],
+  "repository": {
+    "comments": [
+      {
+        "match": "#.*$",
+        "name": "comment.line.number-sign.cloudflow"
+      }
+    ],
+    "interpolation": [
+      {
+        "begin": "\\$\\{",
+        "end": "\\}",
+        "name": "variable.other.embedded.cloudflow",
+        "patterns": [
+          {
+            "include": "#numbers"
+          },
+          {
+            "include": "#references"
+          },
+          {
+            "include": "#keywords"
+          },
+          {
+            "include": "#operators"
+          }
+        ]
+      }
+    ],
+    "strings": [
+      {
+        "name": "string.quoted.triple.cloudflow",
+        "begin": "\"\"\"",
+        "end": "\"\"\"",
+        "patterns": [
+          {
+            "include": "#interpolation"
+          }
+        ]
+      },
+      {
+        "name": "string.quoted.double.cloudflow",
+        "begin": "\"",
+        "end": "\"",
+        "patterns": [
+          {
+            "include": "#interpolation"
+          }
+        ]
+      }
+    ],
+    "numbers": [
+      {
+        "match": "\\b\\d+(?:ms|s|m|h|d)\\b",
+        "name": "constant.numeric.duration.cloudflow"
+      },
+      {
+        "match": "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b",
+        "name": "constant.numeric.cloudflow"
+      }
+    ],
+    "references": [
+      {
+        "match": "\\bvars\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "name": "variable.other.vars.cloudflow"
+      },
+      {
+        "match": "\\bsteps\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "name": "variable.other.steps.cloudflow"
+      },
+      {
+        "match": "\\bworkflow\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "name": "variable.other.system.cloudflow"
+      }
+    ],
+    "operators": [
+      {
+        "match": "!=|\\&\\&|<=|==|=>|>=|\\|\\||!|%|\\*|\\+|\\-|/|:|<|=|>|\\?|\\|",
+        "name": "keyword.operator.cloudflow"
+      }
+    ],
+    "keywords": [
+      {
+        "match": "\\b(?:continue|on_error|parallel|validate|default|finally|foreach|assert|expect|notify|return|switch|break|catch|delay|while|case|else|wait|for|try|if|in)\\b",
+        "name": "keyword.control.cloudflow"
+      },
+      {
+        "match": "\\b(?:max_concurrency|max_attempts|max_parallel|retry_policy|environment|depends_on|on_failure|on_timeout|condition|namespace|variables|duration|handlers|interval|metadata|retry_on|schedule|strategy|workflow|backoff|include|runtime|timeout|trigger|action|import|manual|output|audit|event|group|retry|steps|http|name|step|with|tag|use|as)\\b",
+        "name": "keyword.declaration.cloudflow"
+      },
+      {
+        "match": "\\b(?:filter|reduce|map)\\b",
+        "name": "entity.name.function.cloudflow"
+      },
+      {
+        "match": "\\b(?:boolean|number|object|string|array|space|file|user)\\b",
+        "name": "support.type.cloudflow"
+      },
+      {
+        "match": "\\b(?:false|true)\\b",
+        "name": "constant.language.boolean.cloudflow"
+      },
+      {
+        "match": "\\b(?:input)\\b",
+        "name": "storage.modifier.cloudflow"
+      }
+    ],
+    "punctation": [
+      {
+        "match": "\\(|\\)|,|\\.|;|\\[|\\]|\\{|\\}",
+        "name": "punctuation.separator.cloudflow"
+      }
+    ],
+    "identifiers": [
+      {
+        "match": "\\b[A-Za-z_][A-Za-z0-9_-]*\\b",
+        "name": "entity.name.variable.other.cloudflow"
+      }
+    ]
+  }
+}

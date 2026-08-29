@@ -21,7 +21,9 @@ import base64
 
 # ---------- 服务端启动指令 -----------
 # source .venv/bin/activate
-# uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+# 历史兼容入口的原启动命令（保留注释供回溯）：uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+# [FIX-GIT-OBJECT-BROKER-20260817] 当前开发/生产统一使用 app.main:app；本 legacy 入口未注册
+# /internal/v1/git/objects/{algorithm}/{object_hash}，不可作为 Git Service 的 Storage 进程入口。
 
 
 app = FastAPI()

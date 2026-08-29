@@ -1,0 +1,6 @@
+# 覆盖目标：人工审批 wait 节点。
+# 预期：Runtime 将实例持久化到 WAITING_APPROVAL，resume API 继续后续 DAG。
+workflow "wait" {
+    wait approval { timeout = 24h }
+    step after_approval { action builtin.notification.send { title = "approved" } }
+}

@@ -1,0 +1,24 @@
+# ================================================================
+# IM Router — 送达通知失败告警规则
+# ================================================================
+# 背景：送达通知（DELIVERY_NOTIFICATION）推送失败时，IM Router 为避免
+#       无限回调闭环不再通知发送方，仅累计指标 im_router_notify_
+#       delivery_notification_failures_total。
+#       该指标短时间激增通常表明发送方客户端存在 ACK 异常。
+# 指标来源：im-router（Prometheus client_golang，/metrics 暴露）
+# ================================================================
+groups:
+  - name: im_router_delivery_notification
+    rules:
+      - alert: IMDeliveryNotificationFailureSurge
+        expr: |
+          increase(im_router_notify_delivery_notification_failures_total[5m]) > 10
+        for: 0m
+        labels:
+          severity: warning
+          service: im-router
+        annotations:
+          summary: "IM 送达通知推送失败事件短时间激增（可能客户端 ACK 异常）"
+          description: >-
+            最近 5 分钟内 DELIVERY_NOTIFICATION 失败事件数超过 10 条，
+            表明发送方客户端 ACK 链路异常，请检查对应 IM Server 与客户端连接。

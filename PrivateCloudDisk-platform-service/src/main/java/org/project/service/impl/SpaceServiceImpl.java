@@ -1,10 +1,11 @@
 package org.project.service.impl;
 
-import org.project.context.SpaceContextHolder;
 import org.project.mapper.*;
 import org.project.model.dto.UpdatePermissionRequest;
 import org.project.model.entity.*;
 import org.project.service.SpaceService;
+import org.project.service.resource.SpaceResourceProvider;
+import org.project.service.resource.SpaceResourceProviderRegistry;
 import org.project.service.ex.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,9 +36,7 @@ public class SpaceServiceImpl implements SpaceService {
     @Autowired
     private SpaceInvitationMapper spaceInvitationMapper;
     @Autowired
-    private FolderNodeMapper folderNodeMapper;
-    @Autowired
-    private DirectoryClosureMapper directoryClosureMapper;
+    private SpaceResourceProviderRegistry resourceProviderRegistry;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
@@ -49,7 +48,7 @@ public class SpaceServiceImpl implements SpaceService {
 
     @Override
     @Transactional
-    public SpaceEntity createSpace(UUID userId, String spaceName, String spaceType,
+    public SpaceEntity createSpace(UUID userId, String spaceName, String spaceType, String resourceType,
                                     String spaceDescription, String spaceVisibility, String joinPolicy) {
         // 个人空间重复检查
         if ("personal".equals(spaceType)) {
@@ -65,9 +64,28 @@ public class SpaceServiceImpl implements SpaceService {
         space.setSpaceId(UUID.randomUUID());
         space.setSpaceName(spaceName);
         space.setSpaceType(spaceType);
+        String resolvedResourceType = resourceType == null || resourceType.isBlank() ? "file" : resourceType;
+        if (!"public".equals(spaceType) && !"file".equals(resolvedResourceType)) {
+            throw new InsertException("非公开空间当前只能使用 file 资源类型");
+        }
+        SpaceResourceProvider resourceProvider = resourceProviderRegistry.require(resolvedResourceType);
+        space.setResourceType(resourceProvider.resourceType());
         space.setSpaceOwnerId(userId);
         space.setSpaceVisibility(spaceVisibility != null ? spaceVisibility : "private");
         space.setJoinPolicy(joinPolicy != null ? joinPolicy : ("enterprise".equals(spaceType) || "team".equals(spaceType) ? "approval_required" : "invite_only"));
+        /*
+         * [REQ-SPACE-CREATE-NULL-ALLOW-PUBLIC] 修复团队/企业/私人空间创建时的数据库约束异常。
+         * 原行为：allowPublicBrowse/Download/Upload 仅在 public 分支赋值，其他空间保持 null；
+         *         Mapper 又显式写入 null，导致 MySQL 不使用列 DEFAULT，直接违反 NOT NULL。
+         * 新行为：创建阶段为所有空间固化非空策略值；公开空间保留原有默认“可浏览、可下载、不可公开上传”，
+         *         非公开空间统一写入 false（这些字段仅对 public 生效）。公开空间请求体中的自定义开关
+         *         仍由 Controller 在插入成功后通过 updatePublicRepository 覆盖。
+         * 影响范围：仅空间首次 INSERT 的默认字段，不改变成员权限、配额和公开空间后续设置接口行为。
+         */
+        boolean publicSpace = "public".equals(spaceType);
+        space.setAllowPublicBrowse(publicSpace);
+        space.setAllowPublicDownload(publicSpace);
+        space.setAllowPublicUpload(false);
         // 公开空间在产品层定义为仓库：固定 visible/invite_only 语义，默认可浏览可下载、禁止公开上传。
         if ("public".equals(spaceType)) {
             space.setSpaceVisibility("public");
@@ -133,30 +151,12 @@ public class SpaceServiceImpl implements SpaceService {
          * 原行为创建空间时只有空间/成员记录，没有根目录，切换后文件浏览器无法加载；
          * 新行为在同一事务中创建独立根节点与闭包自引用，既有空间 CRUD 返回结构不变。
          */
-        FolderNodeEntity rootNode = new FolderNodeEntity();
-        rootNode.setNode_id(UUID.randomUUID());
-        rootNode.setUser_id(userId);
-        rootNode.setParent_id(null);
-        rootNode.setName(spaceName);
-        rootNode.setCreate_time(LocalDateTime.now().toString());
-        rootNode.setStatus(FolderNodeEntity.NodeStatus.active);
-        rootNode.setSpace_id(space.getSpaceId());
-        if (folderNodeMapper.insertFolderNode(rootNode) != 1) {
-            throw new InsertException("空间根目录创建失败");
-        }
-
-        SpaceContextHolder.SpaceContext previousContext = SpaceContextHolder.get();
-        SpaceContextHolder.set(new SpaceContextHolder.SpaceContext(
-                space.getSpaceId(), userId, spaceName, "owner", true, "personal".equals(spaceType)));
-        try {
-            directoryClosureMapper.insertSelf(rootNode.getNode_id(), userId);
-        } finally {
-            if (previousContext == null) {
-                SpaceContextHolder.clear();
-            } else {
-                SpaceContextHolder.set(previousContext);
-            }
-        }
+        /*
+         * [REQ-GIT-SPACE-2.3] 改动点：原行为在此处无条件创建文件根目录；
+         * 新行为由 resource_type 对应 Provider 初始化。file Provider 完整保留原根节点与闭包
+         * 自引用逻辑，git Provider 不创建伪文件目录。影响仅限新建空间的资源初始化分支。
+         */
+        resourceProvider.initialize(space, userId);
 
         return space;
     }

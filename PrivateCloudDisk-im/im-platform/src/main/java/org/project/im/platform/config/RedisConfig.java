@@ -6,6 +6,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
@@ -50,5 +51,29 @@ public class RedisConfig {
     @Bean
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory factory) {
         return new StringRedisTemplate(factory);
+    }
+
+    /**
+     * 字节数组 RedisTemplate（用于读取 Router 写入的离线消息队列）
+     * <p>
+     * Router 以原始 Protobuf 二进制存储于 im:offline:{userId} 的 List 中，
+     * 使用 ByteArray 序列化避免 UTF-8 对二进制数据的损坏。
+     * </p>
+     */
+    @Bean
+    public RedisTemplate<String, byte[]> byteArrayRedisTemplate(RedisConnectionFactory factory) {
+        RedisTemplate<String, byte[]> template = new RedisTemplate<>();
+        template.setConnectionFactory(factory);
+
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        RedisSerializer<byte[]> byteArraySerializer = RedisSerializer.byteArray();
+
+        template.setKeySerializer(stringSerializer);
+        template.setHashKeySerializer(stringSerializer);
+        template.setValueSerializer(byteArraySerializer);
+        template.setHashValueSerializer(byteArraySerializer);
+
+        template.afterPropertiesSet();
+        return template;
     }
 }

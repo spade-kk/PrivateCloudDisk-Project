@@ -18,6 +18,8 @@
 // 类型定义
 // ============================================================
 
+import { getFileIconDefinition } from './fileTypeIcons'
+
 /** 预览配置接口 */
 export interface PreviewConfig {
   /** 预览类型：image, video, audio, pdf, office, text */
@@ -201,17 +203,9 @@ export function isPreviewable(fileName: string): boolean {
  * @returns Font Awesome 图标类名，如 "fa fa-image"
  */
 export function getFileTypeIcon(fileName: string): string {
-  if (isImage(fileName)) return 'fa fa-image'
-  if (isVideo(fileName)) return 'fa fa-film'
-  if (isAudio(fileName)) return 'fa fa-music'
-  if (isPdf(fileName)) return 'fa fa-file-pdf-o'
-  if (isWord(fileName)) return 'fa fa-file-word-o'
-  if (isExcel(fileName)) return 'fa fa-file-excel-o'
-  if (isPowerPoint(fileName)) return 'fa fa-file-powerpoint-o'
-  if (isCode(fileName)) return 'fa fa-code'
-  if (isArchive(fileName)) return 'fa fa-file-archive-o'
-  if (isText(fileName)) return 'fa fa-file-text-o'
-  return 'fa fa-file-o'
+  // AUDIT FIX [2.1/8.3]：预览入口也复用文件浏览器的单一图标目录。
+  const descriptor = getFileIconDefinition(fileName)
+  return `fa ${descriptor.faClass}`
 }
 
 /**

@@ -14,6 +14,7 @@
 //   Indexes: byConversation, byStatus, byTimestamp
 // ============================================================
 
+import { toRaw } from 'vue'
 import type { ChatMessage } from '@/stores/notificationStore'
 
 // ==================== 常量 ====================
@@ -69,6 +70,8 @@ interface CachedMessage {
   file_id?: string
   share_url?: string
   extra?: string
+  /** 类型化消息负载；只保存可被 IndexedDB structured clone 接受的纯数据。 */
+  payload?: Record<string, unknown>
   created_at: number
   status: string
   serverSeq?: number
@@ -92,17 +95,19 @@ export async function saveMessage(conversationId: string, message: ChatMessage):
     const tx = db.transaction(STORE_NAME, 'readwrite')
     const store = tx.objectStore(STORE_NAME)
 
-    const cached: CachedMessage = {
-      ...message,
+    const cached = toCachedMessage(
       conversationId,
-      syncStatus: message.status === 'sending' ? 'syncing'
+      message,
+      message.status === 'sending' ? 'syncing'
         : message.status === 'failed' ? 'failed'
         : message.status === 'local' ? 'pending'
         : 'synced',
-      cachedAt: Date.now(),
-    }
+    )
 
     store.put(cached)
+    // IDBRequest 的 DataCloneError 可能在 put() 之后通过事务异步报告，必须等待事务完成，
+    // 才能让调用方的错误日志准确反映实际写入结果。
+    await waitForTransaction(tx)
 
     // 清理过期消息
     await cleanupOldMessages(conversationId, db)
@@ -121,15 +126,11 @@ export async function saveMessages(conversationId: string, messages: ChatMessage
     const store = tx.objectStore(STORE_NAME)
 
     for (const msg of messages) {
-      const cached: CachedMessage = {
-        ...msg,
-        conversationId,
-        syncStatus: 'synced',
-        cachedAt: Date.now(),
-      }
+      const cached = toCachedMessage(conversationId, msg, 'synced')
       store.put(cached)
     }
 
+    await waitForTransaction(tx)
     await cleanupOldMessages(conversationId, db)
   } catch (e) {
     console.warn('[MessageCache] 批量保存失败:', e)
@@ -294,11 +295,106 @@ function toChatMessage(cached: CachedMessage): ChatMessage {
     file_id: cached.file_id,
     share_url: cached.share_url,
     extra: cached.extra,
+    payload: cached.payload,
     created_at: cached.created_at,
     status: cached.status,
     serverSeq: cached.serverSeq,
     replyTo: cached.replyTo,
   }
+}
+
+/**
+ * 将消息转换为 IndexedDB 的稳定数据结构。
+ *
+ * AUDIT FIX [IM-CACHE-20260810]：旧实现通过 `{ ...message }` 直接持久化 Vue 响应式消息，
+ * 其中可能包含 Proxy、protobuf 负载对象或其他非 structured-clone 类型，批量 put() 会抛出
+ * DataCloneError。新行为只复制明确字段，并递归转换 payload；不影响消息在线收发，只约束本地缓存
+ * 的持久化边界，避免缓存异常反向影响消息中心。
+ */
+function toCachedMessage(
+  conversationId: string,
+  message: ChatMessage,
+  syncStatus: CachedMessage['syncStatus'],
+): CachedMessage {
+  const source = toRaw(message) as ChatMessage
+  const payload = cloneForIndexedDb(source.payload)
+  const cached: CachedMessage = {
+    conversationId: String(conversationId),
+    id: String(source.id),
+    sender: String(source.sender || ''),
+    senderName: source.senderName,
+    senderAvatar: source.senderAvatar,
+    type: String(source.type || 'text'),
+    content: String(source.content || ''),
+    file_id: source.file_id,
+    share_url: source.share_url,
+    extra: source.extra,
+    created_at: Number.isFinite(Number(source.created_at)) ? Number(source.created_at) : Date.now(),
+    status: String(source.status || 'sent'),
+    serverSeq: source.serverSeq,
+    replyTo: source.replyTo,
+    syncStatus,
+    cachedAt: Date.now(),
+  }
+
+  if (isPlainRecord(payload)) {
+    cached.payload = payload
+  }
+
+  return cached
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+/**
+ * 递归生成 structured-clone 安全值。
+ * 业务消息负载目前是 JSON/Protobuf 风格对象；对未知 class 实例和函数采取丢弃策略，
+ * 防止某个扩展字段使整批消息缓存失败。Uint8Array 保留，用于图片/文件等二进制元数据。
+ */
+function cloneForIndexedDb(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value
+  }
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') {
+    return undefined
+  }
+
+  const raw = toRaw(value as object) as unknown
+  if (raw === null || typeof raw !== 'object') return raw
+  if (raw instanceof Date) return new Date(raw.getTime())
+  if (raw instanceof Uint8Array) return new Uint8Array(raw)
+  if (raw instanceof ArrayBuffer) return raw.slice(0)
+  if (typeof Blob !== 'undefined' && raw instanceof Blob) return raw
+  if (Array.isArray(raw)) {
+    if (seen.has(raw)) return undefined
+    seen.add(raw)
+    const result = raw.map(item => cloneForIndexedDb(item, seen))
+    seen.delete(raw)
+    return result
+  }
+
+  if (!isPlainRecord(raw)) return undefined
+  if (seen.has(raw)) return undefined
+  seen.add(raw)
+  const result: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(raw)) {
+    const cloned = cloneForIndexedDb(item, seen)
+    if (cloned !== undefined) result[key] = cloned
+  }
+  seen.delete(raw)
+  return result
+}
+
+function waitForTransaction(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'))
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'))
+  })
 }
 
 async function cleanupOldMessages(conversationId: string, db: IDBDatabase): Promise<void> {

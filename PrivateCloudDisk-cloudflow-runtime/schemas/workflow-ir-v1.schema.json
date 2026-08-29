@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://privateclouddisk.local/schemas/cloudflow/workflow-ir-v1.schema.json",
+  "title": "CloudFlow Workflow IR v1",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec", "runtime", "security", "extensions"],
+  "properties": {
+    "apiVersion": { "const": "workflow.cloudflow.io/v1" },
+    "kind": { "const": "Workflow" },
+    "metadata": { "type": "object", "required": ["name"], "properties": { "name": {"type":"string"}, "namespace": {"type":"string"}, "changelog": {"type":"string"}, "tags": {"type":"array","items":{"type":"string"}} } },
+    "spec": {
+      "type": "object",
+      "required": ["trigger", "variables", "graph", "outputs"],
+      "properties": {
+        "trigger": { "type": "object" },
+        "audit": { "type": "object", "properties": { "level": { "type": "string" }, "description": { "type": ["string","null"] } } },
+        "environment": { "type": "object", "additionalProperties": { "$ref": "#/$defs/value" } },
+        "variables": { "type": "object", "additionalProperties": { "$ref": "#/$defs/variable" } },
+        "graph": {
+          "type": "object",
+          "required": ["nodes", "edges"],
+          "properties": {
+            "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+            "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "variable": {
+      "type": "object",
+      "required": ["type", "required", "source"],
+      "properties": {
+        "type": { "enum": ["string", "number", "boolean", "array", "object", "file", "user", "space", "unknown"] },
+        "required": { "type": "boolean" },
+        "source": { "enum": ["input", "local", "deferred"] },
+        "default": { "$ref": "#/$defs/value" },
+        "value": { "$ref": "#/$defs/value" }
+      }
+    },
+    "edge": { "type": "object", "required": ["from", "to"], "properties": { "from": { "type": "string" }, "to": { "type": "string" } } },
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "inputs", "outputs", "dependsOn", "children"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["task", "plugin", "condition", "loop", "parallel", "try", "wait", "assert", "switch", "delay", "validate", "notify", "return", "break", "continue"] },
+        "inputs": { "type": "object", "additionalProperties": { "$ref": "#/$defs/value" } },
+        "outputs": { "type": "object", "additionalProperties": { "$ref": "#/$defs/value" } },
+        "loopConfig": {
+          "type": ["object", "null"],
+          "properties": {
+            "kind": { "enum": ["foreach", "while", "for", "for-range"] },
+            "from": { "$ref": "#/$defs/value" },
+            "to": { "$ref": "#/$defs/value" },
+            "iterator": { "type": "string" },
+            "collection": { "$ref": "#/$defs/value" },
+            "condition": { "$ref": "#/$defs/value" },
+        "retryOn": { "type": "array", "items": { "type": "string" } },
+        "onTimeout": { "enum": ["fail", "continue", "retry"] },
+        "delayMs": { "type": "integer", "minimum": 0 },
+        "switchConfig": { "type": ["object", "null"] },
+        "parallel": { "type": ["object", "null"] },
+        "notifyConfig": { "type": ["object", "null"] },
+        "onError": { "type": ["object", "null"] },
+        "dependsCondition": { "$ref": "#/$defs/value" },
+            "body": { "type": "array", "items": { "type": "string" } },
+            "maxIterations": { "type": "integer", "minimum": 1, "maximum": 10000 }
+          }
+        },
+        "condition": { "$ref": "#/$defs/value" },
+        "errorHandler": { "type": ["object", "null"] },
+        "controlParent": { "type": ["string", "null"] },
+        "controlBranch": { "type": ["string", "null"] }
+      }
+    },
+    "value": {
+      "anyOf": [
+        { "type": ["null", "number", "string", "boolean"] },
+        { "type": "array", "items": { "$ref": "#/$defs/value" } },
+        {
+          "type": "object",
+          "required": ["$ref"],
+          "properties": { "$ref": { "type": "string", "minLength": 1 } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["$expr"],
+          "properties": { "$expr": {} },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["$template"],
+          "properties": { "$template": { "type": "array", "items": { "$ref": "#/$defs/value" } } }
+        },
+        {
+          "type": "object",
+          "required": ["$pipeline"],
+          "properties": { "$pipeline": { "type": "object" } }
+        },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/value" } }
+      ]
+    }
+  }
+}

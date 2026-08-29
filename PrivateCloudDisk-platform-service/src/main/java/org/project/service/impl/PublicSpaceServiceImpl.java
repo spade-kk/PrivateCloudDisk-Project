@@ -52,7 +52,7 @@ public class PublicSpaceServiceImpl implements PublicSpaceService {
 
     @Override
     public PublicSpaceNodeVO getRoot(UUID spaceId, UUID visitorId) {
-        requireBrowsable(spaceId);
+        requireFileResource(spaceId, visitorId);
         FolderNodeEntity root = folderNodeMapper.findRootFolderNodeBySpaceId(spaceId);
         if (root == null) throw new InsertException("公开仓库根目录不存在");
         return toNode(root);
@@ -60,7 +60,7 @@ public class PublicSpaceServiceImpl implements PublicSpaceService {
 
     @Override
     public List<PublicSpaceNodeVO> getChildren(UUID spaceId, UUID nodeId, UUID visitorId) {
-        requireBrowsable(spaceId);
+        requireFileResource(spaceId, visitorId);
         FolderNodeEntity node = folderNodeMapper.findFolderNodeByIdAndSpaceId(nodeId, spaceId);
         if (node == null || node.getStatus() != FolderNodeEntity.NodeStatus.active) {
             throw new InsertException("目录不存在");
@@ -73,13 +73,22 @@ public class PublicSpaceServiceImpl implements PublicSpaceService {
 
     @Override
     public String getReadme(UUID spaceId, UUID visitorId) {
-        requireBrowsable(spaceId);
+        requireFileResource(spaceId, visitorId);
         FolderNodeEntity root = folderNodeMapper.findRootFolderNodeBySpaceId(spaceId);
         if (root == null) return null;
         FileEntity readme = fileMapper.findActiveFileByNodeIdAndNameAndSpaceId(root.getNode_id(), "README.md", spaceId);
         // README 是可选资源；缺失时由前端渲染友好空状态。
         // 只返回文件 ID；物理 storage_path 属于内部实现，不能通过公开仓库接口泄漏。
         return readme == null ? null : readme.getId().toString();
+    }
+
+    @Override
+    public void requireFileResource(UUID spaceId, UUID visitorId) {
+        SpaceEntity space = requireBrowsable(spaceId);
+        String resourceType = space.getResourceType() == null ? "file" : space.getResourceType();
+        if (!"file".equals(resourceType)) {
+            throw new InsertException("该公开空间由 " + resourceType + " 资源服务提供，不支持文件目录接口");
+        }
     }
 
     @Override
@@ -133,6 +142,7 @@ public class PublicSpaceServiceImpl implements PublicSpaceService {
         PublicSpaceDetailVO vo = new PublicSpaceDetailVO();
         vo.setSpaceId(space.getSpaceId().toString());
         vo.setSpaceName(space.getSpaceName());
+        vo.setResourceType(space.getResourceType() == null ? "file" : space.getResourceType());
         vo.setDescription(space.getSpaceDescription());
         vo.setOwnerId(space.getSpaceOwnerId().toString());
         vo.setOwnerName(owner == null ? "未知用户" : owner.getName());

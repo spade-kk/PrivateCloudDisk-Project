@@ -108,7 +108,7 @@
             @click="openFile(item)"
           >
             <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/5">
-              <i :class="getFileIconClass(item.target_name)" class="text-base"></i>
+              <FileTypeIcon :file-name="item.target_name" class="text-base" />
             </div>
             <span class="min-w-0 flex-1 truncate text-sm font-medium text-neutral-700">{{ item.target_name }}</span>
             <span class="shrink-0 text-xs text-neutral-400">{{ formatSize(item.target_size) }}</span>
@@ -127,7 +127,7 @@
             @click="openFolder(item)"
           >
             <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-warning/10">
-              <i class="fa fa-folder text-warning text-base"></i>
+              <FileTypeIcon :file-name="item.target_name" is-directory class="text-base" />
             </div>
             <span class="min-w-0 flex-1 truncate text-sm font-medium text-neutral-700">{{ item.target_name }}</span>
           </div>
@@ -226,7 +226,7 @@ import { useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useTagStore } from '@/stores/tagStore'
 import { useToastStore } from '@/stores/toastStore'
-import { getFileIconClass } from '@/utils/fileIcon'
+import FileTypeIcon from '@/components/file/FileTypeIcon.vue'
 import type { TagVO, TaggedFileVO } from '@/api/modules/tags'
 import { useSpaceStore } from '@/stores/spaceStore'
 import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'

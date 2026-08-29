@@ -200,8 +200,26 @@ declare module 'monaco-editor' {
     export enum CompletionItemKind {
       Method = 0,
       Function = 1,
+      Keyword = 17,
       Snippet = 27,
     }
+
+    export interface ILanguageExtensionPoint {
+      id: string
+    }
+
+    /**
+     * CloudFlow IDE 合规改造：补齐项目实际使用的语言注册 API，
+     * 保持 CDN Monaco 运行时与本地最小类型声明一致。
+     */
+    export function getLanguages(): ILanguageExtensionPoint[]
+
+    export function register(language: { id: string }): void
+
+    export function setMonarchTokensProvider(
+      languageId: string,
+      languageDefinition: Record<string, unknown>,
+    ): { dispose(): void }
 
     export enum CompletionItemInsertTextRule {
       None = 0,

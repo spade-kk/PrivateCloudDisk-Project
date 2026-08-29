@@ -1,0 +1,3967 @@
+{
+  "$meta": {
+    "languageId": "cloudflow",
+    "languageName": "CloudFlow",
+    "version": "1.2.0",
+    "scopeName": "source.cloudflow",
+    "fileExtensions": [
+      ".flow",
+      ".cloudflow"
+    ],
+    "lineComment": "#",
+    "description": "CloudFlow DSL 统一语法高亮规范（唯一事实来源，由 GRAMMAR.pest + AST.rs 生成）",
+    "authors": [
+      "PrivateCloudDisk Team"
+    ],
+    "specVersion": "1.0.0",
+    "generatedFor": "completion",
+    "generatedFrom": {
+      "grammar": "src/grammar.pest",
+      "ast": "src/ast.rs",
+      "grammarDigest": "42ed121f3bc69c4bc1c7e68b5687aeae3ece9fc22e4f152f9c786af66ba2d6f7",
+      "astDigest": "680beb54046ed4aab04a908913e8196ad95183579a792e902f20839b230a295b"
+    },
+    "generatedAt": "2026-08-18T12:19:33+00:00",
+    "counts": {
+      "keywords": 77,
+      "blocks": 14,
+      "structures": 23,
+      "functions": 8,
+      "types": 10,
+      "triggers": 6,
+      "snippets": 5
+    }
+  },
+  "keywords": [
+    {
+      "id": "kw_control_assert",
+      "label": "assert",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "assert",
+      "documentation": "CloudFlow 关键字：assert（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_break",
+      "label": "break",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "break",
+      "documentation": "CloudFlow 关键字：break（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_case",
+      "label": "case",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "case",
+      "documentation": "CloudFlow 关键字：case（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_catch",
+      "label": "catch",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "catch",
+      "documentation": "CloudFlow 关键字：catch（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_continue",
+      "label": "continue",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "continue",
+      "documentation": "CloudFlow 关键字：continue（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_default",
+      "label": "default",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "default",
+      "documentation": "CloudFlow 关键字：default（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_delay",
+      "label": "delay",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "delay",
+      "documentation": "CloudFlow 关键字：delay（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_else",
+      "label": "else",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "else",
+      "documentation": "CloudFlow 关键字：else（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_expect",
+      "label": "expect",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "expect",
+      "documentation": "CloudFlow 关键字：expect（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_finally",
+      "label": "finally",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "finally",
+      "documentation": "CloudFlow 关键字：finally（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_for",
+      "label": "for",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "for",
+      "documentation": "CloudFlow 关键字：for（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_foreach",
+      "label": "foreach",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "foreach",
+      "documentation": "CloudFlow 关键字：foreach（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_if",
+      "label": "if",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "if",
+      "documentation": "CloudFlow 关键字：if（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_in",
+      "label": "in",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "in",
+      "documentation": "CloudFlow 关键字：in（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_notify",
+      "label": "notify",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "notify",
+      "documentation": "CloudFlow 关键字：notify（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_on_error",
+      "label": "on_error",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "on_error",
+      "documentation": "CloudFlow 关键字：on_error（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_parallel",
+      "label": "parallel",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "parallel",
+      "documentation": "CloudFlow 关键字：parallel（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_return",
+      "label": "return",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "return",
+      "documentation": "CloudFlow 关键字：return（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_switch",
+      "label": "switch",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "switch",
+      "documentation": "CloudFlow 关键字：switch（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_try",
+      "label": "try",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "try",
+      "documentation": "CloudFlow 关键字：try（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_validate",
+      "label": "validate",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "validate",
+      "documentation": "CloudFlow 关键字：validate（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_wait",
+      "label": "wait",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "wait",
+      "documentation": "CloudFlow 关键字：wait（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_while",
+      "label": "while",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "while",
+      "documentation": "CloudFlow 关键字：while（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_action",
+      "label": "action",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "action",
+      "documentation": "CloudFlow 关键字：action（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_as",
+      "label": "as",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "as",
+      "documentation": "CloudFlow 关键字：as（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_audit",
+      "label": "audit",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "audit",
+      "documentation": "CloudFlow 关键字：audit（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_backoff",
+      "label": "backoff",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "backoff",
+      "documentation": "CloudFlow 关键字：backoff（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_condition",
+      "label": "condition",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "condition",
+      "documentation": "CloudFlow 关键字：condition（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_depends_on",
+      "label": "depends_on",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "depends_on",
+      "documentation": "CloudFlow 关键字：depends_on（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_duration",
+      "label": "duration",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "duration",
+      "documentation": "CloudFlow 关键字：duration（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_environment",
+      "label": "environment",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "environment",
+      "documentation": "CloudFlow 关键字：environment（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_event",
+      "label": "event",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "event",
+      "documentation": "CloudFlow 关键字：event（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_group",
+      "label": "group",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "group",
+      "documentation": "CloudFlow 关键字：group（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_handlers",
+      "label": "handlers",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "handlers",
+      "documentation": "CloudFlow 关键字：handlers（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_http",
+      "label": "http",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "http",
+      "documentation": "CloudFlow 关键字：http（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_import",
+      "label": "import",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "import",
+      "documentation": "CloudFlow 关键字：import（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_include",
+      "label": "include",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "include",
+      "documentation": "CloudFlow 关键字：include（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_interval",
+      "label": "interval",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "interval",
+      "documentation": "CloudFlow 关键字：interval（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_manual",
+      "label": "manual",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "manual",
+      "documentation": "CloudFlow 关键字：manual（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_max_attempts",
+      "label": "max_attempts",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "max_attempts",
+      "documentation": "CloudFlow 关键字：max_attempts（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_max_concurrency",
+      "label": "max_concurrency",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "max_concurrency",
+      "documentation": "CloudFlow 关键字：max_concurrency（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_max_parallel",
+      "label": "max_parallel",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "max_parallel",
+      "documentation": "CloudFlow 关键字：max_parallel（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_metadata",
+      "label": "metadata",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "metadata",
+      "documentation": "CloudFlow 关键字：metadata（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_name",
+      "label": "name",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "name",
+      "documentation": "CloudFlow 关键字：name（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_namespace",
+      "label": "namespace",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "namespace",
+      "documentation": "CloudFlow 关键字：namespace（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_on_failure",
+      "label": "on_failure",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "on_failure",
+      "documentation": "CloudFlow 关键字：on_failure（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_on_timeout",
+      "label": "on_timeout",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "on_timeout",
+      "documentation": "CloudFlow 关键字：on_timeout（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_output",
+      "label": "output",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "output",
+      "documentation": "CloudFlow 关键字：output（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_retry",
+      "label": "retry",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "retry",
+      "documentation": "CloudFlow 关键字：retry（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_retry_on",
+      "label": "retry_on",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "retry_on",
+      "documentation": "CloudFlow 关键字：retry_on（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_retry_policy",
+      "label": "retry_policy",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "retry_policy",
+      "documentation": "CloudFlow 关键字：retry_policy（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_runtime",
+      "label": "runtime",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "runtime",
+      "documentation": "CloudFlow 关键字：runtime（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_schedule",
+      "label": "schedule",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "schedule",
+      "documentation": "CloudFlow 关键字：schedule（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_step",
+      "label": "step",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "step",
+      "documentation": "CloudFlow 关键字：step（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_steps",
+      "label": "steps",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "steps",
+      "documentation": "CloudFlow 关键字：steps（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_strategy",
+      "label": "strategy",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "strategy",
+      "documentation": "CloudFlow 关键字：strategy（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_tag",
+      "label": "tag",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "tag",
+      "documentation": "CloudFlow 关键字：tag（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_timeout",
+      "label": "timeout",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "timeout",
+      "documentation": "CloudFlow 关键字：timeout（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_trigger",
+      "label": "trigger",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "trigger",
+      "documentation": "CloudFlow 关键字：trigger（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_use",
+      "label": "use",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "use",
+      "documentation": "CloudFlow 关键字：use（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_variables",
+      "label": "variables",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "variables",
+      "documentation": "CloudFlow 关键字：variables（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_with",
+      "label": "with",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "with",
+      "documentation": "CloudFlow 关键字：with（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_workflow",
+      "label": "workflow",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "workflow",
+      "documentation": "CloudFlow 关键字：workflow（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_function_filter",
+      "label": "filter",
+      "kind": "function",
+      "category": "keyword",
+      "insertText": "filter",
+      "documentation": "CloudFlow 关键字：filter（function）。",
+      "detail": "category=function",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_function_map",
+      "label": "map",
+      "kind": "function",
+      "category": "keyword",
+      "insertText": "map",
+      "documentation": "CloudFlow 关键字：map（function）。",
+      "detail": "category=function",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_function_reduce",
+      "label": "reduce",
+      "kind": "function",
+      "category": "keyword",
+      "insertText": "reduce",
+      "documentation": "CloudFlow 关键字：reduce（function）。",
+      "detail": "category=function",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_array",
+      "label": "array",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "array",
+      "documentation": "CloudFlow 关键字：array（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_boolean",
+      "label": "boolean",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "boolean",
+      "documentation": "CloudFlow 关键字：boolean（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_file",
+      "label": "file",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "file",
+      "documentation": "CloudFlow 关键字：file（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_number",
+      "label": "number",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "number",
+      "documentation": "CloudFlow 关键字：number（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_object",
+      "label": "object",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "object",
+      "documentation": "CloudFlow 关键字：object（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_space",
+      "label": "space",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "space",
+      "documentation": "CloudFlow 关键字：space（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_string",
+      "label": "string",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "string",
+      "documentation": "CloudFlow 关键字：string（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_user",
+      "label": "user",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "user",
+      "documentation": "CloudFlow 关键字：user（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_literal_false",
+      "label": "false",
+      "kind": "constant",
+      "category": "keyword",
+      "insertText": "false",
+      "documentation": "布尔字面量：假。",
+      "detail": "category=literal",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_literal_true",
+      "label": "true",
+      "kind": "constant",
+      "category": "keyword",
+      "insertText": "true",
+      "documentation": "布尔字面量：真。",
+      "detail": "category=literal",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_modifier_input",
+      "label": "input",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "input",
+      "documentation": "CloudFlow 关键字：input（modifier）。",
+      "detail": "category=modifier",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    }
+  ],
+  "topLevelKeywords": [
+    "action",
+    "as",
+    "assert",
+    "audit",
+    "backoff",
+    "break",
+    "case",
+    "catch",
+    "condition",
+    "continue",
+    "default",
+    "delay",
+    "depends_on",
+    "duration",
+    "else",
+    "environment",
+    "event",
+    "expect",
+    "finally",
+    "for",
+    "foreach",
+    "group",
+    "handlers",
+    "http",
+    "if",
+    "import",
+    "in",
+    "include",
+    "interval",
+    "manual",
+    "max_attempts",
+    "max_concurrency",
+    "max_parallel",
+    "metadata",
+    "name",
+    "namespace",
+    "notify",
+    "on_error",
+    "on_failure",
+    "on_timeout",
+    "output",
+    "parallel",
+    "retry",
+    "retry_on",
+    "retry_policy",
+    "return",
+    "runtime",
+    "schedule",
+    "step",
+    "steps",
+    "strategy",
+    "switch",
+    "tag",
+    "timeout",
+    "trigger",
+    "try",
+    "use",
+    "validate",
+    "variables",
+    "wait",
+    "while",
+    "with",
+    "workflow"
+  ],
+  "blocks": [
+    {
+      "id": "block_workflow",
+      "label": "workflow",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "workflow \"${1:name}\" {\n    $0\n}",
+      "documentation": "定义 CloudFlow 工作流。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_metadata",
+      "label": "metadata",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "metadata {\n    display_name = \"${1:名称}\"\n    version = \"${2:1.0.0}\"\n    changelog = \"${3:...}\"\n}",
+      "documentation": "元数据声明（版本/changelog 等）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_variables",
+      "label": "variables",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "variables {\n    ${1:name} = ${2:value}\n}",
+      "documentation": "变量声明块（支持 input.<type> 与类型标注）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_variable",
+      "label": "variable",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "${1:name}: ${2:type} = ${3:value}",
+      "documentation": "变量声明：显式类型 + 初始值。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_trigger",
+      "label": "trigger",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "trigger {\n    ${1:manual} {}\n}",
+      "documentation": "触发器块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_runtime",
+      "label": "runtime",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "runtime {\n    timeout = ${1:5m}\n    max_parallel = ${2:2}\n}",
+      "documentation": "运行时配置块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_steps",
+      "label": "steps",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "steps {\n    $0\n}",
+      "documentation": "步骤/控制流区块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_handlers",
+      "label": "handlers",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "handlers {\n    on_failure {\n        notify { channel = \"email\"; to = vars.owner; message = \"失败：${1:...}\" }\n    }\n}",
+      "documentation": "全局失败处理块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_environment",
+      "label": "environment",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "environment {\n    NODE_ENV = \"production\"\n}",
+      "documentation": "环境变量声明（仅供字面量，区别于 variables）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_namespace",
+      "label": "namespace",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "namespace ${1:com.example.workflows}",
+      "documentation": "工作流命名空间声明。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_audit",
+      "label": "audit",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "audit {\n    level = \"high\"\n    description = \"${1:...}\"\n}",
+      "documentation": "工作流级审计注解。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_tag",
+      "label": "tag",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "tag \"${1:finance}\"",
+      "documentation": "工作流分类标签。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_import",
+      "label": "import",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "import \"${1:common.flow}\" as ${2:common}",
+      "documentation": "带别名的模块导入。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_include",
+      "label": "include",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "include \"${1:common.flow}\"",
+      "documentation": "受限模块复用（CLI 文件模式）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    }
+  ],
+  "structureTemplates": [
+    {
+      "id": "struct_step",
+      "label": "step",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "step ${1:step_id} {\n    action ${2:file.list} {\n        ${3}\n    }\n}",
+      "documentation": "定义步骤并调用 Capability Hub 能力。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_if",
+      "label": "if",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "if ${1:vars.flag == true} {\n    $2\n} else {\n    $3\n}",
+      "documentation": "条件分支。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_foreach",
+      "label": "foreach",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "foreach ${1:item} in ${2:vars.items} {\n    $3\n}",
+      "documentation": "遍历集合（item 仅在循环体内可见）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_for",
+      "label": "for",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "for ${1:i} in range(${2:0}, ${3:vars.max}) {\n    $4\n}",
+      "documentation": "索引循环；循环体内可用 break/continue。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_while",
+      "label": "while",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "while ${1:vars.count > 0} {\n    $2\n}",
+      "documentation": "条件循环（受 maxIterations 保护）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_parallel",
+      "label": "parallel",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "parallel {\n    step ${1:a} {}\n    step ${2:b} {}\n}",
+      "documentation": "并行分支。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_parallel_max",
+      "label": "parallel_max",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "parallel(max_concurrency=${1:3}) {\n    step ${2:a} {}\n    step ${3:b} {}\n}",
+      "documentation": "并行分支（带分支级并发上限）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_try_catch_finally",
+      "label": "try_catch_finally",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "try {\n    ${1}\n} catch ${2:error} {\n    ${3}\n} finally {\n    ${4}\n}",
+      "documentation": "异常处理（catch 变量仅在 catch 体内可见）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_wait",
+      "label": "wait",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "wait ${1:approval} {\n    timeout = ${2:24h}\n}",
+      "documentation": "等待人工审批或外部信号（可持久化/resume）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_assert",
+      "label": "assert",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "assert { ${1:vars.result == 0} }",
+      "documentation": "断言：失败产生 CF2202。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_switch",
+      "label": "switch",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "switch ${1:vars.status} {\n    case \"${2:active}\" => {\n        $3\n    }\n    default => {\n        $4\n    }\n}",
+      "documentation": "多分支选择。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_delay",
+      "label": "delay",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "delay ${1:5s}",
+      "documentation": "固定延迟步骤。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_notify",
+      "label": "notify",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "notify {\n    channel = \"email\"\n    to = vars.${1:user_id}\n    message = \"${2:...}\"\n}",
+      "documentation": "内建通知。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_validate",
+      "label": "validate",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "validate { ${1:vars.result > 0} }",
+      "documentation": "校验：求值 false 时运行时报错。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_expect",
+      "label": "expect",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "expect { ${1:vars.result > 0} }",
+      "documentation": "校验别名（同 validate）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_return",
+      "label": "return",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "return ${1:vars.result}",
+      "documentation": "步骤级提前返回。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_break",
+      "label": "break",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "break",
+      "documentation": "跳出 for/while 循环。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_continue",
+      "label": "continue",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "continue",
+      "documentation": "跳过本轮循环。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_step_group",
+      "label": "step_group",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "step group ${1:group_id} {\n    step ${2:a} {}\n    step ${3:b} {}\n}",
+      "documentation": "步骤组（编译期扁平化）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_retry",
+      "label": "retry",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "retry {\n    max_attempts = ${1:3}\n    strategy = \"${2:exponential}\"\n    backoff = \"${3:5s}\"\n}",
+      "documentation": "重试策略。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_retry_on",
+      "label": "retry_on",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "retry_on [${1:TimeoutException}]",
+      "documentation": "可重试异常白名单。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_depends_on",
+      "label": "depends_on",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "depends_on ${1:step_a} if ${2:vars.flag == true}",
+      "documentation": "条件依赖。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_timeout",
+      "label": "timeout",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "timeout {\n    duration = ${1:30s}\n    on_timeout = \"${2:fail}\"\n}",
+      "documentation": "超时块（on_timeout: fail/continue/retry）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    }
+  ],
+  "builtinFunctions": [
+    {
+      "name": "size",
+      "signature": "size(value) -> number",
+      "parameters": [
+        {
+          "label": "value",
+          "type": "array|object|string",
+          "doc": "要测量长度的集合或字符串"
+        }
+      ],
+      "returnType": "number",
+      "doc": "返回数组长度、对象键数或字符串长度（与 len 等价）。"
+    },
+    {
+      "name": "len",
+      "signature": "len(value) -> number",
+      "parameters": [
+        {
+          "label": "value",
+          "type": "array|object|string",
+          "doc": "要测量长度的集合或字符串"
+        }
+      ],
+      "returnType": "number",
+      "doc": "返回数组长度、对象键数或字符串长度（与 size 等价）。"
+    },
+    {
+      "name": "contains",
+      "signature": "contains(container, needle) -> boolean",
+      "parameters": [
+        {
+          "label": "container",
+          "type": "string|array|object",
+          "doc": "被搜索的字符串/数组/对象"
+        },
+        {
+          "label": "needle",
+          "type": "any",
+          "doc": "要查找的目标"
+        }
+      ],
+      "returnType": "boolean",
+      "doc": "字符串是否包含子串、数组是否包含元素、对象是否包含键。"
+    },
+    {
+      "name": "starts_with",
+      "signature": "starts_with(text, prefix) -> boolean",
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        },
+        {
+          "label": "prefix",
+          "type": "string",
+          "doc": "前缀"
+        }
+      ],
+      "returnType": "boolean",
+      "doc": "判断字符串是否以指定前缀开头。"
+    },
+    {
+      "name": "ends_with",
+      "signature": "ends_with(text, suffix) -> boolean",
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        },
+        {
+          "label": "suffix",
+          "type": "string",
+          "doc": "后缀"
+        }
+      ],
+      "returnType": "boolean",
+      "doc": "判断字符串是否以指定后缀结尾。"
+    }
+  ],
+  "pipelineOperators": [
+    "filter",
+    "map",
+    "reduce"
+  ],
+  "types": [
+    {
+      "id": "type_string",
+      "label": "string",
+      "kind": "type",
+      "category": "type",
+      "insertText": "string",
+      "documentation": "CloudFlow 类型：string。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_number",
+      "label": "number",
+      "kind": "type",
+      "category": "type",
+      "insertText": "number",
+      "documentation": "CloudFlow 类型：number。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_boolean",
+      "label": "boolean",
+      "kind": "type",
+      "category": "type",
+      "insertText": "boolean",
+      "documentation": "CloudFlow 类型：boolean。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_array",
+      "label": "array",
+      "kind": "type",
+      "category": "type",
+      "insertText": "array",
+      "documentation": "CloudFlow 类型：array。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_object",
+      "label": "object",
+      "kind": "type",
+      "category": "type",
+      "insertText": "object",
+      "documentation": "CloudFlow 类型：object。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_file",
+      "label": "file",
+      "kind": "type",
+      "category": "type",
+      "insertText": "file",
+      "documentation": "CloudFlow 类型：file。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_user",
+      "label": "user",
+      "kind": "type",
+      "category": "type",
+      "insertText": "user",
+      "documentation": "CloudFlow 类型：user。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_space",
+      "label": "space",
+      "kind": "type",
+      "category": "type",
+      "insertText": "space",
+      "documentation": "CloudFlow 类型：space。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_credential",
+      "label": "credential",
+      "kind": "type",
+      "category": "type",
+      "insertText": "credential",
+      "documentation": "CloudFlow 类型：credential。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_input",
+      "label": "input",
+      "kind": "keyword",
+      "category": "type",
+      "insertText": "input.",
+      "documentation": "输入声明前缀：input.<type>(...)。",
+      "detail": "modifier",
+      "triggerCharacters": [
+        "."
+      ]
+    }
+  ],
+  "triggers": {
+    "types": {
+      "manual": {
+        "label": "manual",
+        "fields": [],
+        "doc": "手动触发：仅通过启动 API 人工触发。"
+      },
+      "schedule": {
+        "label": "schedule",
+        "fields": [
+          "cron",
+          "timezone"
+        ],
+        "doc": "定时触发：cron 表达式 + 可选时区。"
+      },
+      "event": {
+        "label": "event",
+        "fields": [
+          "name"
+        ],
+        "doc": "事件触发：监听平台事件。"
+      },
+      "http": {
+        "label": "http",
+        "fields": [
+          "path",
+          "method"
+        ],
+        "doc": "Webhook 触发：注册 HTTP 端点（path + method）。"
+      },
+      "interval": {
+        "label": "interval",
+        "fields": [],
+        "doc": "周期触发：interval = <duration>，如 5m / 1h。"
+      },
+      "webhook": {
+        "label": "webhook",
+        "fields": [
+          "path",
+          "method"
+        ],
+        "doc": "Webhook 详配别名：等效于 http 块（path + method）。"
+      }
+    },
+    "items": [
+      {
+        "id": "trigger_manual",
+        "label": "manual",
+        "kind": "snippet",
+        "category": "trigger",
+        "insertText": "trigger {\n    manual {}\n}",
+        "documentation": "手动触发：仅通过启动 API 人工触发。",
+        "triggerCharacters": [
+          " "
+        ],
+        "insertTextRules": "snippet"
+      },
+      {
+        "id": "trigger_schedule",
+        "label": "schedule",
+        "kind": "snippet",
+        "category": "trigger",
+        "insertText": "trigger {\n    schedule {\n        cron = \"${1:0 0 * * *}\"\n        timezone = \"${2:Asia/Shanghai}\"\n    }\n}",
+        "documentation": "定时触发：cron 表达式 + 可选时区。",
+        "triggerCharacters": [
+          " "
+        ],
+        "insertTextRules": "snippet"
+      },
+      {
+        "id": "trigger_event",
+        "label": "event",
+        "kind": "snippet",
+        "category": "trigger",
+        "insertText": "trigger {\n    event {\n        name = \"${1:event_name}\"\n    }\n}",
+        "documentation": "事件触发：监听平台事件。",
+        "triggerCharacters": [
+          " "
+        ],
+        "insertTextRules": "snippet"
+      },
+      {
+        "id": "trigger_http",
+        "label": "http",
+        "kind": "snippet",
+        "category": "trigger",
+        "insertText": "trigger {\n    http {\n        path = \"${1:/webhooks/start}\"\n        method = \"${2:POST}\"\n    }\n}",
+        "documentation": "Webhook 触发：注册 HTTP 端点（path + method）。",
+        "triggerCharacters": [
+          " "
+        ],
+        "insertTextRules": "snippet"
+      },
+      {
+        "id": "trigger_interval",
+        "label": "interval",
+        "kind": "snippet",
+        "category": "trigger",
+        "insertText": "trigger {\n    interval = ${1:5m}\n}",
+        "documentation": "周期触发：interval = <duration>，如 5m / 1h。",
+        "triggerCharacters": [
+          " "
+        ],
+        "insertTextRules": "snippet"
+      },
+      {
+        "id": "trigger_webhook",
+        "label": "webhook",
+        "kind": "snippet",
+        "category": "trigger",
+        "insertText": "trigger {\n    http {\n        path = \"${1:/webhook/start}\"\n        method = \"${2:POST}\"\n    }\n}",
+        "documentation": "Webhook 详配别名：等效于 http 块（path + method）。",
+        "triggerCharacters": [
+          " "
+        ],
+        "insertTextRules": "snippet"
+      }
+    ],
+    "allTriggerKeywords": [
+      "event",
+      "http",
+      "interval",
+      "manual",
+      "schedule",
+      "webhook"
+    ]
+  },
+  "retryExceptions": [
+    "TimeoutException",
+    "NetworkException",
+    "PluginException",
+    "StorageException",
+    "PermissionException",
+    "TransientException",
+    "ValidationException",
+    "WorkerUnavailableException",
+    "GenericException"
+  ],
+  "referencePrefixes": {
+    "vars": {
+      "prefix": "vars.",
+      "doc": "当前作用域变量引用：vars.<name>.",
+      "nextSegment": "<name>",
+      "scope": "variable.other.vars.cloudflow"
+    },
+    "steps": {
+      "prefix": "steps.",
+      "doc": "步骤输出引用：steps.<step_id>.output.",
+      "nextSegment": "<step_id>.output",
+      "scope": "variable.other.steps.cloudflow"
+    },
+    "workflow": {
+      "prefix": "workflow.",
+      "doc": "工作流系统信息引用：workflow.<name>.",
+      "nextSegment": "<name>",
+      "scope": "variable.other.system.cloudflow"
+    }
+  },
+  "capabilities": {
+    "dynamic": true,
+    "note": "action 名称与参数由 Capability Hub schema 提供；前端在运行时注入 capabilities。",
+    "parameterFields": [
+      "node",
+      "path",
+      "filter",
+      "text",
+      "source",
+      "target",
+      "message",
+      "channel",
+      "to"
+    ]
+  },
+  "errorCodes": {
+    "CF1101": "非法字符",
+    "CF1102": "字符串未闭合",
+    "CF1201": "缺少 token / 语法结构错误",
+    "CF1202": "未知关键字",
+    "CF2001": "语义告警（重复定义等）",
+    "CF2002": "未定义引用/作用域外变量",
+    "CF2101": "表达式函数未注册（应使用白名单函数）",
+    "CF2202": "断言失败（运行时）",
+    "CF4401": "switch 只允许一个 default 分支",
+    "CF4402": "retry_on 引用了未知异常类型",
+    "CF4403": "on_timeout 取值非法",
+    "CF4404": "delay 时长必须大于 0",
+    "CF4405": "environment 值必须是字面量",
+    "CF4406": "namespace 不符合小写点分标识符",
+    "CF4407": "import 别名重复",
+    "CF4408": "break/continue 只能出现在 for/while 循环体内",
+    "CF4409": "validate 表达式必须是 boolean",
+    "CF4410": "for range 端点必须是 number",
+    "CF4411": "parallel max_concurrency 必须为正整数",
+    "CF4412": "validate 校验未通过（运行时）",
+    "CF4413": "http 触发 method 非法",
+    "CF4414": "interval 触发时长必须大于 0",
+    "CF4415": "audit level 非法",
+    "CF4416": "notify 渠道非法",
+    "CF4417": "步骤级提前返回（运行期信号）",
+    "CF4418": "step group 冲突 / 空组",
+    "CF4420": "use/with 引用了未声明模块别名",
+    "CF4421": "条件依赖必须是布尔表达式"
+  },
+  "pairs": {
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "(",
+        ")"
+      ],
+      [
+        "[",
+        "]"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "\"\"\"",
+        "close": "\"\"\"",
+        "notIn": [
+          "string"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "(",
+        ")"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "\"",
+        "\""
+      ]
+    ],
+    "indentation": {
+      "increaseIndentPattern": "\\{[^}]*$",
+      "decreaseIndentPattern": "^\\s*\\}",
+      "indentSize": 4
+    },
+    "comment": {
+      "line": "#"
+    }
+  },
+  "snippets": {
+    "full_workflow": {
+      "prefix": "workflow",
+      "template": "workflow \"${1:name}\" {\n    metadata {\n        display_name = \"${2:名称}\"\n        version = \"${3:1.0.0}\"\n    }\n    variables {\n        ${4:name} = ${5:value}\n    }\n    trigger { manual {} }\n    runtime {\n        timeout = 5m\n        max_parallel = 2\n    }\n    steps {\n        step ${6:first} {\n            action ${7:file.list} {\n                ${8}\n            }\n        }\n    }\n}",
+      "doc": "完整工作流模板。"
+    },
+    "add_step": {
+      "prefix": "step",
+      "template": "step ${1:step_id} {\n    action ${2:file.list} {\n        ${3}\n    }\n}",
+      "doc": "添加一个步骤。"
+    },
+    "create_trigger": {
+      "prefix": "trigger",
+      "template": "trigger {\n    ${1:manual} {}\n}",
+      "doc": "创建触发器块。"
+    },
+    "create_variable": {
+      "prefix": "variable",
+      "template": "${1:name}: ${2:type} = ${3:value}",
+      "doc": "声明变量。"
+    },
+    "foreach_loop": {
+      "prefix": "foreach",
+      "template": "foreach ${1:item} in ${2:vars.items} {\n    ${3}\n}",
+      "doc": "遍历集合。"
+    }
+  },
+  "astNodes": {
+    "flowNodeVariants": [
+      "Step",
+      "Condition",
+      "Loop",
+      "For",
+      "While",
+      "Parallel",
+      "TryCatch",
+      "Wait",
+      "Assert",
+      "Switch",
+      "Delay",
+      "Notify",
+      "Return",
+      "Break",
+      "Continue",
+      "Validate",
+      "StepGroup"
+    ],
+    "structs": [
+      "Span",
+      "WorkflowNode",
+      "IncludeNode",
+      "MetadataNode",
+      "RuntimeConfig",
+      "TimeoutConfig",
+      "VariableDecl",
+      "ExpressionNode",
+      "StepNode",
+      "ActionNode",
+      "RetryNode",
+      "ConditionNode",
+      "LoopNode",
+      "ForNode",
+      "WhileNode",
+      "BreakNode",
+      "ContinueNode",
+      "ParallelNode",
+      "ValidateNode",
+      "TryCatchNode",
+      "WaitNode",
+      "AssertNode",
+      "SwitchNode",
+      "SwitchCase",
+      "DelayNode",
+      "NotifyNode",
+      "ReturnNode",
+      "EnvironmentDecl",
+      "AuditAnnotation",
+      "StepGroupNode",
+      "HandlerNode"
+    ],
+    "enums": [
+      "TriggerNode",
+      "VariableSource",
+      "ValueNode",
+      "ExpressionKind",
+      "PipeOp",
+      "FlowNode"
+    ]
+  },
+  "items": [
+    {
+      "id": "kw_control_assert",
+      "label": "assert",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "assert",
+      "documentation": "CloudFlow 关键字：assert（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_break",
+      "label": "break",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "break",
+      "documentation": "CloudFlow 关键字：break（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_case",
+      "label": "case",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "case",
+      "documentation": "CloudFlow 关键字：case（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_catch",
+      "label": "catch",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "catch",
+      "documentation": "CloudFlow 关键字：catch（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_continue",
+      "label": "continue",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "continue",
+      "documentation": "CloudFlow 关键字：continue（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_default",
+      "label": "default",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "default",
+      "documentation": "CloudFlow 关键字：default（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_delay",
+      "label": "delay",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "delay",
+      "documentation": "CloudFlow 关键字：delay（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_else",
+      "label": "else",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "else",
+      "documentation": "CloudFlow 关键字：else（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_expect",
+      "label": "expect",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "expect",
+      "documentation": "CloudFlow 关键字：expect（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_finally",
+      "label": "finally",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "finally",
+      "documentation": "CloudFlow 关键字：finally（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_for",
+      "label": "for",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "for",
+      "documentation": "CloudFlow 关键字：for（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_foreach",
+      "label": "foreach",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "foreach",
+      "documentation": "CloudFlow 关键字：foreach（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_if",
+      "label": "if",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "if",
+      "documentation": "CloudFlow 关键字：if（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_in",
+      "label": "in",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "in",
+      "documentation": "CloudFlow 关键字：in（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_notify",
+      "label": "notify",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "notify",
+      "documentation": "CloudFlow 关键字：notify（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_on_error",
+      "label": "on_error",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "on_error",
+      "documentation": "CloudFlow 关键字：on_error（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_parallel",
+      "label": "parallel",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "parallel",
+      "documentation": "CloudFlow 关键字：parallel（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_return",
+      "label": "return",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "return",
+      "documentation": "CloudFlow 关键字：return（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_switch",
+      "label": "switch",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "switch",
+      "documentation": "CloudFlow 关键字：switch（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_try",
+      "label": "try",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "try",
+      "documentation": "CloudFlow 关键字：try（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_validate",
+      "label": "validate",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "validate",
+      "documentation": "CloudFlow 关键字：validate（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_wait",
+      "label": "wait",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "wait",
+      "documentation": "CloudFlow 关键字：wait（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_control_while",
+      "label": "while",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "while",
+      "documentation": "CloudFlow 关键字：while（control）。",
+      "detail": "category=control",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_action",
+      "label": "action",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "action",
+      "documentation": "CloudFlow 关键字：action（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_as",
+      "label": "as",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "as",
+      "documentation": "CloudFlow 关键字：as（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_audit",
+      "label": "audit",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "audit",
+      "documentation": "CloudFlow 关键字：audit（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_backoff",
+      "label": "backoff",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "backoff",
+      "documentation": "CloudFlow 关键字：backoff（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_condition",
+      "label": "condition",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "condition",
+      "documentation": "CloudFlow 关键字：condition（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_depends_on",
+      "label": "depends_on",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "depends_on",
+      "documentation": "CloudFlow 关键字：depends_on（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_duration",
+      "label": "duration",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "duration",
+      "documentation": "CloudFlow 关键字：duration（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_environment",
+      "label": "environment",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "environment",
+      "documentation": "CloudFlow 关键字：environment（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_event",
+      "label": "event",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "event",
+      "documentation": "CloudFlow 关键字：event（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_group",
+      "label": "group",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "group",
+      "documentation": "CloudFlow 关键字：group（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_handlers",
+      "label": "handlers",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "handlers",
+      "documentation": "CloudFlow 关键字：handlers（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_http",
+      "label": "http",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "http",
+      "documentation": "CloudFlow 关键字：http（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_import",
+      "label": "import",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "import",
+      "documentation": "CloudFlow 关键字：import（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_include",
+      "label": "include",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "include",
+      "documentation": "CloudFlow 关键字：include（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_interval",
+      "label": "interval",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "interval",
+      "documentation": "CloudFlow 关键字：interval（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_manual",
+      "label": "manual",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "manual",
+      "documentation": "CloudFlow 关键字：manual（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_max_attempts",
+      "label": "max_attempts",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "max_attempts",
+      "documentation": "CloudFlow 关键字：max_attempts（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_max_concurrency",
+      "label": "max_concurrency",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "max_concurrency",
+      "documentation": "CloudFlow 关键字：max_concurrency（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_max_parallel",
+      "label": "max_parallel",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "max_parallel",
+      "documentation": "CloudFlow 关键字：max_parallel（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_metadata",
+      "label": "metadata",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "metadata",
+      "documentation": "CloudFlow 关键字：metadata（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_name",
+      "label": "name",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "name",
+      "documentation": "CloudFlow 关键字：name（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_namespace",
+      "label": "namespace",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "namespace",
+      "documentation": "CloudFlow 关键字：namespace（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_on_failure",
+      "label": "on_failure",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "on_failure",
+      "documentation": "CloudFlow 关键字：on_failure（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_on_timeout",
+      "label": "on_timeout",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "on_timeout",
+      "documentation": "CloudFlow 关键字：on_timeout（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_output",
+      "label": "output",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "output",
+      "documentation": "CloudFlow 关键字：output（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_retry",
+      "label": "retry",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "retry",
+      "documentation": "CloudFlow 关键字：retry（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_retry_on",
+      "label": "retry_on",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "retry_on",
+      "documentation": "CloudFlow 关键字：retry_on（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_retry_policy",
+      "label": "retry_policy",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "retry_policy",
+      "documentation": "CloudFlow 关键字：retry_policy（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_runtime",
+      "label": "runtime",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "runtime",
+      "documentation": "CloudFlow 关键字：runtime（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_schedule",
+      "label": "schedule",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "schedule",
+      "documentation": "CloudFlow 关键字：schedule（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_step",
+      "label": "step",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "step",
+      "documentation": "CloudFlow 关键字：step（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_steps",
+      "label": "steps",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "steps",
+      "documentation": "CloudFlow 关键字：steps（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_strategy",
+      "label": "strategy",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "strategy",
+      "documentation": "CloudFlow 关键字：strategy（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_tag",
+      "label": "tag",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "tag",
+      "documentation": "CloudFlow 关键字：tag（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_timeout",
+      "label": "timeout",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "timeout",
+      "documentation": "CloudFlow 关键字：timeout（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_trigger",
+      "label": "trigger",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "trigger",
+      "documentation": "CloudFlow 关键字：trigger（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_use",
+      "label": "use",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "use",
+      "documentation": "CloudFlow 关键字：use（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_variables",
+      "label": "variables",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "variables",
+      "documentation": "CloudFlow 关键字：variables（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_with",
+      "label": "with",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "with",
+      "documentation": "CloudFlow 关键字：with（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_declaration_workflow",
+      "label": "workflow",
+      "kind": "module",
+      "category": "keyword",
+      "insertText": "workflow",
+      "documentation": "CloudFlow 关键字：workflow（declaration）。",
+      "detail": "category=declaration",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_function_filter",
+      "label": "filter",
+      "kind": "function",
+      "category": "keyword",
+      "insertText": "filter",
+      "documentation": "CloudFlow 关键字：filter（function）。",
+      "detail": "category=function",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_function_map",
+      "label": "map",
+      "kind": "function",
+      "category": "keyword",
+      "insertText": "map",
+      "documentation": "CloudFlow 关键字：map（function）。",
+      "detail": "category=function",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_function_reduce",
+      "label": "reduce",
+      "kind": "function",
+      "category": "keyword",
+      "insertText": "reduce",
+      "documentation": "CloudFlow 关键字：reduce（function）。",
+      "detail": "category=function",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_array",
+      "label": "array",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "array",
+      "documentation": "CloudFlow 关键字：array（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_boolean",
+      "label": "boolean",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "boolean",
+      "documentation": "CloudFlow 关键字：boolean（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_file",
+      "label": "file",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "file",
+      "documentation": "CloudFlow 关键字：file（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_number",
+      "label": "number",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "number",
+      "documentation": "CloudFlow 关键字：number（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_object",
+      "label": "object",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "object",
+      "documentation": "CloudFlow 关键字：object（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_space",
+      "label": "space",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "space",
+      "documentation": "CloudFlow 关键字：space（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_string",
+      "label": "string",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "string",
+      "documentation": "CloudFlow 关键字：string（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_type_user",
+      "label": "user",
+      "kind": "type",
+      "category": "keyword",
+      "insertText": "user",
+      "documentation": "CloudFlow 关键字：user（type）。",
+      "detail": "category=type",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_literal_false",
+      "label": "false",
+      "kind": "constant",
+      "category": "keyword",
+      "insertText": "false",
+      "documentation": "布尔字面量：假。",
+      "detail": "category=literal",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_literal_true",
+      "label": "true",
+      "kind": "constant",
+      "category": "keyword",
+      "insertText": "true",
+      "documentation": "布尔字面量：真。",
+      "detail": "category=literal",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "kw_modifier_input",
+      "label": "input",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "input",
+      "documentation": "CloudFlow 关键字：input（modifier）。",
+      "detail": "category=modifier",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
+      "id": "block_workflow",
+      "label": "workflow",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "workflow \"${1:name}\" {\n    $0\n}",
+      "documentation": "定义 CloudFlow 工作流。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_metadata",
+      "label": "metadata",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "metadata {\n    display_name = \"${1:名称}\"\n    version = \"${2:1.0.0}\"\n    changelog = \"${3:...}\"\n}",
+      "documentation": "元数据声明（版本/changelog 等）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_variables",
+      "label": "variables",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "variables {\n    ${1:name} = ${2:value}\n}",
+      "documentation": "变量声明块（支持 input.<type> 与类型标注）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_variable",
+      "label": "variable",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "${1:name}: ${2:type} = ${3:value}",
+      "documentation": "变量声明：显式类型 + 初始值。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_trigger",
+      "label": "trigger",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "trigger {\n    ${1:manual} {}\n}",
+      "documentation": "触发器块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_runtime",
+      "label": "runtime",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "runtime {\n    timeout = ${1:5m}\n    max_parallel = ${2:2}\n}",
+      "documentation": "运行时配置块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_steps",
+      "label": "steps",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "steps {\n    $0\n}",
+      "documentation": "步骤/控制流区块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_handlers",
+      "label": "handlers",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "handlers {\n    on_failure {\n        notify { channel = \"email\"; to = vars.owner; message = \"失败：${1:...}\" }\n    }\n}",
+      "documentation": "全局失败处理块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_environment",
+      "label": "environment",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "environment {\n    NODE_ENV = \"production\"\n}",
+      "documentation": "环境变量声明（仅供字面量，区别于 variables）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_namespace",
+      "label": "namespace",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "namespace ${1:com.example.workflows}",
+      "documentation": "工作流命名空间声明。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_audit",
+      "label": "audit",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "audit {\n    level = \"high\"\n    description = \"${1:...}\"\n}",
+      "documentation": "工作流级审计注解。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_tag",
+      "label": "tag",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "tag \"${1:finance}\"",
+      "documentation": "工作流分类标签。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_import",
+      "label": "import",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "import \"${1:common.flow}\" as ${2:common}",
+      "documentation": "带别名的模块导入。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "block_include",
+      "label": "include",
+      "kind": "snippet",
+      "category": "block",
+      "insertText": "include \"${1:common.flow}\"",
+      "documentation": "受限模块复用（CLI 文件模式）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_step",
+      "label": "step",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "step ${1:step_id} {\n    action ${2:file.list} {\n        ${3}\n    }\n}",
+      "documentation": "定义步骤并调用 Capability Hub 能力。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_if",
+      "label": "if",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "if ${1:vars.flag == true} {\n    $2\n} else {\n    $3\n}",
+      "documentation": "条件分支。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_foreach",
+      "label": "foreach",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "foreach ${1:item} in ${2:vars.items} {\n    $3\n}",
+      "documentation": "遍历集合（item 仅在循环体内可见）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_for",
+      "label": "for",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "for ${1:i} in range(${2:0}, ${3:vars.max}) {\n    $4\n}",
+      "documentation": "索引循环；循环体内可用 break/continue。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_while",
+      "label": "while",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "while ${1:vars.count > 0} {\n    $2\n}",
+      "documentation": "条件循环（受 maxIterations 保护）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_parallel",
+      "label": "parallel",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "parallel {\n    step ${1:a} {}\n    step ${2:b} {}\n}",
+      "documentation": "并行分支。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_parallel_max",
+      "label": "parallel_max",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "parallel(max_concurrency=${1:3}) {\n    step ${2:a} {}\n    step ${3:b} {}\n}",
+      "documentation": "并行分支（带分支级并发上限）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_try_catch_finally",
+      "label": "try_catch_finally",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "try {\n    ${1}\n} catch ${2:error} {\n    ${3}\n} finally {\n    ${4}\n}",
+      "documentation": "异常处理（catch 变量仅在 catch 体内可见）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_wait",
+      "label": "wait",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "wait ${1:approval} {\n    timeout = ${2:24h}\n}",
+      "documentation": "等待人工审批或外部信号（可持久化/resume）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_assert",
+      "label": "assert",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "assert { ${1:vars.result == 0} }",
+      "documentation": "断言：失败产生 CF2202。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_switch",
+      "label": "switch",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "switch ${1:vars.status} {\n    case \"${2:active}\" => {\n        $3\n    }\n    default => {\n        $4\n    }\n}",
+      "documentation": "多分支选择。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_delay",
+      "label": "delay",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "delay ${1:5s}",
+      "documentation": "固定延迟步骤。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_notify",
+      "label": "notify",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "notify {\n    channel = \"email\"\n    to = vars.${1:user_id}\n    message = \"${2:...}\"\n}",
+      "documentation": "内建通知。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_validate",
+      "label": "validate",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "validate { ${1:vars.result > 0} }",
+      "documentation": "校验：求值 false 时运行时报错。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_expect",
+      "label": "expect",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "expect { ${1:vars.result > 0} }",
+      "documentation": "校验别名（同 validate）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_return",
+      "label": "return",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "return ${1:vars.result}",
+      "documentation": "步骤级提前返回。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_break",
+      "label": "break",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "break",
+      "documentation": "跳出 for/while 循环。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_continue",
+      "label": "continue",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "continue",
+      "documentation": "跳过本轮循环。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_step_group",
+      "label": "step_group",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "step group ${1:group_id} {\n    step ${2:a} {}\n    step ${3:b} {}\n}",
+      "documentation": "步骤组（编译期扁平化）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_retry",
+      "label": "retry",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "retry {\n    max_attempts = ${1:3}\n    strategy = \"${2:exponential}\"\n    backoff = \"${3:5s}\"\n}",
+      "documentation": "重试策略。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_retry_on",
+      "label": "retry_on",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "retry_on [${1:TimeoutException}]",
+      "documentation": "可重试异常白名单。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_depends_on",
+      "label": "depends_on",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "depends_on ${1:step_a} if ${2:vars.flag == true}",
+      "documentation": "条件依赖。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "struct_timeout",
+      "label": "timeout",
+      "kind": "snippet",
+      "category": "structure",
+      "insertText": "timeout {\n    duration = ${1:30s}\n    on_timeout = \"${2:fail}\"\n}",
+      "documentation": "超时块（on_timeout: fail/continue/retry）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "func_size",
+      "label": "size",
+      "kind": "function",
+      "category": "function",
+      "insertText": "size(${1})",
+      "documentation": "返回数组长度、对象键数或字符串长度（与 len 等价）。",
+      "detail": "size(value) -> number",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "value",
+          "type": "array|object|string",
+          "doc": "要测量长度的集合或字符串"
+        }
+      ]
+    },
+    {
+      "id": "func_len",
+      "label": "len",
+      "kind": "function",
+      "category": "function",
+      "insertText": "len(${1})",
+      "documentation": "返回数组长度、对象键数或字符串长度（与 size 等价）。",
+      "detail": "len(value) -> number",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "value",
+          "type": "array|object|string",
+          "doc": "要测量长度的集合或字符串"
+        }
+      ]
+    },
+    {
+      "id": "func_contains",
+      "label": "contains",
+      "kind": "function",
+      "category": "function",
+      "insertText": "contains(${1})",
+      "documentation": "字符串是否包含子串、数组是否包含元素、对象是否包含键。",
+      "detail": "contains(container, needle) -> boolean",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "container",
+          "type": "string|array|object",
+          "doc": "被搜索的字符串/数组/对象"
+        },
+        {
+          "label": "needle",
+          "type": "any",
+          "doc": "要查找的目标"
+        }
+      ]
+    },
+    {
+      "id": "func_starts_with",
+      "label": "starts_with",
+      "kind": "function",
+      "category": "function",
+      "insertText": "starts_with(${1})",
+      "documentation": "判断字符串是否以指定前缀开头。",
+      "detail": "starts_with(text, prefix) -> boolean",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        },
+        {
+          "label": "prefix",
+          "type": "string",
+          "doc": "前缀"
+        }
+      ]
+    },
+    {
+      "id": "func_ends_with",
+      "label": "ends_with",
+      "kind": "function",
+      "category": "function",
+      "insertText": "ends_with(${1})",
+      "documentation": "判断字符串是否以指定后缀结尾。",
+      "detail": "ends_with(text, suffix) -> boolean",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        },
+        {
+          "label": "suffix",
+          "type": "string",
+          "doc": "后缀"
+        }
+      ]
+    },
+    {
+      "id": "pipe_filter",
+      "label": "filter",
+      "kind": "function",
+      "category": "pipeline",
+      "insertText": "filter(${1})",
+      "documentation": "按谓词过滤数组元素。",
+      "detail": "filter(➤ expr)",
+      "triggerCharacters": [
+        "("
+      ]
+    },
+    {
+      "id": "pipe_map",
+      "label": "map",
+      "kind": "function",
+      "category": "pipeline",
+      "insertText": "map(${1})",
+      "documentation": "投影每个元素的一个字段。",
+      "detail": "map(field)",
+      "triggerCharacters": [
+        "("
+      ]
+    },
+    {
+      "id": "pipe_reduce",
+      "label": "reduce",
+      "kind": "function",
+      "category": "pipeline",
+      "insertText": "reduce(${1})",
+      "documentation": "沿数组归约为单值（如 sum）。",
+      "detail": "reduce(fn)",
+      "triggerCharacters": [
+        "("
+      ]
+    },
+    {
+      "id": "type_string",
+      "label": "string",
+      "kind": "type",
+      "category": "type",
+      "insertText": "string",
+      "documentation": "CloudFlow 类型：string。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_number",
+      "label": "number",
+      "kind": "type",
+      "category": "type",
+      "insertText": "number",
+      "documentation": "CloudFlow 类型：number。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_boolean",
+      "label": "boolean",
+      "kind": "type",
+      "category": "type",
+      "insertText": "boolean",
+      "documentation": "CloudFlow 类型：boolean。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_array",
+      "label": "array",
+      "kind": "type",
+      "category": "type",
+      "insertText": "array",
+      "documentation": "CloudFlow 类型：array。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_object",
+      "label": "object",
+      "kind": "type",
+      "category": "type",
+      "insertText": "object",
+      "documentation": "CloudFlow 类型：object。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_file",
+      "label": "file",
+      "kind": "type",
+      "category": "type",
+      "insertText": "file",
+      "documentation": "CloudFlow 类型：file。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_user",
+      "label": "user",
+      "kind": "type",
+      "category": "type",
+      "insertText": "user",
+      "documentation": "CloudFlow 类型：user。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_space",
+      "label": "space",
+      "kind": "type",
+      "category": "type",
+      "insertText": "space",
+      "documentation": "CloudFlow 类型：space。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_credential",
+      "label": "credential",
+      "kind": "type",
+      "category": "type",
+      "insertText": "credential",
+      "documentation": "CloudFlow 类型：credential。",
+      "detail": "type",
+      "triggerCharacters": [
+        " "
+      ]
+    },
+    {
+      "id": "type_input",
+      "label": "input",
+      "kind": "keyword",
+      "category": "type",
+      "insertText": "input.",
+      "documentation": "输入声明前缀：input.<type>(...)。",
+      "detail": "modifier",
+      "triggerCharacters": [
+        "."
+      ]
+    },
+    {
+      "id": "trigger_manual",
+      "label": "manual",
+      "kind": "snippet",
+      "category": "trigger",
+      "insertText": "trigger {\n    manual {}\n}",
+      "documentation": "手动触发：仅通过启动 API 人工触发。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "trigger_schedule",
+      "label": "schedule",
+      "kind": "snippet",
+      "category": "trigger",
+      "insertText": "trigger {\n    schedule {\n        cron = \"${1:0 0 * * *}\"\n        timezone = \"${2:Asia/Shanghai}\"\n    }\n}",
+      "documentation": "定时触发：cron 表达式 + 可选时区。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "trigger_event",
+      "label": "event",
+      "kind": "snippet",
+      "category": "trigger",
+      "insertText": "trigger {\n    event {\n        name = \"${1:event_name}\"\n    }\n}",
+      "documentation": "事件触发：监听平台事件。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "trigger_http",
+      "label": "http",
+      "kind": "snippet",
+      "category": "trigger",
+      "insertText": "trigger {\n    http {\n        path = \"${1:/webhooks/start}\"\n        method = \"${2:POST}\"\n    }\n}",
+      "documentation": "Webhook 触发：注册 HTTP 端点（path + method）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "trigger_interval",
+      "label": "interval",
+      "kind": "snippet",
+      "category": "trigger",
+      "insertText": "trigger {\n    interval = ${1:5m}\n}",
+      "documentation": "周期触发：interval = <duration>，如 5m / 1h。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "trigger_webhook",
+      "label": "webhook",
+      "kind": "snippet",
+      "category": "trigger",
+      "insertText": "trigger {\n    http {\n        path = \"${1:/webhook/start}\"\n        method = \"${2:POST}\"\n    }\n}",
+      "documentation": "Webhook 详配别名：等效于 http 块（path + method）。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "snippet_full_workflow",
+      "label": "workflow",
+      "kind": "snippet",
+      "category": "snippet",
+      "insertText": "workflow \"${1:name}\" {\n    metadata {\n        display_name = \"${2:名称}\"\n        version = \"${3:1.0.0}\"\n    }\n    variables {\n        ${4:name} = ${5:value}\n    }\n    trigger { manual {} }\n    runtime {\n        timeout = 5m\n        max_parallel = 2\n    }\n    steps {\n        step ${6:first} {\n            action ${7:file.list} {\n                ${8}\n            }\n        }\n    }\n}",
+      "documentation": "完整工作流模板。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "snippet_add_step",
+      "label": "step",
+      "kind": "snippet",
+      "category": "snippet",
+      "insertText": "step ${1:step_id} {\n    action ${2:file.list} {\n        ${3}\n    }\n}",
+      "documentation": "添加一个步骤。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "snippet_create_trigger",
+      "label": "trigger",
+      "kind": "snippet",
+      "category": "snippet",
+      "insertText": "trigger {\n    ${1:manual} {}\n}",
+      "documentation": "创建触发器块。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "snippet_create_variable",
+      "label": "variable",
+      "kind": "snippet",
+      "category": "snippet",
+      "insertText": "${1:name}: ${2:type} = ${3:value}",
+      "documentation": "声明变量。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    },
+    {
+      "id": "snippet_foreach_loop",
+      "label": "foreach",
+      "kind": "snippet",
+      "category": "snippet",
+      "insertText": "foreach ${1:item} in ${2:vars.items} {\n    ${3}\n}",
+      "documentation": "遍历集合。",
+      "triggerCharacters": [
+        " "
+      ],
+      "insertTextRules": "snippet"
+    }
+  ]
+}

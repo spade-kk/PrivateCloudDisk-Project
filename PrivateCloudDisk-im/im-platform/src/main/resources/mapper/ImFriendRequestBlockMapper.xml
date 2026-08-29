@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.project.im.platform.mapper.ImFriendRequestBlockMapper">
+    <insert id="insertIgnore">INSERT IGNORE INTO pcd_im_friend_request_block (user_id,blocked_user_id,created_at) VALUES (#{userId},#{blockedUserId},NOW())</insert>
+    <select id="exists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM pcd_im_friend_request_block WHERE user_id=#{userId} AND blocked_user_id=#{blockedUserId})</select>
+</mapper>

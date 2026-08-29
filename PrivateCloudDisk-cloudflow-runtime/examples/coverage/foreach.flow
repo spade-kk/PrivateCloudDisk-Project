@@ -1,0 +1,9 @@
+# 覆盖目标：foreach 局部 iterator 与动态 loop IR。
+# 预期：IR loopConfig.kind=foreach，Runtime 按 max_parallel 分批执行每一个 item。
+workflow "foreach" {
+    variables { list: array = ["first", "second", "third"] }
+    runtime { max_parallel = 2 }
+    foreach item in vars.list {
+        step process { action builtin.notification.send { msg = item } }
+    }
+}

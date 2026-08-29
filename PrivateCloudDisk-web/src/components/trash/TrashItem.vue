@@ -1,7 +1,7 @@
 <template>
   <div class="block border-b p-3 text-sm hover:bg-neutral-50 sm:grid sm:grid-cols-12 sm:items-center">
     <div class="flex min-w-0 items-center gap-2 sm:col-span-5">
-      <i :class="['fa', iconClass]"></i>
+      <FileTypeIcon :file-name="item.target_name || ''" :is-directory="isFolder" class="text-base" />
       <span class="truncate">{{ item.target_name }}</span>
     </div>
     <div class="mt-2 text-xs text-neutral-500 sm:col-span-2 sm:mt-0 sm:text-sm">
@@ -18,12 +18,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { formatDateTime } from '@/utils/helpers'
-import { getFileIconClass } from '@/utils/fileIcon'
+import FileTypeIcon from '@/components/file/FileTypeIcon.vue'
 
 const props = defineProps(['item'])
 defineEmits(['restore', 'delete'])
 
 const isFolder = computed(() => props.item.target_type === 'folder')
-const iconClass = computed(() => isFolder.value ? 'fa-folder text-yellow-500' : getFileIconClass(props.item.target_name || ''))
 const typeText = computed(() => isFolder.value ? '文件夹' : (props.item.file_type || '文件'))
 </script>

@@ -1,0 +1,24 @@
+{
+  "name": "im-test-client",
+  "version": "1.0.0",
+  "description": "PrivateCloudDisk IM v2 二进制协议测试客户端 — 命令行调试工具",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "im-test": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "test:codec": "node --test tests/codec.test.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "protobufjs": "^7.6.5",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

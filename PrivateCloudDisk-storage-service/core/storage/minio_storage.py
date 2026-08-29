@@ -202,6 +202,12 @@ class MinIOStorageProvider(StorageProvider):
 
         await asyncio.to_thread(_put)
 
+    async def put_file(self, path: str, source_path: str) -> None:
+        """[REQ-GIT-OBJECT-6.2] 使用 MinIO fput_object 流式上传临时文件。"""
+        key = self._resolve_path(path)
+        client = self._get_client()
+        await asyncio.to_thread(client.fput_object, self._bucket, key, str(source_path))
+
     async def get(self, path: str, offset: int = 0, length: Optional[int] = None) -> bytes:
         """
         从 MinIO 获取对象数据

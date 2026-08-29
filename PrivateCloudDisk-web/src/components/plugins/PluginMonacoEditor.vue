@@ -34,7 +34,17 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { parseDocument } from 'yaml'
 import { loadMonaco } from '@/utils/monacoLoader'
+import { registerCloudFlowLanguage } from '@/languages/cloudflow'
+import { registerCloudFlowCompletion } from '@/languages/cloudflowCompletion'
 import type { CapabilityInfo } from '@/api/modules/workflows'
+
+interface ExternalEditorIssue {
+  code: string
+  message: string
+  line?: number | null
+  column?: number | null
+  severity?: string
+}
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -44,12 +54,16 @@ const props = withDefaults(defineProps<{
   title?: string
   height?: string
   readOnly?: boolean
+  theme?: 'vs' | 'vs-dark' | 'hc-black'
   capabilities?: CapabilityInfo[]
+  externalIssues?: ExternalEditorIssue[]
 }>(), {
   title: '插件源码',
   height: '560px',
   readOnly: false,
+  theme: 'vs-dark',
   capabilities: () => [],
+  externalIssues: () => [],
 })
 
 const emit = defineEmits<{
@@ -103,8 +117,31 @@ function languageId(): string {
 function setMarkers(markers: import('monaco-editor').editor.IMarkerData[]) {
   if (!monacoApi || !editor?.getModel()) return
   monacoApi.editor.setModelMarkers(editor.getModel()!, 'pcd-plugin-validation', markers)
-  issueCount.value = markers.length
-  emit('validation-change', markers.length === 0, markers.length)
+  applyExternalMarkers(markers.length)
+}
+
+function applyExternalMarkers(localCount = 0) {
+  if (!monacoApi || !editor?.getModel()) return
+  const model = editor.getModel()!
+  const markers = props.externalIssues.map((issue) => {
+    const line = Math.min(model.getLineCount(), Math.max(1, issue.line || 1))
+    const maxColumn = model.getLineContent(line).length + 1
+    const column = Math.min(maxColumn, Math.max(1, issue.column || 1))
+    const severity = issue.severity === 'WARNING'
+      ? monacoApi!.MarkerSeverity.Warning
+      : issue.severity === 'INFO' ? monacoApi!.MarkerSeverity.Info : monacoApi!.MarkerSeverity.Error
+    return {
+      severity,
+      message: `[${issue.code}] ${issue.message}`,
+      startLineNumber: line,
+      startColumn: column,
+      endLineNumber: line,
+      endColumn: Math.min(maxColumn, column + 1),
+    }
+  })
+  monacoApi.editor.setModelMarkers(model, 'pcd-cloudflow-runtime', markers)
+  issueCount.value = localCount + markers.length
+  emit('validation-change', issueCount.value === 0, issueCount.value)
 }
 
 function validateContent(value: string): void {
@@ -153,8 +190,8 @@ function validateContent(value: string): void {
     })
   } else if (props.language === 'cloudflow') {
     // [CLOUDFLOW-DSL-001] 前端只做轻量即时反馈，完整语法、能力和 DAG 语义由后端校验。
-    if (!/^\s*workflow\s+[A-Za-z][A-Za-z0-9_]*\s*\{/m.test(value)) {
-      markers.push({ severity: monacoApi.MarkerSeverity.Error, message: 'CloudFlow DSL 必须以 workflow <Name> { 开始', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 })
+    if (!/^\s*workflow\s+"[^"\r\n]+"\s*\{/m.test(value)) {
+      markers.push({ severity: monacoApi.MarkerSeverity.Error, message: 'CloudFlow DSL 必须以 workflow "name" { 开始', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 })
     }
     if ((value.match(/\{/g) || []).length !== (value.match(/\}/g) || []).length) {
       markers.push({ severity: monacoApi.MarkerSeverity.Error, message: 'CloudFlow DSL 的大括号未配对', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 })
@@ -164,8 +201,8 @@ function validateContent(value: string): void {
       if (/^\s*apiVersion:|^\s*kind:|^\s*spec:/.test(line)) {
         markers.push({ severity: monacoApi!.MarkerSeverity.Error, message: '旧 YAML DSL 已停止支持，请改写为 CloudFlow DSL', startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: line.length + 1 })
       }
-      if (/^\s*step\s+/.test(line) && !/^\s*step\s+[a-z][a-z0-9_]*\s+uses\s+"[^"]+"/.test(line)) {
-        markers.push({ severity: monacoApi!.MarkerSeverity.Error, message: 'step 语法应为 step <id> uses "<capability>" {', startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: line.length + 1 })
+      if (/^\s*step\s+.*\s+uses\s+/.test(line)) {
+        markers.push({ severity: monacoApi!.MarkerSeverity.Error, message: '旧版 step uses 语法已停止支持，请在 step 块内使用 action <service.method> { ... }', startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: line.length + 1 })
       }
     })
   }
@@ -173,9 +210,10 @@ function validateContent(value: string): void {
 }
 
 function registerCompletionProviders(monaco: typeof import('monaco-editor')): void {
-  if (!monaco.languages.getLanguages().some((language) => language.id === 'cloudflow')) {
-    monaco.languages.register({ id: 'cloudflow' })
-  }
+  // [CLOUDFLOW-IDE-HIGHLIGHT-001] CloudFlow 是独立语言，不借用 YAML tokenizer。
+  // 语法高亮规则由 GRAMMAR.pest + AST.rs 生成的统一规范转换而来（见 src/languages/cloudflow.ts），
+  // 前端不硬编码任何 CloudFlow 高亮正则（需求：禁止前端硬编码语法高亮逻辑）。
+  registerCloudFlowLanguage(monaco)
   disposables.push(monaco.languages.registerCompletionItemProvider('python', {
     triggerCharacters: ['.', '('],
     provideCompletionItems: () => ({
@@ -215,15 +253,11 @@ function registerCompletionProviders(monaco: typeof import('monaco-editor')): vo
       })),
     }),
   }))
-  disposables.push(monaco.languages.registerCompletionItemProvider('cloudflow', {
-    triggerCharacters: [' ', '"'],
-    provideCompletionItems: () => ({
-      suggestions: [
-        { label: 'workflow', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'workflow ${1:Name} {\n    trigger: manual()\n    ${2}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: '定义 CloudFlow 工作流。' },
-        { label: 'step', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'step ${1:step_id} uses "${2:capability}" {\n    ${3}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: '调用 Capability Hub 能力。' },
-        ...props.capabilities.map((capability) => ({ label: capability.capabilityKey, kind: monaco.languages.CompletionItemKind.Function, insertText: capability.capabilityKey, documentation: capability.description })),
-      ],
-    }),
+  // [CLOUDFLOW-IDE-COMPLETION-001] CloudFlow 代码补全由 GRAMMAR.pest + AST.rs
+  // 生成的统一补全规范 cloudflow.completion.json 驱动（唯一事实来源），前端不再
+  // 硬编码任何 CloudFlow 补全规则；运行时能力表（capabilities）由 props 注入。
+  disposables.push(...registerCloudFlowCompletion(monaco, {
+    capabilities: props.capabilities,
   }))
 }
 
@@ -241,7 +275,9 @@ async function initialize(): Promise<void> {
   editor = monaco.editor.create(containerRef.value, {
     value: props.modelValue,
     language: languageId(),
-    theme: 'vs-dark',
+    // [AUDIT FIX 1.2]：[CLOUDFLOW-IDE-002] Monaco 主题跟随宿主 IDE，避免亮色界面
+    // 中出现固定深色编辑器；未传入时保持原有 vs-dark 行为，兼容插件开发页。
+    theme: props.theme,
     readOnly: props.readOnly,
     automaticLayout: true,
     minimap: { enabled: true },
@@ -285,6 +321,14 @@ watch(() => props.language, (value) => {
     validateContent(editor.getValue())
   }
 })
+
+watch(() => props.theme, (value) => {
+  if (monacoApi) monacoApi.editor.setTheme(value)
+})
+
+watch(() => props.externalIssues, () => {
+  if (editor) validateContent(editor.getValue())
+}, { deep: true })
 
 onMounted(() => {
   initialize().catch((error) => {

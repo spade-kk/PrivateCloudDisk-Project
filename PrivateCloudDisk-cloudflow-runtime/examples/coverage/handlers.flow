@@ -1,0 +1,13 @@
+# 覆盖目标：顶层 handlers/on_failure 结构。
+# 预期：IR handlers 含 onFailure，处理步骤被标记为受控节点。
+workflow "handlers" {
+    trigger { manual {} }
+    step primary { action builtin.file.list {} }
+    handlers {
+        on_failure {
+            step notify_failure {
+                action builtin.notification.send { message = "workflow failed" }
+            }
+        }
+    }
+}

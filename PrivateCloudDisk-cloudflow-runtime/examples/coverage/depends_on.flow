@@ -1,0 +1,7 @@
+# 覆盖目标：多个 step 的 DAG 依赖与 graph.edges 生成。
+# 预期：A -> B、A -> C、B -> C 三条依赖边。
+workflow "depends_on" {
+    step A { action builtin.file.list {} }
+    step B { depends_on A action builtin.file.copy {} }
+    step C { depends_on A, B action builtin.file.move {} }
+}

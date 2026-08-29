@@ -1,6 +1,11 @@
 package org.project.workflow.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -30,10 +35,42 @@ public final class WorkflowModels {
     ) {
     }
 
+    /**
+     * DSL 校验请求。
+     *
+     * <p>改动点（CLOUDFLOW-REQUEST-001）：原实现把 dsl 直接声明为 String，当前端旧版本
+     * 或恢复的编辑器快照以 {source|dsl|text: "..."} 包装源码时，Jackson 会在 Controller
+     * 之前抛出 String ← Object 的 400。新行为在 JSON 边界先接收 JsonNode，再统一解包为
+     * String 交给 Rust Runtime；标准请求仍然必须传递字符串，兼容逻辑只用于迁移期间，
+     * 不改变 CloudFlow DSL 的语义或保存格式。</p>
+     */
     public record ValidateWorkflowRequest(
-            @NotBlank @Size(max = 1_048_576) String dsl,
+            @JsonProperty("dsl") @NotNull JsonNode dslPayload,
             Map<String, Object> graph
     ) {
+        /** 保留旧版 Java 调用方直接传 String 的构造方式，避免 DTO 边界改造影响既有测试/适配器。 */
+        public ValidateWorkflowRequest(String dsl, Map<String, Object> graph) {
+            this(dsl == null ? null : TextNode.valueOf(dsl), graph);
+        }
+
+        public String dsl() {
+            if (dslPayload == null || dslPayload.isNull()) {
+                return "";
+            }
+            if (dslPayload.isTextual()) {
+                return dslPayload.textValue();
+            }
+            if (dslPayload.isObject()) {
+                for (String key : List.of("source", "dsl", "text")) {
+                    JsonNode candidate = dslPayload.get(key);
+                    if (candidate != null && candidate.isTextual()) {
+                        return candidate.textValue();
+                    }
+                }
+            }
+            // 让 Runtime 返回结构化 DSL 诊断，而不是在 Spring JSON 反序列化层直接丢失上下文。
+            return dslPayload.toString();
+        }
     }
 
     public record RunWorkflowRequest(
@@ -103,6 +140,17 @@ public final class WorkflowModels {
     ) {
     }
 
+    /** Workflow Service 事务 Outbox 投递视图。 */
+    public record WorkflowOutboxRow(
+            String eventId,
+            String aggregateId,
+            String eventType,
+            String routingKey,
+            String payloadJson,
+            int attempt
+    ) {
+    }
+
     public record CapabilityRow(
             String capabilityKey,
             String sourceType,
@@ -119,7 +167,29 @@ public final class WorkflowModels {
     ) {
     }
 
-    public record ValidationIssue(String code, String path, String message) {
+    /**
+     * CloudFlow 结构化诊断投影。
+     *
+     * <p>改动点（CLOUDFLOW-DIAGNOSTIC-001）：原记录只保留 code/path/message，导致 Monaco
+     * 无法精确标记且终端丢失多行 cliOutput；新字段完整透传 Runtime 诊断。三参数构造器保留，
+     * 兼容原有业务代码和测试。</p>
+     */
+    public record ValidationIssue(
+            String code,
+            String path,
+            String message,
+            Integer line,
+            Integer column,
+            String severity,
+            String category,
+            String cliOutput,
+            List<String> suggestions,
+            String help,
+            String documentationUrl
+    ) {
+        public ValidationIssue(String code, String path, String message) {
+            this(code, path, message, null, null, "ERROR", null, null, List.of(), null, null);
+        }
     }
 
     public record ValidationReport(
@@ -140,14 +210,34 @@ public final class WorkflowModels {
     ) {
     }
 
+    /** Rust Runtime gRPC Agent 转交的能力调用命令；权限快照在服务端再次取交集校验。 */
+    public record AgentCapabilityInvocation(
+            @NotBlank @Size(max = 255) String capabilityKey,
+            @NotBlank @Size(max = 36) String executionId,
+            @NotBlank @Size(max = 128) String stepId,
+            @Min(1) int attempt,
+            @NotBlank @Size(max = 128) String userId,
+            @Size(max = 128) String spaceId,
+            Map<String, Object> input,
+            List<String> declaredPermissions,
+            List<String> grantedPermissions,
+            @NotBlank @Size(max = 64) String traceId,
+            @NotBlank @Size(max = 300) String idempotencyKey
+    ) {
+    }
+
     public record CapabilityResult(boolean success, Map<String, Object> output,
-                                   String errorCode, String errorSummary) {
+                                   String errorCode, String errorSummary, boolean retryable) {
         public static CapabilityResult success(Map<String, Object> output) {
-            return new CapabilityResult(true, output, null, null);
+            return new CapabilityResult(true, output, null, null, false);
         }
 
         public static CapabilityResult failure(String code, String summary) {
-            return new CapabilityResult(false, Map.of(), code, summary);
+            return new CapabilityResult(false, Map.of(), code, summary, false);
+        }
+
+        public static CapabilityResult retryableFailure(String code, String summary) {
+            return new CapabilityResult(false, Map.of(), code, summary, true);
         }
     }
 }

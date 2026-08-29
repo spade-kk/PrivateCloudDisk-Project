@@ -1,0 +1,12 @@
+# 覆盖目标：[V1.2-NOTIFY] / [V1.2-ON_ERROR] 通知与步骤级错误处理。
+# 预期：notify 生成 node_type=notify / notifyConfig；on_error 挂在失败步骤的 onError 上。
+workflow "notify_on_error" {
+    variables { user_id: string = "u-1" }
+    step publish {
+        action builtin.notification.send { message = vars.user_id }
+        on_error {
+            notify { channel = "email" to = "admin@corp" message = "publish failed" }
+        }
+    }
+    notify { channel = "email" to = "ops@corp" message = "done" }
+}

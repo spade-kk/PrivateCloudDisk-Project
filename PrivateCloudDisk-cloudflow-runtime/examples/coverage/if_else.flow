@@ -1,0 +1,10 @@
+# 覆盖目标：if/else 条件分支。
+# 预期：IR 包含 condition 节点及 trueBranch/falseBranch。
+workflow "if_else" {
+    variables { x: number = 10 }
+    if { vars.x > 5 } {
+        step A { action builtin.notification.send { title = "large" } }
+    } else {
+        step B { action builtin.notification.send { title = "small" } }
+    }
+}

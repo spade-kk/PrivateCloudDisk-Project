@@ -1,0 +1,9 @@
+# 覆盖目标：[V1.2-FOR] 集合循环 for x in <array>，元素顺序迭代并支持 continue。
+# 预期：IR 生成 node_type=loop、loopConfig.kind=for 的控制节点。
+workflow "for_collection" {
+    variables { items: array = [1, 2, 3] }
+    for item in vars.items {
+        step inspect { action builtin.file.list { msg = item } }
+    }
+    step done { action builtin.file.list {} }
+}

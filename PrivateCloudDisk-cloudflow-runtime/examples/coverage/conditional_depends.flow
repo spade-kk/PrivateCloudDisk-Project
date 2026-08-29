@@ -1,0 +1,7 @@
+# 覆盖目标：[V1.2-COND-DEPENDS] 条件依赖 depends_on A if <bool 表达式>。
+# 预期：step 携带 depends_condition IR；条件为 false 时依赖被豁免。
+workflow "conditional_depends" {
+    variables { flag: boolean = true }
+    step collect { action builtin.file.list {} output result }
+    step report { depends_on collect if vars.flag == true action builtin.file.list {} }
+}

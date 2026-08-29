@@ -1,0 +1,8 @@
+# 覆盖目标：[V1.2-TAG] tag 注解 + [V1.2-METADATA] changelog/version 元数据。
+# 预期：metadata.tags=["finance","weekly"]、metadata.changelog="initial release"。
+workflow "tags_changelog" {
+    metadata { version = "1.0.0" changelog = "initial release" }
+    tag "finance"
+    tag "weekly"
+    step s { action builtin.file.list {} }
+}

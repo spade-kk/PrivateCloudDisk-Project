@@ -140,7 +140,7 @@
         <div v-else class="result-list">
           <article v-for="hit in searchStore.hits" :key="resultKey(hit)" class="result-card">
             <div class="file-badge">
-              <i :class="['fa', iconClass(hit)]"></i>
+              <FileTypeIcon :file-name="fileName(hit)" class="text-2xl" />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -196,7 +196,7 @@ import CurrentSpaceBadge from '@/components/space/CurrentSpaceBadge.vue'
 import { useSearchStore } from '@/stores/searchStore'
 import { useSpaceStore } from '@/stores/spaceStore'
 import { formatDateTime, formatFileSize } from '@/utils/helpers'
-import { getFileIconClass } from '@/utils/fileIcon'
+import FileTypeIcon from '@/components/file/FileTypeIcon.vue'
 import { searchPublicSpacesApi, type PublicSpaceDetail } from '@/api/modules/publicSpaces'
 
 const route = useRoute()
@@ -319,10 +319,6 @@ function fileName(hit) {
 
 function resultKey(hit) {
   return field(hit, ['file_id', 'id', 'filename'], Math.random())
-}
-
-function iconClass(hit) {
-  return getFileIconClass(fileName(hit))
 }
 
 function categoryName(value) {

@@ -17,6 +17,7 @@ import org.project.im.common.security.IMSessionKeyManager;
 import org.project.im.common.security.IMSessionKeys;
 import org.project.im.server.netty.SessionManager;
 import org.project.im.server.security.JwtTokenVerifier;
+import org.project.im.server.service.EventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -48,10 +49,11 @@ import java.util.concurrent.TimeUnit;
 public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
 
     private final SessionManager sessionManager;
-    private final IMSessionKeyManager keyManager = IMSessionKeyManager.createIMSessionKeyManager();
+    private final IMSessionKeyManager keyManager = IMSessionKeyManager.getInstance();
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final JwtTokenVerifier jwtTokenVerifier;
+    private final EventPublisher eventPublisher;
 
     /** 标记属性名 */
     private static final String AUTH_ATTR = "v2:authenticated";
@@ -100,6 +102,10 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
             log.info("V2 用户认证成功: userId={}, connectionId={}, remoteAddr={}",
                     userId, connectionId, ctx.channel().remoteAddress());
+
+            // 发布用户上线事件到 MQ（IM Business 消费后执行离线消息补偿）
+            eventPublisher.publishUserOnlineEvent(
+                    userId, connectionId, 0, "unknown", "unknown");
 
             // 发送服务端公钥（触发客户端密钥交换）
             sendServerPublicKey(ctx, connectionId);
@@ -151,34 +157,50 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
 
     /**
      * 处理客户端密钥交换请求
+     * <p>
+     * 客户端公钥使用 URL-safe Base64 编码（与前端 IMCryptoCodec.base64UrlEncode 对齐），
+     * 服务端使用 {@link java.util.Base64#getUrlDecoder()} 解码，兼容标准 Base64 与 URL-safe 两种格式。
+     * </p>
      */
     private void handleKeyExchange(ChannelHandlerContext ctx, String userId,
                                    String connectionId, Map<String, Object> request) {
-        try {
-            // 获取客户端公钥
-            String clientPublicKeyBase64 = (String) request.get("clientPublicKey");
-            if (clientPublicKeyBase64 == null) {
-                sendError(ctx, ResponseCode.BAD_REQUEST.getCode(), "缺少客户端公钥");
-                return;
-            }
-            byte[] clientPublicKey = java.util.Base64.getDecoder().decode(clientPublicKeyBase64);
+        // 获取客户端公钥
+        String clientPublicKeyBase64 = (String) request.get("clientPublicKey");
+        if (clientPublicKeyBase64 == null || clientPublicKeyBase64.isEmpty()) {
+            log.warn("密钥交换缺少客户端公钥: userId={}, connectionId={}", userId, connectionId);
+            sendError(ctx, ResponseCode.BAD_REQUEST.getCode(), "缺少客户端公钥");
+            return;
+        }
 
+        byte[] clientPublicKey;
+        try {
+            // 使用 URL-safe 解码器（兼容标准 Base64 和 URL-safe Base64）
+            clientPublicKey = java.util.Base64.getUrlDecoder().decode(clientPublicKeyBase64);
+        } catch (IllegalArgumentException e) {
+            log.warn("客户端公钥 Base64 解码失败: userId={}, connectionId={}, error={}",
+                    userId, connectionId, e.getMessage());
+            sendError(ctx, ResponseCode.BAD_REQUEST.getCode(),
+                    "客户端公钥格式无效，请使用 Base64 编码");
+            return;
+        }
+
+        try {
             // 执行 ECDH 密钥协商
             IMSessionKeys sessionKeys = keyManager.negotiate(userId, connectionId, clientPublicKey);
 
             // 标记已认证
             ctx.channel().attr(io.netty.util.AttributeKey.valueOf(AUTH_ATTR)).set(true);
 
-            // 构建密钥交换响应
+            // 构建密钥交换响应（使用 URL-safe Base64 编码，与前端对齐）
             Map<String, Object> response = Map.of(
                     "type", "KEY_EXCHANGE_RESPONSE",
-                    "serverPublicKey", java.util.Base64.getEncoder().encodeToString(
-                            keyManager.getServerPublicKey()),
+                    "serverPublicKey", java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(keyManager.getServerPublicKey()),
                     "sessionKeyId", sessionKeys.getKeyId(),
                     "algorithm", 1, // AES-256-GCM
                     "expireAt", sessionKeys.getExpireAt().toEpochMilli(),
-                    "signature", java.util.Base64.getEncoder().encodeToString(
-                            keyManager.sign(sessionKeys.getSessionKey().getEncoded()))
+                    "signature", java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(keyManager.sign(sessionKeys.getSessionKey().getEncoded()))
             );
 
             String jsonResponse = objectMapper.writeValueAsString(response);
@@ -187,29 +209,38 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             log.info("V2 密钥协商完成: userId={}, connectionId={}, keyId={}",
                     userId, connectionId, sessionKeys.getKeyId());
 
-        } catch (Exception e) {
-            log.error("密钥协商失败: userId={}", userId, e);
+        } catch (SecurityException e) {
+            // 密钥协商过程中的安全异常（如密钥算法不匹配）
+            log.error("密钥协商安全异常: userId={}, connectionId={}", userId, connectionId);
             sendError(ctx, ResponseCode.INTERNAL_ERROR.getCode(),
-                    "密钥协商失败: " + e.getMessage());
+                    "密钥协商失败，请检查客户端加密算法配置");
+        } catch (Exception e) {
+            // 其他异常（如网络中断、序列化失败等）
+            log.error("密钥协商失败: userId={}, connectionId={}", userId, connectionId);
+            sendError(ctx, ResponseCode.INTERNAL_ERROR.getCode(),
+                    "密钥协商失败，请稍后重试");
         }
     }
 
     /**
      * 发送服务端公钥（触发客户端发起密钥交换）
+     * <p>
+     * 使用 URL-safe Base64 编码（与前端 IMCryptoCodec.base64UrlEncode 对齐）。
+     * </p>
      */
     private void sendServerPublicKey(ChannelHandlerContext ctx, String connectionId) {
         try {
             Map<String, Object> message = Map.of(
                     "type", "SERVER_HELLO",
                     "connectionId", connectionId,
-                    "serverPublicKey", java.util.Base64.getEncoder().encodeToString(
-                            keyManager.getServerPublicKey()),
+                    "serverPublicKey", java.util.Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(keyManager.getServerPublicKey()),
                     "supportedAlgorithms", java.util.List.of(1) // AES-256-GCM
             );
             String json = objectMapper.writeValueAsString(message);
             ctx.writeAndFlush(new TextWebSocketFrame(json));
         } catch (Exception e) {
-            log.error("发送服务端公钥失败", e);
+            log.error("发送服务端公钥失败", e.getMessage());
         }
     }
 
@@ -301,7 +332,7 @@ public class V2AuthHandler extends SimpleChannelInboundHandler<TextWebSocketFram
             String json = objectMapper.writeValueAsString(error);
             ctx.writeAndFlush(new TextWebSocketFrame(json));
         } catch (Exception e) {
-            log.error("发送错误消息失败", e);
+            log.error("发送错误消息失败", e.getMessage());
         }
     }
 }

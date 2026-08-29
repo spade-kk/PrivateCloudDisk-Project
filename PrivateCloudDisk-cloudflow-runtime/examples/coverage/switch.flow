@@ -1,0 +1,10 @@
+# 覆盖目标：[V1.2-SWITCH] 多分支选择 switch/case/default。
+# 预期：IR 生成 node_type=switch 的控制节点，携带 switchConfig(subject/cases/default)。
+workflow "switch" {
+    variables { status: string = "active" }
+    switch vars.status {
+        case "active" => { step activate { action builtin.file.list {} } }
+        case "inactive" => { step deactivate { action builtin.file.list {} } }
+        default => { step fallback { action builtin.file.list {} } }
+    }
+}

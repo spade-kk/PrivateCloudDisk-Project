@@ -11,12 +11,13 @@
 //   org.project.im.platform.service.*
 // ============================================================
 
-import { del, get, patch, post } from '@/utils/request'
+import { del, get, patch, post, put } from '@/utils/request'
 import type {
   ConversationDTO,
   GroupDTO,
   GroupMemberDTO,
   MessageDTO,
+  PresenceDTO,
   Result,
 } from './types'
 
@@ -83,18 +84,51 @@ export function getMessageByIdApi(messageId: string): Promise<Result<MessageDTO>
   return get(`${IM_BASE}/messages/${messageId}`, {}, { silent: true })
 }
 
+/** 拉取当前用户离线消息（状态为 PREPARING，拉取后标记为已送达） */
+export function getOfflineMessagesApi(
+  userId: string,
+  limit: number = 100,
+): Promise<Result<MessageDTO[]>> {
+  return get(`${IM_BASE}/messages/offline`, {
+    userId,
+    limit,
+  }, { silent: true })
+}
+
+/**
+ * 游标分页查询会话历史消息
+ * 仅返回已送达/已读/失败终态，不含未送达（PREPARING）消息。
+ * @param conversationId 会话 ID
+ * @param userId 当前用户 ID
+ * @param limit 每页条数（默认 20，最大 100）
+ * @param cursor 上一页最小 server_seq（首次传 undefined）
+ * @param before 可选，拉取该时间之前的消息
+ */
+export function getMessageHistoryByCursorApi(
+  conversationId: string,
+  userId: string,
+  limit: number = 20,
+  cursor?: number,
+  before?: string,
+  signal?: AbortSignal,
+): Promise<Result<MessageDTO[]>> {
+  const params: Record<string, string | number> = { conversationId, userId, limit }
+  if (cursor !== undefined && cursor !== null) params.cursor = cursor
+  if (before) params.before = before
+  // AUDIT FIX [12.18] / IM-WEB-ENTERPRISE-20260809：会话切换时允许取消上一会话的历史请求，
+  // 防止迟到响应覆盖当前窗口。新增参数为可选，保持原调用向后兼容。
+  return get(`${IM_BASE}/messages/history/cursor`, params, { silent: true, signal })
+}
+
 // ==================== 会话 API ====================
 
-/** 创建或获取会话 */
-export function createConversationApi(
+/** 查询由好友接受/群组加入事务内部创建的既有会话。 */
+export function getExistingConversationApi(
   userId: string,
-  targetId: string,
+  peerId: string,
   conversationType: number,
 ): Promise<Result<ConversationDTO>> {
-  return post(`${IM_BASE}/conversations/create`, null, {
-    params: { userId, targetId, conversationType },
-    silent: true,
-  })
+  return get(`${IM_BASE}/conversations/peer`, { userId, peerId, conversationType }, { silent: true })
 }
 
 /** 获取会话列表 */
@@ -103,16 +137,8 @@ export function getConversationsApi(userId: string): Promise<Result<Conversation
 }
 
 /** 获取会话详情 */
-export function getConversationDetailApi(conversationId: string): Promise<Result<ConversationDTO>> {
-  return get(`${IM_BASE}/conversations/${conversationId}`, {}, { silent: true })
-}
-
-/** 删除会话 */
-export function deleteConversationApi(conversationId: string, userId: string): Promise<Result<void>> {
-  return del(`${IM_BASE}/conversations/${conversationId}`, {
-    params: { userId },
-    silent: true,
-  })
+export function getConversationDetailApi(conversationId: string, userId: string): Promise<Result<ConversationDTO>> {
+  return get(`${IM_BASE}/conversations/${conversationId}`, { userId }, { silent: true })
 }
 
 /** 置顶/取消置顶 */
@@ -121,7 +147,9 @@ export function toggleConversationTopApi(
   userId: string,
   isTop: boolean,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/conversations/${conversationId}/top`, null, {
+  // AUDIT FIX [3.4] / IM-WEB-ENTERPRISE-20260809：后端 ConversationController 使用 PUT。
+  // 原 PATCH 会返回 405；新行为与服务端幂等更新语义一致。
+  return put(`${IM_BASE}/conversations/${conversationId}/top`, null, {
     params: { userId, isTop },
     silent: true,
   })
@@ -133,7 +161,8 @@ export function toggleConversationMuteApi(
   userId: string,
   isMuted: boolean,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/conversations/${conversationId}/mute`, null, {
+  // AUDIT FIX [3.9] / IM-WEB-ENTERPRISE-20260809：与后端 @PutMapping 对齐。
+  return put(`${IM_BASE}/conversations/${conversationId}/mute`, null, {
     params: { userId, isMuted },
     silent: true,
   })
@@ -142,6 +171,15 @@ export function toggleConversationMuteApi(
 /** 获取总未读数 */
 export function getTotalUnreadCountApi(userId: string): Promise<Result<number>> {
   return get(`${IM_BASE}/conversations/unread/count`, { userId }, { silent: true })
+}
+
+/**
+ * 批量查询用户在线状态。
+ * PRIVATE-CHAT-20260810：V2 WebSocket 当前没有 presence payload，使用 IM Server
+ * 心跳维护的 Redis TTL 映射由 Platform 统一读取；接口只返回状态，不返回内部节点信息。
+ */
+export function getPresenceApi(userIds: string[]): Promise<Result<Record<string, PresenceDTO>>> {
+  return get(`${IM_BASE}/presence`, { userIds: userIds.join(',') }, { silent: true })
 }
 
 // ==================== 群组 API ====================
@@ -227,7 +265,7 @@ export function toggleMuteAllApi(
   operatorId: string,
   isAllMuted: boolean,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/groups/${groupId}/mute-all`, null, {
+  return put(`${IM_BASE}/groups/${groupId}/mute-all`, null, {
     params: { operatorId, isAllMuted },
     silent: true,
   })
@@ -235,10 +273,7 @@ export function toggleMuteAllApi(
 
 /** 解散群组 */
 export function dissolveGroupApi(groupId: string, ownerId: string): Promise<Result<void>> {
-  return del(`${IM_BASE}/groups/${groupId}/dissolve`, {
-    params: { ownerId },
-    silent: true,
-  })
+  return del(`${IM_BASE}/groups/${groupId}/dissolve`, { ownerId }, { silent: true })
 }
 
 /** 获取群成员列表 */
@@ -252,7 +287,7 @@ export function updateGroupAnnouncementApi(
   operatorId: string,
   announcement: string,
 ): Promise<Result<void>> {
-  return patch(`${IM_BASE}/groups/${groupId}/announcement`, null, {
+  return put(`${IM_BASE}/groups/${groupId}/announcement`, null, {
     params: { operatorId, announcement },
     silent: true,
   })
@@ -262,25 +297,31 @@ export function updateGroupAnnouncementApi(
 
 /** 搜索用户 */
 export function searchUsersApi(keyword: string): Promise<Result<unknown[]>> {
-  return get(`${IM_BASE}/users/search`, { keyword }, { silent: true })
+  // AUDIT FIX [8.2,14.14] / IM-WEB-ENTERPRISE-20260809：IM Business 当前没有用户搜索
+  // Controller。改为复用主业务服务现有的最小公开资料接口；该接口不返回手机号、邮箱等敏感字段。
+  // 影响范围：新建聊天用户选择器。搜索结果仅代表平台用户，不宣称已经建立好友关系。
+  return get('business/users/search', { q: keyword, limit: 20 }, { silent: true })
 }
 
 /** 发送好友申请 */
 export function sendFriendRequestApi(
-  account: string,
-  remark: string = '',
+  requesterId: string,
+  recipientId: string,
+  message: string = '',
 ): Promise<Result<void>> {
-  return post(`${IM_BASE}/friend-requests`, { account, remark }, { silent: true })
+  // FRIEND-MANAGEMENT-20260810：原实现请求不存在的 im/friend-requests，且仅有账号无法
+  // 安全定位目标。改为兼容 IM Business 的 JSON 申请接口；调用方需先搜索并提供 userId。
+  return post(`${IM_BASE}/friends/requests`, { requesterId, recipientId, message }, { silent: true })
 }
 
 /** 获取好友列表 */
-export function getFriendsApi(): Promise<Result<unknown[]>> {
-  return get(`${IM_BASE}/friends`, {}, { silent: true })
+export function getFriendsApi(userId: string): Promise<Result<unknown[]>> {
+  return get(`${IM_BASE}/friends`, { userId }, { silent: true })
 }
 
 /** 删除好友 */
-export function removeFriendApi(friendId: string): Promise<Result<void>> {
-  return del(`${IM_BASE}/friends/${friendId}`, {}, { silent: true })
+export function removeFriendApi(userId: string, friendId: string): Promise<Result<void>> {
+  return del(`${IM_BASE}/friends/${friendId}`, { userId }, { silent: true })
 }
 
 /** 获取通知列表 */

@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 public class PublicSpaceDetailVO {
     private String spaceId;
     private String spaceName;
+    /** [REQ-GIT-SPACE-12.2] 前端据此动态加载文件仓库或 Git 仓库组件。 */
+    private String resourceType;
     private String description;
     private String ownerId;
     private String ownerName;
