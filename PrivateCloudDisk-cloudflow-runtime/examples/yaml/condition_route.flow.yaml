@@ -1,0 +1,18 @@
+# CloudFlow YAML 示例 2（对照 CLOUDFLOW_YAML_DEMO_DESIGN.md 示例 2/3）
+# 场景：按文件大小路由（大文件走大文件处理，小文件普通处理）。
+# 覆盖：condition/when、vars 变量引用、两个互斥分支。
+workflow:
+  name: file_route
+
+inputs:
+  size:
+    type: number
+    required: true
+
+steps:
+  - id: large_file
+    action: file.large_process
+    when: ${{ input.size > 100 }}
+  - id: normal_file
+    action: file.normal_process
+    when: ${{ input.size <= 100 }}

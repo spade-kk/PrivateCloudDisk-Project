@@ -1,4 +1,4 @@
-"""从 src/ast.rs 源码文本提取 CloudFlow AST 节点，并映射到语义高亮作用域（meta scope）。
+"""从 crates/cloudflow-engine-core/src/ast.rs 源码文本提取 CloudFlow AST 节点，并映射到语义高亮作用域（meta scope）。
 
 实现方式（需求 14.4/14.11/14.12）：不依赖完整编译流程，仅用正则/行扫描读取 ast.rs：
 - 提取所有 `pub struct X` / `pub enum X` 类型名。

@@ -1,0 +1,124 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-while",
+    "name": "while",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {
+      "enabled": {
+        "type": "boolean",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      }
+    },
+    "graph": {
+      "nodes": [
+        {
+          "id": "loop",
+          "type": "loop",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": {
+            "kind": "while",
+            "condition": {
+              "$ref": "vars.enabled"
+            },
+            "body": [
+              "tick"
+            ],
+            "maxIterations": 50
+          },
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "tick"
+          ]
+        },
+        {
+          "id": "tick",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "db",
+            "method": "tick",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "loop"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "loop",
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "loop",
+          "to": "tick"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

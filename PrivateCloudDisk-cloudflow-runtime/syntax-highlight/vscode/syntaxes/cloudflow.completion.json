@@ -17,16 +17,16 @@
     "generatedFor": "completion",
     "generatedFrom": {
       "grammar": "src/grammar.pest",
-      "ast": "src/ast.rs",
-      "grammarDigest": "42ed121f3bc69c4bc1c7e68b5687aeae3ece9fc22e4f152f9c786af66ba2d6f7",
-      "astDigest": "680beb54046ed4aab04a908913e8196ad95183579a792e902f20839b230a295b"
+      "ast": "crates/cloudflow-engine-core/src/ast.rs",
+      "grammarDigest": "ced88c968d4c2af178fd33e076fc582841ce2d586c07eab5a5d925a41a9c912a",
+      "astDigest": "1f8501a149c5dbd0b6d7de4211314bf52c94958fca081eea04867739283a2bb4"
     },
-    "generatedAt": "2026-08-18T12:19:33+00:00",
+    "generatedAt": "2026-08-29T13:37:24+00:00",
     "counts": {
-      "keywords": 77,
+      "keywords": 78,
       "blocks": 14,
       "structures": 23,
-      "functions": 8,
+      "functions": 22,
       "types": 10,
       "triggers": 6,
       "snippets": 5
@@ -1022,6 +1022,19 @@
       ]
     },
     {
+      "id": "kw_null_literal_null",
+      "label": "null",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "null",
+      "documentation": "CloudFlow 关键字：null（null_literal）。",
+      "detail": "category=null_literal",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
       "id": "kw_modifier_input",
       "label": "input",
       "kind": "keyword",
@@ -1628,6 +1641,212 @@
       ],
       "returnType": "boolean",
       "doc": "判断字符串是否以指定后缀结尾。"
+    },
+    {
+      "name": "now",
+      "signature": "now() -> number",
+      "parameters": [],
+      "returnType": "number",
+      "doc": "返回当前 Unix 时间戳（秒）；与 GitHub Actions 的 now 对齐。"
+    },
+    {
+      "name": "get",
+      "signature": "get(container, keyOrIndex) -> any",
+      "parameters": [
+        {
+          "label": "container",
+          "type": "array|object",
+          "doc": "数组或对象"
+        },
+        {
+          "label": "keyOrIndex",
+          "type": "number|string",
+          "doc": "数组索引或对象键"
+        }
+      ],
+      "returnType": "any",
+      "doc": "按索引/键取容器元素；不存在返回 null。"
+    },
+    {
+      "name": "trim",
+      "signature": "trim(text) -> string",
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        }
+      ],
+      "returnType": "string",
+      "doc": "去除字符串首尾空白。"
+    },
+    {
+      "name": "to_upper",
+      "signature": "to_upper(text) -> string",
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        }
+      ],
+      "returnType": "string",
+      "doc": "字符串转大写（成员方法调用 toUpperCase() 的等价函数形式）。"
+    },
+    {
+      "name": "to_lower",
+      "signature": "to_lower(text) -> string",
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        }
+      ],
+      "returnType": "string",
+      "doc": "字符串转小写（成员方法调用 toLowerCase() 的等价函数形式）。"
+    },
+    {
+      "name": "range",
+      "signature": "range([start], stop, [step]) -> array",
+      "parameters": [
+        {
+          "label": "start",
+          "type": "number",
+          "doc": "起始（含，缺省 0）"
+        },
+        {
+          "label": "stop",
+          "type": "number",
+          "doc": "终止（不含）"
+        },
+        {
+          "label": "step",
+          "type": "number",
+          "doc": "步长（缺省 1）"
+        }
+      ],
+      "returnType": "array",
+      "doc": "生成数字数组（range(3) → [0,1,2]）。"
+    },
+    {
+      "name": "abs",
+      "signature": "abs(x) -> number",
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ],
+      "returnType": "number",
+      "doc": "绝对值。"
+    },
+    {
+      "name": "round",
+      "signature": "round(x) -> number",
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ],
+      "returnType": "number",
+      "doc": "四舍五入。"
+    },
+    {
+      "name": "floor",
+      "signature": "floor(x) -> number",
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ],
+      "returnType": "number",
+      "doc": "向下取整。"
+    },
+    {
+      "name": "ceil",
+      "signature": "ceil(x) -> number",
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ],
+      "returnType": "number",
+      "doc": "向上取整。"
+    },
+    {
+      "name": "to_json",
+      "signature": "to_json(value) -> string",
+      "parameters": [
+        {
+          "label": "value",
+          "type": "any",
+          "doc": "对象/数组/标量"
+        }
+      ],
+      "returnType": "string",
+      "doc": "将值序列化为 JSON 字符串（GitHub toJSON）。"
+    },
+    {
+      "name": "from_json",
+      "signature": "from_json(text) -> any",
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "符合 JSON 语法的字符串"
+        }
+      ],
+      "returnType": "any",
+      "doc": "把 JSON 字符串解析为值（GitHub fromJSON）；非字符串原样返回。"
+    },
+    {
+      "name": "format_number",
+      "signature": "format_number(number, [format]) -> string",
+      "parameters": [
+        {
+          "label": "number",
+          "type": "number",
+          "doc": "要格式化的数值"
+        },
+        {
+          "label": "format",
+          "type": "string",
+          "doc": "可选，如 0.00 或 #,##0.00（含逗号启用千分位）"
+        }
+      ],
+      "returnType": "string",
+      "doc": "按小数位与千分位格式化数值（GitHub formatNumber）。"
+    },
+    {
+      "name": "format_date_time",
+      "signature": "format_date_time(value, [format], [timezone]) -> string",
+      "parameters": [
+        {
+          "label": "value",
+          "type": "number|string",
+          "doc": "Unix 秒/毫秒或 ISO 日期字符串"
+        },
+        {
+          "label": "format",
+          "type": "string",
+          "doc": "可选，.NET token：yyyy MM dd HH mm ss；缺省输出 RFC3339"
+        },
+        {
+          "label": "timezone",
+          "type": "string",
+          "doc": "可选，UTC 偏移（+08:00）或常见 IANA 时区（标准偏移，不含 DST）"
+        }
+      ],
+      "returnType": "string",
+      "doc": "把日期/时间值按格式与时区输出（GitHub formatDateTime）。"
     }
   ],
   "pipelineOperators": [
@@ -1907,6 +2126,18 @@
       "doc": "步骤输出引用：steps.<step_id>.output.",
       "nextSegment": "<step_id>.output",
       "scope": "variable.other.steps.cloudflow"
+    },
+    "input": {
+      "prefix": "input.",
+      "doc": "工作流输入引用：input.<name>.",
+      "nextSegment": "<name>",
+      "scope": "variable.other.vars.cloudflow"
+    },
+    "env": {
+      "prefix": "env.",
+      "doc": "环境变量引用：env.<key>.",
+      "nextSegment": "<key>",
+      "scope": "variable.other.env.cloudflow"
     },
     "workflow": {
       "prefix": "workflow.",
@@ -3109,6 +3340,19 @@
       ]
     },
     {
+      "id": "kw_null_literal_null",
+      "label": "null",
+      "kind": "keyword",
+      "category": "keyword",
+      "insertText": "null",
+      "documentation": "CloudFlow 关键字：null（null_literal）。",
+      "detail": "category=null_literal",
+      "triggerCharacters": [
+        " ",
+        "."
+      ]
+    },
+    {
       "id": "kw_modifier_input",
       "label": "input",
       "kind": "keyword",
@@ -3672,6 +3916,295 @@
           "label": "suffix",
           "type": "string",
           "doc": "后缀"
+        }
+      ]
+    },
+    {
+      "id": "func_now",
+      "label": "now",
+      "kind": "function",
+      "category": "function",
+      "insertText": "now(${1})",
+      "documentation": "返回当前 Unix 时间戳（秒）；与 GitHub Actions 的 now 对齐。",
+      "detail": "now() -> number",
+      "triggerCharacters": [
+        "("
+      ]
+    },
+    {
+      "id": "func_get",
+      "label": "get",
+      "kind": "function",
+      "category": "function",
+      "insertText": "get(${1})",
+      "documentation": "按索引/键取容器元素；不存在返回 null。",
+      "detail": "get(container, keyOrIndex) -> any",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "container",
+          "type": "array|object",
+          "doc": "数组或对象"
+        },
+        {
+          "label": "keyOrIndex",
+          "type": "number|string",
+          "doc": "数组索引或对象键"
+        }
+      ]
+    },
+    {
+      "id": "func_trim",
+      "label": "trim",
+      "kind": "function",
+      "category": "function",
+      "insertText": "trim(${1})",
+      "documentation": "去除字符串首尾空白。",
+      "detail": "trim(text) -> string",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        }
+      ]
+    },
+    {
+      "id": "func_to_upper",
+      "label": "to_upper",
+      "kind": "function",
+      "category": "function",
+      "insertText": "to_upper(${1})",
+      "documentation": "字符串转大写（成员方法调用 toUpperCase() 的等价函数形式）。",
+      "detail": "to_upper(text) -> string",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        }
+      ]
+    },
+    {
+      "id": "func_to_lower",
+      "label": "to_lower",
+      "kind": "function",
+      "category": "function",
+      "insertText": "to_lower(${1})",
+      "documentation": "字符串转小写（成员方法调用 toLowerCase() 的等价函数形式）。",
+      "detail": "to_lower(text) -> string",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "源字符串"
+        }
+      ]
+    },
+    {
+      "id": "func_range",
+      "label": "range",
+      "kind": "function",
+      "category": "function",
+      "insertText": "range(${1})",
+      "documentation": "生成数字数组（range(3) → [0,1,2]）。",
+      "detail": "range([start], stop, [step]) -> array",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "start",
+          "type": "number",
+          "doc": "起始（含，缺省 0）"
+        },
+        {
+          "label": "stop",
+          "type": "number",
+          "doc": "终止（不含）"
+        },
+        {
+          "label": "step",
+          "type": "number",
+          "doc": "步长（缺省 1）"
+        }
+      ]
+    },
+    {
+      "id": "func_abs",
+      "label": "abs",
+      "kind": "function",
+      "category": "function",
+      "insertText": "abs(${1})",
+      "documentation": "绝对值。",
+      "detail": "abs(x) -> number",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ]
+    },
+    {
+      "id": "func_round",
+      "label": "round",
+      "kind": "function",
+      "category": "function",
+      "insertText": "round(${1})",
+      "documentation": "四舍五入。",
+      "detail": "round(x) -> number",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ]
+    },
+    {
+      "id": "func_floor",
+      "label": "floor",
+      "kind": "function",
+      "category": "function",
+      "insertText": "floor(${1})",
+      "documentation": "向下取整。",
+      "detail": "floor(x) -> number",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ]
+    },
+    {
+      "id": "func_ceil",
+      "label": "ceil",
+      "kind": "function",
+      "category": "function",
+      "insertText": "ceil(${1})",
+      "documentation": "向上取整。",
+      "detail": "ceil(x) -> number",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "x",
+          "type": "number",
+          "doc": "数值"
+        }
+      ]
+    },
+    {
+      "id": "func_to_json",
+      "label": "to_json",
+      "kind": "function",
+      "category": "function",
+      "insertText": "to_json(${1})",
+      "documentation": "将值序列化为 JSON 字符串（GitHub toJSON）。",
+      "detail": "to_json(value) -> string",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "value",
+          "type": "any",
+          "doc": "对象/数组/标量"
+        }
+      ]
+    },
+    {
+      "id": "func_from_json",
+      "label": "from_json",
+      "kind": "function",
+      "category": "function",
+      "insertText": "from_json(${1})",
+      "documentation": "把 JSON 字符串解析为值（GitHub fromJSON）；非字符串原样返回。",
+      "detail": "from_json(text) -> any",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "text",
+          "type": "string",
+          "doc": "符合 JSON 语法的字符串"
+        }
+      ]
+    },
+    {
+      "id": "func_format_number",
+      "label": "format_number",
+      "kind": "function",
+      "category": "function",
+      "insertText": "format_number(${1})",
+      "documentation": "按小数位与千分位格式化数值（GitHub formatNumber）。",
+      "detail": "format_number(number, [format]) -> string",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "number",
+          "type": "number",
+          "doc": "要格式化的数值"
+        },
+        {
+          "label": "format",
+          "type": "string",
+          "doc": "可选，如 0.00 或 #,##0.00（含逗号启用千分位）"
+        }
+      ]
+    },
+    {
+      "id": "func_format_date_time",
+      "label": "format_date_time",
+      "kind": "function",
+      "category": "function",
+      "insertText": "format_date_time(${1})",
+      "documentation": "把日期/时间值按格式与时区输出（GitHub formatDateTime）。",
+      "detail": "format_date_time(value, [format], [timezone]) -> string",
+      "triggerCharacters": [
+        "("
+      ],
+      "parameters": [
+        {
+          "label": "value",
+          "type": "number|string",
+          "doc": "Unix 秒/毫秒或 ISO 日期字符串"
+        },
+        {
+          "label": "format",
+          "type": "string",
+          "doc": "可选，.NET token：yyyy MM dd HH mm ss；缺省输出 RFC3339"
+        },
+        {
+          "label": "timezone",
+          "type": "string",
+          "doc": "可选，UTC 偏移（+08:00）或常见 IANA 时区（标准偏移，不含 DST）"
         }
       ]
     },

@@ -43,6 +43,7 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health/live", server.live)
 	mux.HandleFunc("GET /health/ready", server.ready)
 	mux.HandleFunc("GET /internal/v1/health/capacity", server.auth(server.capacity))
+	mux.HandleFunc("GET /internal/v1/metrics/uds", server.auth(server.udsMetrics))
 	mux.HandleFunc("POST /internal/v1/validation/python", server.auth(server.validatePython))
 	mux.HandleFunc("POST /internal/v1/validation/javascript", server.auth(server.validateJavaScript))
 	mux.HandleFunc("POST /internal/v1/executions/preprocess-chain", server.auth(server.executePreprocess))
@@ -77,6 +78,19 @@ func (server *Server) capacity(response http.ResponseWriter, _ *http.Request) {
 		"capacity":  cap(server.Slots),
 		"available": len(server.Slots),
 	})
+}
+
+// udsMetrics exposes only aggregate Runtime-owned UDS indicators to trusted
+// operators. It must not disclose socket paths, tokens, plugin IDs, tenant
+// identifiers or request parameters.
+func (server *Server) udsMetrics(response http.ResponseWriter, _ *http.Request) {
+	if server.Runner == nil || server.Runner.Sessions == nil {
+		writeJSON(response, http.StatusServiceUnavailable, map[string]interface{}{
+			"status": "DOWN", "reason": "Unix Socket session manager unavailable",
+		})
+		return
+	}
+	writeJSON(response, http.StatusOK, server.Runner.Sessions.Stats())
 }
 
 func (server *Server) validatePython(response http.ResponseWriter, request *http.Request) {
@@ -337,9 +351,15 @@ func (server *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		// AUDIT FIX [6.7]: Runtime endpoints are internal, but retain the full
+		// browser-safe header baseline so an accidental reverse-proxy exposure
+		// cannot be framed, MIME-sniffed, or used to leak referrer information.
 		response.Header().Set("X-Content-Type-Options", "nosniff")
 		response.Header().Set("Cache-Control", "no-store")
 		response.Header().Set("Content-Security-Policy", "default-src 'none'")
+		response.Header().Set("X-Frame-Options", "DENY")
+		response.Header().Set("Referrer-Policy", "no-referrer")
+		response.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		next.ServeHTTP(response, request)
 	})
 }

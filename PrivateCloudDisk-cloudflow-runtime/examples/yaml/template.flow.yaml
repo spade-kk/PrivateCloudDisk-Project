@@ -1,0 +1,60 @@
+# CloudFlow YAML 工作流模板（需求 31.28/31.29）
+# 用法：复制本文件为新工作流，按需修改字段；每个字段均带注释与示例。
+# 顶层字段：workflow / trigger / input(s) / variables / env / runtime / steps / catch / finally / outputs
+# 步骤字段：id、name、action、input(with)、depends(depends_on)、when(condition/if)、retry、timeout、on_error、output
+# 表达式统一使用 `${{ ... }}`（需求 6.32）：`${{ input.x }}`、`${{ vars.x }}`、`${{ steps.<id>.output }}`。
+
+workflow:
+  name: my_workflow            # 必填：工作流名称（字符串，IR metadata.name）
+  version: 1.0                 # 可选：版本（字符串或数字）
+  description: 我的第一个 CloudFlow 工作流   # 可选
+  # display_name: 展示名       # 可选：界面展示名；其余元数据键不被支持（Schema 会提示）
+
+trigger:
+  type: manual                 # manual / event / cron(schedule) / http(webhook) / interval
+
+# input / inputs：外部输入参数声明（可选，需求 5.8）
+input:
+  file_id:
+    type: string               # string / number / boolean / array / object
+    required: true
+    # default: ""              # 可选：默认值
+
+# variables：内部变量（可选，需求 5.7）
+variables:
+  batch_size: 100
+
+# env：环境变量（可选，需求 29.17）
+env:
+  NODE_ENV: production
+
+# runtime：执行配置（可选，需求 5.4）
+runtime:
+  timeout: 30m                 # 全局超时，单位 ms/s/m/h/d
+  max_parallel: 4
+
+steps:                          # 必填：步骤列表（每项至少包含 id 与 action）
+  - id: fetch
+    name: 获取文件              # 可选：步骤显示名
+    action: file.get           # service.method / builtin:... / api:... / plugin:<id>:<fn>@<ver>
+    input:                     # action 参数（with 同义）
+      id: ${{ input.file_id }}
+    output: fetched            # 可选：给步骤输出命名，供后续以 steps.fetch.output 引用
+
+  - id: parse
+    action: file.parse
+    depends: [fetch]           # 依赖：字符串或列表（引用步骤 id）
+    when: ${{ input.file_id != "" }}  # 条件表达式（可选；when/condition/if 同义）
+    timeout: 30s               # 可选：步骤超时（时长字符串或 {duration, on_timeout}）
+    retry:                     # 可选：重试策略
+      count: 3                 # ≥1 的数字
+      strategy: exponential    # fixed / linear / exponential
+      interval: 5s             # 可选：退避间隔（时长字符串）
+
+# catch / finally：顶层异常处理（可选，需求 5.16）
+catch:
+  - error: "*"                 # 捕获异常类型（"*" 为通配）
+    action: notify.admin
+# finally:
+#   - id: cleanup
+#     action: file.cleanup

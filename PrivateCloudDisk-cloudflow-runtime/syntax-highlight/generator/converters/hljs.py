@@ -2,7 +2,7 @@
 
 从统一规范生成 `cloudflow.hljs.js`（UMD，兼容 ES Module 与 CommonJS，需求 7.14）：
 - 注册语言名 cloudflow，aliases 含 flow/cloudflow
-- keywords：control+declaration+type+modifier+function 归入 `keyword`；literal 归入 `literal`
+- keywords：control+declaration+modifier 归入 `keyword`；type 归入 `type`；function 归入 `built_in`；literal+null_literal 归入 `literal`
 - contains：注释 / 数字 / 时长 / 字符串（双引号+三双引号+插值）/ 操作符 / 变量引用 / 标点
 - 输出自带 `hljs.registerLanguage('cloudflow', ...)`，网页可直接引入（需求 7.11/7.12）
 
@@ -44,7 +44,7 @@ def generate(spec: dict, options: dict = None) -> str:
     # 注意：workflow / steps 已是声明关键字，只进 keyword 类，避免重复进 built_in 造成双类。
     keyword_words = keywords.get("control", []) + keywords.get("declaration", []) + keywords.get("modifier", [])
     type_words = keywords.get("type", [])
-    literal_words = keywords.get("literal", [])
+    literal_words = keywords.get("literal", []) + keywords.get("null_literal", [])
     builtin_words = keywords.get("function", []) + [p for p in spec["references"].keys() if p not in keyword_words]
 
     # ---- contains 规则（顺序敏感：注释→字符串→数字→引用→操作符→标点）----

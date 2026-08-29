@@ -1,0 +1,17 @@
+# CloudFlow YAML 示例 12 + interval（对照 DEMO 示例 12）
+# 场景：定时（cron）与周期（interval）触发示例拆分。
+workflow:
+  name: daily_report
+
+trigger:
+  cron:
+    expression: "0 2 * * *"
+    timezone: Asia/Shanghai
+
+steps:
+  - id: report
+    action: report.generate
+  - id: send
+    action: email.send
+    depends:
+      - report

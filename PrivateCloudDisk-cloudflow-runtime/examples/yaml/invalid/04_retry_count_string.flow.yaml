@@ -1,0 +1,7 @@
+# 反例：retry.count 类型错误（应为数字，31.4）。
+# expected: CFY-SCHEMA-1002
+steps:
+  - id: a
+    action: file.get
+    retry:
+      count: "three"

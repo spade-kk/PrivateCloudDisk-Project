@@ -14,6 +14,7 @@
 - 管理插件定义、版本和发布状态
 - 校验插件包与 manifest，记录权限和安装范围
 - 提供云插件市场和空间级安装/执行入口
+- 保存执行摘要之外的逐行日志与受控能力调用审计，支持游标分页、SSE tail 与导出
 - 通过内部服务调用完成授权与运行时编排
 - 不直接承担沙箱执行；运行安全由 Runtime 与部署策略负责
 
@@ -23,3 +24,5 @@
     ./gradlew bootRun
 
 服务端口、数据库和内部服务地址以 src/main/resources/application.yml 与根目录 Compose 配置为准。
+
+执行详情 API、访问门禁、脱敏与存储索引见 [../docs/PLUGIN_EXECUTION_OBSERVABILITY.md](../docs/PLUGIN_EXECUTION_OBSERVABILITY.md)。

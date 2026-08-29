@@ -1,0 +1,57 @@
+{
+  "title": "CloudFlow MCP Server - External Agent Integration Plane",
+  "levels": [
+    {
+      "name": "System Context",
+      "elements": [
+        {"id": "external_agent", "type": "person", "label": "External AI Agent", "desc": "Codex, Claude Code, Cursor or another MCP Client"},
+        {"id": "cloudflow_platform", "type": "system", "label": "PrivateCloudDisk / CloudFlow", "desc": "Authorized files, spaces, workflows and plugin capabilities", "children": "Containers"},
+        {"id": "oauth_provider", "type": "external", "label": "OAuth 2.1 Authorization Server", "desc": "Issues audience-bound user access tokens"}
+      ],
+      "relations": [
+        {"from": "external_agent", "to": "oauth_provider", "label": "OAuth 2.1 + PKCE"},
+        {"from": "external_agent", "to": "cloudflow_platform", "label": "MCP 2025-11-25 / HTTPS"},
+        {"from": "cloudflow_platform", "to": "oauth_provider", "label": "Protected-resource metadata"}
+      ]
+    },
+    {
+      "name": "Containers",
+      "elements": [
+        {"id": "agent_http", "type": "container", "label": "External MCP Client", "tech": "Codex / Claude / Cursor", "desc": "Bearer-authenticated Streamable HTTP client"},
+        {"id": "gateway", "type": "container", "label": "Gateway", "tech": "Spring Cloud Gateway", "desc": "Bearer validation, route governance, HMAC trusted identity signing"},
+        {"id": "mcp_server", "type": "container", "label": "CloudFlow MCP Server", "tech": "Go / net/http", "desc": "JSON-RPC MCP adapter, tool filtering, sessions, rate limits, metrics", "children": "MCP Components"},
+        {"id": "capability_hub", "type": "container", "label": "Capability Hub", "tech": "Workflow Service / Java", "desc": "Registry, schema, real-time permissions, dispatch, durable audit"},
+        {"id": "business_plane", "type": "container", "label": "Platform Business Data Plane", "tech": "Internal HTTP / RabbitMQ", "desc": "File, space, workflow and plugin data-plane implementations"},
+        {"id": "audit_db", "type": "database", "label": "Capability Audit", "tech": "MySQL", "desc": "Capability and MCP protocol audit trail"},
+        {"id": "prometheus", "type": "external", "label": "Observability Stack", "desc": "Prometheus scrape and trace correlation"}
+      ],
+      "relations": [
+        {"from": "agent_http", "to": "gateway", "label": "POST /api/v1/mcp, Bearer token"},
+        {"from": "gateway", "to": "mcp_server", "label": "private /mcp + pcd-mcp-v1 signed context"},
+        {"from": "mcp_server", "to": "capability_hub", "label": "internal MCP discovery/call/audit + service token"},
+        {"from": "capability_hub", "to": "business_plane", "label": "reviewed capability dispatch + final resource authorization"},
+        {"from": "capability_hub", "to": "audit_db", "label": "persist parameter summary and outcome"},
+        {"from": "prometheus", "to": "mcp_server", "label": "GET /metrics"}
+      ]
+    },
+    {
+      "name": "MCP Components",
+      "elements": [
+        {"id": "mcp_transport", "type": "component", "label": "MCP Transport", "tech": "JSON-RPC 2.0 / Streamable HTTP", "desc": "initialize, tools/list, tools/call, resources and prompts"},
+        {"id": "mcp_identity", "type": "component", "label": "Trusted Identity Verifier", "tech": "HMAC-SHA256", "desc": "Verifies method/path/user/tenant/space/request binding from Gateway"},
+        {"id": "mcp_adapter", "type": "component", "label": "MCP Adapter", "tech": "Reviewed export policy", "desc": "Maps safe Hub capability subset to MCP tools and removes internal arguments"},
+        {"id": "mcp_hub_client", "type": "component", "label": "Capability Hub Client", "tech": "private HTTP", "desc": "Only enterprise service client; no database/file/plugin clients"},
+        {"id": "mcp_guard", "type": "component", "label": "Safety Controls", "tech": "cache + rate limit + timeout", "desc": "Per-user limits, bounded bodies/concurrency, cancellation, idempotency key"},
+        {"id": "mcp_metrics", "type": "component", "label": "Audit and Metrics", "tech": "Hub audit + Prometheus", "desc": "No local audit persistence; protocol audit is forwarded to Hub"}
+      ],
+      "relations": [
+        {"from": "mcp_transport", "to": "mcp_identity", "label": "verify each request"},
+        {"from": "mcp_transport", "to": "mcp_adapter", "label": "discover / validate tools"},
+        {"from": "mcp_adapter", "to": "mcp_hub_client", "label": "filtered discovery and calls"},
+        {"from": "mcp_transport", "to": "mcp_guard", "label": "session, timeout, cancel, rate limit"},
+        {"from": "mcp_transport", "to": "mcp_metrics", "label": "method outcome and latency"},
+        {"from": "mcp_metrics", "to": "mcp_hub_client", "label": "durable protocol audit"}
+      ]
+    }
+  ]
+}

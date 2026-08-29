@@ -10,6 +10,7 @@ PrivateCloudDisk 采用前后端分离的微服务架构：
 - Storage Service 与 Worker 负责文件内容、分片、下载、预览资源和生命周期处理。
 - Notification、IM、Billing、Client Registration 提供外围业务能力。
 - Plugin、Runtime、Automation、Workflow、Scheduler 组成扩展和自动化平台。
+- CloudFlow MCP Server 作为服务端 Integration Plane，经 Gateway 接收第三方 Agent，再仅通过 Capability Hub 访问经过审核的能力。
 - MySQL、Redis、RabbitMQ、MinIO、OpenSearch 和 SkyWalking 提供数据、消息、对象、搜索和观测基础。
 
 ## 2. 服务清单与边界
@@ -29,7 +30,8 @@ PrivateCloudDisk 采用前后端分离的微服务架构：
 | Automation | Spring Boot + RabbitMQ / 8084 | 文件事件匹配、插件执行持久化、Inbox/Outbox 和恢复 |
 | Workflow | Spring Boot + RabbitMQ / 8087 | DSL、能力中心、工作流版本、执行和市场 |
 | Scheduler | Spring Boot + RabbitMQ / 8088 | Cron、租约、幂等触发和调度消息 |
-| AI | FastAPI / 8001 | 可选 AI 任务和异步模型处理 |
+| Cloud AI Agent | FastAPI / 8001 | 可选 automation profile 的企业数字资产 Agent Runtime；SSE、审批、静态工具注册表，并仅经 Capability Hub 调用受权能力 |
+| CloudFlow MCP Server | Go 1.24 / 8093（内网） | 第三方 Agent 的 MCP JSON-RPC/Streamable HTTP 适配层；Gateway 签名身份、Hub 最终权限/Schema/审计，不直连业务数据面 |
 
 ## 3. 数据流与一致性
 
@@ -50,6 +52,13 @@ PrivateCloudDisk 采用前后端分离的微服务架构：
 
 Plugin Service 保存插件包和安装关系，Automation 匹配文件事件，Workflow 负责流程定义和能力解析，Scheduler 负责定时触发，Runtime 在隔离环境中执行。插件只通过 Broker 使用声明过的能力。
 
+### 3.4 第三方 Agent MCP 接入
+
+第三方 Agent 使用 Gateway 的 `/api/v1/mcp` 与 CloudFlow MCP Server 通信。Gateway 验证 Bearer
+JWT，删除伪造内部头并签名 user/tenant/space 私网上下文；MCP Server 只负责 MCP 协议、审核后的
+工具适配、限流和协议审计，随后由 Capability Hub 完成实时能力/资源权限、JSON Schema、分发与
+执行审计。MCP Server 不连接数据库、对象存储、文件、插件或 Runtime 服务。
+
 ## 4. 通信方式
 
 | 方式 | 用途 |
@@ -60,6 +69,7 @@ Plugin Service 保存插件包和安装关系，Automation 匹配文件事件，
 | Redis | 会话、限流、临时授权、幂等和缓存 |
 | WebSocket | IM 与系统通知 |
 | WebRTC | 音视频通话 |
+| MCP JSON-RPC + Streamable HTTP/SSE | 第三方 AI Agent 发现和调用经 Capability Hub 审核的 CloudFlow 工具 |
 
 ## 5. 性能与可靠性
 

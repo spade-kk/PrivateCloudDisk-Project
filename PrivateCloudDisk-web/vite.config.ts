@@ -603,20 +603,9 @@ export default defineConfig(({ command, mode }) => {
 
       // === 代码分割 ===
       rollupOptions: {
-        // === 外部依赖（不打包进产物，运行时从 CDN 加载） ===
-        // 以下库改为 CDN 动态加载，通过 src/utils/*Cdn.ts 加载器统一管理
-        // 此处声明为 external 防止构建时残留打包引用导致 OOM 与产物膨胀
-        external: [
-          'markdown-it',
-          'markdown-it-anchor',
-          'markdown-it-emoji',
-          'markdown-it-table-of-contents',
-          'markdown-it-task-lists',
-          'mermaid',
-          'katex',
-          'highlight.js',
-          'dompurify',
-        ],
+        // Markdown/代码/公式/图表依赖由 npm 安装并进入按需 chunk，AI
+        // 助手不能依赖运行时 CDN，否则离线部署时回复会退化为纯文本。
+        external: [],
 
         output: {
           // 手动代码分割策略 — 按框架/库分层，最大化浏览器缓存命中率

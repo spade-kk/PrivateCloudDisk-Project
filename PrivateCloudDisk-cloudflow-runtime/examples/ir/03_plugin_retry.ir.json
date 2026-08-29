@@ -1,0 +1,147 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-sample-plugin-retry",
+    "name": "sample_plugin_retry",
+    "displayName": null,
+    "description": "插件调用示例：plugin:8ae47c8d:generate_report，maxAttempts=2 + 节点超时 120s",
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {
+      "data": {
+        "type": "object",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      }
+    },
+    "graph": {
+      "nodes": [
+        {
+          "id": "generate",
+          "type": "plugin",
+          "name": null,
+          "action": {
+            "provider": "plugin",
+            "service": null,
+            "method": null,
+            "pluginId": "8ae47c8d",
+            "function": "generate_report",
+            "version": "1",
+            "arguments": {
+              "data": {
+                "$ref": "vars.data"
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {
+            "report": {
+              "$ref": "steps.generate.output"
+            }
+          },
+          "dependsOn": [],
+          "retry": {
+            "maxAttempts": 2,
+            "strategy": "exponential"
+          },
+          "retryOn": [],
+          "timeout": "120s",
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "notify",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "api",
+            "service": "user",
+            "method": "notify",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "title": {
+                "$template": [
+                  "销售报告已生成"
+                ]
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "generate"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "generate",
+          "to": "notify"
+        }
+      ]
+    },
+    "outputs": {
+      "report": {
+        "$ref": "steps.generate.output"
+      }
+    },
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 300,
+    "maxParallel": 1,
+    "retryPolicy": {
+      "maxAttempts": 2,
+      "strategy": "exponential"
+    }
+  },
+  "security": {
+    "permissions": [
+      "plugin:8ae47c8d:generate_report"
+    ],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

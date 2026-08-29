@@ -198,12 +198,72 @@ export interface PluginTestRunStatus {
   endedAt?: string
 }
 
-/** 完整日志下载授权（日志正文不直接通过执行列表返回）。 */
-export interface PluginLogGrant {
-  grantId: string
-  url: string
-  expiresAt: string
-  maxBytes?: number
+/** 执行详情的后端投影；正文日志与审计调用均通过受鉴权接口分页读取。 */
+export interface PluginExecutionDetail extends PluginExecutionInfo {
+  pluginName: string
+  version?: string | null
+  runtime?: string | null
+  entrypoint?: string | null
+  manifestLimits?: Record<string, unknown>
+  logLineCount: number
+  auditCallCount: number
+}
+
+export interface PluginExecutionLogLine {
+  sequenceNo: number
+  timestamp: string
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | string
+  source: 'STDOUT' | 'STDERR' | 'PYCLOUDSDK' | 'SYSTEM' | string
+  content: string
+  byteOffset?: number
+}
+
+export interface PluginExecutionAuditTrail {
+  auditId: string
+  parentAuditId?: string | null
+  sequenceNo: number
+  capabilityKey: string
+  capabilityType: 'BUILTIN' | 'PLATFORM_API' | 'PLUGIN' | string
+  summaryTemplate?: string | null
+  summary: string
+  targetContext?: Record<string, unknown>
+  inputParams?: Record<string, unknown>
+  inputSummary?: string | null
+  outputResult?: Record<string, unknown>
+  outputSummary?: string | null
+  status: 'SUCCESS' | 'FAILED' | 'TIMEOUT' | 'RUNNING' | 'SKIPPED' | string
+  durationMs?: number | null
+  retryCount?: number | null
+  errorCode?: string | null
+  errorSummary?: string | null
+  timestamp: string
+}
+
+export interface PluginExecutionCursorPage<T> {
+  items: T[]
+  nextCursor?: string | null
+  hasMore: boolean
+}
+
+export interface PluginExecutionLogQuery {
+  /** 兼容通用请求层的 query 参数约束；具体字段仍由下列可选属性限定。 */
+  [key: string]: unknown
+  cursor?: string
+  limit?: number
+  order?: 'asc' | 'desc'
+  start_time?: string
+  end_time?: string
+  level?: string
+  source?: string
+}
+
+export interface PluginExecutionAuditQuery {
+  /** 兼容通用请求层的 query 参数约束；具体字段仍由下列可选属性限定。 */
+  [key: string]: unknown
+  cursor?: string
+  limit?: number
+  capability_type?: string
+  status?: string
 }
 
 /** ZIP 包上传摘要；服务端不返回源码或宿主物理路径。 */
@@ -397,27 +457,51 @@ export function pluginExecutionsApi(
   return get(`plugins/${pluginId}/executions`, { status, page, size })
 }
 
-/**
- * 读取单次插件执行详情。
- * [IDE-API-PLUGIN-EXECUTION] 文档已约定该路径，但当前 PluginController 尚未实现；
- * 保留薄封装供执行记录页接入，后端未部署该接口时由页面统一显示“详情服务未启用”。
- */
+/** [PLUGIN-EXEC-OBS-001] 读取已鉴权、已脱敏的单次执行概要。 */
 export function getPluginExecutionApi(
   executionId: string,
-): Promise<PluginApiResponse<PluginExecutionInfo>> {
-  return get(`plugins/executions/${executionId}`)
+  config?: Record<string, unknown>,
+): Promise<PluginApiResponse<PluginExecutionDetail>> {
+  return get(`plugins/executions/${executionId}`, undefined, config)
 }
 
-/**
- * 申请执行日志短期下载授权。
- * [IDE-API-PLUGIN-LOG] 后端需按 can_view_automation_logs/can_view_sensitive_logs 校验；
- * 当前服务仅有执行摘要查询，未提供该端点，禁止前端自行拼接存储地址。
- */
-export function requestPluginLogGrantApi(
+/** Docker 风格日志视图的游标查询；服务端负责所有数据脱敏与权限校验。 */
+export function getPluginExecutionLogsApi(
   executionId: string,
-): Promise<PluginApiResponse<PluginLogGrant>> {
-  return post(`plugins/executions/${executionId}/log-grant`, undefined, {
-    headers: { 'Idempotency-Key': idempotency() },
+  query: PluginExecutionLogQuery = {},
+  config?: Record<string, unknown>,
+): Promise<PluginApiResponse<PluginExecutionCursorPage<PluginExecutionLogLine>>> {
+  return get(`plugins/executions/${executionId}/logs`, query, config)
+}
+
+/** 审计列表同时提供摘要和专业详情模式所需的同一可信数据源。 */
+export function getPluginExecutionAuditTrailsApi(
+  executionId: string,
+  query: PluginExecutionAuditQuery = {},
+  config?: Record<string, unknown>,
+): Promise<PluginApiResponse<PluginExecutionCursorPage<PluginExecutionAuditTrail>>> {
+  return get(`plugins/executions/${executionId}/audit-trails`, query, config)
+}
+
+export function getPluginExecutionAuditTrailApi(
+  auditId: string,
+  config?: Record<string, unknown>,
+): Promise<PluginApiResponse<PluginExecutionAuditTrail>> {
+  return get(`plugins/audit-trails/${auditId}`, undefined, config)
+}
+
+/** 下载仍由 Plugin Service 代理，浏览器不获取 Runtime/对象存储的内部地址。 */
+export function downloadPluginExecutionLogsApi(executionId: string): Promise<Blob> {
+  return get<Blob>(`plugins/executions/${executionId}/logs/download`, undefined, {
+    responseType: 'blob',
+    suppressToast: true,
+  })
+}
+
+export function downloadPluginExecutionAuditTrailsApi(executionId: string): Promise<Blob> {
+  return get<Blob>(`plugins/executions/${executionId}/audit-trails/download`, undefined, {
+    responseType: 'blob',
+    suppressToast: true,
   })
 }
 

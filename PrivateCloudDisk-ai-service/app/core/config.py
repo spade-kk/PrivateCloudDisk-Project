@@ -1,266 +1,81 @@
-"""
-AI Processing Service - 核心配置
+"""Typed, fail-closed configuration for the Cloud AI Agent Runtime."""
 
-所有配置通过环境变量注入，支持 .env 文件覆盖。
-与 storage-service 和 platform-service 共用基础设施配置。
-"""
 from __future__ import annotations
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
-from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # ================================================================
-    # 服务基础配置
-    # ================================================================
-    ai_service_host: str = "0.0.0.0"
-    ai_service_port: int = 8001
-    ai_service_name: str = "PrivateCloudDisk AI Service"
-    enable_docs: bool = False  # 生产环境默认关闭 OpenAPI 文档
+    """Deployment settings.
 
-    # ================================================================
-    # RabbitMQ 配置 (与 storage-service 共用集群)
-    # ================================================================
-    rabbitmq_host: str = "localhost"
-    rabbitmq_port: int = 5672
-    rabbitmq_user: str = "guest"
-    rabbitmq_pass: str = "guest"
-    rabbitmq_vhost: str = "/"
+    [AI-AGENT-REBUILD-001] The old AI worker exposed direct database, object-store,
+    message-broker and host-path settings. They intentionally do not exist here: the
+    only enterprise service URL accepted by this runtime is Capability Hub.
+    """
 
-    # --- AI 处理主交换机 & 队列 ---
-    ai_process_exchange: str = "pcd.ai.process.exchange"
-    ai_process_queue: str = "pcd.ai.process.queue"
-    ai_process_routing_key: str = "ai.process"
+    model_config = SettingsConfigDict(env_prefix="AI_AGENT_", case_sensitive=False)
 
-    # --- AI 处理死信交换机 & 队列 ---
-    ai_process_dlx: str = "pcd.ai.process.dlx"
-    ai_process_dlq: str = "pcd.ai.process.dlq"
-    ai_process_dlq_routing_key: str = "ai.process.dlq"
+    environment: Literal["development", "test", "staging", "production"] = "development"
+    port: int = Field(default=8001, ge=1, le=65535)
+    enable_docs: bool = False
+    redis_url: str = "redis://localhost:6379/5"
+    capability_hub_url: str = "http://localhost:8087"
+    internal_service_token: SecretStr = SecretStr("test")
+    identity_shared_secret: SecretStr = SecretStr("replace-with-long-random-secret")
+    allow_unsigned_identity: bool = True
+    identity_max_age_seconds: int = Field(default=60, ge=5, le=300)
 
-    # --- 人脸聚类交换机 & 队列 ---
-    face_cluster_exchange: str = "pcd.ai.face.cluster.exchange"
-    face_cluster_queue: str = "pcd.ai.face.cluster.queue"
-    face_cluster_routing_key: str = "ai.face.cluster"
-    face_cluster_dlx: str = "pcd.ai.face.cluster.dlx"
-    face_cluster_dlq: str = "pcd.ai.face.cluster.dlq"
-    face_cluster_dlq_routing_key: str = "ai.face.cluster.dlq"
+    llm_base_url: str = "https://llm-api.arkcat.cn/v1"
+    llm_api_key: SecretStr = SecretStr(os.getenv("REMOTE_STUDIO_AUTH_TOKEN"))
+    llm_model: str = "MiniMax"
+    llm_fallback_models: str = "MiniMax"
+    llm_timeout_seconds: float = Field(default=45.0, ge=1, le=300)
+    max_provider_concurrency: int = Field(default=32, ge=1, le=500)
+    max_agent_iterations: int = Field(default=20, ge=1, le=32)
+    max_run_seconds: int = Field(default=120, ge=5, le=3600)
+    max_tool_concurrency: int = Field(default=4, ge=1, le=32)
+    max_tool_attempts: int = Field(default=3, ge=1, le=5)
+    max_context_chars: int = Field(default=120_000, ge=8_000, le=500_000)
+    max_tool_result_bytes: int = Field(default=262_144, ge=1024, le=1_048_576)
+    max_message_chars: int = Field(default=32_000, ge=1_000, le=200_000)
+    run_rate_limit_per_minute: int = Field(default=20, ge=1, le=600)
+    sse_heartbeat_seconds: int = Field(default=15, ge=5, le=60)
+    enable_workflow_tools: bool = True
+    enable_plugin_tools: bool = True
+    allowed_origins: str = ""
 
-    # --- 推荐系统交换机 & 队列 ---
-    recommendation_exchange: str = "pcd.ai.recommendation.exchange"
-    recommendation_queue: str = "pcd.ai.recommendation.queue"
-    recommendation_routing_key: str = "ai.recommendation"
-    recommendation_dlx: str = "pcd.ai.recommendation.dlx"
-    recommendation_dlq: str = "pcd.ai.recommendation.dlq"
-    recommendation_dlq_routing_key: str = "ai.recommendation.dlq"
+    @field_validator("capability_hub_url", "llm_base_url")
+    @classmethod
+    def strip_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
 
-    # --- 重试策略 ---
-    retry_max_attempts: int = 3
-    retry_base_delay_seconds: int = 5
-    retry_max_delay_seconds: int = 300
-
-    # ================================================================
-    # Redis 配置
-    # ================================================================
-    redis_url: str = "redis://localhost:6379/1"
-
-    # ================================================================
-    # MySQL 配置 (与 platform-service 共用)
-    # ================================================================
-    mysql_host: str = "localhost"
-    mysql_port: int = 3306
-    mysql_user: str = "root"
-    mysql_password: str = "20070315mwz"
-    mysql_database: str = "private_cloud_disk"
+    @model_validator(mode="after")
+    def validate_security(self) -> "Settings":
+        if self.environment == "production":
+            if self.allow_unsigned_identity:
+                raise ValueError("AI_AGENT_ALLOW_UNSIGNED_IDENTITY cannot be enabled in production")
+            if not self.identity_shared_secret.get_secret_value():
+                raise ValueError("AI_AGENT_IDENTITY_SHARED_SECRET is required in production")
+            if not self.internal_service_token.get_secret_value():
+                raise ValueError("AI_AGENT_INTERNAL_SERVICE_TOKEN is required in production")
+            if not self.llm_api_key.get_secret_value():
+                raise ValueError("AI_AGENT_LLM_API_KEY is required in production")
+        return self
 
     @property
-    def mysql_url(self) -> str:
-        return (
-            f"mysql+aiomysql://{self.mysql_user}:{self.mysql_password}"
-            f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
-            f"?charset=utf8mb4"
-        )
+    def fallback_models(self) -> tuple[str, ...]:
+        return tuple(item.strip() for item in self.llm_fallback_models.split(",") if item.strip())
 
     @property
-    def mysql_url_asyncmy(self) -> str:
-        return (
-            f"mysql+asyncmy://{self.mysql_user}:{self.mysql_password}"
-            f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
-            f"?charset=utf8mb4"
-        )
-
-    # ================================================================
-    # MinIO 对象存储配置
-    # ================================================================
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin"
-    minio_bucket: str = "private-cloud-disk"
-    minio_secure: bool = False
-
-    # ================================================================
-    # OpenSearch 配置
-    # ================================================================
-    opensearch_host: str = "https://localhost:9200"
-    opensearch_username: str = "admin"
-    opensearch_password: str = "MySecureP@ssw0rd"
-    opensearch_use_ssl: bool = True
-    opensearch_verify_certs: bool = False
-    opensearch_timeout: int = 30
-    opensearch_max_retries: int = 3
-
-    opensearch_file_index: str = "pcd_file_basic"
-    opensearch_content_index: str = "pcd_file_content"
-
-    # ================================================================
-    # 模型目录
-    # ================================================================
-    model_dir: str = "./models"
-    model_cache_dir: str = "./models/.cache"
-
-    # ================================================================
-    # AI 功能开关
-    # ================================================================
-    ai_image_classification_enabled: bool = True
-    ai_face_detection_enabled: bool = True
-    ai_object_detection_enabled: bool = True
-    ai_nsfw_detection_enabled: bool = True
-    ai_nlp_tagging_enabled: bool = True
-    ai_ocr_enabled: bool = True
-    ai_summarization_enabled: bool = True
-    ai_recommendation_enabled: bool = True
-
-    # ================================================================
-    # 推理配置
-    # ================================================================
-    ai_inference_device: str = "cpu"  # cpu | cuda | mps
-    ai_inference_batch_size: int = 4
-    ai_inference_timeout_seconds: int = 120
-    ai_max_file_size_mb: int = 500
-
-    # ================================================================
-    # Worker 配置
-    # ================================================================
-    worker_prefetch_ai: int = 4
-    worker_concurrency_ai: int = 8
-    worker_prefetch_face_cluster: int = 1
-    worker_concurrency_face_cluster: int = 2
-    worker_prefetch_recommendation: int = 1
-    worker_concurrency_recommendation: int = 2
-    worker_prefetch_dlq: int = 1
-    worker_concurrency_dlq: int = 2
-    worker_log_level: str = "INFO"
-
-    # ================================================================
-    # 人脸聚类配置
-    # ================================================================
-    face_cluster_min_faces: int = 10
-    face_cluster_eps: float = 0.5
-    face_cluster_min_samples: int = 2
-    face_cluster_batch_size: int = 100
-
-    # ================================================================
-    # 推荐系统配置
-    # ================================================================
-    recommendation_update_interval_hours: int = 6
-    recommendation_top_k: int = 20
-
-    # ================================================================
-    # 文件存储路径 (与 storage-service 共享)
-    # ================================================================
-    shared_storage_path: str = "/data/uploads"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
 
 
-# =============================================================================
-# 全局单例
-# =============================================================================
-settings = Settings()
-
-
-# =============================================================================
-# AI 任务类型常量
-# =============================================================================
-class AITaskType:
-    IMAGE_CLASSIFICATION = "image_classification"
-    FACE_DETECTION = "face_detection"
-    OBJECT_DETECTION = "object_detection"
-    NSFW_DETECTION = "nsfw_detection"
-    NLP_TAGGING = "nlp_tagging"
-    OCR = "ocr"
-    SUMMARIZATION = "summarization"
-    FACE_CLUSTERING = "face_clustering"
-    RECOMMENDATION = "recommendation"
-
-
-# =============================================================================
-# AI 任务状态常量
-# =============================================================================
-class AITaskStatus:
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
-    DEGRADED = "degraded"
-
-
-# =============================================================================
-# 失败原因枚举
-# =============================================================================
-class FailureReason:
-    FILE_NOT_FOUND = "FILE_NOT_FOUND"
-    FILE_TOO_LARGE = "FILE_TOO_LARGE"
-    FILE_TYPE_UNSUPPORTED = "FILE_TYPE_UNSUPPORTED"
-    MODEL_NOT_LOADED = "MODEL_NOT_LOADED"
-    INFERENCE_TIMEOUT = "INFERENCE_TIMEOUT"
-    INFERENCE_ERROR = "INFERENCE_ERROR"
-    MODEL_DOWNLOAD_ERROR = "MODEL_DOWNLOAD_ERROR"
-    DB_WRITE_ERROR = "DB_WRITE_ERROR"
-    OPENSEARCH_ERROR = "OPENSEARCH_ERROR"
-    UNKNOWN = "UNKNOWN"
-
-    NO_RETRY_REASONS = frozenset({
-        FILE_TYPE_UNSUPPORTED,
-        FILE_TOO_LARGE,
-    })
-
-
-# =============================================================================
-# 支持的文件类型
-# =============================================================================
-IMAGE_MIME_TYPES = frozenset({
-    "image/jpeg", "image/png", "image/gif", "image/webp",
-    "image/bmp", "image/tiff", "image/heic", "image/heif",
-})
-
-DOCUMENT_MIME_TYPES = frozenset({
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "text/plain",
-    "text/csv",
-    "text/markdown",
-})
-
-VIDEO_MIME_TYPES = frozenset({
-    "video/mp4", "video/mpeg", "video/quicktime",
-    "video/webm", "video/x-msvideo", "video/x-matroska",
-})
-
-# AI 任务 → 适用文件类型映射
-AI_TASK_FILE_TYPES = {
-    AITaskType.IMAGE_CLASSIFICATION: IMAGE_MIME_TYPES,
-    AITaskType.FACE_DETECTION: IMAGE_MIME_TYPES,
-    AITaskType.OBJECT_DETECTION: IMAGE_MIME_TYPES,
-    AITaskType.NSFW_DETECTION: IMAGE_MIME_TYPES,
-    AITaskType.NLP_TAGGING: DOCUMENT_MIME_TYPES,
-    AITaskType.OCR: IMAGE_MIME_TYPES | {"application/pdf"},
-    AITaskType.SUMMARIZATION: DOCUMENT_MIME_TYPES,
-}
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()

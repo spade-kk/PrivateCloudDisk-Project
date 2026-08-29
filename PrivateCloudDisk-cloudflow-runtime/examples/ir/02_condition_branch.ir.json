@@ -1,0 +1,218 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-sample-condition",
+    "name": "sample_condition",
+    "displayName": null,
+    "description": "条件分支示例：vars.kind == 'pdf' 走 pdf 分支，否则走 fallback 分支",
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {
+      "kind": {
+        "type": "string",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      }
+    },
+    "graph": {
+      "nodes": [
+        {
+          "id": "route",
+          "type": "condition",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": {
+            "$expr": {
+              "operator": "==",
+              "left": {
+                "$ref": "vars.kind"
+              },
+              "right": "pdf"
+            }
+          },
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": {
+            "trueBranch": [
+              "process_pdf"
+            ],
+            "falseBranch": [
+              "process_other"
+            ]
+          },
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "process_pdf",
+            "process_other"
+          ]
+        },
+        {
+          "id": "process_pdf",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "parser",
+            "method": "parse_doc",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "route"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "route",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "process_other",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "parser",
+            "method": "parse_doc",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "route"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "route",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "summarize",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "data",
+            "method": "summarize",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "source": {
+                "$ref": "vars.kind"
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "process_pdf",
+            "process_other"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "route",
+          "to": "process_pdf"
+        },
+        {
+          "from": "route",
+          "to": "process_other"
+        },
+        {
+          "from": "process_pdf",
+          "to": "summarize"
+        },
+        {
+          "from": "process_other",
+          "to": "summarize"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 1,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

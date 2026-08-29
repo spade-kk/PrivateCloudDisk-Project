@@ -1,0 +1,146 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-wait_approval",
+    "name": "wait_approval",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {},
+    "graph": {
+      "nodes": [
+        {
+          "id": "build",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "ci",
+            "method": "build",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "approval",
+          "type": "wait",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "build"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": {
+            "waitType": "approval"
+          },
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "deploy",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "ci",
+            "method": "deploy",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "approval"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "build",
+          "to": "approval"
+        },
+        {
+          "from": "approval",
+          "to": "deploy"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

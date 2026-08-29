@@ -1,0 +1,23 @@
+# CloudFlow YAML 示例 10/11（对照 DEMO 示例 10/11）
+# 场景：批量处理文件（foreach），逐个调用 file.process。
+# 覆盖：variables、foreach {item, collection, do}、局部 item 引用。
+workflow:
+  name: batch_process
+
+variables:
+  batch_size: 100
+
+steps:
+  - id: list_files
+    action: file.list
+  - id: process_each
+    foreach:
+      item: ${{ steps.list_files.output }}
+      do:
+        action: file.process
+        input:
+          batch: ${{ vars.batch_size }}
+  - id: finalize
+    action: metadata.update
+    depends:
+      - process_each

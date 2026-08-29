@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: 7f03299e-0b62-39d4-34b8-47a49fa089cd
+  name: 文本统计与 Markdown 摘要生成
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

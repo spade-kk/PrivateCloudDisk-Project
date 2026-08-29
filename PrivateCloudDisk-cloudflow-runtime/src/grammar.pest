@@ -153,6 +153,14 @@ delay_decl = { "delay" ~ duration ~ ";"? }
 on_error_decl = { "on_error" ~ node_body }
 unknown_node_block = { ident ~ generic_block }
 
+// ===== 表达式/值：仅用于在 DSL 上下文中“切出”表达式字符串，不由 DSL 构建语义 =====
+// 表达式与值的**语法与语义唯一事实来源**是表达式子系统的
+// `crates/cloudflow-engine-core/src/expression/grammar.pest`（expr.cloudflow.io/v1）。
+// pest 不支持跨文件 grammar include，因此下面这些规则仅作为定位器，把
+// `.. ~ expression ~ ..` / `.. ~ value ~ ..` 位置上的原文精确切为字符串；`parser.rs` 得到
+// 字符串后一律委托给 `crate::expression`（parse_expression_string / parse_value_string）解析并
+// 构建 Domain AST 表达式节点。不得在本文件新增任何表达式语义；表达式功能扩展一律进子系统，
+// 并同步下方规则（回归保障：tests/cloudflow_expression.rs 的 dsl_sync_* 测试）。
 expression_body = { "{" ~ expression ~ "}" }
 // [V1.2-PIPELINE] 集合处理管道：<expr> | filter(pred) | map(field) | reduce(func)。
 expression = { ternary ~ pipeline_stage* }
@@ -169,17 +177,24 @@ comparison = { additive ~ (comparison_op ~ additive)* }
 additive = { multiplicative ~ (additive_op ~ multiplicative)* }
 multiplicative = { unary ~ (multiplicative_op ~ unary)* }
 unary = { unary_op* ~ primary }
-primary = { function_call | reference | literal | local_ref | "(" ~ expression ~ ")" }
+// 扩展（与表达式子系统 `crates/cloudflow-engine-core/src/expression/grammar.pest` 保持同步）：index_access（含引用基座）
+// 与 runtime_path 必须排在 local_ref 之前，使 `list[0]` / `vars.a[0]` / `file.size` 能整段
+// 捕获而不是只捕获首标识符。
+primary = { function_call | index_access | reference | runtime_path | literal | local_ref | "(" ~ expression ~ ")" }
 function_call = { ident ~ "(" ~ expression_list? ~ ")" }
 expression_list = { expression ~ ("," ~ expression)* }
-reference = @{ canonical_step_ref | vars_ref | legacy_step_ref | system_ref }
+// 扩展（与表达式子系统保持同步）：增加 input./env. 引用。
+reference = @{ canonical_step_ref | vars_ref | input_ref | env_ref | legacy_step_ref | system_ref }
 canonical_step_ref = { "steps" ~ "." ~ ident ~ "." ~ "output" ~ ("." ~ ident)* }
 vars_ref = { "vars" ~ "." ~ ident ~ ("." ~ ident)* }
+input_ref = { "input" ~ "." ~ ident ~ ("." ~ ident)* }
+env_ref = { "env" ~ "." ~ ident ~ ("." ~ ident)* }
 legacy_step_ref = { ident ~ "." ~ "output" ~ ("." ~ ident)* }
 system_ref = { "workflow" ~ "." ~ ident ~ ("." ~ ident)* }
 // foreach/catch 作用域内的局部引用，例如 `item` 或 `error`。语义分析负责校验其作用域。
 local_ref = @{ ident }
-literal = _{ triple_string | string_value | boolean | duration | number | array | object }
+literal = _{ triple_string | string_value | boolean | null | duration | number | array | object }
+null = { "null" }
 or_op = { "||" }
 and_op = { "&&" }
 equality_op = { "==" | "!=" }
@@ -191,7 +206,7 @@ unary_op = { "!" | "-" }
 named_argument_list = { named_argument ~ ("," ~ named_argument)* ~ ","? }
 named_argument = { ident ~ "=" ~ expression }
 value_list = { expression ~ ("," ~ expression)* ~ ","? }
-value = _{ triple_string | string_value | boolean | duration | number | array | call_value | reference | enum_value }
+value = _{ triple_string | string_value | boolean | null | duration | number | array | call_value | reference | enum_value }
 call_value = { qualified ~ "(" ~ (named_argument_list | value_list)? ~ ")" }
 array = { "[" ~ value_list? ~ "]" }
 object = { "{" ~ object_entry ~ ("," ~ object_entry)* ~ ","? ~ "}" | "{" ~ "}" }
@@ -206,6 +221,10 @@ triple_string = @{ "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\"" }
 string_value = @{ "\"" ~ ("\\" ~ ANY | !"\"" ~ ANY)* ~ "\"" }
 qualified = { ident ~ ("." ~ ident)* }
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
+// 扩展（与表达式子系统 `crates/cloudflow-engine-core/src/expression/grammar.pest` 保持同步）：通用运行时对象属性路径与索引访问。
+runtime_path = { ident ~ "." ~ ident ~ ("." ~ ident)* }
+index_access = { (reference | runtime_path | ident) ~ ("[" ~ number ~ "]")+ }
 
 // 未知块仅用于错误恢复和多诊断聚合；Parser 必须为其生成 CF1202，不能写入 AST/IR。
 unknown_top_block = { ident ~ generic_block }

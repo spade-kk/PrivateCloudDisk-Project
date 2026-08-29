@@ -1,0 +1,23 @@
+manifest_version: 1
+plugin:
+  id: d6feea76-5d70-a210-4cea-d6de1b36da81
+  name: Excel 报表生成模拟
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+  - platform.capability.invoke
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation
+      - platform.capability.invoke

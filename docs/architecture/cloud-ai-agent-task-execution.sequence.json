@@ -1,0 +1,34 @@
+{
+  "title": "Cloud AI Agent Task Execution V2",
+  "participants": [
+    {"id": "web", "label": "Web AI 助手", "actor": true},
+    {"id": "gateway", "label": "Gateway"},
+    {"id": "agent", "label": "cloud-ai-agent"},
+    {"id": "redis", "label": "Redis Task Snapshot"},
+    {"id": "llm", "label": "LLM Provider"},
+    {"id": "hub", "label": "Capability Hub"}
+  ],
+  "messages": [
+    {"from": "web", "to": "gateway", "label": "POST run · existing user auth"},
+    {"from": "gateway", "to": "agent", "label": "signed user + space context"},
+    {"from": "agent", "to": "redis", "label": "create run + AgentTaskSnapshot"},
+    {"from": "agent", "to": "web", "label": "SSE agent_task_start / context_*", "async": true, "activate": false},
+    {"from": "agent", "to": "llm", "label": "generate user-visible JSON plan (no tools)"},
+    {"from": "llm", "to": "agent", "label": "validated dynamic plan", "return": true},
+    {"from": "agent", "to": "redis", "label": "project plan_created"},
+    {"from": "agent", "to": "web", "label": "SSE plan_created / thinking_end", "async": true, "activate": false},
+    {"from": "agent", "to": "llm", "label": "stream Agent turn + static tools"},
+    {"from": "agent", "to": "web", "label": "SSE output delta / tool_call_start", "async": true, "activate": false},
+    {"from": "agent", "to": "hub", "label": "invoke allowlisted capability with user context"},
+    {"from": "hub", "to": "agent", "label": "redacted structured capability result", "return": true},
+    {"from": "agent", "to": "redis", "label": "project tool_call_end(output_data only)"},
+    {"from": "agent", "to": "web", "label": "SSE tool_call_end · output_data only", "async": true, "activate": false},
+    {"from": "agent", "to": "llm", "label": "observe verified result and continue"},
+    {"from": "agent", "to": "redis", "label": "project output + summary + terminal state"},
+    {"from": "agent", "to": "web", "label": "SSE summary + task_completed", "async": true, "activate": false},
+    {"from": "web", "to": "agent", "label": "on refresh: GET /runs/{id}/task", "async": true},
+    {"from": "agent", "to": "redis", "label": "tenant-check run then read snapshot"},
+    {"from": "agent", "to": "web", "label": "same task document; never replay POST run", "return": true},
+    {"note": "High-risk tool: task pauses as awaiting_approval. Browser sends only the server-issued approval token; resume consumes bound server-side calls.", "over": "agent"}
+  ]
+}

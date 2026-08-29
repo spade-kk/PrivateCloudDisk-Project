@@ -1,0 +1,224 @@
+{
+  "title": "CloudFlow Language Server Architecture",
+  "levels": [
+    {
+      "name": "CloudFlow LS Context",
+      "elements": [
+        {
+          "id": "cloudflow-authenticated-developer",
+          "type": "person",
+          "label": "CloudFlow 开发者",
+          "desc": "在本地或 Web Studio 编辑 DSL/YAML 工作流"
+        },
+        {
+          "id": "cloudflow-ide-ecosystem",
+          "type": "system",
+          "label": "CloudFlow IDE 生态",
+          "tech": "VS Code / JetBrains / Web Studio / Desktop Studio",
+          "desc": "以 LSP 获取动态语义智能，以静态规则保证离线高亮",
+          "children": "IDE Clients"
+        },
+        {
+          "id": "cloudflow-language-server-system",
+          "type": "system",
+          "label": "CloudFlow Language Server",
+          "tech": "Rust / JSON-RPC / LSP",
+          "desc": "复用编译器前端并按用户权限提供编辑器智能",
+          "children": "Language Server Components"
+        },
+        {
+          "id": "cloudflow-platform-api",
+          "type": "system",
+          "label": "CloudFlow Platform API",
+          "tech": "Gateway + Workflow Service",
+          "desc": "认证、Capability Hub、租户/空间权限过滤",
+          "children": "Platform Capability Boundary"
+        },
+        {
+          "id": "cloudflow-runtime-system",
+          "type": "external",
+          "label": "CloudFlow Runtime",
+          "tech": "Rust execution plane",
+          "desc": "独立执行工作流；不是 Language Server 的依赖"
+        }
+      ],
+      "relations": [
+        { "from": "cloudflow-authenticated-developer", "to": "cloudflow-ide-ecosystem", "label": "编辑 .flow / .flow.yaml" },
+        { "from": "cloudflow-ide-ecosystem", "to": "cloudflow-language-server-system", "label": "LSP JSON-RPC：stdio / TCP / UDS / WSS" },
+        { "from": "cloudflow-language-server-system", "to": "cloudflow-platform-api", "label": "Bearer Token + tenant/space capability discovery" },
+        { "from": "cloudflow-language-server-system", "to": "cloudflow-runtime-system", "label": "无运行时调用或执行依赖" }
+      ]
+    },
+    {
+      "name": "IDE Clients",
+      "elements": [
+        {
+          "id": "vscode-extension-client",
+          "type": "container",
+          "label": "VS Code 扩展",
+          "tech": "TypeScript / vscode-languageclient",
+          "desc": "启动本地 cloudflow-ls --stdio；Secret Storage 保存短期 Token"
+        },
+        {
+          "id": "jetbrains-lsp-client",
+          "type": "container",
+          "label": "JetBrains LSP Client",
+          "tech": "Kotlin / LSP",
+          "desc": "通过 TCP 或 Unix Domain Socket 复用同一协议"
+        },
+        {
+          "id": "web-studio-monaco-client",
+          "type": "container",
+          "label": "Web Studio Monaco Bridge",
+          "tech": "Vue / Monaco / WebSocket",
+          "desc": "把 Monaco 文档事件和动态智能映射为 WSS LSP"
+        },
+        {
+          "id": "desktop-studio-client",
+          "type": "container",
+          "label": "Desktop Studio",
+          "tech": "Tauri / Rust",
+          "desc": "可嵌入或经本地 LSP 连接，复用相同服务"
+        },
+        {
+          "id": "syntax-highlight-static-generator",
+          "type": "container",
+          "label": "syntax-highlight",
+          "tech": "Grammar/AST spec generator",
+          "desc": "只生成 TextMate、Monarch、Highlight.js 与基础补全规范；不是 LS"
+        },
+        {
+          "id": "language-server-ide-endpoint",
+          "type": "external",
+          "label": "CloudFlow Language Server",
+          "tech": "Rust / JSON-RPC",
+          "desc": "本地或远程的 LSP 服务端点"
+        }
+      ],
+      "relations": [
+        { "from": "vscode-extension-client", "to": "language-server-ide-endpoint", "label": "spawn stdio LSP" },
+        { "from": "jetbrains-lsp-client", "to": "language-server-ide-endpoint", "label": "TCP / UDS LSP" },
+        { "from": "web-studio-monaco-client", "to": "language-server-ide-endpoint", "label": "WSS JSON-RPC" },
+        { "from": "desktop-studio-client", "to": "language-server-ide-endpoint", "label": "embedded or local LSP" },
+        { "from": "syntax-highlight-static-generator", "to": "vscode-extension-client", "label": "TextMate / snippets / offline fallback" },
+        { "from": "syntax-highlight-static-generator", "to": "web-studio-monaco-client", "label": "Monarch / baseline completion fallback" }
+      ]
+    },
+    {
+      "name": "Language Server Components",
+      "elements": [
+        {
+          "id": "lsp-transport-adapter",
+          "type": "component",
+          "label": "LSP Transport Adapter",
+          "tech": "stdio / TCP / UDS / WebSocket",
+          "desc": "Content-Length framing、JSON-RPC 限流与取消请求"
+        },
+        {
+          "id": "lsp-session-document-manager",
+          "type": "component",
+          "label": "Session + Document Manager",
+          "tech": "Tokio / UTF-16 positions",
+          "desc": "每连接隔离认证、打开文档、版本和增量文本变更"
+        },
+        {
+          "id": "compiler-frontend-api",
+          "type": "component",
+          "label": "Compiler Frontend API",
+          "tech": "Parser / AST / Expression / Semantic",
+          "desc": "复用现有 DSL/YAML Parser 与类型、语义规则；不依赖 Runtime 服务"
+        },
+        {
+          "id": "lsp-analysis-symbol-cache",
+          "type": "component",
+          "label": "Analysis / Symbol / AST Cache",
+          "tech": "Rust LRU-ready cache",
+          "desc": "诊断、符号、类型、补全、Hover、Definition、Rename、Semantic Tokens"
+        },
+        {
+          "id": "lsp-capability-provider",
+          "type": "component",
+          "label": "Authenticated Capability Provider",
+          "tech": "HTTPS / cache TTL 5m",
+          "desc": "按 token hash + tenant + space 隔离缓存，不硬编码能力"
+        },
+        {
+          "id": "lsp-token-manager",
+          "type": "component",
+          "label": "Auth Token Manager",
+          "tech": "Secret / 0600 token file",
+          "desc": "不保存密码；日志中不记录 token"
+        },
+        {
+          "id": "platform-api-ls-external",
+          "type": "external",
+          "label": "CloudFlow Platform API",
+          "tech": "HTTPS",
+          "desc": "经网关验证的 Capability Hub 发现接口"
+        }
+      ],
+      "relations": [
+        { "from": "lsp-transport-adapter", "to": "lsp-session-document-manager", "label": "LSP 生命周期与请求" },
+        { "from": "lsp-session-document-manager", "to": "compiler-frontend-api", "label": "当前文档 + 版本" },
+        { "from": "compiler-frontend-api", "to": "lsp-analysis-symbol-cache", "label": "AST / diagnostics / semantic result" },
+        { "from": "lsp-analysis-symbol-cache", "to": "lsp-capability-provider", "label": "action completion / hover / signature schema" },
+        { "from": "lsp-token-manager", "to": "lsp-capability-provider", "label": "Bearer token, tenant, space" },
+        { "from": "lsp-capability-provider", "to": "platform-api-ls-external", "label": "GET /api/v1/capabilities" }
+      ]
+    },
+    {
+      "name": "Platform Capability Boundary",
+      "elements": [
+        {
+          "id": "api-gateway-auth-boundary",
+          "type": "container",
+          "label": "API Gateway",
+          "tech": "JWT verification / trusted headers",
+          "desc": "验证 Bearer Token，覆盖伪造身份头，再转发受信用户上下文"
+        },
+        {
+          "id": "workflow-capability-controller",
+          "type": "container",
+          "label": "Capability Discovery Controller",
+          "tech": "Spring Web",
+          "desc": "GET /capabilities；拒绝匿名目录查询"
+        },
+        {
+          "id": "capability-hub-policy-service",
+          "type": "component",
+          "label": "Capability Hub Policy Filter",
+          "tech": "Java / Spring",
+          "desc": "required_permissions + enabled + tenant_ids + space_ids deny-by-default"
+        },
+        {
+          "id": "platform-authorization-client",
+          "type": "component",
+          "label": "Platform Authorization Client",
+          "tech": "internal HTTP",
+          "desc": "按用户与空间解析当前授权集合"
+        },
+        {
+          "id": "capability-registry-db",
+          "type": "database",
+          "label": "Capability Registry",
+          "tech": "MySQL",
+          "desc": "插件/API/内置能力 schema、版本与可用性策略"
+        },
+        {
+          "id": "language-server-platform-external",
+          "type": "external",
+          "label": "CloudFlow Language Server",
+          "tech": "HTTPS client",
+          "desc": "持 Bearer Token 的能力查询调用方"
+        }
+      ],
+      "relations": [
+        { "from": "language-server-platform-external", "to": "api-gateway-auth-boundary", "label": "HTTPS Bearer Token" },
+        { "from": "api-gateway-auth-boundary", "to": "workflow-capability-controller", "label": "可信 X-User-Id / X-Space-Id" },
+        { "from": "workflow-capability-controller", "to": "capability-hub-policy-service", "label": "authenticated discovery" },
+        { "from": "capability-hub-policy-service", "to": "platform-authorization-client", "label": "current grants" },
+        { "from": "capability-hub-policy-service", "to": "capability-registry-db", "label": "candidate registry rows" }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@ workflow "expression_complex" {
         y: number = 2
         files: array = ["a", "b"]
         options: object = {"region": "cn", "enabled": true}
+        a = "s"
     }
     step collect { action builtin.file.list {} output result }
     step evaluate {

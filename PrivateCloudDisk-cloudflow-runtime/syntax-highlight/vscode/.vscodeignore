@@ -1,9 +1,14 @@
 .vscodeignore
 **/*.map
 **/*.ts
-**/node_modules/**
+*.vsix
+*.tgz
+package-lock.json
 syntax-highlight/**
 build/**
 samples/**
 schema/**
 generator/**
+target/**
+scripts/**
+tests/**

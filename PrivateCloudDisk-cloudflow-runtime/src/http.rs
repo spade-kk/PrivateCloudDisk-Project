@@ -21,10 +21,12 @@ use tower::limit::ConcurrencyLimitLayer;
 use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use tracing::error;
 
+use crate::compile_cache::{compile_cache_key, CompileCache};
 use crate::execution::ExecutionCoordinator;
 use crate::{
-    compile_source_named, compiler::validate_ir, diagnostic::Diagnostic, ir::WorkflowIrV1,
-    persistence::CreateExecution, semantic::InMemoryCapabilityCatalog,
+    compile_source_named_for_language, compiler::validate_ir, diagnostic::Diagnostic,
+    ir::WorkflowIrV1, language_of, persistence::CreateExecution,
+    semantic::InMemoryCapabilityCatalog, Language,
 };
 
 pub const MAX_COMPILE_BODY_BYTES: usize = 1024 * 1024;
@@ -36,6 +38,9 @@ pub struct HttpConfig {
     pub capabilities: Vec<String>,
     pub max_concurrency: usize,
     pub allowed_origins: Vec<String>,
+    /// 开发调试执行入口开关（需求 4.19/4.20/9.15）：生产环境默认关闭，
+    /// 由环境变量 `CLOUDFLOW_ENABLE_DEBUG_EXECUTE=true` 显式开启。
+    pub enable_dev_execute: bool,
 }
 
 impl Default for HttpConfig {
@@ -45,6 +50,7 @@ impl Default for HttpConfig {
             capabilities: vec![],
             max_concurrency: 32,
             allowed_origins: vec![],
+            enable_dev_execute: false,
         }
     }
 }
@@ -55,6 +61,8 @@ struct AppState {
     capabilities: Vec<String>,
     executions: Arc<RwLock<HashMap<String, ExecutionRecord>>>,
     coordinator: Option<ExecutionCoordinator>,
+    /// [19.17] 编译产物进程内缓存（仅 `filename` 缺省请求参与，见模块文档）。
+    compile_cache: Arc<CompileCache>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,6 +71,9 @@ pub struct CompileRequest {
     pub source: String,
     #[serde(default)]
     pub filename: String,
+    /// 前端语言：dsl | yaml；缺省按 filename 扩展名识别（.yaml/.yml → YAML，其余 → DSL）。
+    #[serde(default)]
+    pub language: Option<String>,
     #[serde(default, alias = "target_ir_version")]
     pub target_ir_version: Option<String>,
     #[serde(default, rename = "userId")]
@@ -167,8 +178,9 @@ pub fn build_router_with_coordinator(
         capabilities: config.capabilities,
         executions: Arc::new(RwLock::new(HashMap::new())),
         coordinator,
+        compile_cache: Arc::new(CompileCache::default()),
     };
-    let mut app = Router::new()
+    let app = Router::new()
         .route("/health", get(health))
         .route("/health/live", get(health))
         .route("/health/ready", get(health_ready))
@@ -226,7 +238,20 @@ pub fn build_router_with_coordinator(
         .route(
             "/internal/v1/cloudflow/executions/:execution_id/logs",
             get(get_execution_logs),
-        )
+        );
+    // 开发调试执行入口（需求 9.11/9.18）：仅当 CLOUDFLOW_ENABLE_DEBUG_EXECUTE=true 时
+    // 才注册路由。关闭态下 /api/dev/* 不存在于路由表，请求命中 axum 默认 404
+    // （空响应体、无任何开发端点特征），与“路由从未声明”完全一致。
+    // 开启态下两个端点与生产端点共用同一 X-PCD-Service-Token 鉴权（fail-closed）。
+    let dev_routes = if config.enable_dev_execute {
+        Router::new()
+            .route("/api/dev/execute", post(dev_execute_handler))
+            .route("/api/dev/openapi.json", get(dev_openapi_handler))
+    } else {
+        Router::new()
+    };
+    let mut app: Router = app
+        .merge(dev_routes)
         .with_state(state)
         // AUDIT FIX [6.8]：在反序列化前限制请求体并限制并发，避免超大 DSL 或并发洪峰耗尽 Runtime。
         // 使用 Axum extractor 级大小限制，超限时 JsonRejection 仍能返回 CF1104 结构化诊断。
@@ -258,6 +283,319 @@ pub fn build_router_with_coordinator(
         }
     }
     app
+}
+
+/// 开发调试执行请求（需求 9.12/9.14）：IR + 可选变量与执行参数。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DevExecuteRequest {
+    pub ir: WorkflowIrV1,
+    #[serde(default)]
+    pub variables: Option<serde_json::Value>,
+    /// 是否启用 mock 动作执行（本端点动作执行器始终为内存 Mock）。
+    #[serde(default)]
+    pub mock: Option<bool>,
+    #[serde(default)]
+    pub skip_validation: Option<bool>,
+    #[serde(default)]
+    pub enable_expressions: Option<bool>,
+    #[serde(default)]
+    pub max_parallel: Option<u32>,
+    #[serde(default)]
+    pub default_timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub overall_timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub breakpoint: Option<String>,
+    #[serde(default)]
+    pub skip_nodes: Option<Vec<String>>,
+    #[serde(default)]
+    pub mock_outputs: Option<std::collections::BTreeMap<String, serde_json::Value>>,
+    /// debug | info | warn | error（需求 10.6）。
+    #[serde(default)]
+    pub log_level: Option<String>,
+    /// 执行画像（需求 6.3/6.4）：`inmem`（默认，纯内存 Mock 动作执行器）或
+    /// `agent`（生产仿真：经 `CLOUDFLOW_TEST_AGENT_ENDPOINT` 真实调用
+    /// Capability Agent；状态与日志仍仅在内存中，不写生产库）。
+    #[serde(default)]
+    pub profile: Option<String>,
+}
+
+/// 生产仿真动作执行器（`profile=agent`，需求 6.4/6.9/6.10）：统一驱动
+/// `ActionExecutor` 的 gRPC 实现——直接**异步**调用测试环境 Capability Agent，
+/// 不再经同步桥接。
+///
+/// 安全边界：仅当路由门控（`CLOUDFLOW_ENABLE_DEBUG_EXECUTE`）与内部服务令牌
+/// 双重校验通过后可达；状态/日志仍由内存依赖承载，不产生任何生产副作用。
+struct AgentDevActionExecutor {
+    invoker: std::sync::Arc<dyn crate::agent::CapabilityInvoker>,
+    execution_id: String,
+    trace_id: String,
+}
+
+#[async_trait::async_trait]
+impl crate::engine::deps::ActionExecutor for AgentDevActionExecutor {
+    async fn execute(
+        &self,
+        step: &crate::engine::context::StepContext,
+    ) -> Result<serde_json::Value, crate::engine::error::ExecutionError> {
+        let invocation = crate::agent::AgentInvocation {
+            execution_id: self.execution_id.clone(),
+            step_id: step.node_id.clone(),
+            attempt: step.attempt as u32,
+            action: step.action.clone(),
+            input: step.input.clone(),
+            authorization: crate::agent::AuthorizationContext {
+                user_id: "dev-agent-profile".into(),
+                space_id: None,
+                declared_permissions: std::collections::HashSet::new(),
+                granted_permissions: std::collections::HashSet::new(),
+            },
+            trace_id: self.trace_id.clone(),
+        };
+        match self.invoker.invoke(invocation).await {
+            Ok(output) => Ok(output.value),
+            Err(error) => Err(crate::engine::error::ExecutionError::Action {
+                code: error.code,
+                message: error.summary,
+                retryable: error.retryable,
+            }),
+        }
+    }
+}
+
+/// `/api/dev/execute`（需求 9.11-9.17/6.3-6.10）：直接 IR 驱动、纯内存执行，
+/// 不写数据库、不记录执行任务 ID、不持久化日志；结果（含错误与日志）直接在响应返回。
+///
+/// 安全模型：路由本身仅在 `CLOUDFLOW_ENABLE_DEBUG_EXECUTE=true` 时注册（关闭态为
+/// 路由不存在的 404）；开启态要求与生产端点相同的 `X-PCD-Service-Token`；
+/// 执行经 `dev_execute_async`（spawn_blocking）运行，不阻塞 tokio 异步 worker；
+/// 请求体受全局 1 MiB `DefaultBodyLimit` 约束。
+async fn dev_execute_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    payload: Result<Json<DevExecuteRequest>, JsonRejection>,
+) -> impl IntoResponse {
+    if !authorized(&headers, &state) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"valid": false, "error": "缺少或无效的内部服务令牌"})),
+        );
+    }
+    let payload = match payload {
+        Ok(value) => value.0,
+        Err(rejection) => {
+            // 与编译端点同构：413/400 区分 + 固定消息，不回显库内部错误文本。
+            let too_large = rejection.status() == StatusCode::PAYLOAD_TOO_LARGE;
+            return (
+                if too_large {
+                    StatusCode::PAYLOAD_TOO_LARGE
+                } else {
+                    StatusCode::BAD_REQUEST
+                },
+                Json(serde_json::json!({
+                    "valid": false,
+                    "error": if too_large {
+                        "开发执行请求体超过 1 MiB 上限"
+                    } else {
+                        "开发执行请求 JSON 无法解析"
+                    }
+                })),
+            );
+        }
+    };
+    let mut config = crate::dev_exec::DevConfig {
+        skip_validation: payload.skip_validation.unwrap_or(false),
+        enable_expressions: payload.enable_expressions.unwrap_or(true),
+        max_parallel: payload.max_parallel.unwrap_or(4).max(1) as usize,
+        overall_timeout_ms: payload.overall_timeout_ms,
+        breakpoint: payload.breakpoint,
+        skip_nodes: payload.skip_nodes.unwrap_or_default(),
+        mock_outputs: payload.mock_outputs.unwrap_or_default(),
+        ..Default::default()
+    };
+    if let Some(value) = payload.default_timeout_ms {
+        config.default_timeout_ms = value;
+    }
+    if let Some(level) = payload.log_level {
+        config.log_level = match level.to_ascii_lowercase().as_str() {
+            "debug" => crate::dev_exec::DevLogLevel::Debug,
+            "warn" => crate::dev_exec::DevLogLevel::Warn,
+            "error" => crate::dev_exec::DevLogLevel::Error,
+            _ => crate::dev_exec::DevLogLevel::Info,
+        };
+    }
+    // 执行画像分发（需求 6.3/6.4）：inmem（默认）= 纯内存 Mock；agent = 生产仿真
+    // （真实 Agent 调用，状态/日志仍在内存）。两者都不写生产数据库。
+    let profile = payload
+        .profile
+        .clone()
+        .unwrap_or_else(|| "inmem".into())
+        .to_ascii_lowercase();
+    let executor: std::sync::Arc<dyn crate::engine::deps::ActionExecutor> = match profile.as_str() {
+        "inmem" => std::sync::Arc::new(crate::dev_exec::MockActionExecutor::new()),
+        "agent" => {
+            let endpoint = std::env::var("CLOUDFLOW_TEST_AGENT_ENDPOINT")
+                .ok()
+                .filter(|value| !value.trim().is_empty());
+            let Some(endpoint) = endpoint else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "valid": false,
+                        "error": "profile=agent 需要配置 CLOUDFLOW_TEST_AGENT_ENDPOINT"
+                    })),
+                );
+            };
+            if state.token.is_empty() {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "valid": false,
+                        "error": "内部服务令牌未配置，无法连接测试 Agent"
+                    })),
+                );
+            }
+            match crate::agent::GrpcCapabilityInvoker::connect(
+                &endpoint,
+                &state.token,
+                std::time::Duration::from_secs(60),
+            )
+            .await
+            {
+                Ok(invoker) => std::sync::Arc::new(AgentDevActionExecutor {
+                    invoker: std::sync::Arc::new(invoker),
+                    execution_id: "dev-execution".into(),
+                    trace_id: uuid::Uuid::new_v4().simple().to_string(),
+                }),
+                Err(_) => {
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        Json(serde_json::json!({
+                            "valid": false,
+                            "error": "测试 Agent 服务不可用"
+                        })),
+                    );
+                }
+            }
+        }
+        other => {
+            tracing::warn!(profile=%other, "开发执行请求了未知 profile");
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "valid": false,
+                    "error": "profile 仅支持 inmem 或 agent"
+                })),
+            );
+        }
+    };
+    let result = crate::dev_exec::dev_execute_async(
+        &payload.ir,
+        payload
+            .variables
+            .unwrap_or(serde_json::Value::Object(Default::default())),
+        config,
+        executor,
+    )
+    .await;
+    match result {
+        Ok(value) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(&value).expect("dev result serialize")),
+        ),
+        Err(crate::dev_exec::DevEntryError::Validation(issues)) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "valid": false,
+                "status": "validationFailed",
+                "issues": issues
+            })),
+        ),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "valid": false,
+                "error": error.to_string()
+            })),
+        ),
+    }
+}
+
+/// `/api/dev/openapi.json`（需求 9.18）：调试端点 OpenAPI 文档。
+/// 与 `/api/dev/execute` 同受 `CLOUDFLOW_ENABLE_DEBUG_EXECUTE` 路由门控与令牌鉴权。
+fn dev_openapi_document() -> serde_json::Value {
+    serde_json::json!({
+        "openapi": "3.0.3",
+        "info": {
+            "title": "CloudFlow Runtime Dev Execute API",
+            "version": env!("CARGO_PKG_VERSION"),
+            "description": "开发调试执行入口：直接 IR 驱动、纯内存执行。不写数据库、不记录执行任务 ID、不持久化日志。"
+        },
+        "paths": {
+            "/api/dev/execute": {
+                "post": {
+                    "operationId": "devExecute",
+                    "summary": "直接执行 IR（开发/调试）",
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["ir"],
+                                    "properties": {
+                                        "ir": {"type": "object", "description": "workflow.cloudflow.io/v1 IR"},
+                                        "variables": {"type": "object"},
+                                        "mock": {"type": "boolean"},
+                                        "skipValidation": {"type": "boolean"},
+                                        "enableExpressions": {"type": "boolean"},
+                                        "maxParallel": {"type": "integer"},
+                                        "defaultTimeoutMs": {"type": "integer"},
+                                        "overallTimeoutMs": {"type": "integer"},
+                                        "breakpoint": {"type": "string"},
+                                        "skipNodes": {"type": "array", "items": {"type": "string"}},
+                                        "mockOutputs": {"type": "object"},
+                                        "logLevel": {"type": "string", "enum": ["debug","info","warn","error"]},
+                                        "profile": {"type": "string", "enum": ["inmem","agent"], "description": "inmem（默认）= 纯内存 Mock 动作执行；agent = 生产仿真（经 CLOUDFLOW_TEST_AGENT_ENDPOINT 真实调用 Capability Agent，状态/日志仍仅内存）"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {"description": "完整执行结果（DevExecutionResult：status/nodeResults/outputs/errors/logs/durationMs/contextSnapshot）"},
+                        "400": {"description": "请求体非法（JSON 反序列化失败）或 profile 非法"},
+                        "401": {"description": "缺少或无效 X-PCD-Service-Token（与生产端点同一鉴权）"},
+                        "422": {"description": "IR 契约校验未通过（issues 列表，CFI-7xxx 错误码）"},
+                        "500": {"description": "开发执行引擎内部错误"},
+                        "503": {"description": "profile=agent 时测试 Agent 服务不可用 / 内部服务令牌未配置"}
+                    }
+                }
+            }
+        },
+    "securitySchemes": {
+        "serviceToken": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-PCD-Service-Token",
+            "description": "与 /api/v1/* 相同的内部服务令牌；本端点仅在 CLOUDFLOW_ENABLE_DEBUG_EXECUTE=true 时存在"
+        }
+    },
+    "security": [{"serviceToken": []}]
+    })
+}
+
+async fn dev_openapi_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if !authorized(&headers, &state) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"valid": false, "error": "缺少或无效的内部服务令牌"})),
+        );
+    }
+    (StatusCode::OK, Json(dev_openapi_document()))
 }
 
 async fn health() -> Json<serde_json::Value> {
@@ -385,21 +723,96 @@ async fn compile_handler(
             catalog.insert(capability);
         }
     }
-    match compile_source_named(&request.source, filename(&request), &catalog) {
-        Ok(ir) => (
-            StatusCode::OK,
+    let language = match request.language.as_deref() {
+        Some("yaml") => Language::Yaml,
+        Some("dsl") => Language::Dsl,
+        _ => language_of(filename(&request)),
+    };
+    // [19.17] 编译产物缓存：仅默认文件名（`<request>`）请求参与——此时 include
+    // 无物理根目录必然被拒（CF3103），结果完全由请求内容决定，无陈旧化风险；
+    // 携带 .flow 路径的请求禁用缓存（include 可能读取本地模块文件）。
+    let cache_enabled = request.filename.is_empty();
+    let cached = if cache_enabled {
+        state.compile_cache.get(&compile_cache_key(
+            &request.source,
+            filename(&request),
+            language,
+            request.target_ir_version.clone(),
+            &state.capabilities,
+        ))
+    } else {
+        None
+    };
+    if let Some(entry) = cached {
+        let status = if entry.valid {
+            StatusCode::OK
+        } else {
+            StatusCode::UNPROCESSABLE_ENTITY
+        };
+        return (
+            status,
             Json(CompileResponse {
-                valid: true,
-                ir: Some(ir),
-                diagnostics: vec![],
+                valid: entry.valid,
+                ir: entry.ir.clone(),
+                diagnostics: entry.diagnostics.clone(),
                 compiler_version: COMPILER_VERSION,
                 target_ir_version: "workflow.cloudflow.io/v1",
             }),
-        ),
-        Err(error) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(error_response(error.diagnostics)),
-        ),
+        );
+    }
+    let result =
+        compile_source_named_for_language(&request.source, filename(&request), language, &catalog);
+    match result {
+        Ok(ir) => {
+            if cache_enabled {
+                state.compile_cache.insert(
+                    compile_cache_key(
+                        &request.source,
+                        filename(&request),
+                        language,
+                        request.target_ir_version.clone(),
+                        &state.capabilities,
+                    ),
+                    crate::compile_cache::CacheEntry {
+                        valid: true,
+                        ir: Some(ir.clone()),
+                        diagnostics: vec![],
+                    },
+                );
+            }
+            (
+                StatusCode::OK,
+                Json(CompileResponse {
+                    valid: true,
+                    ir: Some(ir),
+                    diagnostics: vec![],
+                    compiler_version: COMPILER_VERSION,
+                    target_ir_version: "workflow.cloudflow.io/v1",
+                }),
+            )
+        }
+        Err(error) => {
+            if cache_enabled {
+                state.compile_cache.insert(
+                    compile_cache_key(
+                        &request.source,
+                        filename(&request),
+                        language,
+                        request.target_ir_version.clone(),
+                        &state.capabilities,
+                    ),
+                    crate::compile_cache::CacheEntry {
+                        valid: false,
+                        ir: None,
+                        diagnostics: error.diagnostics.clone(),
+                    },
+                );
+            }
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(error_response(error.diagnostics)),
+            )
+        }
     }
 }
 

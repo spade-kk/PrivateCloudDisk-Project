@@ -1,0 +1,6 @@
+# 反例：YAML 语法非法（未闭合括号，需求 7.27）。
+# expected: CFY-1001
+steps:
+  - id: a
+    action: file.get
+    input: { id: 1

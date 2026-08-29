@@ -6,6 +6,35 @@
 - [CLOUDFLOW_IR_DESIGN.md](./CLOUDFLOW_IR_DESIGN.md)
 - [CLOUDFLOW_ERROR_DESIGN.md](./CLOUDFLOW_ERROR_DESIGN.md)
 - [CLOUDFLOW_DEMO_DESIGN.md](./CLOUDFLOW_DEMO_DESIGN.md)
+- [CLOUDFLOW_EXPRESSION.md](./CLOUDFLOW_EXPRESSION.md)（表达式子系统，唯一表达式实现方）
+
+## Cargo 工作区与 crate 布局（2026-08-21 统一执行引擎）
+
+`PrivateCloudDisk-cloudflow-runtime` 为 Cargo 工作区，三个 crate：
+
+| crate | 职责 | 关键约束 |
+|---|---|---|
+| `crates/cloudflow-engine-core` | **纯执行核心**：领域 AST（`ast`）、诊断（`diagnostic`）、Workflow IR（`ir`）、IR 契约校验（`ir_validate`，唯一实现）、表达式子系统（`expression`）、执行语义纯函数层（`execution_core`）、统一调度驱动（`engine/driver` + `EngineDeps` 依赖注入面 + `InMemory*` 依赖实现 + `RealClock/VirtualClock`）、开发调试面（`dev_exec`）、DAG 引擎（`runtime`） | 无数据库/Redis/MQ/HTTP/gRPC 依赖；不持有全局可变状态；双执行面与 CLI 共用的唯一实现 |
+| `crates/cloudflow-agent` | **Capability Agent**（gRPC）：`CapabilityInvoker`/`GrpcCapabilityInvoker`（客户端）+ `CapabilityAgentProxy`/`CapabilityAgentServer`（服务端，转交 Workflow Capability Hub）；能力解析、最小权限校验、审计与 builtin/api/plugin 路由 | 仅宿主 crate（生产执行面）依赖；proto 与 build.rs 随 crate 迁移 |
+| 根 crate `pcd-cloudflow-runtime` | 前端编译器（`parser`/`grammar.pest`/`semantic`/`compiler`/`yaml`）、**生产执行面**（`src/execution.rs`：`MysqlStateStore`/`AgentActionExecutor`/`TracingLogSink`/`ProductionConfigProvider` 四个依赖实现 + `ExecutionCoordinator`）、HTTP 服务（`http.rs`，含开发调试入口与生产端点）、MQ broker、CLI（`src/bin/cloudflowc.rs`） | 根层 `pub use cloudflow_engine_core::{...}` 再导出，既有 `crate::ast` / `crate::ir` / `crate::dev_exec` 等路径不变 |
+
+依赖方向（无环）：`cloudflow-agent` → `cloudflow-engine-core`；根 crate → 两者。
+生产面与调试面行为分叉**仅**由注入 `cloudflow_engine_core::engine::deps::EngineDeps`
+的具体实现决定（需求 §1.17）；控制流语义双执行面不重复定义。
+
+## 表达式子系统（统一表达式解析）
+
+表达式的词法、解析与 AST 构建由**表达式子系统**统一承担（`crates/cloudflow-engine-core/src/expression/`，宿主 crate 根层再导出为 `crate::expression`，真源规格见
+[CLOUDFLOW_EXPRESSION.md](./CLOUDFLOW_EXPRESSION.md)）：CloudFlow DSL 前端只把表达式**字符串**
+交给 `crate::expression::parse_expression_string` / `parse_value_string`，不在前端重复构建表达式。
+表达式语法与领域表达式 AST（`crate::ast::ExpressionNode`）由此前的 DSL `parser.rs` **完整抽取**
+进子系统 `crates/cloudflow-engine-core/src/expression/parser.rs`（只增不减），并通过 `--emit-ast` / IR 输出回归测试确认与
+抽取前完全一致。YAML / 未来前端语言直接复用本子系统，不得自行实现表达式（需求 6.1/6.31）。
+
+**表达式语法同步**：子系统 `crates/cloudflow-engine-core/src/expression/grammar.pest` 是唯一事实来源；pest 不支持跨文件
+include，故 DSL `src/grammar.pest` 保留结构一致的表达式/值规则作为切分定位器，两处必须
+**逐字同步**（扩展表达式语法时，二者、以及 `syntax-highlight/generator/config.py` 的引用/函数
+配置需一起改，详见 `crates/cloudflow-engine-core/src/expression/README.md` 第 5 节与 `docs/CLOUDFLOW_EXPRESSION.md`）。
 
 ## 严格语法边界
 
@@ -20,7 +49,10 @@ while、parallel（含 max_concurrency）、switch/case/default、try/catch/fina
 return、step group、use/with、environment、namespace、import-as、audit、tag 与 metadata.changelog。
 引用统一写为 `vars.<name>`、`steps.<id>.output` 或受控控制流局部变量（`foreach item` 的 `item`、
 `catch error` 的 `error`、`for i` 的 `i`、管道 `filter` 谓词的行字段）；Demo 中历史
-`<id>.output` 只作为单向迁移输入，进入 AST 后立即规范化。
+`<id>.output` 只作为单向迁移输入，进入 AST 后立即规范化。表达式语法层（与表达式子系统同步）
+同时识别 `input.<name>` / `env.<key>` 引用、属性访问 `object.property` 与索引访问 `list[0]`
+（`--emit-ast` 可见）；但这些扩展命名空间/裸路径目前由语义层单独把关——完整编译时仍须是
+`vars.` / `steps.` / `workflow.` 或作用域局部引用，否则返回明确的 `CF2002` 非法引用诊断。
 
 ## V1.1 变量与动态控制流
 
@@ -65,6 +97,35 @@ cargo build --release --locked --bins
 `workflow.cloudflow.io/v1`，`--compact` 输出紧凑 IR，`--check-only` 只执行语法与语义检查。
 失败时退出码非零，默认 stderr 使用 miette 彩色诊断；`--output-format json` 返回
 `diagnostics[]`，`--no-color` 适配日志管道。
+
+## YAML 前端（第二前端语言）与 `--lang`
+
+`cloudflowc` 支持两种前端语言，最终统一编译到 `workflow.cloudflow.io/v1` IR（需求 2.x/13.x）：
+
+- **CloudFlow DSL**（`.flow`，默认）；
+- **CloudFlow YAML**（`.flow.yaml` / `.workflow.yaml` / `.yaml` / `.yml`，使用 `serde_yaml_ng`
+  解析，`src/yaml/`，设计见 `docs/CLOUDFLOW_YAML_DESIGN.md`）。
+
+```bash
+./target/release/cloudflowc compile examples/yaml/simple_file_process.flow.yaml        # 自动识别 YAML
+./target/release/cloudflowc compile examples/yaml/switch_document_parser.flow.yaml --emit-ast --no-color
+./target/release/cloudflowc compile --lang yaml -i 'workflow: {name: demo}
+steps: []'
+cat x.flow.yaml | ./target/release/cloudflowc compile --lang yaml                     # stdin
+./target/release/cloudflowc compile examples/yaml/simple_file_process.flow.yaml --check-only
+./target/release/cloudflowc compile examples/yaml/simple_file_process.flow.yaml -o /tmp/ir.json
+```
+
+- `--lang dsl|yaml` 显式指定语言，覆盖扩展名自动识别；`-i`/stdin 读取源码时必须配合 `--lang`
+  （CLI 以 `language` 字段承载，见 `src/bin/cloudflowc.rs`）。
+- YAML 与 DSL 走同一「YAML→Domain AST→统一语义→IR」路径（`compile_source_named_for_language`），
+  语义合法的同名 DSL/YAML 生成**等价 IR**（回归 `tests/cloudflow_yaml.rs`）。
+- `--emit-ast` 与 `--emit-domain-ast`（别名）对 YAML 同样生效：输出 YAML 解析得到的领域 AST。
+- YAML 表达式字段（`when/if/switch/foreach` 等）均为 `${{ ... }}` 字符串，由表达式子系统解析，
+  YAML 不重复实现表达式能力（需求 6.31/28.56；CloudFlow YAML 只定义 `${{ }}` 分隔符，对标 GitHub Actions）。
+- YAML 错误码：`CFY-1001`（解析）/ `CFY-1002`（转换·语义，如重复声明）/ `CFY-SCHEMA-1001..1004`
+  （Schema 形状校验：必填/类型/未知字段/非法值），诊断结构与 DSL 一致，并标注 `yaml` 语言、
+  YAML 字段路径与行/列。`CFY-1003` 已由 `CFY-SCHEMA-1003/1004` 取代。
 
 ### `--emit-ast`：AST 可视化输出
 
@@ -137,6 +198,40 @@ X-PCD-Service-Token: <service-token>
 返回 Rust Debug 文本或内部绝对路径。请求体上限 1 MiB、超时 30 秒，并发上限由
 `CLOUDFLOW_HTTP_MAX_CONCURRENCY` 配置。旧 `/internal/v1/cloudflow/compile` 仅作兼容别名。
 
+### 编译产物缓存（19.17，2026-08-21 落地）
+
+HTTP 编译接口内置进程内缓存（`src/compile_cache.rs`，`CompileCache`）：
+
+- 缓存粒度为**完整编译结果**（成功 IR 或失败诊断列表均可缓），键 =
+  源码 SHA-256 + 文件名 + 语言 + 目标 IR 版本 + 能力目录指纹（排序后哈希，
+  与注入顺序无关）；
+- **仅默认文件名（`<request>`）请求参与缓存**：此时 include 无物理根目录必然被拒
+  （CF3103），结果完全由请求内容决定，无陈旧化风险；携带 `.flow` 路径的请求禁用
+  缓存（include 可能读取本地模块文件）；
+- 容量 256 条超限整体清空（粗粒度策略）；命中/未命中计数供可观测性使用
+  （19.8/19.23 编译侧指标）；
+- 不跨进程、不落盘：进程重启即失效；CLI（`cloudflowc`/编译器内核）不经过此缓存。
+
+### 编译性能基线（19.18/19.22，2026-08-21 落地）
+
+`benches/compile_bench.rs`（稳定版 harness，无额外依赖）：
+
+```bash
+cargo bench --bench compile_bench
+```
+
+发布前基线（M-series，dev 前端未启用优化也可参考，release 数据更低）：
+
+| 路径 | 中位耗时（n=50） | 需求 |
+|---|---|---|
+| DSL 编译（`weekly_sales_report.flow`，12 步骤） | ~0.3 ms | 19.1 不位化 |
+| YAML 编译（同义示例，含 serde_yaml_ng + Schema + 表达式注入） | ~0.35 ms | 19.2 （目标 < 100ms，远低于上限） |
+| 表达式解析（缓存命中路径） | ~1.7 µs | 19.3 |
+
+安全边界测试（19.19/19.24/19.25）：`tests/cloudflow_security_bounds.rs`（YAML 嵌套/别名爆炸/
+超长源码/表达式超长与超嵌套/求值沙箱/超大 HTTP 请求体不泄露路径）；依赖安全扫描与
+安全墠囤常量一致性校验脚 `scripts/security-audit.sh`（19.20/19.28）。
+
 执行控制接口为 `POST /api/v1/executions`、`GET /api/v1/executions/{id}`、`POST
 /api/v1/executions/{id}/pause|resume|retry|cancel` 和 `GET /api/v1/executions/{id}/logs`。resume 请求体为
 `{"approval":{"approved":true,"comment":"..."}}`，只接受处于 WAITING 的实例。生产模式下这些接口
@@ -183,6 +278,8 @@ cloudflow:
 | `CLOUDFLOW_WORKER_CONCURRENCY` | `8` | 实例内执行并发；实例间通过 DB 锁和 RabbitMQ 竞争消费扩展 |
 | `CLOUDFLOW_STALE_SECONDS` | `180` | RUNNING 心跳失联后恢复到 READY 的阈值 |
 | `CLOUDFLOW_ACTION_TIMEOUT_SECONDS` | `120` | capability action 默认超时上限 |
+| `CLOUDFLOW_TEST_AGENT_ENDPOINT` | 无 | 仅 `POST /api/dev/execute` 的 `profile=agent`（生产仿真画像）使用：测试环境 Capability Agent 的 gRPC 端点；未配置时该画像返回 400 |
+| `CLOUDFLOW_ENABLE_DEBUG_EXECUTE` | `false` | 为 `true` 时才**注册**开发调试执行入口 `POST /api/dev/execute` 与 `GET /api/dev/openapi.json` 路由（纯内存执行，不写数据库；开启态要求与生产相同的 `X-PCD-Service-Token`）。默认关闭：路由不存在，请求命中 axum 默认 404（空响应体、零特征泄露）；生产环境保持关闭（见 [CLOUDFLOW_DEV_EXECUTE.md](./CLOUDFLOW_DEV_EXECUTE.md) §7/§8） |
 
 进程处理 SIGINT/SIGTERM 并优雅停止接收请求。镜像同时包含 `cloudflow-runtime` 与 `cloudflowc`，
 运行用户为 nonroot，且不挂载 Docker Socket。
@@ -196,6 +293,27 @@ cargo test --locked --all-features
 ./scripts/verify_coverage.sh
 cargo build --release --locked --bins
 ```
+
+## 开发调试执行入口（Dev-Execute）
+
+开发/调试场景可直接执行 IR，无需数据库/MQ/Redis：
+
+- CLI：`cloudflowc dev-execute IR_FILE [--var k=v] [--breakpoint NODE] [--single-step]
+  [--timeout 5m] [--report report.md] [--output-format json]`；
+- HTTP：`CLOUDFLOW_ENABLE_DEBUG_EXECUTE=true` 才注册 `POST /api/dev/execute`
+  与 `GET /api/dev/openapi.json`（关闭态 = 路由不存在 → 默认 404 空响应体；
+  开启态要求 `X-PCD-Service-Token`；422 返回 IR 契约校验问题 CFI-7xxx；
+  200 返回完整 `DevExecutionResult`；请求体支持 `profile: inmem|agent`——
+  `agent` 画像经 `CLOUDFLOW_TEST_AGENT_ENDPOINT` 真实调用测试 Agent，
+  状态/日志仍在内存）。
+
+架构（**统一调度驱动** `cloudflow_engine_core::engine::driver` + `EngineDeps` 依赖注入 +
+`execution_core` 纯函数共享层；生产面注入 MySQL/Agent/tracing 实现，调试面注入内存实现）、
+IR 契约校验器（CFI-7xxx，与生产
+`RuntimeEngine::load`/`/ir-validate` API 同一校验器）、内存执行引擎语义（CFD-81xx）、
+动作执行器契约、安全模型、生产入口兼容与测试报告，详见
+[CLOUDFLOW_DEV_EXECUTE.md](./CLOUDFLOW_DEV_EXECUTE.md)。示例 IR 见
+`PrivateCloudDisk-cloudflow-runtime/examples/ir/`（由 `tests/cloudflow_examples_ir.rs` 回归）。
 
 默认测试覆盖 Demo golden、严格语法、多错误聚合、完整控制流 AST/IR、类型化引用、语义错误、DAG
 调度、CLI 参数、HTTP 鉴权/限流/超大 body，以及 100 步工作流 500ms 编译预算。CI 另以 MySQL 8.4、

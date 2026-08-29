@@ -1,0 +1,38 @@
+# CloudFlow YAML 示例 1（对照 CLOUDFLOW_YAML_DEMO_DESIGN.md 示例 1）
+# 场景：上传文件 → 获取文件 → 解析 → AI 分析 → 保存结果。
+# 覆盖：workflow 元数据、event 触发器、input 输入、steps、depends、when、output。
+workflow:
+  name: file_process
+  version: 1.0
+  description: 上传文件后进行解析与 AI 分析并保存结果
+
+trigger:
+  event: file.created
+
+input:
+  file_id:
+    type: string
+    required: true
+
+steps:
+  - id: get_file
+    action: file.get
+    input:
+      id: ${{ input.file_id }}
+  - id: parser
+    action: file.parse
+    when: ${{ input.file_id != "" }}
+    input:
+      file: ${{ steps.get_file.output }}
+  - id: ai_summary
+    action: ai.summary
+    depends:
+      - parser
+    input:
+      content: ${{ steps.parser.output }}
+  - id: save
+    action: metadata.update
+    depends:
+      - ai_summary
+    input:
+      summary: ${{ steps.ai_summary.output }}

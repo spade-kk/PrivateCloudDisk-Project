@@ -146,6 +146,8 @@ const routes: RouteRecordRaw[] = [
   // 插件/工作流独立开发工作区：不渲染控制台侧栏，适合桌面端多面板 IDE；旧 /app 路由继续保留兼容。
   { path: '/developer/plugins/new/:type(cloud|local)', name: 'DeveloperPluginCreate', component: () => import('@/views/plugins/PluginIdeView.vue'), meta: { title: '插件开发工作区', requiresAuth: true, ideWorkspace: true } },
   { path: '/developer/plugins/:pluginId/edit', name: 'DeveloperPluginEdit', component: () => import('@/views/plugins/PluginIdeView.vue'), meta: { title: '编辑插件', requiresAuth: true, ideWorkspace: true } },
+  // [PLUGIN-EXEC-OBS-001] 独立详情工作区不复用控制台窄内容列，日志与审计可获得完整视口。
+  { path: '/plugins/:pluginId/executions/:executionId', name: 'PluginExecutionDetail', component: () => import('@/views/plugins/PluginExecutionDetailView.vue'), meta: { title: '插件执行详情', requiresAuth: true } },
   { path: '/developer/marketplace/plugins/:pluginId', name: 'DeveloperPluginMarketplaceDetail', component: () => import('@/views/plugins/PluginMarketplaceDetailView.vue'), meta: { title: '插件详情', requiresAuth: true } },
   { path: '/developer/workflows/new', name: 'DeveloperWorkflowCreate', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '工作流开发工作区', requiresAuth: true, ideWorkspace: true } },
   { path: '/developer/workflows/:workflowId/edit', name: 'DeveloperWorkflowEdit', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '编辑工作流', requiresAuth: true, ideWorkspace: true } },
@@ -201,6 +203,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'plugin-market', name: 'PluginMarketplace', component: () => import('@/views/plugins/PluginMarketplaceView.vue'), meta: { title: '插件市场', requiresAuth: true } },
       { path: 'space-tools', name: 'SpacePluginManagement', component: () => import('@/views/plugins/SpacePluginManagementView.vue'), meta: { title: '空间工具', requiresAuth: true } },
       { path: 'spaces/:spaceId/automation', name: 'SpaceAutomation', component: () => import('@/views/plugins/SpacePluginManagementView.vue'), meta: { title: '空间插件管理', requiresAuth: true } },
+      // [AI-AGENT-FE-001] 企业 Agent 会话页；所有资产操作仍由后端 Capability Hub 代理，
+      // 前端只消费会话 REST/SSE，不持有模型或服务间凭据。
+      { path: 'ai', name: 'AiAssistant', component: () => import('@/views/AiAssistantView.vue'), meta: { title: 'AI 助手', requiresAuth: true } },
       { path: 'workflows', name: 'WorkflowManagement', component: () => import('@/views/workflows/WorkflowManagementView.vue'), meta: { title: '工作流管理', requiresAuth: true } },
       { path: 'workflows/new', name: 'WorkflowCreate', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '创建工作流', requiresAuth: true } },
       { path: 'workflows/:workflowId/edit', name: 'WorkflowEdit', component: () => import('@/views/workflows/WorkflowEditorView.vue'), meta: { title: '编辑工作流', requiresAuth: true } },

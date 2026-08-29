@@ -1,0 +1,28 @@
+manifest_version: 1
+plugin:
+  id: 90a9bdbf-03ad-3a5e-e4c4-0fd52e7a39e9
+  name: 用户信息能力调用输出
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read
+  - platform.capability.invoke
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read
+      - platform.capability.invoke
+exports:
+  - name: user_info
+    module: src/main.py
+    function: main
+    permissions:
+      - file.content.read
+      - platform.capability.invoke

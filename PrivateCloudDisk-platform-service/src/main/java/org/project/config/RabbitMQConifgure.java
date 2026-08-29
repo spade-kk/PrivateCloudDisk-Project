@@ -140,6 +140,10 @@ public class RabbitMQConifgure {
     public static final String QUEUE_FILE_DOWNLOADED = "pcd.file.downloaded.queue";
     public static final String ROUTING_FILE_DOWNLOADED = "file.downloaded";
 
+    // 文件扫描请求事件（能力中心 api:file.scan 触发；消费者：安全扫描执行方）
+    public static final String QUEUE_FILE_SCAN_REQUESTED = "pcd.file.scan.requested.queue";
+    public static final String ROUTING_FILE_SCAN_REQUESTED = "file.scan.requested";
+
     // ==================== 上传会话事件交换机 ====================
 
     /** 上传会话事件主交换机（Topic），发布上传会话生命周期事件 */
@@ -497,6 +501,27 @@ public class RabbitMQConifgure {
                 .bind(fileMergeFailedQueue())
                 .to(fileEventExchange())
                 .with(ROUTING_FILE_MERGE_FAILED);
+    }
+
+    /**
+     * 文件扫描请求队列（消费者：安全扫描执行方 → 拉取待扫描文件）
+     */
+    @Bean
+    public Queue fileScanRequestedQueue() {
+        return QueueBuilder
+                .durable(QUEUE_FILE_SCAN_REQUESTED)
+                .deadLetterExchange(FILE_EVENT_DLX)
+                .deadLetterRoutingKey(FILE_EVENT_DLQ_ROUTING_KEY)
+                .ttl(7 * 24 * 60 * 60 * 1000)
+                .build();
+    }
+
+    @Bean
+    public Binding fileScanRequestedBinding() {
+        return BindingBuilder
+                .bind(fileScanRequestedQueue())
+                .to(fileEventExchange())
+                .with(ROUTING_FILE_SCAN_REQUESTED);
     }
 
     /**

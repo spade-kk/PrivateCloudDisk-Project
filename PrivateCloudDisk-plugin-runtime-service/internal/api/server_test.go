@@ -39,6 +39,32 @@ func TestCapacityEndpointAcceptsServiceToken(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("有效内部凭证应通过，实际为 %d", response.Code)
 	}
+	// AUDIT FIX [6.7]: all internally authenticated HTTP responses retain the
+	// complete security-header baseline if a reverse-proxy route is misconfigured.
+	for header, expected := range map[string]string{
+		"Content-Security-Policy":   "default-src 'none'",
+		"X-Content-Type-Options":    "nosniff",
+		"X-Frame-Options":           "DENY",
+		"Referrer-Policy":           "no-referrer",
+		"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+	} {
+		if actual := response.Header().Get(header); actual != expected {
+			t.Fatalf("%s=%q, expected %q", header, actual, expected)
+		}
+	}
+}
+
+func TestUdsMetricsEndpointRequiresConfiguredSessionManager(t *testing.T) {
+	server := &Server{Config: config.Config{InternalServiceToken: "test-secret"}, Slots: make(chan struct{}, 1)}
+	request := httptest.NewRequest(http.MethodGet, "/internal/v1/metrics/uds", nil)
+	request.Header.Set("X-PCD-Service-Token", "test-secret")
+	response := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), "session manager") {
+		t.Fatalf("response=%d body=%s", response.Code, response.Body.String())
+	}
 }
 
 func TestTestExecutionEndpointIsAsynchronousAndProtected(t *testing.T) {

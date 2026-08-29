@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: b9454c10-d0b4-0ee0-f122-adea6930a7ca
+  name: CSV 数据分析与 Markdown 表格报告
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

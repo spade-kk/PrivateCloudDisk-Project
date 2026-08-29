@@ -29,7 +29,7 @@ import grammar_scraper  # noqa: E402
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HERE = os.path.dirname(os.path.abspath(__file__))
 GRAMMAR_PATH = os.path.join(REPO_ROOT, "src", "grammar.pest")
-AST_PATH = os.path.join(REPO_ROOT, "src", "ast.rs")
+AST_PATH = os.path.join(REPO_ROOT, "crates", "cloudflow-engine-core", "src", "ast.rs")
 OUT_DIR = os.path.join(HERE, "..", "build")
 COMPLETION_OUT = os.path.join(OUT_DIR, "cloudflow.completion.json")
 SCHEMA_DIR = os.path.join(HERE, "..", "schema")
@@ -226,7 +226,7 @@ def build_completions(grammar_src, ast_src) -> dict:
             "generatedFor": "completion",
             "generatedFrom": {
                 "grammar": "src/grammar.pest",
-                "ast": "src/ast.rs",
+                "ast": "crates/cloudflow-engine-core/src/ast.rs",
                 "grammarDigest": _file_digest(GRAMMAR_PATH),
                 "astDigest": _file_digest(AST_PATH),
             },

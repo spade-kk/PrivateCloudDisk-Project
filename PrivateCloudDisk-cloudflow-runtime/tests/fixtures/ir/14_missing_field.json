@@ -1,0 +1,179 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-missing_field",
+    "name": "missing_field",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {},
+    "graph": {
+      "nodes": [
+        {
+          "id": "task_no_action",
+          "type": "task",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "cond_no_expr",
+          "type": "condition",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": {
+            "trueBranch": [
+              "x1"
+            ],
+            "falseBranch": [
+              "x2"
+            ]
+          },
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "x1",
+            "x2"
+          ]
+        },
+        {
+          "id": "x1",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "f",
+            "method": "m",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "cond_no_expr"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "x2",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "f",
+            "method": "m",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "cond_no_expr"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "cond_no_expr",
+          "to": "x1"
+        },
+        {
+          "from": "cond_no_expr",
+          "to": "x2"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

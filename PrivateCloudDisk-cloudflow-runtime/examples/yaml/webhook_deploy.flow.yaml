@@ -1,0 +1,34 @@
+# CloudFlow YAML 示例 13/17（对照 DEMO 示例 13/17）
+# 场景：Webhook 触发 + env 环境变量 + 长链路 CI/CD。
+# 覆盖：trigger.webhook、env、depends。
+workflow:
+  name: build_release
+
+trigger:
+  webhook:
+    path: /deploy
+    method: POST
+
+env:
+  JAVA_VERSION: 21
+  NODE_ENV: production
+
+steps:
+  - id: checkout
+    action: git.checkout
+  - id: build
+    action: java.build
+    depends:
+      - checkout
+  - id: test
+    action: test.run
+    depends:
+      - build
+  - id: docker
+    action: docker.build
+    depends:
+      - test
+  - id: deploy
+    action: k8s.deploy
+    depends:
+      - docker

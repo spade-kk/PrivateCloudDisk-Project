@@ -33,7 +33,7 @@ import grammar_scraper  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GRAMMAR_PATH = os.path.join(REPO_ROOT, "src", "grammar.pest")
-AST_PATH = os.path.join(REPO_ROOT, "src", "ast.rs")
+AST_PATH = os.path.join(REPO_ROOT, "crates", "cloudflow-engine-core", "src", "ast.rs")
 OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build")
 SPEC_OUT = os.path.join(OUT_DIR, "cloudflow.syntax-highlight.json")
 SCHEMA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "schema")
@@ -76,7 +76,7 @@ def build_spec(grammar_src: str, ast_src: str) -> dict:
             "blockComment": None,
             "generatedFrom": {
                 "grammar": "src/grammar.pest",
-                "ast": "src/ast.rs",
+                "ast": "crates/cloudflow-engine-core/src/ast.rs",
             },
             "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             "sourceTokens": {

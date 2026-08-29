@@ -10,6 +10,8 @@ declare module '*.vue' {
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
   readonly VITE_API_PROXY_TARGET: string
+  /** 可选：CloudFlow LS WebSocket 地址，例如 wss://gateway.example.com/cloudflow-lsp/lsp。 */
+  readonly VITE_CLOUDFLOW_LSP_URL?: string
   readonly VITE_IM_WS_URL: string
   readonly VITE_TURNSTILE_SITE_KEY: string
   readonly VITE_CHUNK_SIZE: string

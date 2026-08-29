@@ -29,7 +29,10 @@ MemoryDenyWriteExecute=yes
 RestrictRealtime=yes
 RestrictNamespaces=yes
 SystemCallArchitectures=native
-ReadWritePaths=/var/lib/pcd-runtime/work
+# CF-PLUGIN-UDS-001：Runtime 必须创建/删除每实例 Socket；容器本身不会获得该目录挂载。
+ReadWritePaths=/var/lib/pcd-runtime/work /run/pcd/plugins
+RuntimeDirectory=pcd
+RuntimeDirectoryMode=0700
 UMask=0077
 
 [Install]

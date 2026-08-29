@@ -1,0 +1,17 @@
+# CloudFlow YAML 示例 14（对照 DEMO 示例 14）
+# 场景：构建 → 审批 → 部署（审批节点映射为 approval.request 动作步骤，与 DSL 对齐）。
+# 覆盖：approval、depends。
+workflow:
+  name: release
+
+steps:
+  - id: build
+    action: ci.build
+  - id: approve
+    approval:
+      users:
+        - admin
+  - id: deploy
+    action: kubernetes.deploy
+    depends:
+      - approve

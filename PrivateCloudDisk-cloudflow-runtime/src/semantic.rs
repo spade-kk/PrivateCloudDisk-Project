@@ -546,6 +546,7 @@ fn inferred_value_type(value: &ValueNode, variables: &HashMap<&str, &str>) -> Op
         ValueNode::String(_) => Some("string".into()),
         ValueNode::Number(_) => Some("number".into()),
         ValueNode::Boolean(_) => Some("boolean".into()),
+        ValueNode::Null => Some("null".into()),
         ValueNode::Array(_) => Some("array".into()),
         ValueNode::Object(_) => Some("object".into()),
         ValueNode::Duration(_) => Some("duration".into()),
@@ -605,8 +606,13 @@ fn inferred_expression_type(
             }
         }
         ExpressionKind::Call { function, .. } => match function.as_str() {
-            "len" | "size" => Some("number".into()),
+            "len" | "size" | "now" | "abs" | "round" | "floor" | "ceil" => Some("number".into()),
             "contains" | "starts_with" | "ends_with" => Some("boolean".into()),
+            "trim" | "to_upper" | "to_lower" => Some("string".into()),
+            // GitHub Actions 对齐：toJSON/formatNumber/formatDateTime 返回字符串。
+            "to_json" | "format_number" | "format_date_time" => Some("string".into()),
+            "range" => Some("array".into()),
+            // `get` 的返回类型依赖容器元素，编译期未知。
             _ => None,
         },
         ExpressionKind::Pipe { .. } => None,
@@ -674,6 +680,7 @@ fn static_type(expression: &ExpressionNode) -> Option<&'static str> {
         ExpressionKind::Literal(ValueNode::String(_)) => Some("string"),
         ExpressionKind::Literal(ValueNode::Template(_)) => Some("string"),
         ExpressionKind::Literal(ValueNode::Boolean(_)) => Some("boolean"),
+        ExpressionKind::Literal(ValueNode::Null) => Some("null"),
         ExpressionKind::Literal(ValueNode::Duration(_)) => Some("duration"),
         _ => None,
     }
@@ -1371,10 +1378,9 @@ fn validate_expression(
             function,
             arguments,
         } => {
-            if !matches!(
-                function.as_str(),
-                "size" | "len" | "contains" | "starts_with" | "ends_with"
-            ) {
+            // 白名单唯一事实来源：表达式子系统 `builtins::is_builtin_function`
+            // （与执行端求值、补全规范 `config.py::BUILTIN_FUNCTIONS` 保持一致）。
+            if !crate::expression::builtins::is_builtin_function(function) {
                 diagnostics.push(diag(
                     "CF2101",
                     "TYPE_ERROR",
@@ -1660,6 +1666,11 @@ fn validate_expression_static_types(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// 取路径首个标识符基名：`vars.files[0].name` → `files`；`items[0]` → `items`；`file.size` → `file`。
+fn first_segment(path: &str) -> &str {
+    path.split(['.', '[']).next().unwrap_or(path)
+}
+
 fn validate_reference(
     reference: &str,
     variables: &HashSet<String>,
@@ -1670,10 +1681,9 @@ fn validate_reference(
     span: Span,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let Some(variable) = reference
-        .strip_prefix("vars.")
-        .and_then(|value| value.split('.').next())
-    {
+    // 取路径首个标识符（`.` 或 `[` 前的基名），使 `vars.files[0].name` / `items[0]` 等索引
+    // 引用能按基名校验（需求 6.6）。
+    if let Some(variable) = reference.strip_prefix("vars.").map(first_segment) {
         if !variables.contains(variable) {
             diagnostics.push(diag(
                 "CF2002",
@@ -1688,10 +1698,7 @@ fn validate_reference(
         }
         return;
     }
-    if let Some(step) = reference
-        .strip_prefix("steps.")
-        .and_then(|value| value.split('.').next())
-    {
+    if let Some(step) = reference.strip_prefix("steps.").map(first_segment) {
         if !steps.contains(step) {
             diagnostics.push(diag(
                 "CF2002",
@@ -1706,21 +1713,31 @@ fn validate_reference(
         }
         return;
     }
-    if !reference.starts_with("workflow.") {
-        if !reference.contains('.') && locals.contains(reference) {
-            return;
-        }
-        diagnostics.push(diag(
-            "CF2002",
-            "REFERENCE_ERROR",
-            format!("非法引用：{reference}"),
-            source,
-            filename,
-            span,
-            vec!["vars.<name>".into(), "steps.<id>.output".into()],
-            None,
-        ));
+    // [YAML-NAMESPACE] `env.<key>` 与 `input.<name>` 是 YAML 前端引入的一等引用命名空间：
+    // - YAML 前端在委托表达式子系统前已把 `input.<name>` 规范化为 `vars.<name>`（与 DSL 输入
+    //   变量表示一致，保证 DSL/YAML 的 IR 等价），因此这里即便出现 `input.` 也直接放行；
+    // - `env.<key>` 引用编译期注入的环境变量，声明侧已由 CF4405 约定为字面量；引用拼写
+    //   由运行时按工作流注入环境校验，编译期不再收紧（与 `workflow.` 同理）。
+    if reference.starts_with("workflow.")
+        || reference.starts_with("env.")
+        || reference.starts_with("input.")
+    {
+        return;
     }
+    let local = first_segment(reference);
+    if !local.contains('.') && locals.contains(local) {
+        return;
+    }
+    diagnostics.push(diag(
+        "CF2002",
+        "REFERENCE_ERROR",
+        format!("非法引用：{reference}"),
+        source,
+        filename,
+        span,
+        vec!["vars.<name>".into(), "steps.<id>.output".into()],
+        None,
+    ));
 }
 
 pub fn action_key(action: &ActionNode) -> String {
@@ -1848,4 +1865,312 @@ fn diag(
         suggestions,
         help,
     )
+}
+
+// ============================================================================
+// [V1.3-RULE] 语义规则插件接口（需求 10.27）：
+// 统一语义层支持在不改动编译管线的前提下注册新的检查。内置单体检查保持既有
+// 行为与诊断顺序不变；新增检查统一以规则实现注册，在内置检查之后运行
+// （新诊断追加在既有诊断之后）。
+//
+// 已注册内置规则：
+// - DuplicateVariableRule（10.3 变量重复声明，CF2003）
+// - RetryConfigRule（10.12 retry 配置合法性，CF4423）
+// - TimeoutConfigRule（10.12 步骤/运行时 timeout 必须 > 0，CF4424）
+// - WaitConfigRule（10.13 wait 审批配置检查，CF4419）
+// - MetadataRule（10.19 标签注解检查，CF4425）
+//
+// 权限/资源声明检查（10.17/10.18）设计说明：Domain AST 当前没有权限/资源
+// 声明节点，能力级授权由 Agent 层在执行期统一强制（能力存在性在 CF3001 已
+// 校验）；`SecurityIr` 作为 IR 契约字段保留默认值，未来前端引入权限声明
+// 语法时通过新增规则接入，无需改动管线。
+// ============================================================================
+
+/// 规则执行上下文：只读的 Domain AST、能力目录与源码坐标。
+pub struct RuleContext<'a> {
+    pub workflow: &'a WorkflowNode,
+    pub catalog: &'a dyn CapabilityCatalog,
+    pub source: &'a str,
+    pub filename: &'a str,
+}
+
+/// [10.27] 语义规则插件接口：实现该 trait 并通过 `validate_with_rules` 注册即可
+/// 扩展新的统一语义检查（供未来 IDE 侧规则、组织级规范检查复用）。
+pub trait SemanticRule: Send {
+    /// 规则名（用于诊断溯源与测试定位）。
+    fn name(&self) -> &'static str;
+    /// 执行检查，把新增诊断追加到 `diagnostics`。
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>);
+}
+
+/// [10.12] 执行引擎支持的重试策略白名单（与 `execution_core::retry_strategy` 对齐）。
+const RETRY_STRATEGIES: &[&str] = &["fixed", "exponential"];
+
+/// 收集规则可见的全部步骤：以 `flow`（源码顺序主视图）为事实源，递归进入
+/// 控制块与 `step.controls`/`step.on_error`，再并入 handlers。
+fn collect_rule_steps<'a>(workflow: &'a WorkflowNode) -> Vec<&'a StepNode> {
+    let mut steps = Vec::new();
+    collect_control_steps(&workflow.flow, &mut steps);
+    for handler in &workflow.handlers {
+        collect_control_steps(&handler.nodes, &mut steps);
+    }
+    steps
+}
+
+/// 递归收集全部 wait 节点（与 `collect_control_steps` 同构，覆盖嵌套控制块）。
+fn collect_flow_waits<'a>(nodes: &'a [FlowNode], output: &mut Vec<&'a WaitNode>) {
+    for node in nodes {
+        match node {
+            FlowNode::Step(step) => {
+                collect_flow_waits(&step.controls, output);
+                collect_flow_waits(&step.on_error, output);
+            }
+            FlowNode::StepGroup(value) => {
+                for step in &value.steps {
+                    collect_flow_waits(&step.controls, output);
+                    collect_flow_waits(&step.on_error, output);
+                }
+            }
+            FlowNode::Condition(value) => {
+                collect_flow_waits(&value.true_branch, output);
+                collect_flow_waits(&value.false_branch, output);
+            }
+            FlowNode::Loop(value) => collect_flow_waits(&value.body, output),
+            FlowNode::For(value) => collect_flow_waits(&value.body, output),
+            FlowNode::While(value) => collect_flow_waits(&value.body, output),
+            FlowNode::Parallel(value) => collect_flow_waits(&value.branches, output),
+            FlowNode::TryCatch(value) => {
+                collect_flow_waits(&value.try_nodes, output);
+                collect_flow_waits(&value.catch_nodes, output);
+                collect_flow_waits(&value.finally_nodes, output);
+            }
+            FlowNode::Wait(value) => output.push(value),
+            FlowNode::Switch(value) => {
+                for case in &value.cases {
+                    collect_flow_waits(&case.body, output);
+                }
+                collect_flow_waits(&value.default_branch, output);
+            }
+            FlowNode::Assert(_)
+            | FlowNode::Validate(_)
+            | FlowNode::Notify(_)
+            | FlowNode::Return(_)
+            | FlowNode::Delay(_)
+            | FlowNode::Break(_)
+            | FlowNode::Continue(_) => {}
+        }
+    }
+}
+
+/// [10.3] 变量重复声明检查（CF2003）。
+pub struct DuplicateVariableRule;
+impl SemanticRule for DuplicateVariableRule {
+    fn name(&self) -> &'static str {
+        "duplicate-variable"
+    }
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>) {
+        let mut seen = HashSet::new();
+        for variable in &ctx.workflow.variables {
+            if !seen.insert(variable.name.as_str()) {
+                diagnostics.push(diag(
+                    "CF2003",
+                    "VAR_ERROR",
+                    format!("变量 `{}` 重复声明", variable.name),
+                    ctx.source,
+                    ctx.filename,
+                    variable.span,
+                    vec![],
+                    Some("每个变量名只能声明一次；需要不同来源时请重命名".into()),
+                ));
+            }
+        }
+    }
+}
+
+/// [10.12] retry 配置合法性检查（CF4423）：max_attempts 必须为正，
+/// strategy 只允许 `fixed` / `exponential`（与执行引擎退避策略白名单一致）。
+pub struct RetryConfigRule;
+impl SemanticRule for RetryConfigRule {
+    fn name(&self) -> &'static str {
+        "retry-config"
+    }
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>) {
+        let mut check_retry = |retry: &RetryNode| {
+            if retry.max_attempts == 0 {
+                diagnostics.push(diag(
+                    "CF4423",
+                    "RETRY_ERROR",
+                    "retry max_attempts 必须为正整数",
+                    ctx.source,
+                    ctx.filename,
+                    retry.span,
+                    vec!["max_attempts = 2".into()],
+                    None,
+                ));
+            }
+            if !RETRY_STRATEGIES.contains(&retry.strategy.as_str()) {
+                diagnostics.push(diag(
+                    "CF4423",
+                    "RETRY_ERROR",
+                    format!(
+                        "retry 策略 `{}` 非法，仅支持 fixed / exponential",
+                        retry.strategy
+                    ),
+                    ctx.source,
+                    ctx.filename,
+                    retry.span,
+                    RETRY_STRATEGIES
+                        .iter()
+                        .map(|value| value.to_string())
+                        .collect(),
+                    None,
+                ));
+            }
+        };
+        if let Some(retry) = &ctx.workflow.runtime.retry {
+            check_retry(retry);
+        }
+        for step in collect_rule_steps(ctx.workflow) {
+            if let Some(retry) = &step.retry {
+                check_retry(retry);
+            }
+        }
+    }
+}
+
+/// [10.12] 步骤/运行时 timeout 合法性检查（CF4424）：timeout 必须大于 0。
+pub struct TimeoutConfigRule;
+impl SemanticRule for TimeoutConfigRule {
+    fn name(&self) -> &'static str {
+        "timeout-config"
+    }
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>) {
+        if let Some(timeout) = &ctx.workflow.runtime.timeout {
+            if timeout.milliseconds == 0 {
+                diagnostics.push(diag(
+                    "CF4424",
+                    "TIMEOUT_ERROR",
+                    "runtime timeout 必须大于 0",
+                    ctx.source,
+                    ctx.filename,
+                    timeout.span,
+                    vec!["timeout = 30s".into()],
+                    None,
+                ));
+            }
+        }
+        for step in collect_rule_steps(ctx.workflow) {
+            if let Some(timeout) = &step.timeout {
+                if timeout.milliseconds == 0 {
+                    diagnostics.push(diag(
+                        "CF4424",
+                        "TIMEOUT_ERROR",
+                        format!("步骤 {} 的 timeout 必须大于 0", step.id),
+                        ctx.source,
+                        ctx.filename,
+                        timeout.span,
+                        vec!["timeout = 60s".into()],
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// [10.13] wait 审批配置检查（CF4419）：wait 节点携带 timeout 时必须大于 0。
+///
+/// `wait_type` 为审批标签：`approval` 为首等语义（Runtime 统一进入
+/// WAITING_APPROVAL 挂起点，等待审批/恢复接口）；其他取值（如 `cleanup`）
+/// 作为用户侧标签透传，不产生编译错误，避免破坏既有工作流。
+pub struct WaitConfigRule;
+impl SemanticRule for WaitConfigRule {
+    fn name(&self) -> &'static str {
+        "wait-config"
+    }
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>) {
+        let mut waits = Vec::new();
+        collect_flow_waits(&ctx.workflow.flow, &mut waits);
+        for handler in &ctx.workflow.handlers {
+            collect_flow_waits(&handler.nodes, &mut waits);
+        }
+        for wait in waits {
+            if let Some(timeout) = &wait.timeout {
+                if timeout.milliseconds == 0 {
+                    diagnostics.push(diag(
+                        "CF4419",
+                        "WAIT_ERROR",
+                        format!("wait {} 的 timeout 必须大于 0", wait.wait_type),
+                        ctx.source,
+                        ctx.filename,
+                        timeout.span,
+                        vec!["timeout = 24h".into()],
+                        Some("不带 timeout 的 wait 将无限期挂起，请确认审批语义".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// [10.19] 标签注解检查（CF4425）：metadata.tags 不允许空白标签。
+pub struct MetadataRule;
+impl SemanticRule for MetadataRule {
+    fn name(&self) -> &'static str {
+        "metadata-tags"
+    }
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>) {
+        for tag in &ctx.workflow.metadata.tags {
+            if tag.trim().is_empty() {
+                diagnostics.push(diag(
+                    "CF4425",
+                    "METADATA_ERROR",
+                    "tags 不能包含空白标签",
+                    ctx.source,
+                    ctx.filename,
+                    ctx.workflow.span,
+                    vec!["tags = [sales, weekly]".into()],
+                    None,
+                ));
+            }
+        }
+    }
+}
+
+/// 内置规则注册表：编译管线在单体检查之后按固定顺序运行。
+pub fn builtin_rules() -> Vec<Box<dyn SemanticRule>> {
+    vec![
+        Box::new(DuplicateVariableRule),
+        Box::new(RetryConfigRule),
+        Box::new(TimeoutConfigRule),
+        Box::new(WaitConfigRule),
+        Box::new(MetadataRule),
+    ]
+}
+
+/// 统一语义分析的可扩展入口（需求 10.22/10.27）：先运行内置单体检查，
+/// 再运行内置规则注册表与调用方注入的 `extra_rules`（组织级/IDE 侧规则）。
+/// `validate` 保持既有签名不变；编译管线（`compile_source_named_for_language`）
+/// 调用本入口，保证 IR 生成前强制完成全部统一语义检查（10.29）。
+pub fn validate_with_rules(
+    workflow: &WorkflowNode,
+    catalog: &dyn CapabilityCatalog,
+    source: &str,
+    filename: &str,
+    extra_rules: &[Box<dyn SemanticRule>],
+) -> Vec<Diagnostic> {
+    let mut diagnostics = validate(workflow, catalog, source, filename);
+    let context = RuleContext {
+        workflow,
+        catalog,
+        source,
+        filename,
+    };
+    for rule in builtin_rules() {
+        rule.check(&context, &mut diagnostics);
+    }
+    for rule in extra_rules {
+        rule.check(&context, &mut diagnostics);
+    }
+    diagnostics
 }

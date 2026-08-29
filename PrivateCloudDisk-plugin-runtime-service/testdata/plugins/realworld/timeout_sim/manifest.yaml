@@ -1,0 +1,24 @@
+manifest_version: 1
+plugin:
+  id: 5acac07e-8d2b-fb8a-83fc-82d70c84855f
+  name: 超时模拟插件
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation
+limits:
+  timeout_seconds: 2
+  memory_mb: 128

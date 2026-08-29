@@ -1,0 +1,28 @@
+[package]
+name = "cloudflow-ls"
+version = "0.1.0"
+edition = "2021"
+description = "CloudFlow Language Server: compiler-backed LSP intelligence for DSL and YAML"
+license = "Apache-2.0"
+
+[[bin]]
+name = "cloudflow-ls"
+path = "src/main.rs"
+
+[dependencies]
+# Reuses the actual DSL/YAML Parser, AST, expression engine and semantic rules.  The
+# compiler-api feature deliberately excludes Runtime HTTP/MQ/database execution modules.
+cloudflow-runtime = { package = "pcd-cloudflow-runtime", path = "../..", default-features = false, features = ["compiler-api"] }
+axum = { version = "0.7", features = ["ws"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "io-util", "io-std", "fs"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+
+[dev-dependencies]
+tempfile = "3"

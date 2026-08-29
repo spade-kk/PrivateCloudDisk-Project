@@ -10,6 +10,7 @@ PrivateCloudDisk Web 前端，基于 Vue 3 + TypeScript + Vite + Tailwind CSS �
 - 空间协作：空间创建与管理、成员和权限上下文、空间文件、公开空间和协作入口。
 - 扩展能力：插件管理、插件 IDE、插件执行、云插件/本地运行时入口、插件市场。
 - 自动化：工作流编辑、执行、工作流市场，以及与调度、插件能力和文件事件的集成入口。
+- AI 助手：`/app/ai` 提供会话侧栏与 Codex 风格的 AgentTask 执行文档；上下文、模型动态计划、用户可见执行依据、工具调用、阶段输出和最终总结由受认证 SSE V2 驱动，任务刷新时从服务端快照恢复而不重放操作。
 - 实时能力：通知、即时通讯、通话和 WebRTC 页面入口；实际连接地址由网关和部署配置决定。
 
 官网页面只展示仓库中能够由代码、接口或部署配置核验的能力，不固化客户数量、用户规模、吞吐量、可用性、认证结果、固定价格或默认测试账号。
@@ -21,7 +22,7 @@ PrivateCloudDisk Web 前端，基于 Vue 3 + TypeScript + Vite + Tailwind CSS �
 | Vue 3 + TypeScript | 页面组件与类型安全 |
 | Vite | 开发服务器和生产构建 |
 | Tailwind CSS | 页面样式和响应式布局 |
-| Pinia | 登录、文件、传输、空间、预览、插件、工作流等状态管理 |
+| Pinia | 登录、文件、传输、空间、预览、插件、工作流和 AgentTask 等状态管理 |
 | Vue Router | 官网、工作台、预览、插件、工作流和管理页面路由 |
 | Axios | 统一 HTTP 请求、认证和错误处理 |
 | GSAP / Three.js | 官网动效和登录页视觉效果，具体页面按现有实现启用 |
@@ -88,3 +89,4 @@ npm run preview
 - API 导航：[docs/api-overview.md](../docs/api-overview.md)
 - 文档索引：[docs/README.md](../docs/README.md)
 - 插件/自动化设计：[docs/PLUGIN_AUTOMATION_PLATFORM_DESIGN.md](../docs/PLUGIN_AUTOMATION_PLATFORM_DESIGN.md)
+- Agent Task UI 与 SSE 契约：[docs/AI_AGENT_TASK_EXECUTION_UI.md](../docs/AI_AGENT_TASK_EXECUTION_UI.md)

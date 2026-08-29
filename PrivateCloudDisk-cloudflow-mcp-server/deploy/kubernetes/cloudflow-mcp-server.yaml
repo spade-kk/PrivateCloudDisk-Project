@@ -1,0 +1,180 @@
+# CloudFlow MCP Server — server-only integration plane deployment.
+# Secrets are referenced, never embedded. The pod has no database/storage credentials and no
+# filesystem volume, so all enterprise actions remain Capability Hub mediated.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudflow-mcp-server
+  labels:
+    app.kubernetes.io/name: cloudflow-mcp-server
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflow-mcp-server-config
+data:
+  MCP_LISTEN_ADDRESS: "0.0.0.0:8093"
+  MCP_CAPABILITY_HUB_URL: "http://workflow-service-backend:8087"
+  MCP_REQUEST_TIMEOUT_SECONDS: "30"
+  MCP_AUDIT_TIMEOUT_SECONDS: "3"
+  MCP_TOOL_LIST_CACHE_TTL_SECONDS: "300"
+  MCP_SESSION_TTL_SECONDS: "1800"
+  MCP_MAX_BODY_BYTES: "1048576"
+  MCP_MAX_CONCURRENT_REQUESTS: "128"
+  MCP_REQUESTS_PER_MINUTE_PER_USER: "120"
+  MCP_METRICS_ENABLED: "true"
+  # Set the collector host:port in the production overlay. Empty retains W3C
+  # propagation but intentionally sends no telemetry outside the Pod.
+  MCP_OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  MCP_OTEL_EXPORTER_OTLP_INSECURE: "false"
+  MCP_SERVER_VERSION: "0.1.0"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflow-mcp-server
+  labels:
+    app.kubernetes.io/name: cloudflow-mcp-server
+    app.kubernetes.io/component: integration-plane
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflow-mcp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflow-mcp-server
+        app.kubernetes.io/component: integration-plane
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8093"
+    spec:
+      serviceAccountName: cloudflow-mcp-server
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mcp-server
+          image: privateclouddisk/cloudflow-mcp-server:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8093
+          envFrom:
+            - configMapRef:
+                name: cloudflow-mcp-server-config
+          env:
+            - name: MCP_INTERNAL_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pcd-internal-service
+                  key: token
+            - name: MCP_IDENTITY_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflow-mcp-identity
+                  key: gateway-hmac-secret
+            # Production must point at the platform's OAuth 2.1 authorization server metadata
+            # issuer. The public route only accepts bearer tokens at Gateway; this value is used
+            # solely to expose RFC9728 protected-resource metadata to MCP clients.
+            - name: MCP_OAUTH_AUTHORIZATION_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudflow-mcp-server-config
+                  key: MCP_OAUTH_AUTHORIZATION_SERVERS
+                  optional: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/cloudflow-mcp-server", "--healthcheck"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/cloudflow-mcp-server", "--healthcheck"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflow-mcp-server
+  labels:
+    app.kubernetes.io/name: cloudflow-mcp-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cloudflow-mcp-server
+  ports:
+    - name: http
+      port: 8093
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflow-mcp-server
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflow-mcp-server
+---
+# Ingress is only from Gateway; egress is only to Hub and cluster DNS. Adapt the namespace and
+# workflow label selector to the cluster's standard labels before applying.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflow-mcp-server-boundary
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflow-mcp-server
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway-service
+      ports:
+        - protocol: TCP
+          port: 8093
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: workflow-service
+      ports:
+        - protocol: TCP
+          port: 8087
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

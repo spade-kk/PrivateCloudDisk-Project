@@ -8,6 +8,8 @@ import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.project.privateclouddiskgatewayservice.util.ResponseUtil;
+import org.project.privateclouddiskgatewayservice.config.properties.AiIdentitySigningProperties;
+import org.project.privateclouddiskgatewayservice.config.properties.McpIdentitySigningProperties;
 import org.project.privateclouddiskgatewayservice.utils.JwtUtil;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -20,8 +22,12 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * JWT 认证全局过滤器（WebFlux 响应式版本）
@@ -44,6 +50,8 @@ import java.util.List;
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
+    private final AiIdentitySigningProperties aiIdentitySigningProperties;
+    private final McpIdentitySigningProperties mcpIdentitySigningProperties;
 
     // ═══════════════════════════════════════════════
     // 白名单路径配置
@@ -58,6 +66,9 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             new ExcludedPath("/api/v1/business/verification-code/register/resend", "POST"),// 邮箱验证码
             new ExcludedPath("/api/v1/client/register-challenge", "POST"),             // 客户端注册挑战值
             new ExcludedPath("/api/v1/client/register", "POST"),                       // 客户端注册
+            // MCP OAuth Protected Resource Metadata is intentionally public so MCP clients can
+            // discover the configured authorization server before obtaining a bearer token.
+            new ExcludedPath("/api/v1/.well-known/oauth-protected-resource/**", "GET"),
             /*
              * [REQ-GIT-AUDIT-2.1~2.50/4.16] 原行为仅放行三条 Smart HTTP 路径，
              * HEAD 与只读 dumb HTTP object/pack/refs 请求会被 Gateway JWT 拦截，
@@ -95,6 +106,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         String requestPath = sanitizedRequest.getURI().getPath();
         String requestMethod = sanitizedRequest.getMethod().name();
+        boolean mcpRequest = "/api/v1/mcp".equals(requestPath) || requestPath.startsWith("/api/v1/mcp/");
 
         /*
          * Sprint 0 安全基线（插件生态设计文档 16.1）：
@@ -127,20 +139,22 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         if (authHeader == null) {
             log.warn("认证失败 - 缺少 Authorization 头: {} {}", requestMethod, requestPath);
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "缺少认证令牌，请先登录"
+                    "缺少认证令牌，请先登录",
+                    mcpRequest
             );
         }
 
         if (!authHeader.startsWith("Bearer ")) {
             log.warn("认证失败 - Authorization 头格式错误 (非 Bearer): {} {}",
                     requestMethod, requestPath);
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌格式错误"
+                    "认证令牌格式错误",
+                    mcpRequest
             );
         }
 
@@ -148,10 +162,11 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
         if (token.isEmpty()) {
             log.warn("认证失败 - Bearer Token 为空: {} {}", requestMethod, requestPath);
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌不能为空"
+                    "认证令牌不能为空",
+                    mcpRequest
             );
         }
 
@@ -160,12 +175,104 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         // ═══════════════════════════════════════════════
         try {
             String userId = jwtUtil.getUserIdFromToken(token);
+            if (mcpRequest && !jwtUtil.hasMcpAudienceAndScope(
+                    token,
+                    mcpIdentitySigningProperties.getRequiredAudience(),
+                    mcpIdentitySigningProperties.getRequiredScope()
+            )) {
+                log.warn("MCP 认证失败 - access token 未满足配置的 audience/scope: {} {}", requestMethod, requestPath);
+                return writeAuthenticationError(
+                        sanitizedExchange,
+                        HttpStatus.UNAUTHORIZED,
+                        "MCP access token 的 audience 或 scope 不满足要求",
+                        true
+                );
+            }
+
+            /*
+             * [AI-AGENT-IDENTITY-001] Original behavior injected only X-User-Id for
+             * every downstream service. New behavior keeps that legacy header intact,
+             * but for the isolated Cloud AI Agent route also removes browser-supplied
+             * agent headers and signs user/space/request/path context. The Agent rejects
+             * unsigned/expired context, while Capability Hub still enforces resource
+             * permissions. Scope is deliberately limited to /api/v1/ai/**.
+             */
+            boolean aiAgentRequest = requestPath.startsWith("/api/v1/ai/");
+            if (aiAgentRequest && (aiIdentitySigningProperties.getIdentitySigningSecret() == null
+                    || aiIdentitySigningProperties.getIdentitySigningSecret().isBlank())) {
+                log.error("AI Agent 路由拒绝：未配置 gateway.ai.identity-signing-secret");
+                return ResponseUtil.writeError(
+                        sanitizedExchange,
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "AI 助手身份服务暂不可用"
+                );
+            }
+            if (mcpRequest && (mcpIdentitySigningProperties.getIdentitySigningSecret() == null
+                    || mcpIdentitySigningProperties.getIdentitySigningSecret().isBlank())) {
+                log.error("MCP 路由拒绝：未配置 gateway.mcp.identity-signing-secret");
+                return ResponseUtil.writeError(
+                        sanitizedExchange,
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "MCP 身份服务暂不可用"
+                );
+            }
+            String spaceId = sanitizedRequest.getHeaders().getFirst("X-Space-Id");
+            String tenantId = mcpRequest ? jwtUtil.getTenantIdFromToken(token) : "";
+            String requestId = sanitizedRequest.getHeaders().getFirst("X-Request-Id");
+            if (requestId == null || requestId.isBlank()) {
+                requestId = UUID.randomUUID().toString();
+            }
+            // AI Python verifier uses epoch seconds for its established wire contract. MCP uses
+            // RFC3339 because its Go verifier validates a typed UTC timestamp. Keep both formats
+            // isolated rather than silently changing the existing AI Agent signature protocol.
+            String aiIdentityTimestamp = String.valueOf(System.currentTimeMillis() / 1000L);
+            String mcpIdentityTimestamp = java.time.Instant.now().toString();
+            String agentSignature = aiAgentRequest
+                    ? signAiIdentity(requestMethod, requestPath, requestId, aiIdentityTimestamp, userId, spaceId)
+                    : null;
+            // StripPrefix=2 changes the downstream path to /mcp. Sign this canonical private-hop
+            // path so the Go server validates exactly the request it receives, not a mutable URI.
+            String mcpSignature = mcpRequest
+                    ? signMcpIdentity(requestMethod, "/mcp", requestId, mcpIdentityTimestamp, userId, tenantId, spaceId)
+                    : null;
 
             // 步骤4: 将用户信息注入请求头，透传给下游服务
+            String finalRequestId = requestId;
+            String finalAiIdentityTimestamp = aiIdentityTimestamp;
+            String finalMcpIdentityTimestamp = mcpIdentityTimestamp;
+            String finalAgentSignature = agentSignature;
             ServerHttpRequest mutatedRequest = sanitizedRequest.mutate()
                     .headers(headers -> {
                         headers.set("X-User-Id", userId);
                         headers.set("X-Auth-Source", "gateway");
+                        headers.set("X-Request-Id", finalRequestId);
+                        if (aiAgentRequest) {
+                            headers.set("X-PCD-User-Id", userId);
+                            if (spaceId != null && !spaceId.isBlank()) {
+                                headers.set("X-PCD-Space-Id", spaceId);
+                            } else {
+                                headers.remove("X-PCD-Space-Id");
+                            }
+                            headers.set("X-PCD-Request-Id", finalRequestId);
+                            headers.set("X-PCD-Identity-Timestamp", finalAiIdentityTimestamp);
+                            headers.set("X-PCD-Identity-Signature", finalAgentSignature);
+                        }
+                        if (mcpRequest) {
+                            headers.set("X-PCD-User-Id", userId);
+                            if (tenantId != null && !tenantId.isBlank()) {
+                                headers.set("X-PCD-Tenant-Id", tenantId);
+                            } else {
+                                headers.remove("X-PCD-Tenant-Id");
+                            }
+                            if (spaceId != null && !spaceId.isBlank()) {
+                                headers.set("X-PCD-Space-Id", spaceId);
+                            } else {
+                                headers.remove("X-PCD-Space-Id");
+                            }
+                            headers.set("X-PCD-Request-Id", finalRequestId);
+                            headers.set("X-PCD-Identity-Timestamp", finalMcpIdentityTimestamp);
+                            headers.set("X-PCD-Identity-Signature", mcpSignature);
+                        }
                     })
                     .build();
 
@@ -175,44 +282,49 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
         } catch (ExpiredJwtException e) {
             log.warn("认证失败 - JWT 已过期: {} {}, 过期时间: {}",
                     requestMethod, requestPath, e.getClaims().getExpiration());
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌已过期，请重新登录"
+                    "认证令牌已过期，请重新登录",
+                    mcpRequest
             );
 
         } catch (SignatureException e) {
             log.warn("认证失败 - JWT 签名无效 (可能被篡改): {} {}", requestMethod, requestPath);
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌无效"
+                    "认证令牌无效",
+                    mcpRequest
             );
 
         } catch (MalformedJwtException e) {
             log.warn("认证失败 - JWT 格式错误: {} {}", requestMethod, requestPath);
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌格式无效"
+                    "认证令牌格式无效",
+                    mcpRequest
             );
 
         } catch (UnsupportedJwtException e) {
             log.warn("认证失败 - 不支持的 JWT 类型: {} {}", requestMethod, requestPath);
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌类型不支持"
+                    "认证令牌类型不支持",
+                    mcpRequest
             );
 
         } catch (JwtException e) {
             // 其他 JWT 异常
             log.warn("认证失败 - JWT 验证异常: {} {}, 原因: {}",
                     requestMethod, requestPath, e.getMessage());
-            return ResponseUtil.writeError(
+            return writeAuthenticationError(
                     sanitizedExchange,
                     HttpStatus.UNAUTHORIZED,
-                    "认证令牌验证失败"
+                    "认证令牌验证失败",
+                    mcpRequest
             );
 
         } catch (Exception e) {
@@ -230,6 +342,38 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     // ═══════════════════════════════════════════════
     // 辅助方法
     // ═══════════════════════════════════════════════
+
+    /**
+     * MCP clients discover OAuth metadata from an unauthenticated challenge.
+     * Other Gateway APIs retain their existing JSON-only 401 behavior.
+     */
+    private Mono<Void> writeAuthenticationError(
+            ServerWebExchange exchange,
+            HttpStatus status,
+            String message,
+            boolean mcpRequest
+    ) {
+        if (mcpRequest && status == HttpStatus.UNAUTHORIZED) {
+            exchange.getResponse().getHeaders().set(
+                    HttpHeaders.WWW_AUTHENTICATE,
+                    "Bearer realm=\"cloudflow-mcp\", resource_metadata=\""
+                            + mcpProtectedResourceMetadataUrl() + "\""
+            );
+        }
+        return ResponseUtil.writeError(exchange, status, message);
+    }
+
+    private String mcpProtectedResourceMetadataUrl() {
+        String baseUrl = mcpIdentitySigningProperties.getPublicBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            // Development fallback only. Production deployment must configure
+            // MCP_PUBLIC_BASE_URL so this response never derives a URL from a
+            // request-controlled Host/X-Forwarded-Host header.
+            return "/api/v1/.well-known/oauth-protected-resource/mcp";
+        }
+        return baseUrl.replaceAll("/+$", "")
+                + "/api/v1/.well-known/oauth-protected-resource/mcp";
+    }
 
     /**
      * 剥离客户端请求中可能伪造的内部请求头
@@ -258,8 +402,63 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                     headers.remove("X-Auth-Source");
                     headers.remove("X-Session-Id");
                     headers.remove("X-PCD-Service-Token");
+                    // [AI-AGENT-IDENTITY-001] These are reissued only after JWT validation.
+                    headers.remove("X-PCD-User-Id");
+                    headers.remove("X-PCD-Tenant-Id");
+                    headers.remove("X-PCD-Space-Id");
+                    headers.remove("X-PCD-Request-Id");
+                    headers.remove("X-PCD-Identity-Timestamp");
+                    headers.remove("X-PCD-Identity-Signature");
                 })
                 .build();
+    }
+
+    private String signAiIdentity(
+            String method,
+            String path,
+            String requestId,
+            String timestamp,
+            String userId,
+            String spaceId
+    ) {
+        try {
+            String canonical = String.join("\n",
+                    "pcd-ai-v1", method.toUpperCase(), path, requestId, timestamp, userId,
+                    spaceId == null ? "" : spaceId);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(
+                    aiIdentitySigningProperties.getIdentitySigningSecret().getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            ));
+            return java.util.HexFormat.of().formatHex(mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("无法签名 AI Agent 身份上下文", exception);
+        }
+    }
+
+    private String signMcpIdentity(
+            String method,
+            String path,
+            String requestId,
+            String timestamp,
+            String userId,
+            String tenantId,
+            String spaceId
+    ) {
+        try {
+            String canonical = String.join("\n",
+                    "pcd-mcp-v1", method.toUpperCase(), path, requestId, timestamp, userId,
+                    tenantId == null ? "" : tenantId,
+                    spaceId == null ? "" : spaceId);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(
+                    mcpIdentitySigningProperties.getIdentitySigningSecret().getBytes(StandardCharsets.UTF_8),
+                    "HmacSHA256"
+            ));
+            return java.util.HexFormat.of().formatHex(mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("无法签名 MCP 身份上下文", exception);
+        }
     }
 
     /**

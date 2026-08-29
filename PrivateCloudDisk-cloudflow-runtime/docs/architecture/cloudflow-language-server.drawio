@@ -1,0 +1,175 @@
+<mxfile>
+  <diagram id="cloudflow-ls-context" name="CloudFlow LS Context">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="cloudflow-authenticated-developer" value="CloudFlow 开发者&#xa;[Person]&#xa;在本地或 Web Studio 编辑 DSL/YAML 工作流" style="shape=mxgraph.c4.person2;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#083F75;strokeColor=#06315C;" vertex="1" parent="1">
+          <mxGeometry x="160" y="0" width="200" height="180" as="geometry"/>
+        </mxCell>
+        <UserObject label="CloudFlow IDE 生态&#xa;[Software System: VS Code / JetBrains / Web Studio / Desktop Studio]&#xa;以 LSP 获取动态语义智能，以静态规则保证离线高亮" link="data:page/id,ide-clients" id="cloudflow-ide-ecosystem">
+          <mxCell style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#1061B0;strokeColor=#0D5091;" vertex="1" parent="1">
+          <mxGeometry x="140" y="240" width="240" height="120" as="geometry"/>
+        </mxCell>
+        </UserObject>
+        <UserObject label="CloudFlow Language Server&#xa;[Software System: Rust / JSON-RPC / LSP]&#xa;复用编译器前端并按用户权限提供编辑器智能" link="data:page/id,language-server-components" id="cloudflow-language-server-system">
+          <mxCell style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#1061B0;strokeColor=#0D5091;" vertex="1" parent="1">
+          <mxGeometry x="140" y="430" width="240" height="120" as="geometry"/>
+        </mxCell>
+        </UserObject>
+        <UserObject label="CloudFlow Platform API&#xa;[Software System: Gateway + Workflow Service]&#xa;认证、Capability Hub、租户/空间权限过滤" link="data:page/id,platform-capability-boundary" id="cloudflow-platform-api">
+          <mxCell style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#1061B0;strokeColor=#0D5091;" vertex="1" parent="1">
+          <mxGeometry x="0" y="610" width="240" height="120" as="geometry"/>
+        </mxCell>
+        </UserObject>
+        <mxCell id="cloudflow-runtime-system" value="CloudFlow Runtime&#xa;[Software System: Rust execution plane]&#xa;独立执行工作流；不是 Language Server 的依赖" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#8C8496;strokeColor=#736782;" vertex="1" parent="1">
+          <mxGeometry x="280" y="610" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="e0" value="编辑 .flow / .flow.yaml" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="cloudflow-authenticated-developer" target="cloudflow-ide-ecosystem">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="180"/><mxPoint x="260" y="230"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="LSP JSON-RPC：stdio / TCP / UDS / WSS" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="cloudflow-ide-ecosystem" target="cloudflow-language-server-system">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="370"/><mxPoint x="260" y="420"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="Bearer Token + tenant/space capability discovery" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="cloudflow-language-server-system" target="cloudflow-platform-api">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="190" y="550"/><mxPoint x="190" y="600"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="无运行时调用或执行依赖" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="cloudflow-language-server-system" target="cloudflow-runtime-system">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="330" y="550"/><mxPoint x="330" y="600"/></Array></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="ide-clients" name="IDE Clients">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="vscode-extension-client" value="VS Code 扩展&#xa;[Container: TypeScript / vscode-languageclient]&#xa;启动本地 cloudflow-ls --stdio；Secret Storage 保存短期 Token" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="280" y="190" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="jetbrains-lsp-client" value="JetBrains LSP Client&#xa;[Container: Kotlin / LSP]&#xa;通过 TCP 或 Unix Domain Socket 复用同一协议" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="0" y="190" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="web-studio-monaco-client" value="Web Studio Monaco Bridge&#xa;[Container: Vue / Monaco / WebSocket]&#xa;把 Monaco 文档事件和动态智能映射为 WSS LSP" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="550" y="190" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="desktop-studio-client" value="Desktop Studio&#xa;[Container: Tauri / Rust]&#xa;可嵌入或经本地 LSP 连接，复用相同服务" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="830" y="190" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="syntax-highlight-static-generator" value="syntax-highlight&#xa;[Container: Grammar/AST spec generator]&#xa;只生成 TextMate、Monarch、Highlight.js 与基础补全规范；不是 LS" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="410" y="0" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="language-server-ide-endpoint" value="CloudFlow Language Server&#xa;[Software System: Rust / JSON-RPC]&#xa;本地或远程的 LSP 服务端点" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#8C8496;strokeColor=#736782;" vertex="1" parent="1">
+          <mxGeometry x="410" y="370" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="e0" value="spawn stdio LSP" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="vscode-extension-client" target="language-server-ide-endpoint">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="460" y="310"/><mxPoint x="460" y="360"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="TCP / UDS LSP" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="jetbrains-lsp-client" target="language-server-ide-endpoint">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="360"/><mxPoint x="120" y="430"/><mxPoint x="120" y="430"/><mxPoint x="120" y="430"/><mxPoint x="400" y="430"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="WSS JSON-RPC" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="web-studio-monaco-client" target="language-server-ide-endpoint">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="600" y="310"/><mxPoint x="600" y="360"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="embedded or local LSP" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="desktop-studio-client" target="language-server-ide-endpoint">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="950" y="360"/><mxPoint x="950" y="430"/><mxPoint x="950" y="430"/><mxPoint x="950" y="430"/><mxPoint x="670" y="430"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="TextMate / snippets / offline fallback" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="syntax-highlight-static-generator" target="vscode-extension-client">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="460" y="120"/><mxPoint x="460" y="170"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="Monarch / baseline completion fallback" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="syntax-highlight-static-generator" target="web-studio-monaco-client">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="600" y="120"/><mxPoint x="600" y="170"/></Array></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="language-server-components" name="Language Server Components">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="lsp-transport-adapter" value="LSP Transport Adapter&#xa;[Component: stdio / TCP / UDS / WebSocket]&#xa;Content-Length framing、JSON-RPC 限流与取消请求" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="lsp-session-document-manager" value="Session + Document Manager&#xa;[Component: Tokio / UTF-16 positions]&#xa;每连接隔离认证、打开文档、版本和增量文本变更" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="0" y="190" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="compiler-frontend-api" value="Compiler Frontend API&#xa;[Component: Parser / AST / Expression / Semantic]&#xa;复用现有 DSL/YAML Parser 与类型、语义规则；不依赖 Runtime 服务" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="0" y="370" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="lsp-analysis-symbol-cache" value="Analysis / Symbol / AST Cache&#xa;[Component: Rust LRU-ready cache]&#xa;诊断、符号、类型、补全、Hover、Definition、Rename、Semantic Tokens" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="0" y="560" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="lsp-capability-provider" value="Authenticated Capability Provider&#xa;[Component: HTTPS / cache TTL 5m]&#xa;按 token hash + tenant + space 隔离缓存，不硬编码能力" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="140" y="740" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="lsp-token-manager" value="Auth Token Manager&#xa;[Component: Secret / 0600 token file]&#xa;不保存密码；日志中不记录 token" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="280" y="560" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="platform-api-ls-external" value="CloudFlow Platform API&#xa;[Software System: HTTPS]&#xa;经网关验证的 Capability Hub 发现接口" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#8C8496;strokeColor=#736782;" vertex="1" parent="1">
+          <mxGeometry x="140" y="930" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="e0" value="LSP 生命周期与请求" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="lsp-transport-adapter" target="lsp-session-document-manager">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="120"/><mxPoint x="120" y="170"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="当前文档 + 版本" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="lsp-session-document-manager" target="compiler-frontend-api">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="310"/><mxPoint x="120" y="360"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="AST / diagnostics / semantic result" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="compiler-frontend-api" target="lsp-analysis-symbol-cache">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="490"/><mxPoint x="120" y="540"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="action completion / hover / signature schema" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="lsp-analysis-symbol-cache" target="lsp-capability-provider">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="190" y="680"/><mxPoint x="190" y="730"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="Bearer token, tenant, space" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="lsp-token-manager" target="lsp-capability-provider">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="330" y="680"/><mxPoint x="330" y="730"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="GET /api/v1/capabilities" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="lsp-capability-provider" target="platform-api-ls-external">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="860"/><mxPoint x="260" y="910"/></Array></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="platform-capability-boundary" name="Platform Capability Boundary">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="api-gateway-auth-boundary" value="API Gateway&#xa;[Container: JWT verification / trusted headers]&#xa;验证 Bearer Token，覆盖伪造身份头，再转发受信用户上下文" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="140" y="190" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="workflow-capability-controller" value="Capability Discovery Controller&#xa;[Container: Spring Web]&#xa;GET /capabilities；拒绝匿名目录查询" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="140" y="370" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="capability-hub-policy-service" value="Capability Hub Policy Filter&#xa;[Component: Java / Spring]&#xa;required_permissions + enabled + tenant_ids + space_ids deny-by-default" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="140" y="560" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="platform-authorization-client" value="Platform Authorization Client&#xa;[Component: internal HTTP]&#xa;按用户与空间解析当前授权集合" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#63BEF2;strokeColor=#2086C9;" vertex="1" parent="1">
+          <mxGeometry x="0" y="740" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="capability-registry-db" value="Capability Registry&#xa;[Container: MySQL]&#xa;插件/API/内置能力 schema、版本与可用性策略" style="shape=cylinder3;size=15;boundedLbl=1;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#23A2D9;strokeColor=#0E7DAD;" vertex="1" parent="1">
+          <mxGeometry x="280" y="740" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="language-server-platform-external" value="CloudFlow Language Server&#xa;[Software System: HTTPS client]&#xa;持 Bearer Token 的能力查询调用方" style="rounded=1;arcSize=10;html=1;whiteSpace=wrap;fontSize=12;fontColor=#ffffff;align=center;fillColor=#8C8496;strokeColor=#736782;" vertex="1" parent="1">
+          <mxGeometry x="140" y="0" width="240" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="e0" value="HTTPS Bearer Token" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="language-server-platform-external" target="api-gateway-auth-boundary">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="120"/><mxPoint x="260" y="170"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e1" value="可信 X-User-Id / X-Space-Id" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="api-gateway-auth-boundary" target="workflow-capability-controller">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="310"/><mxPoint x="260" y="360"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="authenticated discovery" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="workflow-capability-controller" target="capability-hub-policy-service">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="260" y="490"/><mxPoint x="260" y="540"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="current grants" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="capability-hub-policy-service" target="platform-authorization-client">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="190" y="680"/><mxPoint x="190" y="730"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="candidate registry rows" style="endArrow=blockThin;endFill=1;endSize=10;html=1;fontSize=11;fontColor=#404040;strokeColor=#828282;labelBackgroundColor=#ffffff;rounded=0;" edge="1" parent="1" source="capability-hub-policy-service" target="capability-registry-db">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="330" y="680"/><mxPoint x="330" y="730"/></Array></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

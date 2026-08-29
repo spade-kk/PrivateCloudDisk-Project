@@ -1,0 +1,37 @@
+#include <tunables/global>
+
+profile pcd-plugin-sandbox flags=(attach_disconnected,mediate_deleted) {
+  # 插件生态 Sprint 0：仅允许解释器、只读插件/输入/上下文和专用输出目录。
+  # 网络在 Docker 层设为 none；AppArmor 再次显式拒绝网络与高风险内核接口。
+  #include <abstractions/base>
+
+  network deny,
+  capability deny,
+  mount deny,
+  umount deny,
+  pivot_root deny,
+  ptrace deny,
+  signal (send) peer=unconfined,
+
+  /usr/local/bin/python3.11 ix,
+  /usr/local/lib/python3.11/** r,
+  /lib/** mr,
+  /usr/lib/** mr,
+  /etc/ld.so.cache r,
+  /dev/null rw,
+  /dev/urandom r,
+
+  /opt/pcd/** r,
+  /opt/pcd-sdk/** r,
+  /workspace/plugin/** r,
+  /workspace/input/** r,
+  /workspace/context/** r,
+  /workspace/work/** rwk,
+  /tmp/** rw,
+
+  deny /proc/** wklx,
+  deny /sys/** rwklx,
+  deny /etc/** wklx,
+  deny /root/** rwklx,
+  deny /home/** rwklx,
+}

@@ -1,0 +1,769 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-complex_combo",
+    "name": "complex_combo",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {
+      "kind": {
+        "type": "string",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      },
+      "ok": {
+        "type": "boolean",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      }
+    },
+    "graph": {
+      "nodes": [
+        {
+          "id": "type_switch",
+          "type": "switch",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": {
+            "subject": {
+              "$ref": "vars.kind"
+            },
+            "cases": [
+              {
+                "value": "pdf",
+                "body": [
+                  "pdf"
+                ]
+              },
+              {
+                "value": "doc",
+                "body": [
+                  "doc"
+                ]
+              }
+            ],
+            "default": [
+              "other"
+            ]
+          },
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "pdf",
+            "doc",
+            "other"
+          ]
+        },
+        {
+          "id": "pdf",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "parser",
+            "method": "parse_pdf",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "type_switch"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "type_switch",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "doc",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "parser",
+            "method": "parse_doc",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "type_switch"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "type_switch",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "other",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "parser",
+            "method": "parse_other",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "type_switch"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "type_switch",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "cond",
+          "type": "condition",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "pdf",
+            "doc",
+            "other"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": {
+            "$expr": {
+              "operator": "==",
+              "left": {
+                "$ref": "vars.kind"
+              },
+              "right": "pdf"
+            }
+          },
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": {
+            "trueBranch": [
+              "needs_ai"
+            ],
+            "falseBranch": [
+              "skip_ai"
+            ]
+          },
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "needs_ai",
+            "skip_ai"
+          ]
+        },
+        {
+          "id": "needs_ai",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "ai",
+            "method": "analyze",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "cond"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "skip_ai",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "log",
+            "method": "write",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "note": "skip"
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "cond"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "assert_ok",
+          "type": "assert",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "needs_ai",
+            "skip_ai"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": {
+            "$ref": "vars.ok"
+          },
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "parallel_1",
+          "type": "parallel",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "assert_ok"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": {
+            "branches": [
+              "n1",
+              "n2"
+            ]
+          },
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "n1",
+            "n2"
+          ]
+        },
+        {
+          "id": "n1",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "notify",
+            "method": "email",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "to": "team"
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "parallel_1"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "n2",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "notify",
+            "method": "sms",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "to": "ops"
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "parallel_1"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "delay_1",
+          "type": "delay",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "n1",
+            "n2"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": 0,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "trynode",
+          "type": "try",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "delay_1"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": {
+            "catchBinding": "error",
+            "try": [
+              "send"
+            ],
+            "catch": [
+              "fallback"
+            ],
+            "finally": [
+              "done"
+            ]
+          },
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "send",
+            "fallback",
+            "done"
+          ]
+        },
+        {
+          "id": "send",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "api",
+            "method": "webhook",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "trynode",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "fallback",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "log",
+            "method": "write",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "err": {
+                "$ref": "vars.error"
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "trynode",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "done",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "log",
+            "method": "write",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "note": "done"
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "trynode",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "finish",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "file",
+            "method": "save",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "result": {
+                "$ref": "vars.kind"
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "type_switch",
+          "to": "pdf"
+        },
+        {
+          "from": "type_switch",
+          "to": "doc"
+        },
+        {
+          "from": "type_switch",
+          "to": "other"
+        },
+        {
+          "from": "pdf",
+          "to": "cond"
+        },
+        {
+          "from": "doc",
+          "to": "cond"
+        },
+        {
+          "from": "other",
+          "to": "cond"
+        },
+        {
+          "from": "cond",
+          "to": "needs_ai"
+        },
+        {
+          "from": "cond",
+          "to": "skip_ai"
+        },
+        {
+          "from": "needs_ai",
+          "to": "assert_ok"
+        },
+        {
+          "from": "skip_ai",
+          "to": "assert_ok"
+        },
+        {
+          "from": "assert_ok",
+          "to": "parallel_1"
+        },
+        {
+          "from": "parallel_1",
+          "to": "n1"
+        },
+        {
+          "from": "parallel_1",
+          "to": "n2"
+        },
+        {
+          "from": "n1",
+          "to": "delay_1"
+        },
+        {
+          "from": "n2",
+          "to": "delay_1"
+        },
+        {
+          "from": "delay_1",
+          "to": "trynode"
+        },
+        {
+          "from": "trynode",
+          "to": "send"
+        },
+        {
+          "from": "trynode",
+          "to": "fallback"
+        },
+        {
+          "from": "trynode",
+          "to": "done"
+        },
+        {
+          "from": "trynode",
+          "to": "finish"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

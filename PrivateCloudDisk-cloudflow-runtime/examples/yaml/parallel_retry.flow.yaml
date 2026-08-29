@@ -1,0 +1,26 @@
+# CloudFlow YAML 示例 4/6（对照 DEMO 示例 4/6）
+# 场景：OCR / AI 摘要 / 标签并行执行，随后保存；AI 调用失败自动重试 3 次。
+# 覆盖：parallel 简写、depends（parallel 别名展开）、retry、timeout。
+workflow:
+  name: ai_pipeline
+
+steps:
+  - id: analyze
+    parallel:
+      - id: ocr
+        action: ai.ocr
+      - id: summary
+        action: ai.summary
+      - id: tag
+        action: ai.tag
+  - id: ai_call
+    action: ai.chat
+    retry:
+      count: 3
+      interval: 5s
+    timeout: 30s
+  - id: save
+    action: metadata.save
+    depends:
+      - analyze
+      - ai_call

@@ -16,6 +16,7 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+import java.util.Collection;
 
 /**
  * JWT 解析与验证工具类
@@ -85,5 +86,54 @@ public class JwtUtil {
         return parseAndVerifyAccessToken(token)
                 .getPayload()
                 .getSubject();
+    }
+
+    /**
+     * Tenant is derived only from a signed token claim, never from a caller-supplied HTTP header.
+     * Older personal-account tokens may not carry this optional claim; Capability Hub then applies
+     * its deny-by-default tenant policy when a capability explicitly requires tenant scoping.
+     */
+    public String getTenantIdFromToken(String token) {
+        Claims claims = parseAndVerifyAccessToken(token).getPayload();
+        Object value = claims.get("tenant_id");
+        if (value == null) {
+            value = claims.get("tenantId");
+        }
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /**
+     * Enforces the OAuth resource-server claims only when production explicitly
+     * configures them. This preserves current first-party development tokens
+     * while preventing a generic platform token from being accepted by a
+     * third-party MCP route after the OAuth issuer is enabled.
+     */
+    public boolean hasMcpAudienceAndScope(String token, String requiredAudience, String requiredScope) {
+        Claims claims = parseAndVerifyAccessToken(token).getPayload();
+        return claimContains(claims.get("aud"), requiredAudience, false)
+                && (requiredScope == null || requiredScope.isBlank()
+                || claimContains(claims.get("scope") != null ? claims.get("scope") : claims.get("scp"), requiredScope, true));
+    }
+
+    private boolean claimContains(Object claim, String required, boolean splitWhitespace) {
+        if (required == null || required.isBlank()) {
+            return true;
+        }
+        if (claim instanceof Collection<?> values) {
+            return values.stream().map(String::valueOf).anyMatch(required::equals);
+        }
+        if (claim == null) {
+            return false;
+        }
+        String value = String.valueOf(claim).trim();
+        if (!splitWhitespace) {
+            return required.equals(value);
+        }
+        for (String item : value.split("\\s+")) {
+            if (required.equals(item)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

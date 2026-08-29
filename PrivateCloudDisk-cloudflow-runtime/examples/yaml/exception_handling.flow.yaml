@@ -1,0 +1,28 @@
+# CloudFlow YAML 示例 5/7/16（对照 DEMO 示例 5/7）
+# 场景：上传重试 + 顶层 catch 异常处理 + finally。
+# 覆盖：retry、on_error fallback、顶层 catch、finally、output（步骤输出名）。
+workflow:
+  name: exception_demo
+
+steps:
+  - id: upload
+    action: file.upload
+    retry:
+      count: 3
+      strategy: exponential
+    on_error:
+      retry: 2
+      fallback: notify.admin
+  - id: save
+    action: database.save
+    depends:
+      - upload
+    output: result
+
+catch:
+  - error: "*"
+    action: notify.admin
+
+finally:
+  - id: cleanup
+    action: file.cleanup

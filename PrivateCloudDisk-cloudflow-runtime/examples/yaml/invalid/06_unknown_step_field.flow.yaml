@@ -1,0 +1,6 @@
+# 反例：步骤存在未知字段 `foo`（31.5），应含“是否想用 depends”之类建议（31.22）。
+# expected: CFY-SCHEMA-1003
+steps:
+  - id: a
+    action: file.get
+    depends_on_missing: [x]

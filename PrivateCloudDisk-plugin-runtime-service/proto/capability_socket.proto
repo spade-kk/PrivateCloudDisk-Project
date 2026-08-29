@@ -1,0 +1,30 @@
+// CF-PLUGIN-UDS-001: Plugin SDK <-> Runtime Agent private UDS RPC contract.
+// This file is the compatibility source of truth. The Python SDK intentionally
+// implements this bounded wire subset with the standard library so the sandbox
+// image does not need an additional protobuf distribution.
+syntax = "proto3";
+
+package pcd.plugin.runtime.v1;
+
+option go_package = "privateclouddisk/plugin-runtime-service/internal/uds";
+
+message ErrorInfo {
+  string code = 1;
+  string message = 2;
+  bool retryable = 3;
+}
+
+message CapabilityRequest {
+  string request_id = 1;
+  string capability_key = 2;
+  bytes parameters_json = 3;
+  string plugin_instance_id = 4;
+  bytes instance_token = 5;
+}
+
+message CapabilityResponse {
+  string request_id = 1;
+  string status = 2;
+  bytes result_json = 3;
+  ErrorInfo error = 4;
+}

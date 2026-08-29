@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: e2e086aa-ec2f-6604-aee6-16becd06763c
+  name: 内容反转修改
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

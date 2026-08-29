@@ -1,0 +1,22 @@
+{
+  "meta_data": {
+    "source_name": "sample"
+  },
+  "records": [
+    {
+      "display_name": "alpha",
+      "count": 1,
+      "note": "first"
+    },
+    {
+      "display_name": "beta",
+      "count": 2,
+      "note": ""
+    },
+    {
+      "display_name": "gamma",
+      "count": 3,
+      "note": "third"
+    }
+  ]
+}

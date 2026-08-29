@@ -20,9 +20,12 @@ test('CloudFlow 终端保留换行、折叠长行且不使用不可信 HTML', as
 })
 
 test('Runtime 结构化诊断会映射为 Monaco marker', async () => {
-  const source = await readSource('../src/components/plugins/PluginMonacoEditor.vue')
+  const [source, language] = await Promise.all([
+    readSource('../src/components/plugins/PluginMonacoEditor.vue'),
+    readSource('../src/languages/cloudflow.ts'),
+  ])
   assert.match(source, /externalIssues/)
   assert.match(source, /pcd-cloudflow-runtime/)
-  assert.match(source, /setMonarchTokensProvider\('cloudflow'/)
+  assert.match(language, /setMonarchTokensProvider\('cloudflow'/)
   assert.match(source, /MarkerSeverity\.Error/)
 })

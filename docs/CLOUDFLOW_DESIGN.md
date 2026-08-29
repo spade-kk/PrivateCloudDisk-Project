@@ -19,7 +19,7 @@
 - 文件扩展名固定为 `.flow`，根结构固定为 `workflow "name" { ... }`。
 - 所有关键字大小写敏感且只允许小写。顶层只允许 `metadata`/`variables`/`trigger`/`runtime`/`steps`/`handlers`；任意命名块必须产生 `CF1201` 诊断。
 - 字符串字面量使用双引号；多行说明使用三双引号。变量引用仅接受 `vars.<name>` 与 `steps.<step_id>.output`。
-- 编译链路固定为 Pest PEG 解析 → AST → 语义分析 → `workflow.cloudflow.io/v1` IR；不存在 YAML 兼容解析器。
+- 编译链路固定为 Pest PEG 解析 → AST → 语义分析 → `workflow.cloudflow.io/v1` IR。（2026-08-20 更新：已新增第二前端语言 CloudFlow YAML，经 `serde_yaml_ng` 解析后汇入同一 Domain AST，见 `CLOUDFLOW_YAML_DESIGN.md`；两端共享下迸统一语义层。）
 - 语义分析是强制阶段，至少覆盖重复步骤、未定义依赖、DAG 环、变量引用、action/plugin 命名及内置表达式函数白名单。
 - `steps.<id>.output` 是对外规范语法；历史 Demo 中的 `<id>.output` 仅作过渡兼容输入，编译后必须归一化为 `$ref`，新文档和 IDE 不再生成旧形式。
 
@@ -1463,3 +1463,106 @@ builtin
 
 全部结构的 grammar/AST/IR/语义/Runtime/错误码与测试均已落地；详见 `docs/CLOUDFLOW_V1.2_DSL_EXTENSION.md`
 与 `docs/CLOUDFLOW_ERROR_DESIGN.md` 的 CF44xx 错误码表。
+
+## 统一语义层规则体系 V1.3（2026-08-21 落地，需求 十、统一语义分析层）
+
+统一语义分析器（`src/semantic.rs`）输入为 **Workflow Domain AST**，输出为诊断列表；
+由于任一诊断即拦截 IR 生成（管线硬门，10.29），“valid 标记”（10.30）以编译链路
+状态表达：`compile_source_named_for_language` 返回 Ok(IR) 即代表该 Domain AST 通过全部语义校验；
+HTTP 编译响应的 `valid` 字段为其外部形式。
+
+### 单体检查（历史累计）
+
+`validate()` 单过指遍历完成：触发器合法性（CF1301/CF4413/CF4414）、审计级别（CF4415）、
+环境字面量（CF4405）、命名空间（CF4406）、import 别名重复（CF4407）、变量默认值类型
+（CF2101）、步骤数上限（CF2101 RESOURCE_LIMIT）、步骤 ID 唯一（CF2001）、依赖存在性 +
+最近建议（CF2002）、DAG 环检测（10.7，顶点排序）、step group（CF4418）、use_alias
+（CF4420）、条件依赖布尔（CF4421）、能力存在性/插件引用（CF3001）、retry_on
+白名单（CF4402）、on_timeout 取值（CF4403）、for range 端点（CF4410）、parallel 并发限制
+（10.15，CF4411）、try/catch/finally 递归 + catch 绑定作用域（10.14）、validate 布尔（CF4409）
+、delay>0（CF4404）、notify 渠道（CF4416）、break/continue 圈位（CF4408）、表达式静态类型
+与引用校验（10.10/10.11，带位置，10.26）。include 校验（10.16）由管线 `resolve_includes`
+执仴：深度 ≤ 8、禁 `..`/绝对路径（CF3103）、循环引用（CF3104）、模块禁声明
+trigger/runtime（CF3105）。
+
+### 规则插件接口（10.27）
+
+```rust
+pub struct RuleContext<'a> { workflow, catalog, source, filename }
+pub trait SemanticRule: Send {
+    fn name(&self) -> &'static str;
+    fn check(&self, ctx: &RuleContext, diagnostics: &mut Vec<Diagnostic>);
+}
+pub fn builtin_rules() -> Vec<Box<dyn SemanticRule>>;
+pub fn validate_with_rules(wf, catalog, source, filename, extra_rules: &[Box<dyn SemanticRule>]) -> Vec<Diagnostic>;
+```
+
+编译管线调用 `validate_with_rules(..., &[])`；外部规则（组织级规范 / IDE 侧检查）由调用方
+注入 `extra_rules`。历史单体检查保持原分支不变（待逐步规则化迁移），新检查
+一律以规则实现，诊断追加在单体诊断之后，不扰动既有锚定用例的诊断顺序。
+
+| 内置规则 | 需求 | 错误码 | 范围 |
+|---|---|---|---|
+| `DuplicateVariableRule` | 10.3 | CF2003 | 变量重复声明（AST 级兜底；管线内由解析层 CF2001 先行拦截） |
+| `RetryConfigRule` | 10.12 | CF4423 | `max_attempts > 0`；`strategy ∈ {fixed, exponential}`（与 `execution_core` 退避白名单一致）；覆盖步骤级 + `runtime.retry_policy` |
+| `TimeoutConfigRule` | 10.12 | CF4424 | 步骤级 / runtime 级 `timeout > 0` |
+| `WaitConfigRule` | 10.13 | CF4419 | wait 节点携带 timeout 时必须 `> 0`；`wait_type` 为审批标签（`approval` 首等语义，Runtime 统一进入 WAITING_APPROVAL 挂起点） |
+| `MetadataRule` | 10.19 | CF4425 | tags 禁空白标签 |
+
+设计决策说明：
+
+- **10.17/10.18 权限/资源声明检查**：Domain AST 当前没有权限/资源声明节点，能力级授权
+  由 Agent 层在执行期统一强制（能力存在性已由 CF3001 编译期校验）；`SecurityIr`
+  作为 IR 契约字段保留。未来前端引入权限声明语法时通过新增规则接入，无需改管线。
+- **10.24 IDE 反馈**：诊断携 `location`/`sourceContext`/语言标识，HTTP 编译接口以 `diagnostics[]`
+  返回，IDE 直接映射到编辑器波浪线（见 `CLOUDFLOW_YAML_DESIGN.md` 编辑器章节）。
+- **10.25 性能**：单过指复用预建 `variable_names`/`ids`/依赖图集合，规则阶段只做
+  节点采集与判断，不重复遍历表达式子树。
+
+---
+
+## 统一执行引擎架构（2026-08-21）
+
+编译产物 `workflow.cloudflow.io/v1` IR 由**统一调度驱动**执行，双执行面共享同一实现，
+仅通过依赖注入（`EngineDeps`）区分行为（Cargo 工作区 crate 布局详见
+`docs/CLOUDFLOW_COMPILER_GUIDE.md` §Cargo 工作区与 crate 布局）：
+
+```plaintext
+前端 DSL（pest）      前端 YAML（serde_yaml_ng）
+      └──────┬──────┘
+   Workflow Domain AST（cloudflow-engine-core::ast）
+        语义分析（宿主 semantic）
+              ↓
+   Workflow IR（cloudflow-engine-core::ir，workflow.cloudflow.io/v1）
+              ↓
+   IR 契约校验（cloudflow-engine-core::ir_validate，唯一实现；CFI-7xxx）
+              ↓
+   统一调度驱动（cloudflow-engine-core::engine::driver；主循环/节点分发/
+   重试/退避/并行/超时/控制流/on_error/失败处理器；控制流纯函数层 execution_core）
+        依赖注入 EngineDeps（StateStore/LogSink/ActionExecutor/
+        EventPublisher/Clock/ConfigProvider）
+        ├─ 生产执行面：宿主 src/execution.rs（MysqlStateStore +
+        │   AgentActionExecutor（gRPC，唯一能力出口）+ RealClock +
+        │   TracingLogSink + ProductionConfigProvider；HTTP/MQ 创建实例 →
+        │   Worker 领取 → 检查点恢复 → 执行 → 日志/状态写库）
+        └─ 开发调试面：engine-core dev_exec（InMemoryStateStore +
+            InMemoryLogSink + MockActionExecutor 或 agent 画像 +
+            NoopEventPublisher + VirtualClock；纯内存同步执行，CFD-81xx）
+```
+
+关键约束：
+
+- **不重复定义**：调度/执行/控制流语义只存在于 `engine/driver` 与 `execution_core`；
+  生产/调试两侧文件（`src/execution.rs` / `dev_exec.rs`）只做依赖实现与入口适配。
+- **能力调用唯一出口**：所有动作经 Capability Agent（`cloudflow-agent` crate，gRPC）
+  分发到 builtin/api/plugin；执行引擎核心不直接访问数据库、文件系统或其他微服务。
+  Agent 只做透传：能力注册表解析、JSON Schema 校验、权限收敛、路由分发与审计统一由
+  workflow-service 的 Capability Hub（`CapabilityHubService`）完成，平台 API 能力
+  再经 `ApiCapabilityInvoker` 白名单路由到 Platform/Storage 数据面内部接口二次鉴权，
+  详见 `docs/CAPABILITY_HUB.md`。
+- **错误码分层**：CFxxxx（DSL 编译）/ CFY-（YAML 前端）/ CFI-7xxx（IR 契约）/
+  CFD-81xx（仅调试运行面）/ CF2-CF5（生产运行面），见 `docs/CLOUDFLOW_ERROR_DESIGN.md`。
+- **向后兼容**：生产执行流程（HTTP 创建实例 ID → 写库 → Worker 加载 IR → 执行 →
+  日志回写）与既有错误码、日志行、节点检查点语义保持不变。
+- 开发调试入口（CLI `cloudflowc dev-execute` / HTTP `POST /api/dev/execute`，
+  支持 `profile: inmem|agent` 生产仿真）详见 `docs/CLOUDFLOW_DEV_EXECUTE.md`。

@@ -43,12 +43,13 @@ PrivateCloudDisk 是面向团队与业务的私有云文件平台，围绕文件
 | `im-platform-backend` | Spring Boot / `8088` | 会话、消息、群组、好友和通话记录等 IM 业务 |
 | `im-server-backend` | Netty / WebSocket `9090` | 实时长连接和消息推送 |
 | `client-registration-service` | Go / `8089` | 客户端注册挑战、设备身份、用户绑定、签名证明和插件绑定 |
-| `plugin-service-backend` | Spring Boot / `8085` | 插件定义、版本、清单、权限、安装、包仓库、签名、执行记录和插件市场 |
+| `plugin-service-backend` | Spring Boot / `8085` | 插件定义、版本、清单、权限、安装、包仓库、签名、执行记录、受权日志/能力审计和插件市场 |
 | `plugin-runtime-service` | Go / `8090` | 受控运行时、Python 沙箱、资源限制、Broker 和执行回收 |
 | `automation-service-backend` | Spring Boot + RabbitMQ / `8084` | 文件事件匹配、插件入口选择、执行持久化、Inbox/Outbox 和恢复 |
 | `workflow-service-backend` | Spring Boot + RabbitMQ / `8087` | 工作流定义、DSL 校验、能力中心、版本发布、执行、市场和调度对接 |
 | `scheduler-service-backend` | Spring Boot + RabbitMQ / `8088` | Cron 计划、租约、幂等触发和调度消息发布 |
-| `ai-service-backend` | FastAPI / `8001` | 可选 AI 任务、推荐、聚类和异步模型处理 |
+| `cloud-ai-agent` | FastAPI + OpenAI-compatible `AsyncOpenAI` / `8001` | 企业数字资产 Agent Runtime；结构化 Agent Task SSE（上下文、动态计划、工具、输出、总结）、快照恢复、审批、静态工具注册表，并仅经 Capability Hub 调用文件/空间/CloudFlow/插件能力（`automation` profile） |
+| `cloudflow-mcp-server` | Go 1.24 / `8093`（仅内网） | 面向第三方 Agent 的服务端 MCP Integration Plane；仅经 Capability Hub 发现/调用经过审核的能力，Gateway 负责 Bearer 校验与签名身份上下文（`automation` profile） |
 
 服务之间通过 Docker Compose 服务名、内部 API 和 RabbitMQ 事件协作。浏览器链路为“浏览器 → Nginx → Gateway → 业务/文件服务”；容器内部不能用 `localhost` 代替其他服务。
 
@@ -60,6 +61,8 @@ PrivateCloudDisk 是面向团队与业务的私有云文件平台，围绕文件
 4. RabbitMQ 解耦文件处理、通知、插件自动化和工作流执行。
 5. MySQL 保存业务数据，Redis 保存缓存、限流、会话和短期授权，MinIO/本地卷保存对象，OpenSearch 支撑检索。
 6. 插件和工作流通过能力中心访问受控能力，不直接取得宿主文件路径、数据库凭证或用户 JWT。
+7. Cloud AI Agent 通过 Gateway 的签名用户/空间上下文和 Capability Hub 操作企业资产；它不直连数据库、对象存储、文件服务、CloudFlow Runtime 或 Plugin Runtime。`/app/ai` 将每次 Agent run 渲染为可恢复的任务文档，断线只读取 task snapshot，不重复执行。
+8. CloudFlow MCP Server 是第三方 Agent 的服务端标准能力出口，不是 Agent/Runtime/编译器；它不直连业务服务或数据存储，所有工具发现、最终权限、Schema、分发和审计由 Capability Hub 完成。详见 [MCP Server 架构](./docs/CLOUDFLOW_MCP_SERVER_DESIGN.md)。
 
 性能设计包括分片上传、断点续传、SHA-256 校验、Range/流式下载、并发控制、异步文件处理、预览资源缓存、健康检查、指标和链路追踪。仓库没有未经压测的吞吐、延迟或 SLA 承诺，生产容量须结合实例、连接池、消息堆积、存储吞吐和压测结果制定。
 
@@ -104,7 +107,8 @@ PrivateCloudDisk-project/
 ├── PrivateCloudDisk-workflow-service/      # 工作流
 ├── PrivateCloudDisk-scheduler-service/     # 调度
 ├── PrivateCloudDisk-billing-service/       # 计费
-├── PrivateCloudDisk-ai-service/            # 可选 AI
+├── PrivateCloudDisk-ai-service/            # Cloud AI Agent Runtime（FastAPI + Agent Task SSE V2）
+├── PrivateCloudDisk-cloudflow-mcp-server/   # 第三方 Agent 的 server-only MCP Integration Plane（Go）
 ├── PrivateCloudDisk-db/  PrivateCloudDisk-infra/
 ├── contracts/  deploy/  docs/
 ```

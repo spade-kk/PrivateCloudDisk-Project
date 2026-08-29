@@ -1,0 +1,4 @@
+# 反例：步骤缺少必填字段 `id`（31.3）。
+# expected: CFY-SCHEMA-1001
+steps:
+  - action: file.get

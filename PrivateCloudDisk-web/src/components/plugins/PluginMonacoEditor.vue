@@ -36,6 +36,7 @@ import { parseDocument } from 'yaml'
 import { loadMonaco } from '@/utils/monacoLoader'
 import { registerCloudFlowLanguage } from '@/languages/cloudflow'
 import { registerCloudFlowCompletion } from '@/languages/cloudflowCompletion'
+import { CloudFlowLspMonacoBridge, type CloudFlowLspOptions } from '@/languages/cloudflowLspClient'
 import type { CapabilityInfo } from '@/api/modules/workflows'
 
 interface ExternalEditorIssue {
@@ -57,6 +58,8 @@ const props = withDefaults(defineProps<{
   theme?: 'vs' | 'vs-dark' | 'hc-black'
   capabilities?: CapabilityInfo[]
   externalIssues?: ExternalEditorIssue[]
+  /** 配置后由 CloudFlow LS 提供动态能力、类型、Hover 与诊断；未配置时保持静态降级。 */
+  cloudflowLsp?: CloudFlowLspOptions | null
 }>(), {
   title: '插件源码',
   height: '560px',
@@ -64,6 +67,7 @@ const props = withDefaults(defineProps<{
   theme: 'vs-dark',
   capabilities: () => [],
   externalIssues: () => [],
+  cloudflowLsp: null,
 })
 
 const emit = defineEmits<{
@@ -79,6 +83,8 @@ let monacoApi: typeof import('monaco-editor') | null = null
 let editor: import('monaco-editor').editor.IStandaloneCodeEditor | null = null
 let changeGuard = false
 const disposables: Array<{ dispose(): void }> = []
+let cloudflowLspBridge: CloudFlowLspMonacoBridge | null = null
+let cloudflowStaticFallbackRegistered = false
 
 const PYCLOUD_STUB = `
 from typing import Any, Dict, List, Optional
@@ -188,28 +194,14 @@ function validateContent(value: string): void {
         endColumn: position.col + 1,
       })
     })
-  } else if (props.language === 'cloudflow') {
-    // [CLOUDFLOW-DSL-001] 前端只做轻量即时反馈，完整语法、能力和 DAG 语义由后端校验。
-    if (!/^\s*workflow\s+"[^"\r\n]+"\s*\{/m.test(value)) {
-      markers.push({ severity: monacoApi.MarkerSeverity.Error, message: 'CloudFlow DSL 必须以 workflow "name" { 开始', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 })
-    }
-    if ((value.match(/\{/g) || []).length !== (value.match(/\}/g) || []).length) {
-      markers.push({ severity: monacoApi.MarkerSeverity.Error, message: 'CloudFlow DSL 的大括号未配对', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 })
-    }
-    const lines = value.split(/\r?\n/)
-    lines.forEach((line, index) => {
-      if (/^\s*apiVersion:|^\s*kind:|^\s*spec:/.test(line)) {
-        markers.push({ severity: monacoApi!.MarkerSeverity.Error, message: '旧 YAML DSL 已停止支持，请改写为 CloudFlow DSL', startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: line.length + 1 })
-      }
-      if (/^\s*step\s+.*\s+uses\s+/.test(line)) {
-        markers.push({ severity: monacoApi!.MarkerSeverity.Error, message: '旧版 step uses 语法已停止支持，请在 step 块内使用 action <service.method> { ... }', startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: line.length + 1 })
-      }
-    })
   }
+  // [CLOUDFLOW-LS-WEB-004] CloudFlow 的语法、AST、类型、DAG 与动态能力诊断
+  // 只由 cloudflow-ls（或最终 Runtime 校验）产生；浏览器不再保留正则 DSL Parser，
+  // 防止与 Compiler Core 的规则漂移。未配置 LS 时仍保留静态高亮/基础补全与保存前校验。
   setMarkers(markers)
 }
 
-function registerCompletionProviders(monaco: typeof import('monaco-editor')): void {
+function registerCompletionProviders(monaco: typeof import('monaco-editor'), useCloudFlowLsp: boolean): void {
   // [CLOUDFLOW-IDE-HIGHLIGHT-001] CloudFlow 是独立语言，不借用 YAML tokenizer。
   // 语法高亮规则由 GRAMMAR.pest + AST.rs 生成的统一规范转换而来（见 src/languages/cloudflow.ts），
   // 前端不硬编码任何 CloudFlow 高亮正则（需求：禁止前端硬编码语法高亮逻辑）。
@@ -253,19 +245,31 @@ function registerCompletionProviders(monaco: typeof import('monaco-editor')): vo
       })),
     }),
   }))
-  // [CLOUDFLOW-IDE-COMPLETION-001] CloudFlow 代码补全由 GRAMMAR.pest + AST.rs
-  // 生成的统一补全规范 cloudflow.completion.json 驱动（唯一事实来源），前端不再
-  // 硬编码任何 CloudFlow 补全规则；运行时能力表（capabilities）由 props 注入。
-  disposables.push(...registerCloudFlowCompletion(monaco, {
-    capabilities: props.capabilities,
-  }))
+  // [CLOUDFLOW-LS-WEB-002] 连接 LS 后，动态能力/符号/签名/诊断全部由 Rust
+  // Compiler Core + Capability Hub 产出，避免与 syntax-highlight 的静态基础补全重复。
+  // WebSocket 不可用时仍保留生成规范驱动的离线静态降级能力。
+  if (!useCloudFlowLsp) {
+    registerCloudFlowStaticFallback(monaco)
+  }
+}
+
+/**
+ * [CLOUDFLOW-LS-WEB-002] 仅在没有配置 LS 或 LS 握手失败时注册静态补全。
+ * 这样 syntax-highlight 继续承担离线基础提示，而已连接的 LS 不会与它重复
+ * 返回动态 Capability Hub、类型或符号结果。
+ */
+function registerCloudFlowStaticFallback(monaco: typeof import('monaco-editor')): void {
+  if (cloudflowStaticFallbackRegistered) return
+  cloudflowStaticFallbackRegistered = true
+  disposables.push(...registerCloudFlowCompletion(monaco, { capabilities: props.capabilities }))
 }
 
 async function initialize(): Promise<void> {
   if (!containerRef.value) return
   const monaco = await loadMonaco()
   monacoApi = monaco
-  registerCompletionProviders(monaco)
+  const useCloudFlowLsp = props.language === 'cloudflow' && !!props.cloudflowLsp?.endpoint
+  registerCompletionProviders(monaco, useCloudFlowLsp)
   monaco.languages.typescript.javascriptDefaults.addExtraLib(
     CLIENT_SDK_STUB,
     'pcd-client-sdk.d.ts',
@@ -291,6 +295,16 @@ async function initialize(): Promise<void> {
     padding: { top: 14, bottom: 14 },
     fixedOverflowWidgets: true,
   })
+  if (useCloudFlowLsp && props.cloudflowLsp && editor) {
+    cloudflowLspBridge = new CloudFlowLspMonacoBridge(monaco as any, editor as any, props.cloudflowLsp)
+    cloudflowLspBridge.start()
+      .then(() => validateContent(editor?.getValue() || props.modelValue))
+      .catch((error) => {
+        // LSP 是增强层；无法连接时不影响编辑、保存和后端 Runtime 校验。
+        console.warn('[PluginMonacoEditor] CloudFlow LS 不可用，当前使用静态降级能力', error)
+        registerCloudFlowStaticFallback(monaco)
+      })
+  }
   disposables.push(editor.onDidChangeModelContent(() => {
     if (changeGuard || !editor) return
     const value = editor.getValue()
@@ -330,6 +344,12 @@ watch(() => props.externalIssues, () => {
   if (editor) validateContent(editor.getValue())
 }, { deep: true })
 
+watch(() => props.capabilities, () => {
+  // 工作流页面已有 Capability Hub 列表刷新链路；其结果发生变化时通知 LS 立即按
+  // 当前 token/tenant/space 重取能力，避免等待五分钟 TTL 后才出现新插件或权限变更。
+  if (props.language === 'cloudflow') cloudflowLspBridge?.refreshCapabilities()
+}, { deep: true })
+
 onMounted(() => {
   initialize().catch((error) => {
     console.error('[PluginMonacoEditor] 初始化失败', error)
@@ -339,6 +359,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  cloudflowLspBridge?.dispose()
+  cloudflowLspBridge = null
+  cloudflowStaticFallbackRegistered = false
   disposables.splice(0).forEach((disposable) => disposable.dispose())
   editor?.dispose()
   editor = null

@@ -1,0 +1,7 @@
+# 反例：trigger.type 非法值（31.6）。
+# expected: CFY-SCHEMA-1004
+trigger:
+  type: banana
+steps:
+  - id: a
+    action: file.get

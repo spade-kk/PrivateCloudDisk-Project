@@ -1,0 +1,24 @@
+manifest_version: 1
+plugin:
+  id: e5fb78f1-21aa-0b77-44c4-ef7a1679b7dc
+  name: 资源耗尽模拟插件
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation
+limits:
+  timeout_seconds: 15
+  memory_mb: 64

@@ -1,5 +1,9 @@
 # PrivateCloudDisk 插件生态与自动化工作流平台
 
+> **2026-08-24 架构补充：Cloud AI Agent Runtime。** 平台新增的 `cloud-ai-agent` 是面向企业数字资产的智能体运行时，不是插件或文件服务的旁路客户端。它只能通过 Capability Hub 调用经注册的文件、空间、CloudFlow 与插件能力，并以最终用户/空间身份接受 Capability Hub 的权限校验、参数校验、幂等和审计。完整边界、SSE 协议、模型适配、会话隔离、部署与迁移见 [Cloud AI Agent Service 企业级智能体运行时设计](./CLOUD_AI_AGENT_SERVICE_DESIGN.md)。
+
+> CloudFlow 的唯一新工作流源格式仍是 `.flow` / CloudFlow DSL 与 `workflow.cloudflow.io/v1` IR；AI 生成工作流必须先调用 CloudFlow 编译/校验能力，再经相应审批调用执行能力。历史 YAML 示例或执行链路不得在 AI Agent 中重新引入。
+
 > 文档状态：`APPROVED-FOR-IMPLEMENTATION`
 > 版本：`v0.4.0`
 > 日期：`2026-07-29`
@@ -486,8 +490,14 @@ Runtime 不允许：
 - `builtin:text.transform`
 - `builtin:date.now`
 - `api:user.notify`
-- `api:space.members.list`
+- `api:file.metadata.get`、`api:file.scan`、`api:file.content.get`、`api:file.list`、`api:file.search`、`api:tag.list`
+- `api:space.info`、`api:space.members.list`
+- `api:user.info`、`api:notification.send`、`api:share.create`
 - `plugin:{plugin_id}:{capability_name}@{major}`
+
+> 能力中心平台 API 能力扩展（V4，2026-08-21）：以 `pcd_capability_registry` 为准，`required_permissions_json`
+> 声明各能力最小权限（`file.read` / `space.read` / `user.profile.read` / `notification.send` / `file.share`），
+> 平台数据面内部接口（`/business/internal/capability/*`）二次复核资源归属，详见 `docs/CAPABILITY_HUB.md`。
 
 职责：
 
@@ -752,6 +762,24 @@ Runtime 不允许：
 - IDX `(source_type, source_id)`
 
 日志正文保存到专用存储并按保留策略删除；MySQL 只保留摘要和索引。
+
+#### 6.7.1 执行可观测性实现补充（PLUGIN-EXEC-OBS-001，2026-08-23）
+
+上述对象存储方案适用于冷归档和无限量保留；当前上线实现补充了一个**热查询层**，而不是把
+`full_log_object_key` 直接暴露给浏览器：
+
+| 表 | 作用 | 核心索引/约束 |
+|---|---|---|
+| `pcd_plugin_execution_log_line` | 已脱敏日志行，供 Docker 风格界面、时间/级别/来源过滤和 SSE tail 查询 | PK `(execution_id, sequence_no)`；IDX `(execution_id, occurred_at, sequence_no)`、`(execution_id, log_level, log_source, sequence_no)` |
+| `pcd_plugin_execution_audit_trail` | 能力调用链、脱敏参数/返回、状态、耗时和摘要 | PK `audit_id`；UK `(execution_id, sequence_no)`；IDX 父调用、时间和能力/状态筛选 |
+| `pcd_plugin_execution_observability_cursor` | 多实例内部投递的连续行号分配 | 每 execution 一行，事务内 `SELECT … FOR UPDATE` |
+| `pcd_plugin_execution_observation_ingest` | Automation 的 at-least-once 重放去重 | PK `(execution_id, observation_id)` |
+
+这一热查询层由 `V6__plugin_execution_observability.sql` 建立，所有日志和 JSON 审计在写入前
+二次脱敏；浏览器只能通过 Plugin Service 的执行 ID 受权接口获取游标分页、SSE 或流式下载，不能
+获得对象键、Runtime 地址、容器路径或存储凭据。下载使用逐页流式响应，不设隐藏行数上限。冷归档
+接入后可把相同字段按保留策略转储，但不得改变当前 API 的游标、脱敏或授权语义。详细契约见
+`docs/PLUGIN_EXECUTION_OBSERVABILITY.md`。
 
 ### 6.8 市场与审计表
 
@@ -1052,6 +1080,29 @@ PluginStoragePort
 
 ---
 
+### 7.6 代码现状（实现核对，未改动 7.1-7.5 设计）
+
+`PrivateCloudDisk-plugin-runtime-service` 已按 7.1/7.2 实现受约束 `.pcdpkg`：
+
+- `internal/package/`：单一受约束 ZIP 解析器（`parse.go`）+ `manifest.yaml` 解析器
+  （`manifest.go`）。解压时强制：路径穿越/绝对路径/`..`、符号链接/硬链接/设备文件、
+  文件数 ≤1000、解压后 ≤20 MiB、单脚本 ≤1 MiB/≤5000 行、敏感文件
+  （`.env`/私钥/二进制可执行/动态库）与顶层目录白名单（`src`/`schemas`/`assets`/
+  `README.md`/`LICENSE`/`manifest.yaml`），与 7.1 禁止清单一致。
+- `internal/pkgclient/`（`client.go`）：只做安全下载（2.11 定位）——`.pcdpkg`
+  扩展名校验、ZIP 魔数、大小上限、SHA256 头校验、内部服务令牌、隔离目录
+  `0700`/`O_EXCL` 落盘，不解析包内容。
+- `internal/sandbox/runner.go`：下载后统一走 `parse` 得到 `Parsed` 元数据，
+  `Execute/ExecutePostAvailable/ExecuteCapability` 全部由 manifest 的
+  entrypoints/exports/limits 驱动（4.x），不再信任请求中的模块路径/函数名；
+  外部旧式 entrypoints 返回 `MANIFEST_DRIVEN_REQUIRED`。
+- 旧格式插件包（无 `manifest.yaml`/非 `src/` 结构，或旧 `plugin.yaml` 松散目录）
+  在运行时被 `Parse` 拒绝，不兼容旧松散 zip（需求 7）。
+- 迁移说明：发布/上传侧须把旧松散目录重打包为受约束 `.pcdpkg`
+  （测试侧示例：一次性脚本 `scripts/migrate_realworld_pcdpkg.py`；常规打包由
+  `scripts/package_test_plugins.sh` 按 7.1 结构产出受约束包）。旧格式插件版本
+  在运行时不再执行，需重新发布 `.pcdpkg` 或标记为 legacy 禁止运行。
+
 ## 8. Python 沙箱与运行时安全
 
 ### 8.1 安全边界
@@ -1153,11 +1204,12 @@ MVP 仅允许：
 
 ### 8.5 pycloud 连接方式
 
-沙箱网络为 none。`pycloud` 通过仅挂载给本次执行的 Unix Domain Socket
-`/.pcd/bridge.sock` 和 Execution Capability Broker 通信：
+沙箱网络为 none。`pycloud` 通过仅挂载给本次**插件实例**的 Unix Domain Socket
+`/runtime/runtime.sock` 和 Runtime Agent 通信；Agent 再以内部服务凭证调用 Capability Hub：
 
-- Socket 只对应一个 execution_id。
-- Broker 不信任请求中的 user_id/space_id，以服务端 Lease 为准。
+- Socket 只对应一个不可预测的 plugin instance/session，不与插件版本、安装记录或整个 execution 共享。
+- Agent 不信任 SDK 请求中的 user_id/space_id；这些字段根本不在 SDK RPC 信封中，而由不可变 Session 上下文注入。
+- SDK 请求还必须携带由 `runner.py` 启动参数接收的单实例 Token；Token 与 Socket Session 双重匹配。
 - 每个方法有 JSON Schema、权限、速率、字节数和次数限制。
 - Broker 返回逻辑文件句柄，不返回物理路径、JWT 或对象存储凭证。
 - 容器退出立即删除 socket 和 Lease。
@@ -1174,7 +1226,100 @@ ALLOCATING -> STARTING -> RUNNING -> TERMINATING -> CLEANED
 Runtime 定期扫描超过 Lease 的容器；即使进程崩溃，reaper 也会按 execution label 回收。
 容器、tmpfs、socket、日志流和输入文件引用必须全部完成清理后才发布终态。
 
----
+
+### 8.7 JavaScript/Node 静态校验（AST，需求五 5.1-5.25）
+
+本地插件（JavaScript/ES2022）在外层控制面发布前与 Python 一样走“只解析不执行”的 AST 门禁：
+Runtime 以子进程运行 Node 校验器 `validator/validate_js.mjs`（vendored acorn 8.15，
+`validator/js/acorn.mjs`，MIT）。校验器不执行插件代码，与 `validate_python.py` 共享同一份
+`ValidationResponse` JSON 契约（`valid/error_type/findings/metrics`），结果按源码哈希缓存（5.20）。
+
+- 允许模块：仅 `plugin-sdk`；其余 `import`/`require`/动态 `import()`/`export ... from` 全部拒绝（5.3/5.9）。
+- 动态执行与宿主访问（拒绝）：`eval`、`Function`/`AsyncFunction`（调用与 `new`）、`WebAssembly`；
+  `setTimeout`/`setInterval`/`setImmediate` 以字符串代码为首参；`process`、`global`、`globalThis`、
+  `Buffer`、`require`、`module`、`exports`、`__dirname`、`__filename`；`child_process`/`fs`/`net`/
+  `http`/`https`/`dns`/`os`/`path` 等宿主模块；`fetch`/`XMLHttpRequest`/`WebSocket` 网络绕行（必须经
+  SDK/Agent）；`document.write`/`writeln` 反射输出（5.2/5.4/5.5/5.12/8.8）。
+- 原型链与污染（拒绝）：`__proto__`、`constructor`（含下标访问 `obj["__proto__"]`）、
+  `__defineGetter__` 等内省方法、`x.constructor.constructor(...)` 绕行链（5.6/5.15）。
+- 资源限制：1 MiB 源码、5,000 行、20,000 AST 节点、256 层 AST 深度、函数/循环嵌套 4 层、
+  单函数圈复杂度 40、全脚本 260；字符串/TemplateLiteral 超长超限与可疑字符串
+  （`sh -c`、`/etc/passwd`、Docker Socket 路径、`node:child_process` 等）拦截（5.7/5.8/5.13/5.14/5.23）。
+- 诊断与脱敏：错误只含相对位置（行/列）与业务消息，不含宿主绝对路径/堆栈（5.16/5.17/6.x）；
+  `node --check` 负责语法层，AST 负责策略层；校验器不可用时 Runtime 退回内建正则门禁，绝不静默放行（5.24）。
+- 双层校验：本地插件浏览器/桌面端除服务端 AST 门外，仍需客户端 iframe/Worker 原生沙箱与系统权限二次限制。
+
+
+### 8.8 运行时沙盒测试矩阵与覆盖（对照插件运行时测试清单 5/6/7）
+
+`PrivateCloudDisk-plugin-runtime-service` 的沙箱测试分三层，逐条锁定 `runner.go` 的安全契约：
+
+- **单元（无需 Docker，`go test -short ./...`）**：
+  - `containerArgs` 纯函数锁定全部安全参数（`--rm/--name/--label/--hostname`、`--runtime`、`--network none`、
+    `--read-only`、`--ipc=private --cgroupns=private`、CPU/内存/swap/pids/nofile、`--cap-drop ALL`、
+    `--no-new-privileges`、`--user uid:gid`、`tmpfs`、只读挂载、`userns-remap`/seccomp/AppArmor 可选注入、镜像末位）。
+    注：Docker 29.x 起 PID/UTS 私有为默认且拒绝显式 `--pid=private/--uts=private`，故仅保留 IPC/CgroupNS 显式私有。
+  - `internal/package.Parse`（`extract_package_test.go`）表驱动恶意包：路径穿越、绝对路径、符号链接、
+    设备文件、文件数 1000、体积上限、重复文件 `O_EXCL`、非 UTF-8（Linux）、解压后只读收紧与
+    宿主可清理目录权限。
+  - 镜像摘要门禁：`RequireSandboxDigest` 关闭直通、`sha256:` 前缀校验、并发 `digestMu` 只查一次、失败时审计
+    `container_digest_rejected` 且不启动容器。
+  - Execute/PostAvailable/Capability 分支：权限/运行时/标识校验、Broker 与包客户端错误码映射、nil 依赖显式拒绝、
+    取消上下文超时、工作区 `defer RemoveAll` 清理。
+  - `sanitize`/`audit`/`broker`/`pkgclient`/`config`/`model`：脱敏规则（`Path`/`RawJSON`/并发 `Extend`）、
+    审计单行 JSON、Broker/包下载上传契约（超限、哈希不一致、O_EXCL）、`config.Load` 生产门禁表驱动。
+- **Docker 集成（`go test -tags=integration`，本机无 Docker 自动 Skip）**：
+  真实容器验证成功/失败/超时强制终止/日志截断/宿主与网络隔离/非 root/只读挂载/工作目录可写/pids-limit/
+  容器无残留（`--rm` + `forceRemove`）/首次失败重试/摘要门禁拦截/审计事件落盘。
+  受限 Python 层（36.x）：`TestIntegrationRunContainerRestrictedPythonIntercepts` 在真实沙箱中
+  执行 `import os`/双下划线逃逸链/`eval` 恶意样本，断言运行时拦截且错误已脱敏；realworld 业务插件
+  默认受限模式执行，探针夹具（hostfs/network/rootuser/pids 等）显式关闭以验证 Docker 边界本身。
+- **部署/CI（`deploy/README.md`、`.github/workflows/plugin-platform-security.yml`）**：
+  - `go-runtime` job 跑单元测试、`go vet`、`check_sandbox_profiles.sh`、双语言 AST 校验器规则。
+  - `plugin-runtime-integration` job 构建含 seccomp/AppArmor 的沙箱镜像并跑集成测试（`development` 配置）。
+  - 生产门禁（runsc/seccomp/AppArmor/无网络/Debug 关闭）由 `config.Load()` 强制，测试不绕过。
+
+夹具位于 `testdata/plugins/`：成功/写输出/失败(宿主路径)/宿主探测/上下文篡改/出网探测/身份探测/能力/
+超时/日志风暴/pid 风暴/空能力/超大结果/直写 output.bin。真实上传仍必须过 AST 发布门禁，
+部分样本（出网/pid 风暴）即是静态校验会拒绝的“纵深防御验证载体”。
+
+**真实场景层（真实场景测试清单）**：`testdata/plugins/realworld/` 提供 14 个业务插件
+（文本统计/JSON 清洗/CSV 报表/Excel mock 生成/数据解析/能力导出/用户信息/超时/资源耗尽/恶意导入/
+路径逃逸/内容反转/无效输出/多入口链），全部使用 pycloud SDK 读写文件与调用能力，输入与
+`testdata/input/`、基线 `testdata/expected/*.golden` 版本化提交。集成测试
+`internal/sandbox/integration_realworld_test.go`（`//go:build integration`）在真实 Docker
+沙箱中执行这些插件，断言输出与基线逐字节一致；能力调用走每实例挂载的
+`/runtime/runtime.sock` protobuf 通道，宿主侧 `capabilityRelay` 实现 `uds.Invoker`，作为
+Capability Hub 的受信测试替身（白名单能力应答、敏感路径拒绝、服务端注入用户/空间）。
+`scripts/gen_baselines.py` 使用本地 Unix Socket Agent 生成基线、`scripts/package_test_plugins.sh`
+打包发布格式 `.pcdpkg`；`Makefile` 提供 `test-unit/test-integration/test-all/baseline/test-packages`；
+CI `go-runtime`/`plugin-runtime-integration` 增加 SDK 单测、realworld 集成与包/基线漂移门禁。
+
+### 8.9 运行时受限 Python 层（代码现状，未改动 8.1-8.4 设计）
+
+8.4 的"只允许/默认禁止/禁止内置"在运行层不再只靠 AST 静态预检，而是在沙盒容器内由
+`sandbox/python/restricted.py` 强制执行（插件安全改造 36.x）：
+
+- 受控启动器 `/opt/pcd-sdk/bin/runner.py`（镜像 ENTRYPOINT，以
+  `python3 -I -S` 隔离/忽略用户 site 启动），所有云插件都经过它执行，禁止直接
+  执行用户代码；`runner.py` 默认调用 `restricted.exec_plugin`。
+- 运行时 import 钩子：8.4 白名单放行 `pycloud`/`math`/`json`/`datetime`/
+  `collections`/`itertools`/`functools`/`statistics`/`decimal`；黑名单（含
+  `pip`/`importlib`）与相对导入一律拒绝；允许导入仅限 `src/` 单模块执行模型。
+- 危险内置删除/改写：`eval`/`exec`/`compile`/`open`/`input`/`globals`/`locals`/
+  `vars`/`getattr`/`setattr`/`delattr`/`breakpoint`/`help`/`__import__`。
+- AST 改写拦截双下划线逃逸链（8.4 静态限制的运行时对应）。
+- PEP 578 审计钩子（`sys.addaudithook`）：对 `os.system`/`os.exec*`/`os.spawn*`/
+  `os.kill*`/`os.fork*`/`subprocess.*`/`socket.*` 等事件即使经 SDK 属性拿到句柄
+  也在调用瞬间拦截；`open`/`import` 事件记录到 `/workspace/work/security.log`。
+- 递归深度上限（默认 2000）、stdout/stderr 截断（36.21）。
+- 生产配置 `config.Load()` 强制 `PLUGIN_SANDBOX_DISABLE_RESTRICTED_PYTHON=false`；
+  容器启动注入 `PCD_RESTRICTED_PYTHON=1`（仅 Docker 隔离探针测试显式关闭）。
+- 镜像：`sandbox/python/Dockerfile` 把 `restricted.py` 与 `runner.py` 放入只读层
+  `/opt/pcd-sdk/`，插件无法改写；`pcd/plugin-sandbox-python:0.1.2` 已含该层。
+- 测试：`sandbox/python/tests/test_restricted.py`（宿主单测）+
+  `TestIntegrationRunContainerRestrictedPythonIntercepts`（真实 Docker 恶意样本，
+  验证 `import os`/逃逸链/`eval` 被拦截且错误脱敏）。
 
 ## 9. pycloud SDK
 
@@ -1263,6 +1408,31 @@ def generate_report(args):
 ```
 
 Runtime 只允许调用清单声明的函数。动态发现 Python 对象不作为注册依据，防止未审核函数被暴露。
+
+### 9.5 沙箱内能力调用通道（实际实现）
+
+沙箱以 `--network none` 运行，插件不能直接出网；能力调用统一走每实例专属
+`/runtime/runtime.sock` 的长度分帧 protobuf RPC。Runtime Agent 根据 Socket Session、实例 Token、
+受信的安装授权快照和执行上下文完成身份/限流/大小校验，再调用 Capability Hub；Capability Hub 最终执行
+能力、Schema 与“声明权限 ∩ 已授予权限”校验。调用前要求 `platform.capability.invoke` 同时存在于声明与
+安装授权快照；SDK 超时/拒绝会映射为 `CapabilityTimeout`/`CapabilityError(code,message)`，绝不回落至
+文件轮询或直连网络。实现位于 `sandbox/python/pycloud/capabilities.py` 与 `internal/uds/`。
+
+| SDK 方法 | 能力键 | 说明 |
+| --- | --- | --- |
+| `pycloud.call_api(key, parameters)` | 任意注册能力 | 通用能力调用（默认超时 20s） |
+| `pycloud.user_info(user_id)` | `api.user.info` | 脱敏用户信息 |
+| `pycloud.space_members_list(space_id)` | `api.space.members.list` | 空间成员（需空间权限） |
+| `pycloud.notification_send(user_ids, message)` | `api.notification.send` | 站内通知（校验收发关系） |
+| `pycloud.file.metadata()` | 容器内 stat | 当前输入元数据，不触网 |
+| `pycloud.file.move(destination)` | `api.file.move` | 内容迁移（mock 阶段返回 ok） |
+| `pycloud.file.read/read_staging` | `file.content.read*` | 读取输入/暂存内容 |
+| `pycloud.file.write_pre_activation` | `file.content.write_pre_activation` | 原子写候选输出 |
+
+权限映射（9.2 表格保持设计意图，实际 SDK 以 `context.permissions` 为准）：
+`file.content.read_staging` / `file.content.read` / `file.content.write_pre_activation` /
+`platform.capability.invoke`；`ExecuteCapability` 上下文携带 `user_id/space_id/step_id` 并
+置 `content_frozen=true`。
 
 ---
 
@@ -1526,8 +1696,10 @@ workflow "weekly_sales_report" {
 }
 ```
 
-CloudFlow 是块结构语言，不再接受 `automation.pcd/v1` YAML。前端可视化画布和 Monaco 源码模式
-都以此格式为唯一真源；后端控制面与 Rust Runtime 使用同一套规范化执行计划。
+CloudFlow DSL 是块结构语言；其 YAML 前端面向声明式工作流，以 `${{ }}` 为统一表达式/插值分隔符
+（对标 GitHub Actions），**不接受**旧版 `automation.pcd/v1` 包裹（`apiVersion/kind/metadata/spec/limits`、
+`uses/needs/result`），旧示例已一次性转化为 `examples/yaml/weekly_sales_report.flow.yaml`。前端可视化画布和
+Monaco 源码模式以 DSL/YAML 统一领域 AST 为真源；后端控制面与 Rust Runtime 使用同一套规范化执行计划。
 
 ### 12.2 表达式安全
 
@@ -1805,6 +1977,26 @@ WorkflowEditorView
 `status` 只能是 `success/skipped/failed/timeout`。Automation 不发送物理 candidate locator；
 Storage 根据受信 candidate_id 解析。失败摘要最多 1,000 字符且已经脱敏。
 
+> **代码现状（可观测性扩展，未改变上述契约）**：`plugin-runtime-service` 的
+> `Runner` 执行信封在既有字段之外，额外回传三个仅供可观测性与审计的字段，均不影响
+> 候选内容提交语义，也不违反脱敏设计：
+> - `output`（`Run…Result.Output`，`omitempty`）：最后一个已执行入口函数的
+>   序列化返回值（若有）；`ExecuteCapability` 的 `output` 为能力函数返回值（原有）。
+> - `logs`（`RuntimeChainResult.Logs` / `CapabilityExecutionResult.Logs`，
+>   `omitempty`）：容器 stdout/stderr 的脱敏文本（插件 `print`/`pycloud.log`/
+>   `runner.py`、`restricted.py` 输出），保留换行、上限 64 KiB，经 `sanitize`
+>   打码绝对路径/容器 ID/IP/内存地址后才进入结果模型。
+> - `audit_trails`（`RuntimeChainResult.AuditTrails` / `CapabilityExecutionResult.AuditTrails`，
+>   `omitempty`）：只由 Runtime Agent 在专属 UDS 请求入口和响应出口产生的能力调用事实；递归
+>   脱敏输入/输出中的凭据和绝对路径。`ExecuteCapability` 也透传该字段，因此 Workflow 调用
+>   不能静默丢弃插件内部能力调用事实。
+> 失败路径的 `failed`/`capabilityFailed` 构造点同样携带 `logs`；`failure_summary`
+> 单行摘要语义保持不变。控制面（`automation-service`）的 Java 镜像模型
+> `RuntimeChainResult` 已同步以上字段（`output`：`Map<String,Object>`，`logs`：
+> `String`，`audit_trails`：`List<RuntimeAuditRecord>`，均 `null` 安全），Runtime 回包经 `PluginRuntimeClient` 反序列化后即可
+> 读取，不再被 ignore-unknown 丢弃；控制面自行构造的 skipped/failed/timeout 结果
+> 两字段传 `null`。其余未接字段的旧消费者忽略新增 JSON 字段仍保持兼容。
+
 现有 `file.available` 消息字段全部保留，仅追加可选字段：
 `checksum`、`storagePath`、`contentRevision`、`contentModified`、
 `preprocessStatus`、`correlationId`。Java 老消费者可忽略新增 JSON 字段；Automation
@@ -1876,6 +2068,21 @@ main
   到达后自动选择 original。
 - `file.content.processed` 进入 DLQ 时专属消费者立即执行 fallback CAS；人工重放只用于补齐
   Automation 执行审计，不可重新覆盖已经关闭的 Gate。
+
+> **代码现状（Automation 生命周期拓扑，与 14.1-14.4 设计一致）**：
+> `automation-service` 的 `RabbitLifecycleConfig` 声明两条生命周期入口与其 DLQ：
+> `pcd.automation.file.content.ready.q(.dlq)` 与 `pcd.automation.file.available.q(.dlq)`，
+> 均为 durable + quorum：主队列 `x-message-ttl=7 天`，TTL 到期 dead-letter 到专属 DLX；
+> ready 侧另配 `retry.{1..3}`（1s/4s/16s 指数退避）回流主队列，三次仍失败即由消费者可靠发布
+> 到 DLQ（发布确认 + ACK 后才算重投）；DLQ/available DLQ `x-message-ttl=30 天`。
+>
+> **DLQ TTL 修复（2026-08-23）**：两处 DLQ 的 30 天 TTL 曾写作 int 字面量乘法
+> `30 * 24 * 60 * 60 * 1000`，超过 `Integer.MAX_VALUE`（2_147_483_647）溢出为
+> `-1_702_967_296`，声明时与 Broker 既有 `x-message-ttl=2592000000` 不等，触发
+> `PRECONDITION_FAILED`（406）——`RabbitListener` 启动即 Fatal、应用无法就绪。已改为
+> `withArgument("x-message-ttl", 2_592_000_000L)`（Long，30 天，与 Storage Worker /
+> Platform Service 约定一致）。若既有 Broker 队列已被旧版以负 TTL 创建，需删除对应 DLQ
+> 后由应用声明重建（删除前先完成死信人工重放）。`RabbitLifecycleConfigTest` 固定该断言。
 
 ### 14.5 Inbox/Outbox
 
@@ -2098,6 +2305,18 @@ Runtime/Broker 使用以下 Storage 内部 API：
 | `RUNTIME-POLICY-REJECTED` | 422 | 沙箱策略拒绝 |
 | `WF-DSL-INVALID` | 422 | DSL 无效 |
 | `WF-CAPABILITY-NOT-FOUND` | 422 | 动作不存在 |
+| `WF-CAPABILITY-KEY` | 200(能力信封) | 能力键格式非法 |
+| `WF-CAPABILITY-INPUT` | 200(能力信封) | 输入违反注册表 Schema |
+| `WF-CAPABILITY-FORBIDDEN` | 200(能力信封) | 权限不足（声明∩授权交集或实时授权） |
+| `WF-CAPABILITY-AUTH-UNAVAILABLE` | 200(能力信封) | 权限服务暂不可用（可重试） |
+| `WF-CAPABILITY-CIRCUIT-OPEN` | 200(能力信封) | 能力熔断中 |
+| `WF-CAPABILITY-IDEMPOTENCY-CONFLICT` | 200(能力信封) | 幂等键已绑定另一能力，禁止跨能力复用 |
+| `WF-CAPABILITY-DATAPLANE-UNAVAILABLE/EMPTY/ERROR` | 200(能力信封) | 数据面不可达 / 空结果 / 业务错误 |
+| `WF-CAPABILITY-CONTENT-TYPE/TOO-LARGE/LIMIT/UNAVAILABLE` | 200(能力信封) | 文件内容边界（类型/大小/读取失败） |
+| `AUTH-UNAUTHENTICATED` | 401 | 内部服务凭证缺失/伪造 |
+
+> 能力调用 `/internal/v1/capabilities/invoke` 的结果统一走 `CapabilityResult` 信封
+> （HTTP 200 + `code/data/errorCode/errorSummary/retryable`），区别于上表其余控制面接口的 HTTP 状态码。
 | `WF-CYCLE-DETECTED` | 422 | DAG 有环 |
 | `WF-EXECUTION-CONFLICT` | 409 | 幂等键或并发冲突 |
 | `AUTOMATION-LOOP-BLOCKED` | 409 | 因果链循环被阻止 |
@@ -2106,6 +2325,30 @@ Runtime/Broker 使用以下 Storage 内部 API：
 | `PREPROCESS-CANDIDATE-INVALID` | 422 | 候选大小、哈希或归属校验失败 |
 | `PREPROCESS-DEADLINE-EXCEEDED` | 409 | 已超过预处理总时限 |
 | `RATE-LIMITED` | 429 | 限流，返回 Retry-After |
+
+### 15.7.1 Runtime 执行链错误码（`failure_code`）
+
+Runner（`plugin-runtime-service`）执行结果信封使用以下稳定字符串 `failure_code`（与上表
+控制面 HTTP 码并列，供上层按码定位而非依赖错误文本）：
+
+| failure_code | 含义 |
+| --- | --- |
+| `RUNTIME_REQUEST_INVALID` | 请求标识/入口格式非法（非法 execution_id/step_id 或旧式外部 entrypoint） |
+| `MANIFEST_DRIVEN_REQUIRED` | 请求仍在传外部模块/函数路径；入口必须由插件包 manifest 驱动 |
+| `ENTRYPOINT_MISSING` | manifest 中未匹配到请求的事件/能力入口 |
+| `EXPORT_NOT_FOUND` | manifest exports 中不存在请求的能力名 |
+| `CONTENT_LEASE_EXCHANGE_FAILED` / `CONTENT_LEASE_READ_FAILED` | Broker 租约交换或暂存内容读取失败 |
+| `ACTIVE_CONTENT_READ_FAILED` | 激活后内容（DownloadActive）读取失败 |
+| `PLUGIN_PACKAGE_FETCH_FAILED` | 插件包下载失败（pkgclient 不可达/HTTP 错误） |
+| `PLUGIN_PACKAGE_INVALID` | 插件包解析失败（非 `.pcdpkg`/无 manifest/结构非法/安全限制违规） |
+| `PLUGIN_PACKAGE_REJECTED` / `PLUGIN_PACKAGE_EXCEEDED` | 包被拒绝（如路径穿越/敏感文件）或超限（体积/文件数） |
+| `RUNTIME_WORKSPACE_FAILED` | 工作区创建/挂载/清理失败 |
+| `PLUGIN_RUNTIME_TIMEOUT` | 沙箱执行超时并被强制终止 |
+| `PLUGIN_EXECUTION_FAILED` | 插件进程异常/输出 result.json 无效或格式错误 |
+| `PLUGIN_OUTPUT_INVALID` | 插件声明 `modified=true` 但候选输出缺失/超限/为空 |
+| `CANDIDATE_COMMIT_FAILED` | 候选内容上传提交失败 |
+| `CONTENT_FROZEN` | 激活后/能力入口尝试修改原始内容被拒绝 |
+| `RUNTIME_CONFIG_INVALID` / `RUNTIME_POLICY_REJECTED` | 沙箱配置非法（生产门禁）或安全策略拒绝（seccomp/AppArmor/摘要门控） |
 
 ### 15.8 Platform 标准化内部能力 API
 
@@ -2174,6 +2417,27 @@ Runtime/Broker 使用以下 Storage 内部 API：
 ```
 
 不能把现有公开 JWT 当成服务身份，也不能只信任 `X-User-Id`。内部接口不进入 Gateway 公网路由。
+
+#### 能力中心平台 API 数据面内部端点（2026-08-21 新增）
+
+上述能力键由 workflow-service 能力中心统一解析后，经 `ApiCapabilityInvoker` 透传调用者
+（uid 查询参数 + `X-PCD-User-Id`/`X-PCD-Space-Id`/`X-Space-Id` 头）到 Platform 数据面以下内部端点：
+
+| 方法 | 内部路径 | 对应能力键 |
+|---|---|---|
+| GET | `/business/internal/capability/files/{file_id}/metadata` | `api:file.metadata.get` |
+| GET | `/business/internal/capability/files/list` | `api:file.list` |
+| GET | `/business/internal/capability/files/search` | `api:file.search` |
+| GET | `/business/internal/capability/files/{file_id}/tags` | `api:tag.list` |
+| POST | `/business/internal/capability/files/{file_id}/scan` | `api:file.scan`（发布 `file.scan.requested`） |
+| GET | `/business/internal/capability/spaces/{space_id}/info` | `api:space.info` |
+| GET | `/business/internal/capability/spaces/{space_id}/members` | `api:space.members.list` |
+| GET | `/business/internal/capability/users/{user_id}/info` | `api:user.info`（脱敏） |
+| POST | `/business/internal/capability/shares` | `api:share.create` |
+
+每个端点重新 `resolveContext(uid, spaceId)` → `requireOperation(READ/SHARE)` →
+`requireFileInCurrentSpace(...)`，杜绝横向越权；`api:file.content.get` 另经 storage
+operation-token + Range 流程读取（文本类型白名单、≤1MiB）。
 
 ### 15.9 File Service 派生对象意图 API
 
@@ -2505,7 +2769,7 @@ interface IdeState {
 #### 16.9.8 管理、执行记录与空间插件页面
 
 - 插件管理展示类型图标、名称、版本、启停、个人/继承空间来源、总执行、成功率、最近运行；操作含编辑、配置、执行记录、卸载和升级。
-- 执行记录独立路由 `/app/plugins/:pluginId/executions`，支持时间/状态筛选、分页、stdout 前 100 行、脱敏错误、短时日志下载令牌和事件重放（需权限）。
+- 执行记录保留 `/app/plugins/:pluginId/executions` 列表入口，并新增独立详情路由 `/plugins/:pluginId/executions/:executionId`：抽屉与独立页复用 Docker 风格日志、日志/来源筛选、游标分页、受权下载、SSE tail，以及“摘要/详情”两种能力调用审计视图。日志、审计参数和自然语言摘要全部由 Plugin Service 返回；浏览器不获得 Runtime 或对象存储地址。详情见 `PLUGIN_EXECUTION_OBSERVABILITY.md`。
 - 空间设置 `/app/spaces/:spaceId/automation` 增加插件管理 Tab：绑定/解绑、强制启用、成员自选、来源和版本锁定；操作携带 `X-Space-Id` 并做服务端权限校验。
 - 市场安装前展示权限差异；个人安装和当前空间安装按钮分离，新增高风险权限必须重新确认。
 
@@ -3992,7 +4256,7 @@ Runtime action adapter 和集群压测仍是独立的生产发布门禁，不得
 | 编译器与双二进制 | Pest、完整 AST/IR、结构化诊断、`cloudflowc`、`cloudflow-runtime` | Rust fmt/clippy、28 项默认测试、release build 门禁；MySQL/Rabbit 动态集成由 CI 显式运行 |
 | 持久化执行 | `src/persistence.rs` + `migrations/0001_cloudflow_runtime.sql`：执行/步骤检查点、心跳、stale recovery、日志、状态控制 | CI 用 MySQL 8.4 显式运行契约；本机未启动数据库，不能宣称故障注入完成 |
 | Event Bus | `src/broker.rs`：Lapin durable topic、command queue/DLQ、QoS、Inbox 去重、Outbox publisher confirm；基础设施异常按 `retry_count` 有界重投，3 次后进入 DLQ | CI RabbitMQ 3.13 契约；Broker 分区、重复/乱序压测仍是发布门禁 |
-| Capability Agent | `src/agent.rs`：Tonic server/client，Reqwest 代理到 Workflow Capability Hub；Workflow Service 按声明权限与当前授予权限交集校验 | loopback gRPC→HTTP mock 契约通过；真实 Platform/Plugin Sandbox 联调未完成 |
+| Capability Agent | `crates/cloudflow-agent/src/lib.rs`：Tonic server/client，Reqwest 代理到 Workflow Capability Hub；Workflow Service 按声明权限与当前授予权限交集校验 | loopback gRPC→HTTP mock 契约通过；真实 Platform/Plugin Sandbox 联调未完成 |
 | Java 控制面 | `WorkflowOutboxPublisher` 同事务领取/发布，`CloudFlowExecutionEventConsumer` 回写 accepted/completed；旧 Worker 默认关闭 | 6 个 Workflow Service 测试通过；节点级实时投影和永久删除旧 Worker 待灰度 |
 | 控制流执行 | Runtime 已执行 foreach（`max_parallel` 分批）、while（maxIterations）、try/catch/finally、assert 与 wait/resume；控制节点的子图不再被静态重复领取 | 真实 MySQL 动态控制流契约已纳入 CI；独立迭代 ID、真实 Platform/Plugin Sandbox 故障注入仍为生产门禁 |
 | 前端 IDE | Monaco 外部诊断、Problems、终端安全换行；源码/画布使用 Runtime IR | 2 个 CloudFlow Web 测试、生产构建通过；全仓历史 `vue-tsc` 错误需独立治理 |
@@ -4002,7 +4266,27 @@ Capability Hub URL 和 `PCD_INTERNAL_SERVICE_TOKEN`；缺失依赖时 Runtime fa
 仅用于 IDE/本地编译，不得接收生产执行流量。旧 `WorkflowExecutionWorker` 只能作为显式回滚开关，
 默认 `WORKFLOW_LEGACY_WORKER_ENABLED=false`，同一 execution_id 禁止双执行。
 
-### C.13 IDE 响应式工作区实施说明（2026-08-16）
+### C.13 插件 Runtime Unix Domain Socket 隔离与可信审计（CF-PLUGIN-UDS-001）
+
+> **[CF-PLUGIN-UDS-001] 2026-08-24 实施完成**：此前审计发现的
+> `/workspace/work/capabilities/requests|responses` 文件轮询以及 SDK 侧 `capability-audit.jsonl`
+> 已从能力调用路径移除。当前实现以 `internal/uds` 的每实例 Socket Session、`runner.py` argv Token 和
+> `proto/capability_socket.proto` 为唯一契约；文件通道和插件侧审计不能作为任何生产回退方案。
+
+Cloud插件容器中 SDK 与 Runtime Agent 的唯一能力调用通道为每插件实例独占的 Unix Domain Socket。Runtime
+Session Manager 在受限 Socket 根目录创建不可预测名称的 Socket，将其单独 bind mount 到容器内固定路径
+`/runtime/runtime.sock`；容器不会挂载 Socket 根目录、其他实例 Socket、Docker Socket 或宿主 `/run`。
+Socket 绑定实例只是第一层身份，SDK 每次请求还须携带启动器参数注入的短期实例 Token，Runtime 再把不可修改
+的用户、空间、插件、安装、版本与执行上下文交给 Capability Hub 执行最终能力/Schema/权限裁决。
+
+Socket 采用长度分帧 protobuf RPC，限定请求/响应大小、连接数和每实例速率；Runtime 单进程以 goroutine 管理
+多个实例 listener 和连接。SDK 保持 `pycloud.call_api()` 等公开 API，不提供文件轮询或直连网络的兼容回退。
+Runtime 在 RPC 管线入口创建 `RUNNING` 审计事实并在响应出口更新为终态，随后随受信 Runtime 执行结果由
+Automation 回写 Plugin Service；SDK/Runner 不再读写 `capability-audit.jsonl`。完整协议、威胁模型、
+生命周期、错误边界和测试矩阵见
+[`PLUGIN_RUNTIME_UNIX_SOCKET_ARCHITECTURE.md`](./PLUGIN_RUNTIME_UNIX_SOCKET_ARCHITECTURE.md)。
+
+### C.14 IDE 响应式工作区实施说明（2026-08-16）
 
 > **[IDE-RESP-2026-08]** 本节只补充显示层与触控交互承载；插件、工作流的保存、校验、发布、
 > `X-Space-Id` 注入与 Runtime 编译链不修改。详细断点、审计发现和验收矩阵见

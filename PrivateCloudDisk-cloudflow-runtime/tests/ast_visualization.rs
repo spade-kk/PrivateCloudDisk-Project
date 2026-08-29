@@ -6,13 +6,19 @@
 //! - JSON 序列化结果合法
 //! - 解析失败退出码与 include/语义跳过行为
 //! - AST printer 单元断言（各节点类型、表达式/值渲染）
-use cloudflow_runtime::{ast_printer::{self, AstPrintOptions}, parse_ast};
+use cloudflow_runtime::{
+    ast_printer::{self, AstPrintOptions},
+    parse_ast,
+};
 use std::process::Command;
 
 const BIN: &str = env!("CARGO_BIN_EXE_cloudflowc");
 
 fn run(args: &[&str]) -> (std::process::ExitStatus, String, String) {
-    let out = Command::new(BIN).args(args).output().expect("run cloudflowc");
+    let out = Command::new(BIN)
+        .args(args)
+        .output()
+        .expect("run cloudflowc");
     (
         out.status,
         String::from_utf8_lossy(&out.stdout).into_owned(),
@@ -20,7 +26,8 @@ fn run(args: &[&str]) -> (std::process::ExitStatus, String, String) {
     )
 }
 
-const SIMPLE: &str = "workflow \"cli\" { trigger { manual {} } steps { step run { action file.list {} } } }";
+const SIMPLE: &str =
+    "workflow \"cli\" { trigger { manual {} } steps { step run { action file.list {} } } }";
 
 // ---------------------------------------------------------------------------
 // CLI 行为
@@ -28,9 +35,7 @@ const SIMPLE: &str = "workflow \"cli\" { trigger { manual {} } steps { step run 
 
 #[test]
 fn emit_ast_text_output_contains_structure() {
-    let (status, stdout, _) = run(&[
-        "compile", "-i", SIMPLE, "--emit-ast", "--no-color",
-    ]);
+    let (status, stdout, _) = run(&["compile", "-i", SIMPLE, "--emit-ast", "--no-color"]);
     assert!(status.success());
     assert!(stdout.contains("Workflow"));
     assert!(stdout.contains("name: cli"));
@@ -56,7 +61,13 @@ fn emit_ast_color_has_ansi() {
 #[test]
 fn emit_ast_json_valid() {
     let (status, stdout, _) = run(&[
-        "compile", "-i", SIMPLE, "--emit-ast", "--output-format", "json", "--no-color",
+        "compile",
+        "-i",
+        SIMPLE,
+        "--emit-ast",
+        "--output-format",
+        "json",
+        "--no-color",
     ]);
     assert!(status.success());
     let value: serde_json::Value = serde_json::from_str(&stdout).expect("AST JSON must parse");
@@ -70,8 +81,12 @@ fn emit_ast_write_file_no_color() {
     let dir = std::env::temp_dir();
     let path = dir.join("cloudflow-ast-test.txt");
     let (status, stdout, _) = run(&[
-        "compile", "-i", SIMPLE, "--emit-ast",
-        "-o", path.to_str().unwrap(),
+        "compile",
+        "-i",
+        SIMPLE,
+        "--emit-ast",
+        "-o",
+        path.to_str().unwrap(),
     ]);
     assert!(status.success());
     assert!(stdout.is_empty(), "写文件时 stdout 应为空");
@@ -84,18 +99,30 @@ fn emit_ast_write_file_no_color() {
 #[test]
 fn check_only_takes_priority_over_emit_ast() {
     let (status, stdout, _) = run(&[
-        "compile", "-i", SIMPLE, "--emit-ast", "--check-only", "--no-color",
+        "compile",
+        "-i",
+        SIMPLE,
+        "--emit-ast",
+        "--check-only",
+        "--no-color",
     ]);
     assert!(status.success());
     assert!(stdout.contains("CloudFlow OK"));
-    assert!(!stdout.contains("└──") && !stdout.contains("Workflow\n"),
-        "--check-only 优先，不应输出 AST 树");
+    assert!(
+        !stdout.contains("└──") && !stdout.contains("Workflow\n"),
+        "--check-only 优先，不应输出 AST 树"
+    );
 }
 
 #[test]
 fn emit_ast_explain_appends_note() {
     let (_, stdout, _) = run(&[
-        "compile", "-i", SIMPLE, "--emit-ast", "--no-color", "--explain",
+        "compile",
+        "-i",
+        SIMPLE,
+        "--emit-ast",
+        "--no-color",
+        "--explain",
     ]);
     assert!(stdout.contains("仅反映语法解析结果"));
 }
@@ -103,7 +130,11 @@ fn emit_ast_explain_appends_note() {
 #[test]
 fn emit_ast_parse_failure_exits_nonzero() {
     let (status, _, stderr) = run(&[
-        "compile", "-i", "workflow \"bad\" {", "--emit-ast", "--no-color",
+        "compile",
+        "-i",
+        "workflow \"bad\" {",
+        "--emit-ast",
+        "--no-color",
     ]);
     assert!(!status.success());
     assert!(stderr.contains("CF1201") || stderr.contains("CF1202"));

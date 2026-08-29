@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: 519fbc4c-a71c-27c9-c23e-3950953b1d5b
+  name: Excel 数据解析与 TXT 报告输出
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

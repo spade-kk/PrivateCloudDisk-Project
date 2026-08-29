@@ -379,11 +379,6 @@ fn template_compiles_to_interpolated_segments() {
 #[test]
 fn pipeline_filter_rejects_undefined_variable_ref() {
     // filter 谓词中的裸标识符是元素字段（放行），但 vars./steps. 仍须真实存在。
-    let source = r#"workflow "bad_pipe" {
-        variables { files: array = [] }
-        step s { action builtin.file.list {} }
-    }"#;
-    // 语义正确路径：裸字段 + 显式 vars 引用于 action 参数。
     let bad = r#"workflow "bad_pipe" {
         variables {
             files: array = []

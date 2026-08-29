@@ -1,0 +1,116 @@
+{
+  "title": "CloudFlow Plugin Runtime UDS Security Architecture",
+  "levels": [
+    {
+      "name": "Trust Boundaries",
+      "elements": [
+        {
+          "id": "automation-service",
+          "type": "container",
+          "label": "Automation Service",
+          "tech": "Java / internal HTTP",
+          "desc": "Creates trusted execution requests and persists returned observability through Plugin Service"
+        },
+        {
+          "id": "runtime-agent",
+          "type": "system",
+          "label": "Plugin Runtime Agent",
+          "tech": "Go",
+          "desc": "Owns instance sessions, per-instance UDS endpoints, token validation and tenant-context injection",
+          "children": "Runtime Components"
+        },
+        {
+          "id": "plugin-container",
+          "type": "container",
+          "label": "Sandbox Plugin Instance",
+          "tech": "Docker + Python 3.11",
+          "desc": "Untrusted code; network none; can see only /runtime/runtime.sock"
+        },
+        {
+          "id": "capability-hub",
+          "type": "container",
+          "label": "Capability Hub",
+          "tech": "Workflow Service",
+          "desc": "Final capability registry, schema and declared-grant permission intersection"
+        },
+        {
+          "id": "plugin-service",
+          "type": "container",
+          "label": "Plugin Service",
+          "tech": "Java + database",
+          "desc": "Authoritative installation grants and plugin-execution audit query boundary"
+        },
+        {
+          "id": "platform-space",
+          "type": "container",
+          "label": "Platform Space Authorization",
+          "tech": "Java internal API",
+          "desc": "Resolves user and space permissions for Hub final authorization"
+        }
+      ],
+      "relations": [
+        {"from": "automation-service", "to": "runtime-agent", "label": "authenticated execution request / result"},
+        {"from": "runtime-agent", "to": "plugin-container", "label": "one bind-mounted UDS per instance; runner argv token"},
+        {"from": "plugin-container", "to": "runtime-agent", "label": "framed protobuf capability RPC over its own UDS"},
+        {"from": "runtime-agent", "to": "capability-hub", "label": "internal HTTP + service credential; server injected identity"},
+        {"from": "capability-hub", "to": "platform-space", "label": "current user-space authorization"},
+        {"from": "automation-service", "to": "plugin-service", "label": "trusted execution record and Agent audit facts"},
+        {"from": "plugin-service", "to": "automation-service", "label": "effective installation permission snapshot at match time"}
+      ]
+    },
+    {
+      "name": "Runtime Components",
+      "elements": [
+        {
+          "id": "session-manager",
+          "type": "component",
+          "label": "PluginSession Manager",
+          "tech": "Go / sync-safe map",
+          "desc": "Creates random instance ID and token; owns lifecycle and cleanup"
+        },
+        {
+          "id": "socket-listeners",
+          "type": "component",
+          "label": "Per-instance UDS Listeners",
+          "tech": "Go net.UnixListener",
+          "desc": "One 0660 listener per session under /run/pcd/plugins"
+        },
+        {
+          "id": "rpc-pipeline",
+          "type": "component",
+          "label": "RPC Security Pipeline",
+          "tech": "protobuf framing",
+          "desc": "Authenticates ID+token, rate limits, bounds frames and injects trusted context"
+        },
+        {
+          "id": "hub-client",
+          "type": "component",
+          "label": "Capability Hub Client",
+          "tech": "Go HTTP client",
+          "desc": "Forwards declared and independently granted permissions; does not trust SDK identity"
+        },
+        {
+          "id": "agent-audit-buffer",
+          "type": "component",
+          "label": "Agent Audit Records",
+          "tech": "in-memory result contract",
+          "desc": "Produces redacted invocation facts returned to Automation with execution result"
+        },
+        {
+          "id": "container-launcher",
+          "type": "component",
+          "label": "Sandbox Container Launcher",
+          "tech": "Docker CLI",
+          "desc": "Mounts exactly one socket to /runtime/runtime.sock and passes token through runner argv"
+        }
+      ],
+      "relations": [
+        {"from": "session-manager", "to": "socket-listeners", "label": "create / close isolated socket"},
+        {"from": "session-manager", "to": "container-launcher", "label": "session socket and opaque runner argv"},
+        {"from": "socket-listeners", "to": "rpc-pipeline", "label": "accepted connection"},
+        {"from": "rpc-pipeline", "to": "hub-client", "label": "validated invocation"},
+        {"from": "rpc-pipeline", "to": "agent-audit-buffer", "label": "redacted terminal audit fact"}
+      ]
+    }
+  ]
+}

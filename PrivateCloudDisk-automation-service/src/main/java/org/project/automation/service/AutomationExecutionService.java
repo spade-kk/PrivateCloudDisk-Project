@@ -63,7 +63,7 @@ public class AutomationExecutionService {
             if (matches.isEmpty()) {
                 result = new RuntimeChainResult(
                         "skipped", false, null, null, null,
-                        0, null, "未匹配内容预处理入口"
+                        0, null, "未匹配内容预处理入口", null, null, List.of()
                 );
             } else if (matches.stream().anyMatch(entry ->
                     entry.permissions() == null
@@ -71,7 +71,7 @@ public class AutomationExecutionService {
                 result = new RuntimeChainResult(
                         "failed", false, null, null, null,
                         0, "ENTRYPOINT_PERMISSION_INVALID",
-                        "预处理入口未声明激活前内容写权限"
+                        "预处理入口未声明激活前内容写权限", null, null, List.of()
                 );
             } else {
                 result = runtimeClient.executePreprocessChain(event, matches);
@@ -84,7 +84,7 @@ public class AutomationExecutionService {
                     timeout ? "timeout" : "failed",
                     false, null, null, null, 0,
                     timeout ? "PLUGIN_RUNTIME_TIMEOUT" : "AUTOMATION_DEPENDENCY_UNAVAILABLE",
-                    ErrorSanitizer.summarize(timeoutOrUnavailable)
+                    ErrorSanitizer.summarize(timeoutOrUnavailable), null, null, List.of()
             );
         } catch (Exception exception) {
             matches = List.of();
@@ -92,7 +92,7 @@ public class AutomationExecutionService {
                     event.id(), event.data().path("gate_id").asText(), exception);
             result = new RuntimeChainResult(
                     "failed", false, null, null, null, 0,
-                    "AUTOMATION_EXECUTION_FAILED", ErrorSanitizer.summarize(exception)
+                    "AUTOMATION_EXECUTION_FAILED", ErrorSanitizer.summarize(exception), null, null, List.of()
             );
         }
 
@@ -136,7 +136,7 @@ public class AutomationExecutionService {
             if (matches.isEmpty()) {
                 result = new RuntimeChainResult(
                         "skipped", false, null, null, null,
-                        0, null, "未匹配激活后入口"
+                        0, null, "未匹配激活后入口", null, null, List.of()
                 );
             } else {
                 result = runtimeClient.executePostAvailableChain(event, matches);
@@ -146,7 +146,7 @@ public class AutomationExecutionService {
                     event.id(), event.data().path("file_id").asText(), exception);
             result = new RuntimeChainResult(
                     "failed", false, null, null, null, 0,
-                    "POST_AVAILABLE_EXECUTION_FAILED", ErrorSanitizer.summarize(exception)
+                    "POST_AVAILABLE_EXECUTION_FAILED", ErrorSanitizer.summarize(exception), null, null, List.of()
             );
         }
         executionClient.record(event, matches, result, startedAt, Instant.now());

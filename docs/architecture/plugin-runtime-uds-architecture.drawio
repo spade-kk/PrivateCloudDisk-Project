@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0" agent="Codex">
+  <diagram id="plugin-runtime-uds-architecture" name="UDS security architecture">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="2" value="CloudFlow Plugin Runtime: per-instance Unix Domain Socket security boundary" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontStyle=1;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="30" y="20" width="1160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="3" value="Automation Service&#xa;Trusted chain request and result handoff" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#1f2937;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="200" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="Plugin Service&#xa;Installation grants and execution-audit query boundary" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#1f2937;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="460" width="200" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="Trusted Runtime Agent process&#xa;Go; owns all sessions and socket lifecycles" style="swimlane;startSize=40;horizontal=1;whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#3b1c52;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="90" width="500" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" value="PluginSession Manager&#xa;random instance ID + token; server-owned tenant context" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontColor=#3b1c52;fontSize=12;" vertex="1" parent="5">
+          <mxGeometry x="30" y="70" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" value="Per-instance UDS listener&#xa;0700 root; 0660 socket; one listener per plugin instance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontColor=#3b1c52;fontSize=12;" vertex="1" parent="5">
+          <mxGeometry x="270" y="70" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" value="RPC security pipeline&#xa;protobuf framing; token verification; limits; redaction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontColor=#3b1c52;fontSize=12;" vertex="1" parent="5">
+          <mxGeometry x="30" y="200" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="9" value="Capability Hub client&#xa;internal HTTP; declared permissions + trusted grants" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#7c3d00;fontSize=12;" vertex="1" parent="5">
+          <mxGeometry x="270" y="200" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="Agent audit facts&#xa;redacted; returned with Runtime execution result" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontColor=#3b1c52;fontSize=12;" vertex="1" parent="5">
+          <mxGeometry x="150" y="340" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="Untrusted plugin container&#xa;Docker, read-only root, network=none&#xa;Only /runtime/runtime.sock is mounted" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="940" y="160" width="250" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="Capability Hub&#xa;final schema, registry and declared ∩ granted authorization" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#274e13;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="940" y="410" width="250" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="Platform Space Authorization&#xa;current user / space permission snapshot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#274e13;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="940" y="650" width="250" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="trusted service request + effective grant snapshot" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.25;" edge="1" parent="1" source="3" target="6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="creates a dedicated socket; one bind mount" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#9673a6;" edge="1" parent="1" source="6" target="7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="prohibited identity fields; only protobuf RPC with ID + token" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#9673a6;" edge="1" parent="1" source="7" target="11">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="accepted and authenticated requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#9673a6;" edge="1" parent="1" source="7" target="8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" value="validated invocation only" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#d79b00;" edge="1" parent="1" source="8" target="9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="19" value="internal HTTP + service identity" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#d79b00;" edge="1" parent="1" source="9" target="12">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" value="final current-space authorization" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#82b366;" edge="1" parent="1" source="12" target="13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="21" value="redacted audit facts with Runtime result" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;strokeColor=#6c8ebf;" edge="1" parent="1" source="10" target="3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="280" y="465"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="22" value="persist execution observability" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#6c8ebf;" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="23" value="effective installation permission snapshot" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;endFill=0;dashed=1;fontSize=11;exitX=0.5;exitY=0;entryX=0.5;entryY=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="4" target="3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="24" value="Legend" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;verticalAlign=top;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="760" width="430" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="25" value="" style="rounded=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="24"><mxGeometry x="20" y="35" width="30" height="16" as="geometry"/></mxCell>
+        <mxCell id="26" value="Trusted service / persistence boundary" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="24"><mxGeometry x="65" y="32" width="160" height="20" as="geometry"/></mxCell>
+        <mxCell id="27" value="" style="rounded=0;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="24"><mxGeometry x="20" y="65" width="30" height="16" as="geometry"/></mxCell>
+        <mxCell id="28" value="Runtime-controlled security boundary" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="24"><mxGeometry x="65" y="62" width="180" height="20" as="geometry"/></mxCell>
+        <mxCell id="29" value="" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="24"><mxGeometry x="20" y="95" width="30" height="16" as="geometry"/></mxCell>
+        <mxCell id="30" value="Untrusted plugin container" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="24"><mxGeometry x="65" y="92" width="160" height="20" as="geometry"/></mxCell>
+        <mxCell id="31" value="" style="rounded=0;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="24"><mxGeometry x="250" y="35" width="30" height="16" as="geometry"/></mxCell>
+        <mxCell id="32" value="Final authorization authority" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="24"><mxGeometry x="295" y="32" width="120" height="20" as="geometry"/></mxCell>
+        <mxCell id="33" value="" style="rounded=0;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="24"><mxGeometry x="250" y="65" width="30" height="16" as="geometry"/></mxCell>
+        <mxCell id="34" value="Internal authenticated egress" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;" vertex="1" parent="24"><mxGeometry x="295" y="62" width="120" height="20" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

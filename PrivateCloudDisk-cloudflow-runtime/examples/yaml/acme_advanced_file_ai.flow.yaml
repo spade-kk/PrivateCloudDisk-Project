@@ -1,0 +1,47 @@
+# CloudFlow YAML 完整组合示例（对照 DEMO 示例 16：文档 AI 处理）
+# 场景：上传 → 获取 → 类型判断(switch) → 并行 AI(OCR/摘要/标签，重试) → 保存。
+# 覆盖：event 触发器、input、switch + parallel + retry + catch + depends 组合。
+workflow:
+  name: document_ai
+
+trigger:
+  event: file.upload
+
+input:
+  file_id:
+    type: string
+    required: true
+
+steps:
+  - id: file
+    action: file.get
+    input:
+      id: ${{ input.file_id }}
+  - id: parser
+    switch:
+      expression: ${{ input.file_id != "" }}
+      cases: {}
+      default:
+        action: parser.common
+  - id: ai
+    parallel:
+      tasks:
+        - id: ocr
+          action: ai.ocr
+        - id: summary
+          action: ai.summary
+        - id: tag
+          action: ai.tag
+    retry:
+      count: 3
+      strategy: exponential
+  - id: save
+    action: metadata.save
+    depends:
+      - ai
+    input:
+      data: ${{ steps.summary.output }}
+
+catch:
+  - error: "*"
+    action: notify.admin

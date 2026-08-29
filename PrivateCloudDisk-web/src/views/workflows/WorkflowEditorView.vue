@@ -55,7 +55,7 @@
               @delete-selection="confirmDelete"
             />
           </section>
-          <section v-else class="workflow-source-mode"><PluginMonacoEditor v-model="sourceDsl" language="cloudflow" title="workflow.flow" height="100%" :theme="isDark ? 'vs-dark' : 'vs'" :capabilities="capabilities" :external-issues="store.issues as any" @validation-change="sourceLocalValid = $event" /><footer><span><i class="fa fa-info-circle"></i>源码是唯一发布事实；切回画布时将由 CloudFlow Runtime 编译并重建可视化投影。</span><button type="button" @click="formatSource">格式化预览</button></footer></section>
+          <section v-else class="workflow-source-mode"><PluginMonacoEditor v-model="sourceDsl" language="cloudflow" title="workflow.flow" height="100%" :theme="isDark ? 'vs-dark' : 'vs'" :capabilities="capabilities" :cloudflow-lsp="cloudflowLsp" :external-issues="store.issues as any" @validation-change="sourceLocalValid = $event" /><footer><span><i class="fa fa-info-circle"></i>源码是唯一发布事实；切回画布时将由 CloudFlow Runtime 编译并重建可视化投影。</span><button type="button" @click="formatSource">格式化预览</button></footer></section>
         </template>
         <template #right><section class="workflow-editor-inspector-host" data-workflow-guide="inspector"><WorkflowInspector :project="store.project" :selected-node="store.selectedNode" :selected-edge="store.selectedEdge" :capabilities="capabilities" @update-node="store.updateNode" @update-edge="store.updateEdge" @update-project="store.updateProject" @insert-reference="store.bottomTab = 'dsl'" /></section></template>
         <template #bottom>
@@ -128,16 +128,24 @@ import {
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useToastStore } from '@/stores/toastStore'
 import { useWorkflowIdeStore } from '@/stores/workflowIdeStore'
+import { useAuthStore } from '@/stores/authStore'
+import { useSpaceStore } from '@/stores/spaceStore'
 import { nodeLabel, serializeProjectToCloudFlow } from '@/utils/cloudflowVisualDsl'
 import type { CloudFlowCompileIssue, WorkflowVisualEdge, WorkflowVisualNodeType, WorkflowVisualProject } from '@/types/cloudflowVisual'
 
-const route = useRoute(); const router = useRouter(); const toast = useToastStore(); const settings = useSettingsStore(); const store = useWorkflowIdeStore()
+const route = useRoute(); const router = useRouter(); const toast = useToastStore(); const settings = useSettingsStore(); const store = useWorkflowIdeStore(); const auth = useAuthStore(); const spaceStore = useSpaceStore()
 const workflowId = computed(() => route.params.workflowId as string | undefined)
 const loading = ref(true); const saving = ref(false); const publishing = ref(false); const validating = ref(false); const testRunning = ref(false); const fullscreen = ref(false); const sourceDsl = ref(''); const sourceLocalValid = ref(true); const capabilities = ref<CapabilityInfo[]>([]); const rowVersion = ref(0); const currentVersion = ref(1); const workflowStatus = ref('DRAFT'); const commandOpen = ref(false); const commandQuery = ref(''); const showShortcutHelp = ref(false); const showOnboarding = ref(false); const exportOpen = ref(false); const performancePanel = ref(false); const mobileMoreOpen = ref(false); const compactViewport = ref(false); const canvasRef = ref<InstanceType<typeof WorkflowCanvas> | null>(null)
 let autosaveTimer: number | undefined
 let sourceSyncTimer: number | undefined
 
 const isDark = computed(() => settings.appearance.theme === 'dark')
+// [CLOUDFLOW-LS-WEB-003] 仅当部署显式提供 WSS 地址时启用远端 LS；否则保持
+// syntax-highlight 静态规则和 Runtime 校验，避免把登录 Token 暴露给任意 URL。
+const cloudflowLsp = computed(() => {
+  const endpoint = import.meta.env.VITE_CLOUDFLOW_LSP_URL || ''
+  return endpoint ? { endpoint, accessToken: auth.token, spaceId: spaceStore.currentSpaceId || undefined } : null
+})
 const mobilePanelOpen = computed(() => compactViewport.value && (!store.project.ui.leftCollapsed || !store.project.ui.rightCollapsed || !store.project.ui.bottomCollapsed))
 const workflowStatusLabel = computed(() => workflowStatus.value === 'PUBLISHED' ? '已发布' : store.dirty ? '草稿未保存' : '草稿')
 const workflowStatusTone = computed(() => workflowStatus.value === 'PUBLISHED' ? 'is-published' : store.dirty ? 'is-dirty' : 'is-draft')

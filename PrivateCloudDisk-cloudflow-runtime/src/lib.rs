@@ -1,29 +1,120 @@
-//! CloudFlow DSL 编译核心：Pest → AST → 语义分析 → Workflow IR v1。
+//! CloudFlow 多前端编译核心：DSL（Pest）与 YAML（serde_yaml_ng）→ 共享 Workflow Domain AST
+//! → 统一语义分析 → `workflow.cloudflow.io/v1` IR。
+//!
+//! 分层约定：
+//! - 本 crate 根层（`src/lib.rs`）即「前端调度器」——`Language` / `language_of` /
+//!   `parse_frontend_detailed` 在此统一分发到 DSL（`parser`）或 YAML（`yaml`）前端；
+//!   DSL 前端主体位于根层模块（`parser` / `grammar.pest`），YAML 前端收敛在 `yaml`
+//!   子模块（仅暴露 `yaml::parse_yaml{,_detailed}`）。表达式能力唯一收敛于 `expression` 子系统。
+//! - IR 契约校验唯一实现在 `ir_validate`；`compiler::validate_ir` 是其文本适配层，
+//!   生产 `/ir-validate` API、`RuntimeEngine::load`、微服务与开发调试入口共用同一校验。
+//! - 执行语义分双执行面：生产执行面 `execution`（持久化调度器与执行协调器，
+//!   数据库 + Capability Agent + 检查点）与开发调试面 `dev_exec`（纯内存同步 Dev Runner）；
+//!   两执行面的控制流语义（条件/分支/try/循环/重试/退避/并行/超时/子树展开/控制信号）
+//!   唯一收敛于统一调度驱动与 `execution_core`（`cloudflow-engine-core` crate），不重复定义。
+//! - 语言无关的共享层——领域 AST（`ast`）、诊断（`diagnostic`）、Workflow IR（`ir`）、
+//!   IR 契约校验（`ir_validate`）、表达式子系统（`expression`）、执行语义核心
+//!   （`execution_core`）、统一调度驱动（`engine`）与开发调试面（`dev_exec`）——
+//!   实现位于独立 crate `cloudflow-engine-core`（`crates/cloudflow-engine-core`），
+//!   本 crate 根层只做再导出（`pub use cloudflow_engine_core::{...}`），
+//!   既有 `crate::ast::*` / `crate::ir::*` / `crate::dev_exec::*` 等调用路径不变。
+//!   独立 crate 保证 `cloudflowc` CLI 可仅依赖执行核心而不引入
+//!   数据库 / gRPC / HTTP 服务面代码。
 //!
 //! 本 crate 不连接业务数据库，也不直接执行用户脚本；身份、空间权限和能力快照由控制面
 //! 传入，执行面由 Runtime 的 action adapter 负责。
 
-pub mod agent;
 pub mod ast_printer;
-pub mod ast;
+#[cfg(feature = "runtime-service")]
 pub mod broker;
+#[cfg(feature = "runtime-service")]
+pub mod compile_cache;
 pub mod compiler;
+#[cfg(feature = "runtime-service")]
 pub mod config;
-pub mod diagnostic;
-pub mod engine;
+#[cfg(feature = "runtime-service")]
 pub mod error;
+#[cfg(feature = "runtime-service")]
 pub mod execution;
+#[cfg(feature = "runtime-service")]
 pub mod http;
-pub mod ir;
+#[cfg(feature = "runtime-service")]
 pub mod observability;
 pub mod parser;
+#[cfg(feature = "runtime-service")]
 pub mod persistence;
-pub mod runtime;
 pub mod semantic;
+pub mod yaml;
+
+/// 共享执行核心（独立 crate `cloudflow-engine-core`）再导出：领域 AST、诊断、
+/// Workflow IR、IR 契约校验、表达式子系统、执行语义核心、统一调度驱动与
+/// 开发调试面。宿主 crate 与 `cloudflowc` CLI 共用这唯一一份实现。
+/// Capability Agent（gRPC）独立 crate：生产执行面唯一能力调用出口
+/// （能力解析、最小权限校验、审计、builtin/api/plugin 路由）。
+#[cfg(feature = "runtime-service")]
+pub use cloudflow_agent as agent;
+pub use cloudflow_engine_core::{
+    ast, dev_exec, diagnostic, engine, execution_core, expression, ir, ir_validate, runtime,
+};
+
+/// 前端语言标识：CloudFlow DSL 与 CloudFlow YAML（第二前端语言）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Language {
+    Dsl,
+    Yaml,
+}
+
+/// 按文件名扩展名推断前端语言（前端调度器）：
+/// - `.flow.yaml` / `.workflow.yaml` / `.yaml` / `.yml` → YAML；
+/// - 其余（含 `.flow`）→ DSL。
+pub fn language_of(filename: &str) -> Language {
+    let lower = filename.to_ascii_lowercase();
+    if lower.ends_with(".flow.yaml")
+        || lower.ends_with(".workflow.yaml")
+        || lower.ends_with(".yaml")
+        || lower.ends_with(".yml")
+    {
+        Language::Yaml
+    } else {
+        Language::Dsl
+    }
+}
+
+/// 按前端语言选择语法解析，返回 (AST, 非致命诊断)（前端调度器）：
+/// DSL ↔ `parser::parse_source_detailed`；YAML ↔ `yaml::parse_yaml_detailed`。
+/// 生成 CloudFlow YAML 的 JSON Schema（需求 31.10/31.18，单一事实来源，供前端 IDE / API 使用）。
+///
+/// 该产物从 `yaml/schema.rs` 的统一定义生成，与 `schemas/yaml-workflow.schema.json`
+/// 保持一致（由测试 `yaml_json_schema_matches_ondisk` 校验，避免漂移）。
+pub fn emit_yaml_json_schema() -> serde_json::Value {
+    yaml::schema::emit_json_schema()
+}
+
+pub fn parse_frontend_detailed(
+    source: &str,
+    filename: &str,
+    language: Language,
+) -> Result<(ast::WorkflowNode, Vec<Diagnostic>), Box<Diagnostic>> {
+    match language {
+        Language::Yaml => yaml::parse_yaml_detailed(source, filename),
+        Language::Dsl => parser::parse_source_detailed(source, filename),
+    }
+}
+
+/// 开发/调试执行入口（需求 §4/§9）：直接 IR 驱动、纯内存执行、无数据库/MQ。
+pub use dev_exec::{
+    action_key, dev_execute, dev_execute_async, dev_execute_sync, ActionExecutor, DevConfig,
+    DevEntryError, DevError, DevExecError, DevExecutionResult, DevFailureSpec, DevLogLevel,
+    DevNodeResult, DevTaskStatus, DevWorkflowStatus, MockActionExecutor,
+};
+/// Workflow IR（`workflow.cloudflow.io/v1`）——调试执行入口直接消费该结构。
+pub use ir::WorkflowIrV1;
+/// IR 契约校验（唯一 IR 校验实现：生产执行面加载、`/ir-validate` API、微服务与
+/// 开发调试执行入口共用，需求 §3）：纯函数、一次收集全部问题。
+pub use ir_validate::{validate_ir_contracts, IrContractIssue, IR_API_VERSION, VALID_NODE_TYPES};
 
 use compiler::compile;
 use diagnostic::Diagnostic;
-use ir::WorkflowIrV1;
 use semantic::CapabilityCatalog;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -55,8 +146,19 @@ pub fn compile_source_named(
     filename: &str,
     catalog: &dyn CapabilityCatalog,
 ) -> Result<WorkflowIrV1, CompileError> {
-    let (mut workflow, mut diagnostics) =
-        parser::parse_source_detailed(source, filename).map_err(|diagnostic| CompileError {
+    let language = language_of(filename);
+    compile_source_named_for_language(source, filename, language, catalog)
+}
+
+/// 显式指定前端语言编译（CLI `--lang` / HTTP `language` 字段使用）。
+pub fn compile_source_named_for_language(
+    source: &str,
+    filename: &str,
+    language: Language,
+    catalog: &dyn CapabilityCatalog,
+) -> Result<WorkflowIrV1, CompileError> {
+    let (mut workflow, mut diagnostics) = parse_frontend_detailed(source, filename, language)
+        .map_err(|diagnostic| CompileError {
             diagnostics: vec![*diagnostic],
         })?;
     // [CLOUDFLOW-INCLUDE-001] include 只允许 CLI/本地文件编译模式在工作流根目录内解析。
@@ -78,7 +180,13 @@ pub fn compile_source_named(
     }
     // [V1.2-USE-WITH] include/import 合并后，把模块默认参数注入带 `use <alias>` 的步骤。
     apply_use_defaults(&mut workflow);
-    diagnostics.extend(semantic::validate(&workflow, catalog, source, filename));
+    diagnostics.extend(semantic::validate_with_rules(
+        &workflow,
+        catalog,
+        source,
+        filename,
+        &[],
+    ));
     if !diagnostics.is_empty() {
         return Err(CompileError { diagnostics });
     }
@@ -91,8 +199,18 @@ pub fn compile_source_named(
 /// 不生成 IR，只返回入口文件经 Pest 解析得到的 `WorkflowNode`（需求 5.1/5.3/5.12）。
 /// 语义合法性不代表语法；解析恢复规则产生的非致命诊断仍返回并随 AST 一并带上（需求 5.6/5.7）。
 pub fn parse_ast(source: &str, filename: &str) -> Result<ast::WorkflowNode, CompileError> {
+    let language = language_of(filename);
+    parse_ast_for_language(source, filename, language)
+}
+
+/// 显式指定前端语言做语法解析（CLI `--emit-ast --lang yaml` 等场景）。
+pub fn parse_ast_for_language(
+    source: &str,
+    filename: &str,
+    language: Language,
+) -> Result<ast::WorkflowNode, CompileError> {
     let (workflow, diagnostics) =
-        parser::parse_source_detailed(source, filename).map_err(|diagnostic| CompileError {
+        parse_frontend_detailed(source, filename, language).map_err(|diagnostic| CompileError {
             diagnostics: vec![*diagnostic],
         })?;
     if !diagnostics.is_empty() {
@@ -298,7 +416,8 @@ fn resolve_includes(
             diagnostics.push(Diagnostic::new(
                 "CF3104",
                 "INCLUDE_ERROR",
-                format!("检测到循环 include：{}", resolved.display()),
+                // [19.13] 诊断不泄露绝对路径：只回显用户书写的相对 include 路径。
+                format!("检测到循环 include：`{}`", include.path),
                 source,
                 filename,
                 include.span.start,

@@ -1,0 +1,7 @@
+# 反例：retry.count 非法值（次数必须 ≥ 1，31.6）。
+# expected: CFY-SCHEMA-1004
+steps:
+  - id: a
+    action: file.get
+    retry:
+      count: 0

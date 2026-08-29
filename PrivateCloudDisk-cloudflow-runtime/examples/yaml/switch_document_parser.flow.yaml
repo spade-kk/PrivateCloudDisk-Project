@@ -1,0 +1,28 @@
+# CloudFlow YAML 示例 3/16（对照 DEMO 示例 3）
+# 场景：按文档类型选择解析器（switch + cases + default）。
+# 覆盖：switch 多分支、input 类型路由、depends 别名。
+workflow:
+  name: document_parser
+
+input:
+  doc_type:
+    type: string
+    required: true
+
+steps:
+  - id: parser
+    switch:
+      expression: ${{ input.doc_type }}
+      cases:
+        pdf:
+          action: parser.pdf
+        word:
+          action: parser.word
+        excel:
+          action: parser.excel
+      default:
+        action: parser.default
+  - id: save
+    action: metadata.save
+    depends:
+      - parser

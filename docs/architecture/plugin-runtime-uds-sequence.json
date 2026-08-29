@@ -1,0 +1,27 @@
+{
+  "title": "Plugin capability invocation over an isolated Unix Domain Socket",
+  "participants": [
+    {"id": "automation", "label": "Automation Service"},
+    {"id": "runtime", "label": "Plugin Runtime Agent"},
+    {"id": "runner", "label": "runner.py / Container"},
+    {"id": "sdk", "label": "PyCloud SDK"},
+    {"id": "hub", "label": "Capability Hub"},
+    {"id": "plugin", "label": "Plugin Service"}
+  ],
+  "messages": [
+    {"from": "automation", "to": "runtime", "label": "authenticated chain request + effective installation permissions"},
+    {"from": "runtime", "to": "runtime", "label": "create Session: random ID, token, UDS listener, trusted tenant context"},
+    {"from": "runtime", "to": "runner", "label": "start network=none container; mount only /runtime/runtime.sock; argv ID+token"},
+    {"from": "runner", "to": "sdk", "label": "configure private SDK transport"},
+    {"from": "sdk", "to": "runtime", "label": "CapabilityRequest protobuf over fixed UDS path"},
+    {"from": "runtime", "to": "runtime", "label": "verify socket Session + ID + token; limit frame/rate; inject user/space/plugin context"},
+    {"from": "runtime", "to": "hub", "label": "internal HTTP: capability + declared permissions + trusted grants"},
+    {"from": "hub", "to": "hub", "label": "schema; current space permission; declared ∩ granted; dispatch; global audit"},
+    {"from": "hub", "to": "runtime", "label": "structured success or sanitized failure", "return": true},
+    {"from": "runtime", "to": "sdk", "label": "CapabilityResponse protobuf; record redacted Agent audit fact", "return": true},
+    {"from": "sdk", "to": "runner", "label": "SDK result or mapped exception", "return": true},
+    {"from": "runner", "to": "runtime", "label": "container result + stdout/stderr", "return": true},
+    {"from": "runtime", "to": "automation", "label": "chain result + Agent audit facts; close socket/session", "return": true},
+    {"from": "automation", "to": "plugin", "label": "trusted persistence of execution observability", "async": true}
+  ]
+}

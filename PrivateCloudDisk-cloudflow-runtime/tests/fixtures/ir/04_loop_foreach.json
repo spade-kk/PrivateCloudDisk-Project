@@ -1,0 +1,129 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-foreach",
+    "name": "foreach",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {
+      "files": {
+        "type": "array",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      }
+    },
+    "graph": {
+      "nodes": [
+        {
+          "id": "loop",
+          "type": "loop",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": {
+            "kind": "foreach",
+            "iterator": "item",
+            "collection": {
+              "$ref": "vars.files"
+            },
+            "body": [
+              "process"
+            ],
+            "maxIterations": 100
+          },
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "process"
+          ]
+        },
+        {
+          "id": "process",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "file",
+            "method": "process",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "path": {
+                "$ref": "item"
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "loop"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "loop",
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "loop",
+          "to": "process"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

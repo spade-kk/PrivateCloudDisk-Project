@@ -1,0 +1,6 @@
+# 反例：timeout 时长格式不合法（31.6）。
+# expected: CFY-SCHEMA-1004
+steps:
+  - id: a
+    action: file.get
+    timeout: "soon"

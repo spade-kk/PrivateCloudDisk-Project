@@ -3,7 +3,7 @@
 use crate::ast::*;
 use crate::ir::*;
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 pub fn compile(workflow: &WorkflowNode) -> WorkflowIrV1 {
     let mut nodes = Vec::new();
@@ -129,7 +129,11 @@ pub fn compile(workflow: &WorkflowNode) -> WorkflowIrV1 {
             trigger,
             variables,
             graph: GraphIr { nodes, edges },
-            outputs: BTreeMap::new(),
+            outputs: workflow
+                .outputs
+                .iter()
+                .map(|(key, value)| (key.clone(), value_ir(value)))
+                .collect(),
             environment: workflow
                 .environment
                 .iter()
@@ -652,6 +656,7 @@ pub fn value_ir(value: &ValueNode) -> Value {
         }
         ValueNode::Number(value) => Value::Number(value.clone()),
         ValueNode::Boolean(value) => Value::Bool(*value),
+        ValueNode::Null => Value::Null,
         ValueNode::VariableRef(value) => serde_json::json!({"$ref": value}),
         // [V1.2-INTERPOLATION] 字符串模板：段序列（String | {"$ref": ...}）。
         ValueNode::Template(segments) => serde_json::json!({
@@ -727,67 +732,16 @@ fn pipeline_op_ir(op: &PipeOp) -> Value {
     }
 }
 
-/// 对 IR 做结构和 DAG 校验，Runtime 和 Workflow Service 共用。
+/// 对 IR 做契约校验，Runtime、生产 HTTP `/ir-validate` API、Workflow Service
+/// 与开发调试执行入口共用——**本 crate 唯一的 IR 校验入口**。
+///
+/// 内部委托 [`crate::ir_validate::validate_ir_contracts`]（完整 IR 契约校验：
+/// apiVersion/kind/节点类型/必备字段/变量与触发器/表达式结构/引用一致性/环检测，
+/// 一次收集全部问题），并把带错误码的 `IrContractIssue` 映射为纯文本，
+/// 保持既有 `Vec<String>` 调用契约不变。
 pub fn validate_ir(ir: &WorkflowIrV1) -> Vec<String> {
-    let mut errors = Vec::new();
-    if ir.api_version != "workflow.cloudflow.io/v1" {
-        errors.push("unsupported apiVersion".into());
-    }
-    if ir.kind != "Workflow" {
-        errors.push("kind must be Workflow".into());
-    }
-    let ids = ir
-        .spec
-        .graph
-        .nodes
-        .iter()
-        .map(|node| node.id.as_str())
-        .collect::<HashSet<_>>();
-    if ids.len() != ir.spec.graph.nodes.len() {
-        errors.push("graph contains duplicate node ids".into());
-    }
-    for edge in &ir.spec.graph.edges {
-        if !ids.contains(edge.from.as_str()) || !ids.contains(edge.to.as_str()) {
-            errors.push(format!(
-                "edge references unknown node {} -> {}",
-                edge.from, edge.to
-            ));
-        }
-    }
-    if ir_has_cycle(ir) {
-        errors.push("workflow graph contains a cycle".into());
-    }
-    errors
-}
-
-fn ir_has_cycle(ir: &WorkflowIrV1) -> bool {
-    let mut incoming = ir
-        .spec
-        .graph
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), 0usize))
-        .collect::<BTreeMap<_, _>>();
-    for edge in &ir.spec.graph.edges {
-        if let Some(value) = incoming.get_mut(edge.to.as_str()) {
-            *value += 1;
-        }
-    }
-    let mut ready = incoming
-        .iter()
-        .filter_map(|(id, count)| (*count == 0).then_some(*id))
-        .collect::<Vec<_>>();
-    let mut visited = 0;
-    while let Some(id) = ready.pop() {
-        visited += 1;
-        for edge in ir.spec.graph.edges.iter().filter(|edge| edge.from == id) {
-            if let Some(count) = incoming.get_mut(edge.to.as_str()) {
-                *count -= 1;
-                if *count == 0 {
-                    ready.push(edge.to.as_str());
-                }
-            }
-        }
-    }
-    visited != incoming.len()
+    crate::ir_validate::validate_ir_contracts(ir)
+        .into_iter()
+        .map(|issue| format!("{}: {} ({})", issue.code, issue.message, issue.path))
+        .collect()
 }

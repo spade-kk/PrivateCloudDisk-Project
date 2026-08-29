@@ -8,7 +8,6 @@ use pest::error::InputLocation;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use serde_json::Number;
 use std::collections::{BTreeMap, HashSet};
 
 #[derive(Parser)]
@@ -89,6 +88,7 @@ fn parse_workflow(
         steps: vec![],
         controls: vec![],
         handlers: vec![],
+        outputs: BTreeMap::new(),
         span,
     };
     for item in body.into_inner() {
@@ -376,8 +376,9 @@ fn parse_variables(
                             }
                             match key.as_str() {
                                 "required" => {
-                                    let parsed =
-                                        value_from_expression(parse_expression(value, source));
+                                    let parsed = crate::expression::value_from_expression(
+                                        expr_node(&value, source, filename, diagnostics),
+                                    );
                                     if !matches!(parsed, ValueNode::Boolean(_)) {
                                         diagnostics.push(Diagnostic::new(
                                             "CF2101",
@@ -397,8 +398,9 @@ fn parse_variables(
                                     required = matches!(parsed, ValueNode::Boolean(true));
                                 }
                                 "default" => {
-                                    default =
-                                        Some(value_from_expression(parse_expression(value, source)))
+                                    default = Some(crate::expression::value_from_expression(
+                                        expr_node(&value, source, filename, diagnostics),
+                                    ))
                                 }
                                 unknown => diagnostics.push(unknown_field(
                                     unknown,
@@ -430,7 +432,12 @@ fn parse_variables(
                     }
                     (VariableSource::Input, inferred)
                 } else {
-                    let value = value_from_expression(parse_expression(value, source));
+                    let value = crate::expression::value_from_expression(expr_node(
+                        &value,
+                        source,
+                        filename,
+                        diagnostics,
+                    ));
                     let inferred = explicit_type.unwrap_or_else(|| infer_value_type(&value));
                     default = Some(value);
                     (VariableSource::Local, inferred)
@@ -559,9 +566,13 @@ fn parse_audit(
         if let (Some(key), Some(value)) = (fields.next(), fields.next()) {
             match key.as_str() {
                 "level" => {
-                    level = value_node_string(&parse_value(value, source)).unwrap_or_default()
+                    level = value_node_string(&value_node(&value, source, filename, diagnostics))
+                        .unwrap_or_default()
                 }
-                "description" => description = value_node_string(&parse_value(value, source)),
+                "description" => {
+                    description =
+                        value_node_string(&value_node(&value, source, filename, diagnostics))
+                }
                 other => diagnostics.push(unknown_field(
                     other,
                     &item,
@@ -704,7 +715,9 @@ fn parse_step(
         }
         match item.as_rule() {
             Rule::step_name => step.name = item.into_inner().next().map(string_text),
-            Rule::action_decl => step.action = Some(parse_action(item, source)),
+            Rule::action_decl => {
+                step.action = Some(parse_action(item, source, filename, diagnostics))
+            }
             Rule::depends_decl => {
                 // [V1.2-COND-DEPENDS] depends_on 可选 `if <bool 表达式>`；表达式对应当前
                 // 依赖的条件依赖配置，ident 则加入静态依赖列表。
@@ -712,7 +725,7 @@ fn parse_step(
                     if p.as_rule() == Rule::ident {
                         step.depends_on.push(p.as_str().to_owned());
                     } else if p.as_rule() == Rule::expression {
-                        step.depends_condition = Some(parse_expression(p, source));
+                        step.depends_condition = Some(expr_node(&p, source, filename, diagnostics));
                     }
                 }
             }
@@ -722,7 +735,7 @@ fn parse_step(
                     .next()
                     .and_then(|body| body.into_inner().next())
                 {
-                    step.condition = Some(parse_expression(expr, source));
+                    step.condition = Some(expr_node(&expr, source, filename, diagnostics));
                 }
             }
             Rule::retry_decl => {
@@ -813,7 +826,12 @@ fn parse_step(
     step
 }
 
-fn parse_action(pair: Pair<'_, Rule>, source: &str) -> ActionNode {
+fn parse_action(
+    pair: Pair<'_, Rule>,
+    source: &str,
+    filename: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ActionNode {
     let span = span_of(&pair, source);
     let mut inner = pair.into_inner();
     let header = inner
@@ -850,7 +868,7 @@ fn parse_action(pair: Pair<'_, Rule>, source: &str) -> ActionNode {
         }
     }
     if let Some(body) = inner.next() {
-        action.arguments = parse_action_body(body, source);
+        action.arguments = parse_action_body(body, source, filename, diagnostics);
     }
     if action.provider == "plugin" {
         action.plugin_id = action
@@ -868,7 +886,12 @@ fn parse_action(pair: Pair<'_, Rule>, source: &str) -> ActionNode {
     action
 }
 
-fn parse_action_body(pair: Pair<'_, Rule>, source: &str) -> BTreeMap<String, ValueNode> {
+fn parse_action_body(
+    pair: Pair<'_, Rule>,
+    source: &str,
+    filename: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> BTreeMap<String, ValueNode> {
     let mut map = BTreeMap::new();
     for item in pair.into_inner() {
         match item.as_rule() {
@@ -877,7 +900,12 @@ fn parse_action_body(pair: Pair<'_, Rule>, source: &str) -> BTreeMap<String, Val
                 if let (Some(key), Some(value)) = (fields.next(), fields.next()) {
                     map.insert(
                         key.as_str().to_owned(),
-                        value_from_expression(parse_expression(value, source)),
+                        crate::expression::value_from_expression(expr_node(
+                            &value,
+                            source,
+                            filename,
+                            diagnostics,
+                        )),
                     );
                 }
             }
@@ -886,12 +914,19 @@ fn parse_action_body(pair: Pair<'_, Rule>, source: &str) -> BTreeMap<String, Val
                 if let (Some(key), Some(body)) = (fields.next(), fields.next()) {
                     map.insert(
                         key.as_str().to_owned(),
-                        ValueNode::Object(parse_action_body(body, source)),
+                        ValueNode::Object(parse_action_body(body, source, filename, diagnostics)),
                     );
                 }
             }
             Rule::call_stmt => {
-                let value = parse_call(item.clone(), source);
+                let raw_call = item.as_str().trim_end_matches(';').trim();
+                let value = value_node_text(
+                    raw_call,
+                    item.as_span().start(),
+                    source,
+                    filename,
+                    diagnostics,
+                );
                 map.insert(format!("$call:{}.{}", map.len(), item.as_str()), value);
             }
             _ => {}
@@ -1021,7 +1056,7 @@ fn parse_flow_node(
                 .next()?
                 .into_inner()
                 .next()
-                .map(|v| parse_expression(v, source))?;
+                .map(|v| expr_node(&v, source, filename, diagnostics))?;
             let true_branch = parse_flow_nodes(fields.next()?, source, filename, diagnostics);
             let false_branch = fields
                 .next()
@@ -1037,7 +1072,7 @@ fn parse_flow_node(
         Rule::foreach_decl => {
             let mut fields = pair.into_inner();
             let iterator = fields.next()?.as_str().to_owned();
-            let collection = parse_expression(fields.next()?, source);
+            let collection = expr_node(&fields.next()?, source, filename, diagnostics);
             let body = parse_flow_nodes(fields.next()?, source, filename, diagnostics);
             Some(FlowNode::Loop(LoopNode {
                 iterator,
@@ -1050,7 +1085,7 @@ fn parse_flow_node(
         Rule::for_decl => {
             let mut fields = pair.into_inner();
             let iterator = fields.next()?.as_str().to_owned();
-            let collection = parse_expression(fields.next()?, source);
+            let collection = expr_node(&fields.next()?, source, filename, diagnostics);
             let body = parse_flow_nodes(fields.next()?, source, filename, diagnostics);
             let mut range_from = None;
             let mut range_to = None;
@@ -1084,7 +1119,7 @@ fn parse_flow_node(
                 .next()?
                 .into_inner()
                 .next()
-                .map(|value| parse_expression(value, source))?;
+                .map(|value| expr_node(&value, source, filename, diagnostics))?;
             let body = parse_flow_nodes(fields.next()?, source, filename, diagnostics);
             Some(FlowNode::While(WhileNode {
                 condition,
@@ -1175,7 +1210,7 @@ fn parse_flow_node(
                 .next()?
                 .into_inner()
                 .next()
-                .map(|value| parse_expression(value, source))?;
+                .map(|value| expr_node(&value, source, filename, diagnostics))?;
             Some(FlowNode::Assert(AssertNode {
                 condition: expression,
                 span,
@@ -1188,7 +1223,7 @@ fn parse_flow_node(
                 .next()?
                 .into_inner()
                 .next()
-                .map(|value| parse_expression(value, source))?;
+                .map(|value| expr_node(&value, source, filename, diagnostics))?;
             Some(FlowNode::Validate(ValidateNode { condition, span }))
         }
         // [V1.2-NOTIFY] notify { ... } 内建通知。
@@ -1199,7 +1234,7 @@ fn parse_flow_node(
             for item in pair.into_inner() {
                 let mut fields = item.into_inner();
                 if let (Some(key), Some(value)) = (fields.next(), fields.next()) {
-                    let value = parse_value(value, source);
+                    let value = value_node(&value, source, filename, diagnostics);
                     match key.as_str() {
                         "channel" => channel = value_node_string(&value).unwrap_or_default(),
                         "to" => recipient = Some(value),
@@ -1220,12 +1255,12 @@ fn parse_flow_node(
             let output = pair
                 .into_inner()
                 .next()
-                .map(|value| parse_expression(value, source));
+                .map(|value| expr_node(&value, source, filename, diagnostics));
             Some(FlowNode::Return(ReturnNode { output, span }))
         }
         Rule::switch_decl => {
             let mut fields = pair.into_inner();
-            let subject = parse_expression(fields.next()?, source);
+            let subject = expr_node(&fields.next()?, source, filename, diagnostics);
             let switch_body = fields.next()?;
             let mut cases = Vec::new();
             let mut default_branch = Vec::new();
@@ -1235,7 +1270,7 @@ fn parse_flow_node(
                     Rule::switch_case => {
                         let case_span = span_of(&clause, source);
                         let mut case_fields = clause.into_inner();
-                        let value = parse_value(case_fields.next()?, source);
+                        let value = value_node(&case_fields.next()?, source, filename, diagnostics);
                         let body =
                             parse_flow_nodes(case_fields.next()?, source, filename, diagnostics);
                         cases.push(SwitchCase {
@@ -1285,306 +1320,70 @@ fn parse_flow_node(
     }
 }
 
-fn parse_value(pair: Pair<'_, Rule>, source: &str) -> ValueNode {
-    match pair.as_rule() {
-        // [V1.2-INTERPOLATION] 含 ${...} 的字符串解析为字符串模板。
-        Rule::string_value | Rule::triple_string => parse_string_value(pair),
-        Rule::boolean => ValueNode::Boolean(pair.as_str() == "true"),
-        Rule::number => ValueNode::Number(
-            pair.as_str()
-                .parse::<Number>()
-                .unwrap_or_else(|_| Number::from(0)),
-        ),
-        Rule::duration => ValueNode::Duration(pair.as_str().to_owned()),
-        Rule::reference => ValueNode::VariableRef(normalize_reference(pair.as_str())),
-        Rule::enum_value => ValueNode::Enum(pair.as_str().to_owned()),
-        Rule::array => {
-            let values = pair
-                .into_inner()
-                .next()
-                .map(|list| {
-                    list.into_inner()
-                        .map(|value| value_from_expression(parse_expression(value, source)))
-                        .collect()
-                })
-                .unwrap_or_default();
-            ValueNode::Array(values)
-        }
-        Rule::object => {
-            let mut values = BTreeMap::new();
-            for entry in pair.into_inner() {
-                let mut fields = entry.into_inner();
-                let Some(key) = fields.next() else { continue };
-                let Some(value) = fields.next() else { continue };
-                values.insert(
-                    if key.as_rule() == Rule::string_value {
-                        string_text(key)
-                    } else {
-                        key.as_str().to_owned()
-                    },
-                    value_from_expression(parse_expression(value, source)),
-                );
-            }
-            ValueNode::Object(values)
-        }
-        Rule::call_value => parse_call(pair, source),
-        _ => ValueNode::Enum(pair.as_str().to_owned()),
-    }
-}
-
-fn parse_call(pair: Pair<'_, Rule>, source: &str) -> ValueNode {
-    let mut fields = pair.into_inner();
-    let function = fields
-        .next()
-        .map(|p| p.as_str().to_owned())
-        .unwrap_or_default();
-    let mut positional = Vec::new();
-    let mut named = BTreeMap::new();
-    if let Some(args) = fields.next() {
-        match args.as_rule() {
-            Rule::named_argument_list => {
-                for arg in args.into_inner() {
-                    let mut values = arg.into_inner();
-                    if let (Some(key), Some(value)) = (values.next(), values.next()) {
-                        named.insert(key.as_str().to_owned(), parse_value(value, source));
-                    }
-                }
-            }
-            Rule::value_list => positional.extend(
-                args.into_inner()
-                    .map(|value| value_from_expression(parse_expression(value, source))),
-            ),
-            _ => {}
-        }
-    }
-    ValueNode::Call {
-        function,
-        positional,
-        named,
-    }
-}
-
-/// [V1.2-PIPELINE] 解析单个管道操作：filter(pred) / map(field) / reduce(func)。
-fn parse_pipeline_op(pair: &Pair<'_, Rule>, source: &str) -> PipeOp {
-    let Some(op) = pair.clone().into_inner().next() else {
-        return PipeOp::Reduce("count".into());
-    };
-    let span = span_of(&op, source);
-    match op.as_rule() {
-        Rule::pipeline_filter => PipeOp::Filter(Box::new(
-            op.into_inner()
-                .next()
-                .map(|p| parse_expression(p, source))
-                .unwrap_or_else(|| literal_expression(ValueNode::Boolean(false), span)),
-        )),
-        Rule::pipeline_map => PipeOp::Map(op.into_inner().next().map(|p| {
-            if p.as_rule() == Rule::string_value {
-                string_text(p)
-            } else {
-                p.as_str().to_owned()
-            }
-        })),
-        Rule::pipeline_reduce => PipeOp::Reduce(
-            op.into_inner()
-                .next()
-                .map(|p| p.as_str().to_owned())
-                .unwrap_or_default(),
-        ),
-        _ => PipeOp::Reduce("count".into()),
-    }
-}
-
-/// [V1.2-INTERPOLATION] 解析字符串模板；仅将 `${<简单引用>}` 提升为 $ref 段，
-/// 复杂占位符按普通文本保留（由调用方决定是否使用）。
-fn parse_string_value(pair: Pair<'_, Rule>) -> ValueNode {
-    let raw = string_text(pair);
-    if !raw.contains("${") {
-        return ValueNode::String(raw);
-    }
-    let mut segments = Vec::new();
-    let mut rest = raw.as_str();
-    let mut text = String::new();
-    while let Some(start) = rest.find("${") {
-        text.push_str(&rest[..start]);
-        let after = &rest[start + 2..];
-        if let Some(end) = after.find('}') {
-            let inner = &after[..end];
-            if !text.is_empty() {
-                segments.push(ValueNode::String(std::mem::take(&mut text)));
-            }
-            if is_simple_reference(inner) {
-                segments.push(ValueNode::VariableRef(inner.to_owned()));
-            } else {
-                text.push_str("${");
-                text.push_str(inner);
-                text.push('}');
-            }
-            rest = &after[end + 1..];
-        } else {
-            text.push_str(&rest[start..]);
-            rest = "";
-            break;
-        }
-    }
-    text.push_str(rest);
-    if !text.is_empty() {
-        segments.push(ValueNode::String(text));
-    }
-    if segments.is_empty() {
-        return ValueNode::String(raw);
-    }
-    ValueNode::Template(segments)
-}
-
-/// 判断 `${...}` 内是否为简单引用（小写点分/下划线/连字符路径）。
-fn is_simple_reference(value: &str) -> bool {
-    let mut chars = value.chars();
-    let first = chars.next().unwrap_or('\0');
-    (first.is_ascii_alphabetic() || first == '_')
-        && value
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-}
-
-fn parse_expression(pair: Pair<'_, Rule>, source: &str) -> ExpressionNode {
-    let span = span_of(&pair, source);
-    match pair.as_rule() {
-        // [V1.2-PIPELINE] 左折叠管道：<input> | op1 | op2 …。
-        Rule::expression => {
-            let mut fields = pair.into_inner();
-            let first = fields
-                .next()
-                .map(|p| parse_expression(p, source))
-                .unwrap_or_else(|| literal_expression(ValueNode::Boolean(false), span));
-            let mut result = first;
-            for stage in fields {
-                let op = parse_pipeline_op(&stage, source);
-                result = ExpressionNode {
-                    kind: ExpressionKind::Pipe {
-                        input: Box::new(result),
-                        op,
-                    },
-                    span,
-                };
-            }
-            result
-        }
-        Rule::ternary
-        | Rule::logical_or
-        | Rule::logical_and
-        | Rule::equality
-        | Rule::comparison
-        | Rule::additive
-        | Rule::multiplicative => {
-            let is_ternary = pair.as_rule() == Rule::ternary;
-            let mut fields = pair.into_inner();
-            let first = fields
-                .next()
-                .map(|p| parse_expression(p, source))
-                .unwrap_or_else(|| literal_expression(ValueNode::Boolean(false), span));
-            let mut result = first;
-            // ternary 的第二、三个元素不带独立 operator pair，单独构建表达式节点。
-            if is_ternary {
-                if let (Some(when_true), Some(when_false)) = (fields.next(), fields.next()) {
-                    return ExpressionNode {
-                        kind: ExpressionKind::Ternary {
-                            condition: Box::new(result),
-                            when_true: Box::new(parse_expression(when_true, source)),
-                            when_false: Box::new(parse_expression(when_false, source)),
-                        },
-                        span,
-                    };
-                }
-            }
-            while let (Some(op), Some(right)) = (fields.next(), fields.next()) {
-                result = ExpressionNode {
-                    kind: ExpressionKind::Binary {
-                        operator: op.as_str().to_owned(),
-                        left: Box::new(result),
-                        right: Box::new(parse_expression(right, source)),
-                    },
-                    span,
-                };
-            }
-            result
-        }
-        Rule::unary => {
-            let mut fields = pair.into_inner().collect::<Vec<_>>();
-            let primary = fields
-                .pop()
-                .map(|p| parse_expression(p, source))
-                .unwrap_or_else(|| literal_expression(ValueNode::Boolean(false), span));
-            fields
-                .into_iter()
-                .rev()
-                .fold(primary, |operand, operator| ExpressionNode {
-                    kind: ExpressionKind::Unary {
-                        operator: operator.as_str().to_owned(),
-                        operand: Box::new(operand),
-                    },
-                    span,
-                })
-        }
-        Rule::primary => pair
-            .into_inner()
-            .next()
-            .map(|p| parse_expression(p, source))
-            .unwrap_or_else(|| literal_expression(ValueNode::Boolean(false), span)),
-        Rule::function_call => {
-            let mut fields = pair.into_inner();
-            let function = fields
-                .next()
-                .map(|p| p.as_str().to_owned())
-                .unwrap_or_default();
-            let arguments = fields
-                .next()
-                .map(|list| {
-                    list.into_inner()
-                        .map(|p| parse_expression(p, source))
-                        .collect()
-                })
-                .unwrap_or_default();
-            ExpressionNode {
-                kind: ExpressionKind::Call {
-                    function,
-                    arguments,
-                },
-                span,
-            }
-        }
-        Rule::reference | Rule::local_ref => ExpressionNode {
-            kind: ExpressionKind::Reference(if pair.as_rule() == Rule::local_ref {
-                pair.as_str().to_owned()
-            } else {
-                normalize_reference(pair.as_str())
-            }),
-            span,
-        },
-        Rule::string_value
-        | Rule::triple_string
-        | Rule::boolean
-        | Rule::duration
-        | Rule::number
-        | Rule::array
-        | Rule::object => literal_expression(parse_value(pair, source), span),
-        _ => {
-            let raw = pair.as_str().to_owned();
-            pair.into_inner()
-                .next()
-                .map(|p| parse_expression(p, source))
-                .unwrap_or_else(|| literal_expression(ValueNode::Enum(raw), span))
+/// 表达式委托入口：把表达式**字符串**交给表达式子系统（需求 6.21/6.31）。
+///
+/// 前端（DSL/YAML）不解析、不构建表达式：只把表达式原文与它在 `source` 中的字节偏移
+/// 交给 `crate::expression`，由子系统经 `expression/grammar.pest`（pest）完成词法并构建
+/// `ExpressionNode`。子系统解析失败时按既有行为回退为占位表达式，并把诊断置入列表。
+fn expr_node(
+    pair: &Pair<'_, Rule>,
+    source: &str,
+    filename: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ExpressionNode {
+    let span = span_of(pair, source);
+    match crate::expression::parse_expression_string(
+        pair.as_str(),
+        source,
+        filename,
+        pair.as_span().start(),
+    ) {
+        Ok(node) => node,
+        Err(diagnostic) => {
+            diagnostics.push(*diagnostic);
+            literal_expression(ValueNode::Boolean(false), span)
         }
     }
 }
 
-/// 仅由一个字面量/引用构成的表达式在 AST 中保留为值；其余表达式显式标记，
-/// 从而避免把 `vars.a + 1` 降级为无法执行的字符串。
-fn value_from_expression(expression: ExpressionNode) -> ValueNode {
-    match expression.kind {
-        ExpressionKind::Literal(value) => value,
-        ExpressionKind::Reference(reference) => ValueNode::VariableRef(reference),
-        ExpressionKind::Pipe { .. } => ValueNode::Expression(Box::new(expression)),
-        _ => ValueNode::Expression(Box::new(expression)),
+/// 值上下文委托入口：作用同 `expr_node`，产出 `ValueNode`；失败时回退为枚举值。
+fn value_node(
+    pair: &Pair<'_, Rule>,
+    source: &str,
+    filename: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ValueNode {
+    value_node_text(
+        pair.as_str(),
+        pair.as_span().start(),
+        source,
+        filename,
+        diagnostics,
+    )
+}
+
+/// 文本形态的值委托：用于诸如 `call_stmt` 这类“去掉尾部 `;` 后交给子系统”的值。
+fn value_node_text(
+    raw: &str,
+    base: usize,
+    source: &str,
+    filename: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ValueNode {
+    match crate::expression::parse_value_string(raw, source, filename, base) {
+        Ok(node) => node,
+        Err(diagnostic) => {
+            diagnostics.push(*diagnostic);
+            ValueNode::Enum(raw.to_owned())
+        }
+    }
+}
+
+/// 占位表达式：子系统失败回退与“空表达式”缺省（与既有行为一致）。
+fn literal_expression(value: ValueNode, span: Span) -> ExpressionNode {
+    ExpressionNode {
+        kind: ExpressionKind::Literal(value),
+        span,
     }
 }
 
@@ -1594,18 +1393,12 @@ fn infer_value_type(value: &ValueNode) -> String {
         ValueNode::Template(_) => "string",
         ValueNode::Number(_) => "number",
         ValueNode::Boolean(_) => "boolean",
+        ValueNode::Null => "null",
         ValueNode::Array(_) => "array",
         ValueNode::Object(_) => "object",
         ValueNode::VariableRef(_) | ValueNode::Expression(_) | ValueNode::Call { .. } => "unknown",
     }
     .into()
-}
-
-fn literal_expression(value: ValueNode, span: Span) -> ExpressionNode {
-    ExpressionNode {
-        kind: ExpressionKind::Literal(value),
-        span,
-    }
 }
 
 fn parse_timeout(pair: Pair<'_, Rule>, source: &str) -> TimeoutConfig {
@@ -1665,7 +1458,7 @@ fn parse_environment(
         }
         env.push(EnvironmentDecl {
             key: key_name,
-            value: parse_value(value, source),
+            value: value_node(&value, source, filename, diagnostics),
             span: span_of(&entry, source),
         });
     }
@@ -1736,7 +1529,10 @@ fn parse_checked_assignments(
                     context,
                 ));
             } else {
-                values.insert(key.as_str().to_owned(), parse_value(value, source));
+                values.insert(
+                    key.as_str().to_owned(),
+                    value_node(&value, source, filename, diagnostics),
+                );
             }
         }
     }
@@ -1865,14 +1661,6 @@ fn classify_pest_error(
         "CloudFlow 语法不完整或存在非法 token".into(),
         vec![],
     )
-}
-
-fn normalize_reference(value: &str) -> String {
-    if value.starts_with("vars.") || value.starts_with("steps.") || value.starts_with("workflow.") {
-        value.to_owned()
-    } else {
-        format!("steps.{value}")
-    }
 }
 
 fn first_word(value: &str) -> &str {

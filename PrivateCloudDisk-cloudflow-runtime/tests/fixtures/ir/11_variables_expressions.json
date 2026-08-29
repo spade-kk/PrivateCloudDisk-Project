@@ -1,0 +1,176 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-variables_expressions",
+    "name": "variables_expressions",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {
+      "a": {
+        "type": "number",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      },
+      "b": {
+        "type": "number",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      },
+      "label": {
+        "type": "string",
+        "required": false,
+        "source": "input",
+        "default": "x",
+        "value": null
+      },
+      "items": {
+        "type": "array",
+        "required": true,
+        "source": "input",
+        "default": null,
+        "value": null
+      },
+      "derived": {
+        "type": "string",
+        "required": false,
+        "source": "local",
+        "default": null,
+        "value": {
+          "$template": [
+            "local=",
+            {
+              "$ref": "vars.label"
+            }
+          ]
+        }
+      }
+    },
+    "graph": {
+      "nodes": [
+        {
+          "id": "compute",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "math",
+            "method": "evaluate",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "sum": {
+                "$expr": {
+                  "operator": "+",
+                  "left": {
+                    "$ref": "vars.a"
+                  },
+                  "right": {
+                    "$ref": "vars.b"
+                  }
+                }
+              },
+              "big": {
+                "$expr": {
+                  "operator": ">",
+                  "left": {
+                    "$ref": "vars.a"
+                  },
+                  "right": 100
+                }
+              },
+              "label": {
+                "$template": [
+                  "value=",
+                  {
+                    "$ref": "vars.label"
+                  }
+                ]
+              },
+              "kept": {
+                "$pipeline": {
+                  "input": {
+                    "$ref": "vars.items"
+                  },
+                  "op": {
+                    "op": "filter",
+                    "predicate": {
+                      "$expr": {
+                        "operator": ">",
+                        "left": {
+                          "$ref": "size"
+                        },
+                        "right": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": null,
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": []
+    },
+    "outputs": {
+      "sum": {
+        "$expr": {
+          "operator": "+",
+          "left": {
+            "$ref": "vars.a"
+          },
+          "right": {
+            "$ref": "vars.b"
+          }
+        }
+      }
+    },
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

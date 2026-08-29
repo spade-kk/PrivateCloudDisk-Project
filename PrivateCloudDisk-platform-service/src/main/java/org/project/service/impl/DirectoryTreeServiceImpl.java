@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -185,7 +187,55 @@ public class DirectoryTreeServiceImpl implements DirectoryTreeService {
     public PageResultVO<NodeEntity> findUserNodesByNodeIdPaged(
             String parentId, String keyword, String fileType,
             String sortBy, String sortOrder, Integer page, Integer pageSize, UUID userId) {
-        return null;
+        if (parentId == null || parentId.isBlank()) {
+            throw new IllegalArgumentException("父目录 ID 不能为空");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("用户 ID 不能为空");
+        }
+
+        // The legacy mapper already applies the current SpaceContext and filters
+        // deleted/trashed nodes.  Keep that security boundary and perform the
+        // optional presentation filtering here until the dedicated SQL page
+        // query is introduced.  Returning null here used to make every internal
+        // api:file.list request fail with a platform-side NullPointerException.
+        List<NodeEntity> all = findUserNodesByNodeId(UUID.fromString(parentId.trim()), userId);
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+        String normalizedType = fileType == null ? "" : fileType.trim().toLowerCase(Locale.ROOT);
+
+        List<NodeEntity> filtered = all.stream()
+                .filter(node -> normalizedKeyword.isEmpty()
+                        || (node.getNode_name() != null
+                        && node.getNode_name().toLowerCase(Locale.ROOT).contains(normalizedKeyword)))
+                .filter(node -> normalizedType.isEmpty()
+                        || (node.getNode_type() != null
+                        && normalizedType.equals(node.getNode_type().name().toLowerCase(Locale.ROOT))))
+                .sorted(nodeComparator(sortBy, sortOrder))
+                .toList();
+
+        int safePage = page == null ? 1 : Math.max(1, page);
+        int safePageSize = pageSize == null ? 20 : Math.min(200, Math.max(1, pageSize));
+        long fromLong = (long) (safePage - 1) * safePageSize;
+        int from = fromLong >= filtered.size() ? filtered.size() : (int) fromLong;
+        int to = Math.min(filtered.size(), from + safePageSize);
+        return new PageResultVO<>(
+                filtered.subList(from, to), (long) filtered.size(), safePage, safePageSize);
+    }
+
+    private static Comparator<NodeEntity> nodeComparator(String sortBy, String sortOrder) {
+        String field = sortBy == null ? "name" : sortBy.trim().toLowerCase(Locale.ROOT);
+        Comparator<NodeEntity> comparator = switch (field) {
+            case "size", "node_size" -> Comparator.comparing(
+                    NodeEntity::getNode_size, Comparator.nullsFirst(Long::compareTo));
+            case "type", "node_type" -> Comparator.comparing(
+                    node -> node.getNode_type() == null ? "" : node.getNode_type().name());
+            default -> Comparator.comparing(
+                    NodeEntity::getNode_name, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER));
+        };
+        Comparator<NodeEntity> stableId = Comparator.comparing(
+                node -> node.getNode_id() == null ? "" : node.getNode_id().toString());
+        Comparator<NodeEntity> ordered = comparator.thenComparing(stableId);
+        return "desc".equalsIgnoreCase(sortOrder) ? ordered.reversed() : ordered;
     }
 
     @Override

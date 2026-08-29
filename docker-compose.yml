@@ -18,7 +18,6 @@ volumes:
   uploads-data:
   opensearch-data:
   minio-data:
-  ai-models:
   # 插件包只由 Plugin Service 读写，Runtime 通过受信内部接口按摘要下载。
   plugin-repo:
   # [REQ-GIT-SPACE-3.1/6.1] Git 裸仓库只作协议缓存；权威对象由 StorageProvider 共享存储池持久化。
@@ -231,6 +230,23 @@ services:
       FILE_SERVICE_URL: http://file-service-backend:8000
       PLUGIN_SERVICE_URL: http://plugin-service-backend:8085
       WORKFLOW_SERVICE_URL: http://workflow-service-backend:8087
+
+      # [CLOUDFLOW-MCP-EDGE-001] Third-party Agents enter through Gateway only;
+      # MCP validates this signed private-hop identity and talks only to Capability Hub.
+      CLOUDFLOW_MCP_SERVER_URL: http://cloudflow-mcp-server:8093
+      MCP_IDENTITY_SIGNING_SECRET: ${MCP_IDENTITY_SIGNING_SECRET:?必须设置 MCP 网关身份签名密钥}
+      # Canonical public Gateway URL for RFC 9728 OAuth resource metadata challenges.
+      MCP_PUBLIC_BASE_URL: ${MCP_PUBLIC_BASE_URL:-}
+      # Production OAuth issuer must set the dedicated MCP audience and scope.
+      MCP_REQUIRED_AUDIENCE: ${MCP_REQUIRED_AUDIENCE:-}
+      MCP_REQUIRED_SCOPE: ${MCP_REQUIRED_SCOPE:-}
+      # [AI-AGENT-IDENTITY-001] Gateway signs final-user context for the isolated
+      # Agent service; the secret must match AI_AGENT_IDENTITY_SHARED_SECRET below.
+      AI_AGENT_SERVICE_URL: http://cloud-ai-agent:8001
+      # Keep existing non-AI deployments backward compatible. AuthGlobalFilter rejects
+      # only /api/v1/ai/** with 503 when this is empty; cloud-ai-agent itself remains
+      # production fail-closed and requires the same secret under the automation profile.
+      AI_AGENT_IDENTITY_SIGNING_SECRET: ${AI_AGENT_IDENTITY_SIGNING_SECRET:-}
       CLIENT_REGISTRATION_SERVICE_URL: http://client-registration-service:8089
       GIT_SERVICE_URL: http://git-service-backend:8091
       SPRING_PROFILES_ACTIVE: docker
@@ -788,6 +804,48 @@ services:
       retries: 8
       start_period: 10s
 
+  # -------------------- CloudFlow MCP Server: external Agent integration plane --------------------
+  # No MySQL/RabbitMQ/Redis/MinIO mount or dependency. All platform actions are mediated by
+  # workflow-service Capability Hub with a service credential and final permission enforcement.
+  cloudflow-mcp-server:
+    profiles: ["automation"]
+    build: ./PrivateCloudDisk-cloudflow-mcp-server
+    container_name: backend-cloudflow-mcp-server
+    networks:
+      - app-networks
+    expose:
+      - "8093"
+    depends_on:
+      workflow-service-backend:
+        condition: service_healthy
+    environment:
+      MCP_LISTEN_ADDRESS: 0.0.0.0:8093
+      MCP_CAPABILITY_HUB_URL: http://workflow-service-backend:8087
+      MCP_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      MCP_IDENTITY_SHARED_SECRET: ${MCP_IDENTITY_SIGNING_SECRET:?必须设置 MCP 网关身份签名密钥}
+      MCP_OAUTH_AUTHORIZATION_SERVERS: ${MCP_OAUTH_AUTHORIZATION_SERVERS:-}
+      MCP_REQUEST_TIMEOUT_SECONDS: ${MCP_REQUEST_TIMEOUT_SECONDS:-30}
+      MCP_TOOL_LIST_CACHE_TTL_SECONDS: ${MCP_TOOL_LIST_CACHE_TTL_SECONDS:-300}
+      MCP_MAX_CONCURRENT_REQUESTS: ${MCP_MAX_CONCURRENT_REQUESTS:-128}
+      MCP_REQUESTS_PER_MINUTE_PER_USER: ${MCP_REQUESTS_PER_MINUTE_PER_USER:-120}
+      # Empty keeps local/CI tracing self-contained while retaining W3C trace propagation.
+      # Production points at the internal OTLP/HTTP collector and keeps TLS enabled.
+      MCP_OTEL_EXPORTER_OTLP_ENDPOINT: ${MCP_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      MCP_OTEL_EXPORTER_OTLP_INSECURE: ${MCP_OTEL_EXPORTER_OTLP_INSECURE:-false}
+      MCP_SERVER_VERSION: ${MCP_SERVER_VERSION:-0.1.0}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/cloudflow-mcp-server", "--healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
   # -------------------- Scheduler Service 分布式 cron 与幂等 fire --------------------
   scheduler-service-backend:
     profiles: ["automation"]
@@ -974,10 +1032,13 @@ services:
   #                       AI 智能服务层
   # ============================================================
 
-  # -------------------- AI 智能服务（FastAPI + PyTorch/ONNX） --------------------
-  ai-service-backend:
+  # -------------------- Cloud AI Agent Runtime（FastAPI + OpenAI-compatible Adapter） --------------------
+  # [AI-AGENT-REBUILD-001] 旧本地 ML Worker 已移除。新服务不挂载模型/上传目录，
+  # 不连接 MySQL、RabbitMQ、MinIO 或 OpenSearch；企业资产访问唯一经过 Capability Hub。
+  cloud-ai-agent:
+    profiles: ["automation"]
     build: ./PrivateCloudDisk-ai-service
-    container_name: backend-ai-service
+    container_name: backend-cloud-ai-agent
     networks:
       - app-networks
     expose:
@@ -985,39 +1046,37 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      rabbitmq:
+      workflow-service-backend:
         condition: service_healthy
     environment:
-      # 基础配置
-      AI_SERVICE_PORT: 8001
-      ENABLE_DOCS: ${ENABLE_DOCS:-false}
-      # Redis
-      REDIS_URL: redis://redis:6379/0
-      # RabbitMQ
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
-      # 业务服务回调
-      BUSINESS_SERVICE_URL: http://gateway-service-backend:8080
-      # 模型路径
-      MODELS_PATH: /app/models
-      # SkyWalking Python Agent
-      SW_AGENT_NAME: PrivateCloudDisk-ai-service
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: skywalking-oap:11800
-      SW_AGENT_NAMESPACE: PrivateCloudDisk
-      SW_AGENT_LOGGING_LEVEL: INFO
-    volumes:
-      - ai-models:/app/models
+      AI_AGENT_ENVIRONMENT: production
+      AI_AGENT_PORT: 8001
+      AI_AGENT_ENABLE_DOCS: "false"
+      AI_AGENT_REDIS_URL: redis://redis:6379/5
+      AI_AGENT_CAPABILITY_HUB_URL: http://workflow-service-backend:8087
+      AI_AGENT_INTERNAL_SERVICE_TOKEN: ${PCD_INTERNAL_SERVICE_TOKEN:?必须设置服务间内部凭证}
+      AI_AGENT_IDENTITY_SHARED_SECRET: ${AI_AGENT_IDENTITY_SIGNING_SECRET:?必须设置 AI Agent 网关身份签名密钥}
+      AI_AGENT_LLM_BASE_URL: ${AI_AGENT_LLM_BASE_URL:-https://api.openai.com/v1}
+      AI_AGENT_LLM_API_KEY: ${AI_AGENT_LLM_API_KEY:?必须设置 AI Agent 模型提供方密钥}
+      AI_AGENT_LLM_MODEL: ${AI_AGENT_LLM_MODEL:-gpt-4.1-mini}
+      AI_AGENT_LLM_FALLBACK_MODELS: ${AI_AGENT_LLM_FALLBACK_MODELS:-}
+      AI_AGENT_ALLOWED_ORIGINS: ${AI_AGENT_ALLOWED_ORIGINS:-}
+      AI_AGENT_MAX_PROVIDER_CONCURRENCY: ${AI_AGENT_MAX_PROVIDER_CONCURRENCY:-32}
+      AI_AGENT_MAX_AGENT_ITERATIONS: ${AI_AGENT_MAX_AGENT_ITERATIONS:-8}
+      AI_AGENT_MAX_RUN_SECONDS: ${AI_AGENT_MAX_RUN_SECONDS:-120}
+      AI_AGENT_MAX_TOOL_CONCURRENCY: ${AI_AGENT_MAX_TOOL_CONCURRENCY:-4}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
     restart: always
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: '1.0'
+          memory: 768M
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '0.25'
+          memory: 256M
     logging:
       driver: json-file
       options:
@@ -1026,11 +1085,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3).read()"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s
+      start_period: 30s
 
   # ============================================================
   #                         前端层

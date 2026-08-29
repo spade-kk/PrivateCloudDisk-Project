@@ -1,0 +1,32 @@
+# CloudFlow YAML 嵌套形态（对照 CLOUDFLOW_YAML_DESIGN.md §2/§17）
+# 顶层字段都置于 workflow: 之下；compile 会自动提升为扁平模型。
+# 覆盖：嵌套形态、inputs、variables、trigger(type: event)、steps、output（步骤输出名）。
+workflow:
+  name: nested_file_process
+  version: 2.0
+  description: 嵌套形态文件处理流程
+  trigger:
+    type: event
+    topic: file.created
+  inputs:
+    fileId:
+      type: string
+      required: true
+  variables:
+    parserType: pdf
+  steps:
+    - id: parse_file
+      name: 文件解析
+      action: file.parser
+      input:
+        id: ${{ input.fileId }}
+        parser: ${{ vars.parserType }}
+    - id: thumbnail
+      depends:
+        - parse_file
+      action: image.thumbnail
+    - id: save
+      depends:
+        - thumbnail
+      action: file.save
+      output: saved

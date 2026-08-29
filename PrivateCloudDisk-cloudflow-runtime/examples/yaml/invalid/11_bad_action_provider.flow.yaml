@@ -1,0 +1,8 @@
+# 反例：action.provider 非法值（仅 builtin/plugin/api，31.6）。
+# expected: CFY-SCHEMA-1004
+steps:
+  - id: a
+    action:
+      provider: magic
+      service: file
+      method: get

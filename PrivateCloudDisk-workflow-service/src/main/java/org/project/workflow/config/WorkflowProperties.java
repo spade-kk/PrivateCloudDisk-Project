@@ -9,6 +9,7 @@ public record WorkflowProperties(
         String pluginServiceUrl,
         String pluginRuntimeUrl,
         String cloudflowRuntimeUrl,
+        String storageUrl,
         String schedulerUrl,
         String internalServiceToken,
         Worker worker

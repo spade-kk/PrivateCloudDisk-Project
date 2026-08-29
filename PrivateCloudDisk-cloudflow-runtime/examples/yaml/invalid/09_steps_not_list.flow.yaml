@@ -1,0 +1,3 @@
+# 反例：steps 类型错误（应为列表，31.4）。
+# expected: CFY-SCHEMA-1002
+steps: not_a_list

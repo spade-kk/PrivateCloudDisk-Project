@@ -27,10 +27,16 @@ struct Tree {
 
 impl Tree {
     fn leaf(label: String) -> Self {
-        Tree { label, children: Vec::new() }
+        Tree {
+            label,
+            children: Vec::new(),
+        }
     }
     fn with(children: Vec<Tree>) -> Self {
-        Tree { label: String::new(), children }
+        Tree {
+            label: String::new(),
+            children,
+        }
     }
 }
 
@@ -87,7 +93,13 @@ fn render_child(tree: &Tree, prefix: &str, is_last: bool, color: bool, out: &mut
         format!("{prefix}│   ")
     };
     for (i, child) in tree.children.iter().enumerate() {
-        render_child(child, &next_prefix, i == tree.children.len() - 1, color, out);
+        render_child(
+            child,
+            &next_prefix,
+            i == tree.children.len() - 1,
+            color,
+            out,
+        );
     }
 }
 
@@ -109,12 +121,17 @@ fn value_inline(value: &ValueNode) -> String {
         }
         ValueNode::Number(n) => n.to_string(),
         ValueNode::Boolean(b) => b.to_string(),
+        ValueNode::Null => "null".into(),
         ValueNode::Duration(d) => d.clone(),
         ValueNode::VariableRef(r) => r.clone(),
         ValueNode::Expression(e) => expression_inline(e),
         ValueNode::Array(items) => format!(
             "[{}]",
-            items.iter().map(value_inline).collect::<Vec<_>>().join(", ")
+            items
+                .iter()
+                .map(value_inline)
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         ValueNode::Object(map) => format!(
             "{{{}}}",
@@ -131,7 +148,11 @@ fn value_inline(value: &ValueNode) -> String {
             let args = positional
                 .iter()
                 .map(value_inline)
-                .chain(named.iter().map(|(k, v)| format!("{k}={}", value_inline(v))))
+                .chain(
+                    named
+                        .iter()
+                        .map(|(k, v)| format!("{k}={}", value_inline(v))),
+                )
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{function}({args})")
@@ -147,8 +168,16 @@ fn expression_inline(expression: &ExpressionNode) -> String {
         ExpressionKind::Unary { operator, operand } => {
             format!("{operator}{}", expression_inline(operand))
         }
-        ExpressionKind::Binary { operator, left, right } => {
-            format!("{} {operator} {}", expression_inline(left), expression_inline(right))
+        ExpressionKind::Binary {
+            operator,
+            left,
+            right,
+        } => {
+            format!(
+                "{} {operator} {}",
+                expression_inline(left),
+                expression_inline(right)
+            )
         }
         ExpressionKind::Ternary {
             condition,
@@ -160,9 +189,16 @@ fn expression_inline(expression: &ExpressionNode) -> String {
             expression_inline(when_true),
             expression_inline(when_false)
         ),
-        ExpressionKind::Call { function, arguments } => format!(
+        ExpressionKind::Call {
+            function,
+            arguments,
+        } => format!(
             "{function}({})",
-            arguments.iter().map(expression_inline).collect::<Vec<_>>().join(", ")
+            arguments
+                .iter()
+                .map(expression_inline)
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         ExpressionKind::Pipe { input, op } => {
             let op_txt = match op {
@@ -179,15 +215,17 @@ fn expression_inline(expression: &ExpressionNode) -> String {
 /// 表达式树（递归展开，保留结构）。
 fn expression_tree(expression: &ExpressionNode, color: bool) -> Tree {
     match &expression.kind {
-        ExpressionKind::Literal(v) => {
-            Tree::leaf(format!("Literal: {}", value_inline(v)))
-        }
+        ExpressionKind::Literal(v) => Tree::leaf(format!("Literal: {}", value_inline(v))),
         ExpressionKind::Reference(r) => Tree::leaf(format!("Reference: {r}")),
         ExpressionKind::Unary { operator, operand } => Tree {
             label: format!("Unary: {operator}"),
             children: vec![expression_tree(operand, color)],
         },
-        ExpressionKind::Binary { operator, left, right } => Tree {
+        ExpressionKind::Binary {
+            operator,
+            left,
+            right,
+        } => Tree {
             label: format!("Binary: {operator}"),
             children: vec![expression_tree(left, color), expression_tree(right, color)],
         },
@@ -212,15 +250,27 @@ fn expression_tree(expression: &ExpressionNode, color: bool) -> Tree {
                 ]),
             ],
         },
-        ExpressionKind::Call { function, arguments } => Tree {
+        ExpressionKind::Call {
+            function,
+            arguments,
+        } => Tree {
             label: format!("Call: {function}"),
-            children: arguments.iter().map(|a| expression_tree(a, color)).collect(),
+            children: arguments
+                .iter()
+                .map(|a| expression_tree(a, color))
+                .collect(),
         },
         ExpressionKind::Pipe { input, op } => Tree {
             label: "Pipe".into(),
             children: vec![
-                Tree::with(vec![Tree::leaf("input".into()), expression_tree(input, color)]),
-                Tree::with(vec![Tree::leaf(pipeline_op_label(op).into()), pipeline_op_tree(op, color)]),
+                Tree::with(vec![
+                    Tree::leaf("input".into()),
+                    expression_tree(input, color),
+                ]),
+                Tree::with(vec![
+                    Tree::leaf(pipeline_op_label(op).into()),
+                    pipeline_op_tree(op, color),
+                ]),
             ],
         },
     }
@@ -237,12 +287,11 @@ fn pipeline_op_label(op: &PipeOp) -> String {
 fn pipeline_op_tree(op: &PipeOp, color: bool) -> Tree {
     match op {
         PipeOp::Filter(pred) => Tree::with(vec![expression_tree(pred, color)]),
-        PipeOp::Map(field) => Tree::with(vec![
-            Tree::leaf(format!("field: {}", field.as_deref().unwrap_or("<none>")))
-        ]),
-        PipeOp::Reduce(fn_name) => {
-            Tree::with(vec![Tree::leaf(format!("function: {fn_name}"))])
-        }
+        PipeOp::Map(field) => Tree::with(vec![Tree::leaf(format!(
+            "field: {}",
+            field.as_deref().unwrap_or("<none>")
+        ))]),
+        PipeOp::Reduce(fn_name) => Tree::with(vec![Tree::leaf(format!("function: {fn_name}"))]),
     }
 }
 
@@ -308,7 +357,10 @@ fn step_tree(step: &StepNode, color: bool) -> Tree {
     if step.depends_condition.is_some() {
         children.push(Tree {
             label: "depends_condition".into(),
-            children: vec![expression_tree(step.depends_condition.as_ref().unwrap(), color)],
+            children: vec![expression_tree(
+                step.depends_condition.as_ref().unwrap(),
+                color,
+            )],
         });
     }
     if let Some(condition) = &step.condition {
@@ -327,7 +379,10 @@ fn step_tree(step: &StepNode, color: bool) -> Tree {
         });
     }
     if !step.retry_on.is_empty() {
-        children.push(Tree::leaf(format!("retry_on: [{}]", step.retry_on.join(", "))));
+        children.push(Tree::leaf(format!(
+            "retry_on: [{}]",
+            step.retry_on.join(", ")
+        )));
     }
     if let Some(timeout) = &step.timeout {
         children.push(Tree {
@@ -353,7 +408,10 @@ fn step_tree(step: &StepNode, color: bool) -> Tree {
     if !step.controls.is_empty() {
         children.push(controls_section(&step.controls, color));
     }
-    Tree { label: node_paint("Step", color), children }
+    Tree {
+        label: node_paint("Step", color),
+        children,
+    }
 }
 
 fn action_tree(action: &ActionNode, color: bool) -> Tree {
@@ -387,7 +445,10 @@ fn action_tree(action: &ActionNode, color: bool) -> Tree {
                 .collect(),
         });
     }
-    Tree { label: node_paint("Action", color), children }
+    Tree {
+        label: node_paint("Action", color),
+        children,
+    }
 }
 
 fn flow_tree(node: &FlowNode, color: bool) -> Tree {
@@ -437,7 +498,10 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
                 });
             }
             children.push(flow_section("body", &node.body, color));
-            Tree { label: node_paint("For", color), children }
+            Tree {
+                label: node_paint("For", color),
+                children,
+            }
         }
         FlowNode::While(node) => Tree {
             label: node_paint("While", color),
@@ -455,7 +519,10 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
                 children.push(leaf("max_concurrency", &max.to_string(), color));
             }
             children.push(flow_section("branches", &node.branches, color));
-            Tree { label: node_paint("Parallel", color), children }
+            Tree {
+                label: node_paint("Parallel", color),
+                children,
+            }
         }
         FlowNode::TryCatch(node) => Tree {
             label: node_paint("TryCatch", color),
@@ -466,7 +533,11 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
                         "catch: {}",
                         node.catch_binding.as_deref().unwrap_or("<none>")
                     ),
-                    children: node.catch_nodes.iter().map(|n| flow_tree(n, color)).collect(),
+                    children: node
+                        .catch_nodes
+                        .iter()
+                        .map(|n| flow_tree(n, color))
+                        .collect(),
                 },
                 flow_section("finally", &node.finally_nodes, color),
             ],
@@ -482,7 +553,10 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
                     ],
                 });
             }
-            Tree { label: node_paint("Wait", color), children }
+            Tree {
+                label: node_paint("Wait", color),
+                children,
+            }
         }
         FlowNode::Assert(node) => Tree {
             label: node_paint("Assert", color),
@@ -502,7 +576,10 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
             if !node.default_branch.is_empty() {
                 children.push(flow_section("default", &node.default_branch, color));
             }
-            Tree { label: node_paint("Switch", color), children }
+            Tree {
+                label: node_paint("Switch", color),
+                children,
+            }
         }
         FlowNode::Delay(node) => Tree {
             label: node_paint("Delay", color),
@@ -515,8 +592,16 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
             label: node_paint("Notify", color),
             children: vec![
                 leaf("channel", &node.channel, color),
-                opt_leaf("recipient", node.recipient.as_ref().map(value_inline).as_deref(), color),
-                opt_leaf("message", node.message.as_ref().map(value_inline).as_deref(), color),
+                opt_leaf(
+                    "recipient",
+                    node.recipient.as_ref().map(value_inline).as_deref(),
+                    color,
+                ),
+                opt_leaf(
+                    "message",
+                    node.message.as_ref().map(value_inline).as_deref(),
+                    color,
+                ),
             ],
         },
         FlowNode::Return(node) => {
@@ -527,7 +612,10 @@ fn flow_tree(node: &FlowNode, color: bool) -> Tree {
                     children: vec![expression_tree(output, color)],
                 });
             }
-            Tree { label: node_paint("Return", color), children }
+            Tree {
+                label: node_paint("Return", color),
+                children,
+            }
         }
         FlowNode::Break(_) => Tree::leaf(node_paint("Break", color)),
         FlowNode::Continue(_) => Tree::leaf(node_paint("Continue", color)),
@@ -588,7 +676,11 @@ fn variable_tree(decl: &VariableDecl, color: bool) -> Tree {
     let mut children = vec![
         leaf("name", &decl.name, color),
         leaf("type", &decl.type_name, color),
-        leaf("source", &format!("{:?}", decl.source).to_lowercase(), color),
+        leaf(
+            "source",
+            &format!("{:?}", decl.source).to_lowercase(),
+            color,
+        ),
         leaf("required", &decl.required.to_string(), color),
     ];
     if let Some(default) = &decl.default {
@@ -597,7 +689,10 @@ fn variable_tree(decl: &VariableDecl, color: bool) -> Tree {
             children: vec![value_tree(default, color)],
         });
     }
-    Tree { label: node_paint("Variable", color), children }
+    Tree {
+        label: node_paint("Variable", color),
+        children,
+    }
 }
 
 fn runtime_tree(runtime: &RuntimeConfig, color: bool) -> Tree {
@@ -623,7 +718,10 @@ fn runtime_tree(runtime: &RuntimeConfig, color: bool) -> Tree {
             ],
         });
     }
-    Tree { label: node_paint("Runtime", color), children }
+    Tree {
+        label: node_paint("Runtime", color),
+        children,
+    }
 }
 
 fn handler_tree(handler: &HandlerNode, color: bool) -> Tree {
@@ -648,7 +746,11 @@ fn workflow_tree_colored(workflow: &WorkflowNode, color: bool) -> Tree {
                 .includes
                 .iter()
                 .map(|inc| {
-                    let alias = inc.alias.as_deref().map(|a| format!(" as {a}")).unwrap_or_default();
+                    let alias = inc
+                        .alias
+                        .as_deref()
+                        .map(|a| format!(" as {a}"))
+                        .unwrap_or_default();
                     Tree::leaf(format!("{} (alias:{})", inc.path, alias))
                 })
                 .collect(),
@@ -676,7 +778,11 @@ fn workflow_tree_colored(workflow: &WorkflowNode, color: bool) -> Tree {
     }
     children.push(Tree {
         label: node_paint("Variables", color),
-        children: workflow.variables.iter().map(|v| variable_tree(v, color)).collect(),
+        children: workflow
+            .variables
+            .iter()
+            .map(|v| variable_tree(v, color))
+            .collect(),
     });
     children.push(Tree {
         label: node_paint("Trigger", color),
@@ -686,20 +792,36 @@ fn workflow_tree_colored(workflow: &WorkflowNode, color: bool) -> Tree {
     if !workflow.step_groups.is_empty() {
         children.push(Tree {
             label: node_paint("StepGroups", color),
-            children: workflow.step_groups.iter().map(|g| {
-                Tree {
+            children: workflow
+                .step_groups
+                .iter()
+                .map(|g| Tree {
                     label: node_paint("StepGroup", color),
                     children: std::iter::once(Tree::leaf(format!("id: {}", g.id)))
                         .chain(g.steps.iter().map(|s| step_tree(s, color)))
                         .collect(),
-                }
-            }).collect(),
+                })
+                .collect(),
+        });
+    }
+    if !workflow.outputs.is_empty() {
+        children.push(Tree {
+            label: node_paint("Outputs", color),
+            children: workflow
+                .outputs
+                .iter()
+                .map(|(key, value)| Tree::leaf(format!("{}: {}", key, value_inline(value))))
+                .collect(),
         });
     }
     children.push(flow_section("steps", &workflow.flow, color));
     children.push(Tree {
         label: node_paint("Handlers", color),
-        children: workflow.handlers.iter().map(|h| handler_tree(h, color)).collect(),
+        children: workflow
+            .handlers
+            .iter()
+            .map(|h| handler_tree(h, color))
+            .collect(),
     });
     Tree {
         label: node_paint("Workflow", color),
@@ -709,7 +831,10 @@ fn workflow_tree_colored(workflow: &WorkflowNode, color: bool) -> Tree {
 
 /// 生成 AST 树形文本。
 pub fn render(workflow: &WorkflowNode, options: &AstPrintOptions) -> String {
-    render_tree(&workflow_tree_colored(workflow, options.color), options.color)
+    render_tree(
+        &workflow_tree_colored(workflow, options.color),
+        options.color,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -719,17 +844,26 @@ pub fn render(workflow: &WorkflowNode, options: &AstPrintOptions) -> String {
 fn value_json(value: &ValueNode) -> JValue {
     match value {
         ValueNode::String(s) => json!({ "string": s }),
-        ValueNode::Template(parts) => json!({ "template": parts.iter().map(value_json).collect::<Vec<_>>() }),
+        ValueNode::Template(parts) => {
+            json!({ "template": parts.iter().map(value_json).collect::<Vec<_>>() })
+        }
         ValueNode::Number(n) => json!({ "number": n }),
         ValueNode::Boolean(b) => json!({ "boolean": b }),
+        ValueNode::Null => json!(null),
         ValueNode::Duration(d) => json!({ "duration": d }),
         ValueNode::VariableRef(r) => json!({ "ref": r }),
         ValueNode::Expression(e) => expression_json(e),
-        ValueNode::Array(items) => json!({ "array": items.iter().map(value_json).collect::<Vec<_>>() }),
+        ValueNode::Array(items) => {
+            json!({ "array": items.iter().map(value_json).collect::<Vec<_>>() })
+        }
         ValueNode::Object(map) => json!({
             "object": map.iter().map(|(k, v)| json!({"key": k, "value": value_json(v)})).collect::<Vec<_>>()
         }),
-        ValueNode::Call { function, positional, named } => json!({
+        ValueNode::Call {
+            function,
+            positional,
+            named,
+        } => json!({
             "call": {
                 "function": function,
                 "positional": positional.iter().map(value_json).collect::<Vec<_>>(),
@@ -747,17 +881,28 @@ fn expression_json(expression: &ExpressionNode) -> JValue {
         ExpressionKind::Unary { operator, operand } => {
             json!({ "unary": { "operator": operator, "operand": expression_json(operand) } })
         }
-        ExpressionKind::Binary { operator, left, right } => json!({
+        ExpressionKind::Binary {
+            operator,
+            left,
+            right,
+        } => json!({
             "binary": { "operator": operator, "left": expression_json(left), "right": expression_json(right) }
         }),
-        ExpressionKind::Ternary { condition, when_true, when_false } => json!({
+        ExpressionKind::Ternary {
+            condition,
+            when_true,
+            when_false,
+        } => json!({
             "ternary": {
                 "condition": expression_json(condition),
                 "when_true": expression_json(when_true),
                 "when_false": expression_json(when_false),
             }
         }),
-        ExpressionKind::Call { function, arguments } => json!({
+        ExpressionKind::Call {
+            function,
+            arguments,
+        } => json!({
             "call": { "function": function, "arguments": arguments.iter().map(expression_json).collect::<Vec<_>>() }
         }),
         ExpressionKind::Pipe { input, op } => {
@@ -945,6 +1090,7 @@ pub fn render_json(workflow: &WorkflowNode) -> String {
                 "steps": g.steps.iter().map(step_json).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
             "steps": workflow.flow.iter().map(flow_json).collect::<Vec<_>>(),
+            "outputs": workflow.outputs.iter().map(|(k, v)| json!({ "name": k, "value": value_json(v) })).collect::<Vec<_>>(),
             "handlers": workflow.handlers.iter().map(|h| json!({
                 "id": h.id,
                 "nodes": h.nodes.iter().map(flow_json).collect::<Vec<_>>(),

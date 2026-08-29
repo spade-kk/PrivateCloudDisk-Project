@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: 4982f549-35ae-2347-5d5a-4f5baa2d3668
+  name: 输出无效文件
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

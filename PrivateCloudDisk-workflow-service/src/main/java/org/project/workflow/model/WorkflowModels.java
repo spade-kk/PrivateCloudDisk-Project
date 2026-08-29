@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -223,6 +224,70 @@ public final class WorkflowModels {
             List<String> grantedPermissions,
             @NotBlank @Size(max = 64) String traceId,
             @NotBlank @Size(max = 300) String idempotencyKey
+    ) {
+    }
+
+    /**
+     * CloudFlow MCP Server 的受服务凭证保护内部调用信封。
+     *
+     * <p>它与 Runtime Agent 信封刻意分离：MCP 没有执行图、步骤或调用方可声明的权限；
+     * 用户、租户、空间和幂等键都由网关签名上下文与 MCP Adapter 派生，Hub 仍然以实时
+     * 授权和 registry policy 作最终判定。这样第三方 Agent 不会获得 Runtime 内部协议。</p>
+     */
+    public record McpCapabilityInvocation(
+            @NotBlank @Size(max = 255) String capabilityKey,
+            @NotBlank @Size(max = 128) String userId,
+            @Size(max = 128) String tenantId,
+            @Size(max = 128) String spaceId,
+            Map<String, Object> input,
+            @NotBlank @Size(max = 64) String traceId,
+            @NotBlank @Size(max = 300) String idempotencyKey,
+            @Size(max = 128) String agentId
+    ) {
+    }
+
+    /** MCP tools/list 的内部游标页；offset 只在私网 Hub↔MCP 契约中出现。 */
+    public record McpCapabilityListRequest(
+            @NotBlank @Size(max = 128) String userId,
+            @Size(max = 128) String tenantId,
+            @Size(max = 128) String spaceId,
+            @Min(0) int offset,
+            @Min(1) @Max(100) int limit
+    ) {
+    }
+
+    public record McpCapabilityPage(List<CapabilityRow> capabilities, Integer nextOffset) {
+    }
+
+    /** MCP 的协议级审计（initialize/list/resources/prompts 等无 capability 执行时使用）。 */
+    public record McpProtocolAuditEntry(
+            @NotBlank @Size(max = 128) String method,
+            @NotBlank @Size(max = 128) String userId,
+            @Size(max = 128) String tenantId,
+            @Size(max = 128) String spaceId,
+            @NotBlank @Size(max = 64) String traceId,
+            @Size(max = 128) String agentId,
+            Map<String, Object> parameterSummary,
+            boolean success,
+            @Size(max = 64) String resultCode,
+            @Min(0) long durationMs
+    ) {
+    }
+
+    /** 能力调用审计条目（需求五 5.16-5.17 / 四 4.20）：记录调用者服务、用户/空间、参数摘要、结果与耗时。 */
+    public record CapabilityAuditEntry(
+            String capabilityKey,
+            String callerService,
+            String executionId,
+            String stepId,
+            String userId,
+            String spaceId,
+            String traceId,
+            String paramSummaryJson,
+            boolean success,
+            String resultCode,
+            String targetService,
+            Long durationMs
     ) {
     }
 

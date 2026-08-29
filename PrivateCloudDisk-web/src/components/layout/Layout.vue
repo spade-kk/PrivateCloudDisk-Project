@@ -60,6 +60,9 @@
           <p>© 2025 CloudDrive 私有云网盘管理系统</p>
         </div>
       </footer>
+      <!-- [AI-AGENT-FE-001] Independent floating entry retains a small, resizable
+           conversation surface without exposing provider/Capability Hub credentials. -->
+      <AiAssistantWidget v-if="route.name !== 'AiAssistant'" />
     </div>
   </div>
 </template>
@@ -72,6 +75,7 @@ import UserDropdown from './UserDropdown.vue'
 import NotificationCenter from './NotificationCenter.vue'
 import TransferPanel from '../transfer/TransferPanel.vue'
 import StorageInfo from '../file/StorageInfo.vue'
+import AiAssistantWidget from '@/components/ai/AiAssistantWidget.vue'
 import { useSpaceStore } from '@/stores/spaceStore'
 
 const route = useRoute()
@@ -92,6 +96,7 @@ const currentRouteName = computed(() => {
     PluginMarketplace: '插件市场', SpacePluginManagement: '空间工具',
     WorkflowManagement: '工作流管理', WorkflowCreate: '创建工作流',
     WorkflowEdit: '编辑工作流', WorkflowMarketplace: '工作流市场',
+    AiAssistant: 'AI 助手',
   }
   return names[route.name] || route.name
 })

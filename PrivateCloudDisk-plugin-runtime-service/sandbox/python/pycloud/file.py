@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
 from .context import current_context, require_permission
+from . import capabilities
 
 _INPUT = "/workspace/input/content.bin"
 _OUTPUT = "/workspace/work/output.bin"
@@ -72,3 +75,25 @@ def write_pre_activation(
 def write(content: bytes | bytearray | memoryview) -> None:
     """旧版 SDK 兼容别名；新插件应使用 write_pre_activation。"""
     write_pre_activation(content)
+
+
+def metadata() -> dict:
+    """返回当前可读输入的元数据（容器内本地 stat，不触网）。"""
+    require_permission("file.content.read_staging")  # 至少需要暂存读权限
+    try:
+        stat = os.stat(_INPUT)
+        return {
+            "name": os.path.basename(_INPUT),
+            "size": stat.st_size,
+            "mtime": stat.st_mtime,
+        }
+    except OSError as exc:
+        raise PermissionError(f"无法读取输入元数据：{type(exc).__name__}") from exc
+
+
+def move(destination: str, *, timeout: float = 20.0) -> dict:
+    """按能力中心的文件移动契约执行（mock 阶段返回 ok，不直连存储）。"""
+    require_permission("file.content.write_pre_activation")
+    return capabilities.call_api(
+        "api.file.move", {"destination": destination}, timeout=timeout
+    )

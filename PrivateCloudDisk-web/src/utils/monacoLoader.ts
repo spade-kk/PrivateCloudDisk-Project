@@ -24,7 +24,7 @@
 // CDN 配置 — 使用 jsdelivr CDN，与 index.html 中预连接的域名保持一致
 // 如需切换 CDN（如 unpkg/cdnjs），只需修改以下常量
 const MONACO_CDN_VERSION = '0.56.0'
-// Sprint 0 安全基线：保持原常量名以降低现有组件改动面，但资源已改为同源自托管。
+// 保持原常量名以降低现有组件改动面，但资源已改为同源自托管。
 const MONACO_CDN_BASE = '/vendor/monaco/vs'
 const MONACO_LOADER_URL = `${MONACO_CDN_BASE}/loader.js`
 

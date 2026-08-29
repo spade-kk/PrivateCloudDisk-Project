@@ -1,8 +1,12 @@
 # CloudFlow 统一语法高亮
 
-本目录承载 CloudFlow DSL 的**统一语法高亮与代码补全系统**：以 `GRAMMAR.pest` + `AST.rs` 为唯一事实来源，
-自动生成高亮规范（VS Code、Monaco、Highlight.js 三处）与补全规范（VS Code 扩展、前端 Monaco 两处）。
-**前端与编辑器插件不硬编码任何 CloudFlow 高亮正则或补全规则**，改 DSL 语法后重新生成即可全平台同步。
+本目录承载 CloudFlow DSL 的**静态语法高亮与基础补全规范生成系统**：以 `GRAMMAR.pest` + `AST.rs` 为唯一事实来源，
+自动生成高亮规范（VS Code、Monaco、Highlight.js 三处）与基础补全规范（关键字、片段、类型、触发器）。
+**前端与编辑器插件不硬编码 CloudFlow 高亮规则**，改 DSL 语法后重新生成即可全平台同步。
+
+> `syntax-highlight` 不是 Language Server。动态 AST/类型/符号诊断、definition/references/rename、
+> 以及按用户/租户/空间权限过滤的 Capability Hub Action 补全由独立的
+> [`cloudflow-ls`](../docs/language-server/README.md) 提供；未配置或离线时，本目录产物是 IDE 的安全静态降级层。
 
 ```
 syntax-highlight/
@@ -30,8 +34,12 @@ python3 -m unittest discover -s generator/tests -p "test_*.py"
 
 - **前端 Monaco**：`PrivateCloudDisk-web/src/languages/cloudflow.ts` 引用
   `build/cloudflow.monarch.json`（需复制产物到 `src/languages/cloudflow.monarch.json`）；
-  `cloudflowCompletion.ts` 引用 `build/cloudflow.completion.json` 注册补全/签名帮助。
-- **VS Code 扩展**：`vscode/` 目录，`vsce package` 打包 `.vsix`。
+  `cloudflowCompletion.ts` 引用 `build/cloudflow.completion.json` 注册**离线基础**补全/签名帮助；
+  配置 WebSocket LS 后，动态能力/类型/符号由 Rust LS 接管，静态 provider 自动退让。
+- **VS Code 扩展**：`vscode/` 目录，静态 TextMate/Snippet 始终有效；执行
+  `npm run vsce:package` 会同步 Grammar、构建并把当前平台的 `cloudflow-ls --stdio`
+  放入 VSIX 的 `bin/<platform>-<arch>/`。默认不需要用户另行下载 LS；详见 `vscode/README.md`。
 - **网页 Highlight.js**：`build/cloudflow.hljs.js`（UMD，ESM/CJS 均可），或打开 `demo/highlight-demo.html` 预览。
 
-详细说明见 `generator/README.md`、`../docs/CLOUDFLOW_LANGUAGE_EXTENSION_GUIDE.md` 与 `../docs/CLOUDFLOW_COMPLETION.md`。
+详细说明见 `generator/README.md`、`../docs/CLOUDFLOW_LANGUAGE_EXTENSION_GUIDE.md`、
+`../docs/CLOUDFLOW_COMPLETION.md` 与 `../docs/language-server/README.md`。

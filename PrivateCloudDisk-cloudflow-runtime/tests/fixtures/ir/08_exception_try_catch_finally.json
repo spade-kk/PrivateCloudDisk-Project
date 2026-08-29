@@ -1,0 +1,202 @@
+{
+  "apiVersion": "workflow.cloudflow.io/v1",
+  "kind": "Workflow",
+  "metadata": {
+    "id": "wf-try_catch_finally",
+    "name": "try_catch_finally",
+    "displayName": null,
+    "description": null,
+    "version": "1.0.0",
+    "owner": null,
+    "labels": {},
+    "namespace": null,
+    "changelog": null,
+    "tags": []
+  },
+  "spec": {
+    "trigger": {
+      "type": "manual"
+    },
+    "variables": {},
+    "graph": {
+      "nodes": [
+        {
+          "id": "trynode",
+          "type": "try",
+          "name": null,
+          "action": null,
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": {
+            "catchBinding": "error",
+            "try": [
+              "risky"
+            ],
+            "catch": [
+              "compensate"
+            ],
+            "finally": [
+              "cleanup"
+            ]
+          },
+          "controlParent": null,
+          "controlBranch": null,
+          "children": [
+            "risky",
+            "compensate",
+            "cleanup"
+          ]
+        },
+        {
+          "id": "risky",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "api",
+            "method": "dangerous",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "trynode",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "compensate",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "log",
+            "method": "write",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {
+              "error": {
+                "$ref": "vars.error"
+              }
+            }
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "trynode",
+          "controlBranch": null,
+          "children": []
+        },
+        {
+          "id": "cleanup",
+          "type": "task",
+          "name": null,
+          "action": {
+            "provider": "builtin",
+            "service": "file",
+            "method": "cleanup",
+            "pluginId": null,
+            "function": null,
+            "version": null,
+            "arguments": {}
+          },
+          "inputs": {},
+          "outputs": {},
+          "dependsOn": [
+            "trynode"
+          ],
+          "retry": null,
+          "retryOn": [],
+          "timeout": null,
+          "onTimeout": null,
+          "condition": null,
+          "dependsCondition": null,
+          "switchConfig": null,
+          "delayMs": null,
+          "notifyConfig": null,
+          "onError": null,
+          "loopConfig": null,
+          "parallel": null,
+          "errorHandler": null,
+          "controlParent": "trynode",
+          "controlBranch": null,
+          "children": []
+        }
+      ],
+      "edges": [
+        {
+          "from": "trynode",
+          "to": "risky"
+        },
+        {
+          "from": "trynode",
+          "to": "compensate"
+        },
+        {
+          "from": "trynode",
+          "to": "cleanup"
+        }
+      ]
+    },
+    "outputs": {},
+    "environment": {},
+    "audit": null
+  },
+  "runtime": {
+    "timeoutSeconds": 30,
+    "maxParallel": 2,
+    "retryPolicy": null
+  },
+  "security": {
+    "permissions": [],
+    "resourceLimits": {}
+  },
+  "extensions": {}
+}

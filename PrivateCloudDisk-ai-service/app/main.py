@@ -1,141 +1,80 @@
-"""
-PrivateCloudDisk AI Processing Service - FastAPI 应用入口
+"""FastAPI entry point for the rebuilt Cloud AI Agent Service."""
 
-负责:
-- HTTP API 服务 (健康检查、任务管理、结果查询)
-- 生命周期管理 (启动/关闭 RabbitMQ、MySQL 连接)
-- OpenAPI 文档 (开发环境)
-
-与 Worker 进程分离:
-- API 服务 (main.py): 处理 HTTP 请求，查询 AI 结果
-- Worker 进程 (worker.py): 消费 RabbitMQ，执行 AI 推理
-"""
 from __future__ import annotations
-import logging
+
 from contextlib import asynccontextmanager
+from time import perf_counter
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app
+from redis.asyncio import Redis
 
-from app.core.config import settings
-from app.core.logging_config import setup_logging
-from app.core.database.connection import db_manager
-from app.core.rabbitmq import rabbitmq_service
+from app.api.routes import router
+from app.core.config import get_settings
+from app.core.limiter import RunRateLimiter
+from app.memory.repository import ConversationRepository
+from app.observability import HTTP_LATENCY, HTTP_REQUESTS
+from app.providers.router import ProviderRouter
+from app.runtime.agent import AgentRuntime
+from app.tools.capability_hub import CapabilityHubClient
+from app.tools.registry import ToolRegistry
 
-logger = logging.getLogger("ai_service.main")
 
-
-# =============================================================================
-# 应用生命周期
-# =============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
-    # ---- 启动 ----
-    logger.info("=" * 60)
-    logger.info(f"  {settings.ai_service_name} 启动中...")
-    logger.info(f"  Host: {settings.ai_service_host}:{settings.ai_service_port}")
-    logger.info(f"  Device: {settings.ai_inference_device}")
-    logger.info(f"  Model Dir: {settings.model_dir}")
-    logger.info("=" * 60)
-
-    # 连接数据库
+    settings = get_settings()
+    redis = Redis.from_url(settings.redis_url, decode_responses=False, health_check_interval=20)
+    capability_hub = CapabilityHubClient(settings)
+    provider_router = ProviderRouter(settings)
+    repository = ConversationRepository(redis)
+    tools = ToolRegistry(settings, capability_hub)
+    app.state.redis = redis
+    app.state.settings = settings
+    app.state.repository = repository
+    app.state.provider_router = provider_router
+    app.state.agent_runtime = AgentRuntime(settings, repository, provider_router, tools)
+    app.state.run_limiter = RunRateLimiter(redis, settings.run_rate_limit_per_minute)
     try:
-        await db_manager.connect()
-        logger.info("MySQL 连接成功")
-    except Exception as e:
-        logger.error(f"MySQL 连接失败: {e}")
-        raise
-
-    # 连接 RabbitMQ (API 服务仅声明拓扑，不消费)
-    try:
-        await rabbitmq_service.connect()
-        logger.info("RabbitMQ 连接成功")
-    except Exception as e:
-        logger.warning(f"RabbitMQ 连接失败 (API 服务可降级): {e}")
-
-    yield
-
-    # ---- 关闭 ----
-    logger.info(f"{settings.ai_service_name} 关闭中...")
-
-    try:
-        await rabbitmq_service.close()
-    except Exception:
-        pass
-
-    try:
-        await db_manager.close()
-    except Exception:
-        pass
-
-    logger.info(f"{settings.ai_service_name} 已关闭")
+        yield
+    finally:
+        await capability_hub.close()
+        await redis.aclose()
 
 
-# =============================================================================
-# 创建 FastAPI 应用
-# =============================================================================
+settings = get_settings()
 app = FastAPI(
-    title=settings.ai_service_name,
-    description="PrivateCloudDisk AI Processing Service - 智能文件处理微服务",
+    title="Cloud AI Agent Service",
     version="1.0.0",
-    lifespan=lifespan,
     docs_url="/docs" if settings.enable_docs else None,
-    redoc_url="/redoc" if settings.enable_docs else None,
+    redoc_url=None,
+    lifespan=lifespan,
 )
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# =============================================================================
-# 注册路由
-# =============================================================================
-from app.api.v1.endpoints.health import router as health_router
-from app.api.v1.endpoints.tasks import router as tasks_router
-
-app.include_router(health_router)
-app.include_router(tasks_router, prefix="/api/v1")
-
-
-# =============================================================================
-# 根路径
-# =============================================================================
-@app.get("/")
-async def root():
-    """根路径 - 服务信息"""
-    from datetime import datetime, timezone
-    from app.core.services.model_manager import model_manager
-
-    return {
-        "service": settings.ai_service_name,
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/health",
-        "device": model_manager.device,
-        "gpu_available": model_manager.is_gpu_available(),
-        "loaded_models": model_manager.get_loaded_models(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-# =============================================================================
-# 独立运行
-# =============================================================================
-if __name__ == "__main__":
-    import uvicorn
-
-    setup_logging(level=logging.INFO)
-
-    uvicorn.run(
-        "app.main:app",
-        host=settings.ai_service_host,
-        port=settings.ai_service_port,
-        reload=False,
-        log_level=settings.worker_log_level.lower(),
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "Last-Event-ID"],
+        expose_headers=["X-Request-Id"],
+        max_age=600,
     )
+
+
+@app.middleware("http")
+async def observe_http(request, call_next):
+    """Emit low-cardinality request metrics without recording tenant data."""
+    started = perf_counter()
+    response = await call_next(request)
+    route = request.scope.get("route")
+    route_label = getattr(route, "path", "unmatched")
+    HTTP_REQUESTS.labels(method=request.method, route=route_label, status=str(response.status_code)).inc()
+    HTTP_LATENCY.labels(method=request.method, route=route_label).observe(perf_counter() - started)
+    return response
+
+
+# The container is not exposed directly by Gateway. Operations systems scrape this
+# internal endpoint; it contains counters only and never exposes prompt/message data.
+app.mount("/metrics", make_asgi_app())
+app.include_router(router)

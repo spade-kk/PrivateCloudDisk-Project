@@ -1,0 +1,31 @@
+manifest_version: 1
+plugin:
+  id: 02c3c0bc-a048-59e6-7054-c4c06596864d
+  name: 能力函数导出 generate_report
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read
+      - file.content.read_staging
+      - file.content.write_pre_activation
+exports:
+  - name: generate_report
+    module: src/main.py
+    function: main
+    input_schema: schemas/capability.generate_report.input.json
+    output_schema: schemas/capability.generate_report.output.json
+    permissions:
+      - file.content.read

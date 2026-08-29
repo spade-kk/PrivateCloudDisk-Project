@@ -50,6 +50,12 @@
 | 速率限制 | 300 次请求 |
 | 并发限制 | 通过 Redis Lua 原子控制 |
 
+### 2.4 Cloud AI Agent 可信上下文
+
+Gateway 对 `/api/v1/ai/**` 在既有 JWT 校验之后执行额外的请求头清洗和 HMAC 身份签名。它删除客户端给出的 `X-PCD-User-Id`、`X-PCD-Space-Id`、`X-PCD-Request-Id`、时间戳和签名头，再以已认证的最终用户/空间、method/path/request-id/timestamp 生成服务间签名。Cloud AI Agent 拒绝过期、缺失或不匹配的签名，并只通过 Capability Hub 调用企业资产能力；它不连接数据库、对象存储、文件服务或其他运行时。
+
+AI 高风险的工作流和插件调用使用一次性、短期、绑定 run 的审批令牌。浏览器确认时不能提交工具参数；恢复端点只取回 Agent 已保存的原调用，由 Capability Hub 继续执行最终权限/Schema/审计校验。详见 [Cloud AI Agent 安全与运维](./AI_AGENT_SECURITY.md) 和 [Cloud AI Agent API](./AI_AGENT_API.md)。
+
 ## 3. 密码安全
 
 ### 3.1 双层哈希架构
@@ -98,6 +104,15 @@
 | 全局维度 | 每天最多注册 1000 次 |
 
 ## 5. API 安全
+
+### 5.0 CloudFlow MCP 服务端能力出口
+
+第三方 Agent 只通过 Gateway 的 `/api/v1/mcp` 进入。Gateway 验证外部 Bearer token、剥离客户端
+伪造的内部身份头，并对 method/path/request/user/tenant/space 生成短期 HMAC；CloudFlow MCP
+Server 验证此绑定但不转发 Bearer token。它仅访问 Capability Hub，Hub 继续完成 ACTIVE 状态、
+JSON Schema、用户/tenant/space/资源权限和审计校验。工具 schema 与工具参数均删除服务端字段，
+默认不导出删除、管理和安装类能力。详细威胁模型、审计字段、限流和 OAuth 上线门禁见
+[CloudFlow MCP 安全](./CLOUDFLOW_MCP_SECURITY.md)。
 
 ### 5.1 分布式限流
 

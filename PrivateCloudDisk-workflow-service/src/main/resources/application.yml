@@ -55,6 +55,7 @@ pcd:
   plugin-service-url: ${PLUGIN_SERVICE_URL:http://localhost:8085}
   plugin-runtime-url: ${PLUGIN_RUNTIME_URL:http://localhost:8090}
   cloudflow-runtime-url: ${CLOUDFLOW_RUNTIME_URL:http://localhost:8091}
+  storage-url: ${STORAGE_SERVICE_URL:http://localhost:8093}
   scheduler-url: ${SCHEDULER_SERVICE_URL:http://localhost:8088}
   internal-service-token: ${PCD_INTERNAL_SERVICE_TOKEN:test}
   worker:

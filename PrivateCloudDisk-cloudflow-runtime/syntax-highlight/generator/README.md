@@ -1,6 +1,6 @@
 # CloudFlow 统一语法高亮生成器
 
-从 `src/grammar.pest` 与 `src/ast.rs` 自动提取 CloudFlow DSL 语法元素，生成四种文件：
+从 `src/grammar.pest` 与 `crates/cloudflow-engine-core/src/ast.rs` 自动提取 CloudFlow DSL 语法元素，生成四种文件：
 
 | 产物 | 路径 | 用途 |
 | --- | --- | --- |

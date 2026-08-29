@@ -30,6 +30,20 @@ public interface CapabilityInvocationMapper {
             @Param("traceId") String traceId
     );
 
+    /**
+     * 返回幂等键第一次绑定的能力键。
+     *
+     * <p>幂等键是一次调用的身份，不是可跨能力复用的缓存键。重试时如果调用方
+     * 错把同一个 key 配给了另一能力，服务必须拒绝而不能回放旧结果。</p>
+     */
+    @Select("""
+            SELECT capability_key
+              FROM pcd_capability_invocation
+             WHERE idempotency_key=#{idempotencyKey}
+             LIMIT 1
+            """)
+    String claimedCapabilityKey(@Param("idempotencyKey") String idempotencyKey);
+
     @Select("""
             SELECT CAST(result_json AS CHAR)
               FROM pcd_capability_invocation

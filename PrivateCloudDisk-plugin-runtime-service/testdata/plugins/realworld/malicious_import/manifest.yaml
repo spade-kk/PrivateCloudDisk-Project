@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: 9e251a1f-05c4-7314-4e1a-7563a1c51415
+  name: 恶意模块导入尝试样本
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

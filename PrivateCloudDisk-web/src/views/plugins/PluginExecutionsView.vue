@@ -67,21 +67,18 @@
           {{ item.outputSummary || item.errorMessage || '无输出摘要' }}
         </p>
         <div class="flex justify-end gap-2">
-          <button class="row-button" type="button" @click="expanded = expanded === item.executionId ? '' : item.executionId">
-            <i class="fa" :class="expanded === item.executionId ? 'fa-chevron-up' : 'fa-file-text-o'"></i>
-            <span class="hidden sm:inline">日志</span>
+          <button class="row-button" type="button" @click="openDetail(item)">
+            <i class="fa fa-terminal"></i>
+            <span class="hidden sm:inline">详情</span>
           </button>
           <button v-if="canReplay(item)" class="row-button" type="button" :disabled="replaying === item.executionId" @click="replay(item)">
             <i class="fa" :class="replaying === item.executionId ? 'fa-spinner fa-spin' : 'fa-repeat'"></i>
             <span class="hidden sm:inline">重跑</span>
           </button>
         </div>
-        <div v-if="expanded === item.executionId" class="col-span-full rounded-xl border border-neutral-100 bg-neutral-950 p-4 font-mono text-xs leading-5 text-neutral-300">
-          <p class="mb-2 text-neutral-500">已脱敏输出（完整日志需通过短时令牌下载）</p>
-          <pre class="max-h-56 overflow-auto whitespace-pre-wrap">{{ item.outputSummary || item.errorMessage || '暂无可展示日志' }}</pre>
-        </div>
       </article>
     </section>
+    <PluginExecutionDetailDrawer v-model="detailOpen" :execution-id="selectedExecution?.executionId || ''" :plugin-id="pluginId" :plugin-name="plugin?.name || ''" />
   </div>
 </template>
 
@@ -91,8 +88,9 @@ import { useRoute } from 'vue-router'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageState from '@/components/common/PageState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import { getPluginApi, pluginExecutionsApi, type PluginInfo } from '@/api/modules/plugins'
+import { getPluginApi, pluginExecutionsApi, type PluginExecutionInfo, type PluginInfo } from '@/api/modules/plugins'
 import { useToastStore } from '@/stores/toastStore'
+import PluginExecutionDetailDrawer from '@/components/plugins/execution/PluginExecutionDetailDrawer.vue'
 
 const route = useRoute()
 const toast = useToastStore()
@@ -103,8 +101,9 @@ const loading = ref(false)
 const error = ref('')
 const status = ref('')
 const range = ref('7d')
-const expanded = ref('')
 const replaying = ref('')
+const selectedExecution = ref<PluginExecutionInfo | null>(null)
+const detailOpen = ref(false)
 
 function formatDate(value?: string) {
   if (!value) return '—'
@@ -121,6 +120,11 @@ function formatDuration(item: any) {
 
 function canReplay(item: any) {
   return Boolean(item.triggerEvent && item.triggerEvent !== 'manual' && ['FAILED', 'TIMEOUT', 'FAILED_RETRYABLE'].includes(item.executionStatus || item.status))
+}
+
+function openDetail(item: PluginExecutionInfo) {
+  selectedExecution.value = item
+  detailOpen.value = true
 }
 
 async function replay(item: any) {

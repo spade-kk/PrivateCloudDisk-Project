@@ -1,0 +1,4 @@
+# 反例：缺少必填顶层字段 `steps`（31.3）。
+# expected: CFY-SCHEMA-1001
+trigger:
+  type: manual

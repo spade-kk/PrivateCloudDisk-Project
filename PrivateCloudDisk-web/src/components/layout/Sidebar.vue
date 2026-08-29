@@ -172,6 +172,7 @@ const menuGroups = [
   {
     label: '自动化',
     items: [
+      { path: '/app/ai', name: 'AI 助手', icon: 'fa fa-sparkles' },
       { path: '/app/plugins', name: '插件管理', icon: 'fa fa-puzzle-piece' },
       { path: '/app/workflows', name: '工作流', icon: 'fa fa-random' },
       { path: '/app/space-tools', name: '空间工具', icon: 'fa fa-briefcase' },

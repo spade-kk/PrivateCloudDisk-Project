@@ -102,6 +102,14 @@
         "name": "variable.other.steps.cloudflow"
       },
       {
+        "match": "\\binput\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "name": "variable.other.vars.cloudflow"
+      },
+      {
+        "match": "\\benv\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
+        "name": "variable.other.env.cloudflow"
+      },
+      {
         "match": "\\bworkflow\\.[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*",
         "name": "variable.other.system.cloudflow"
       }
@@ -132,6 +140,10 @@
       {
         "match": "\\b(?:false|true)\\b",
         "name": "constant.language.boolean.cloudflow"
+      },
+      {
+        "match": "\\b(?:null)\\b",
+        "name": "constant.language.null.cloudflow"
       },
       {
         "match": "\\b(?:input)\\b",

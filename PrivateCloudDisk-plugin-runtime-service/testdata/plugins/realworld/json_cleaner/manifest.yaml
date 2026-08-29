@@ -1,0 +1,21 @@
+manifest_version: 1
+plugin:
+  id: 17785c2b-dde6-7056-9fae-3964738acd79
+  name: JSON 数据清洗与规范化
+  type: CLOUD_PLUGIN
+  version: 1.0.0
+runtime:
+  language: python
+  version: "3.11"
+permissions:
+  - file.content.read_staging
+  - file.content.write_pre_activation
+entrypoints:
+  events:
+  - event: pcd.file.content.ready.v1
+    module: src/main.py
+    function: main
+    priority: 10
+    permissions:
+      - file.content.read_staging
+      - file.content.write_pre_activation

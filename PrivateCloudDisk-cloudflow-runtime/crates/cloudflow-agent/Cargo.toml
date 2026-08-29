@@ -1,0 +1,25 @@
+[package]
+name = "cloudflow-agent"
+version = "0.1.0"
+edition = "2021"
+description = "CloudFlow Capability Agent（gRPC）：生产执行面的唯一能力调用出口，负责能力解析、最小权限校验、审计与 builtin/api/plugin 路由分发"
+license = "Apache-2.0"
+build = "build.rs"
+
+[dependencies]
+cloudflow-engine-core = { path = "../cloudflow-engine-core" }
+async-trait = "0.1"
+prost = "0.13"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["time"] }
+tonic = { version = "0.12", features = ["transport"] }
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-build = "0.12"
+
+[lib]
+name = "cloudflow_agent"
+path = "src/lib.rs"

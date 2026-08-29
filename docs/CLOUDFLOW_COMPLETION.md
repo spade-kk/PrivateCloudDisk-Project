@@ -28,7 +28,8 @@ config.py（人工知识库）─┤
 - `keywords`：关键字（含 `topLevelKeywords`）。
 - `blocks`：顶层块/声明模板（workflow/metadata/variables/trigger/runtime/steps/handlers/environment/namespace/audit/tag/import/include）。
 - `structureTemplates`：控制流/结构模板（if/foreach/for/while/parallel/try-catch-finally/wait/assert/switch/delay/notify/validate/return/break/continue/step_group/retry/retry_on/depends_on/timeout）。
-- `builtinFunctions`：内置函数白名单（size/len/contains/starts_with/ends_with）+ 签名帮助参数。
+- `builtinFunctions`：内置函数白名单（现 19 个：size/len/contains/starts_with/ends_with/now/get/
+  trim/to_upper/to_lower/range/abs/round/floor/ceil）+ 签名帮助参数。
 - `pipelineOperators`：filter/map/reduce 管道操作符。
 - `types`：类型名补全（string/number/boolean/array/object/file/user/space/credential/input）。
 - `triggers`：触发器类型与字段提示（manual/schedule/event/http/interval/webhook）。
@@ -62,7 +63,7 @@ python3 syntax-highlight/generator/completion_convert.py --web \
 node --check syntax-highlight/vscode/src/extension.js
 python3 -m unittest discover -s syntax-highlight/generator/tests -p "test_completion.py"
 python3 -m unittest discover -s syntax-highlight/generator/tests -p "test_*.py"   # 全量（含高亮回归）
-cd syntax-highlight/vscode && vsce package --out cloudflow-language-1.2.0.vsix
+cd syntax-highlight/vscode && vsce package --out cloudflow-language-1.2.1.vsix
 ```
 
 ### 2.3 前端 Monaco

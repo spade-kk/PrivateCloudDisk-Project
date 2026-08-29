@@ -27,6 +27,17 @@ public class RabbitLifecycleConfig {
     public static final String READY_RETRY_HEADER = "x-pcd-ready-retry";
     public static final String READY_RETRY_ROUTING_PREFIX = "file.content.ready.retry.";
     public static final int[] READY_RETRY_DELAYS_MS = {1_000, 4_000, 16_000};
+    /**
+     * DLQ 死信保留时长：30 天（2_592_000_000 ms）。
+     *
+     * <p>必须用 Long 传入（{@code 30L * ...} 或 {@code withArgument("x-message-ttl", ...)}），
+     * 不能用 int 字面量 {@code 30 * 24 * 60 * 60 * 1000} 计算——该值超过
+     * {@link Integer#MAX_VALUE}（2_147_483_647），int 乘法溢出为负数
+     * {@code -1_702_967_296}，声明到 RabbitMQ 会因与既有队列 {@code x-message-ttl=2592000000}
+     * 不等而触发 {@code PRECONDITION_FAILED}（406）导致监听器/应用启动失败。
+     * 该值与 Storage Worker 与 Platform Service 的 30 天约定完全一致。</p>
+     */
+    public static final long DLQ_TTL_MS = 30L * 24 * 60 * 60 * 1000;
     public static final String PROCESSED_ROUTING = "file.content.processed";
     public static final String FILE_EVENT_EXCHANGE = "pcd.file.event.exchange";
     public static final String FILE_EVENT_DLX = "pcd.file.event.dlx";
@@ -59,7 +70,7 @@ public class RabbitLifecycleConfig {
     Queue contentReadyDlq() {
         return QueueBuilder.durable(READY_DLQ)
                 .quorum()
-                .ttl(30 * 24 * 60 * 60 * 1000)
+                .withArgument("x-message-ttl", DLQ_TTL_MS)
                 .build();
     }
 
@@ -132,7 +143,7 @@ public class RabbitLifecycleConfig {
     Queue automationAvailableDlq() {
         return QueueBuilder.durable(AVAILABLE_DLQ)
                 .quorum()
-                .ttl(30 * 24 * 60 * 60 * 1000)
+                .withArgument("x-message-ttl", DLQ_TTL_MS)
                 .build();
     }
 

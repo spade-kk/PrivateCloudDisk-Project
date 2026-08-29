@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test:cloudflow": "node --test tests/cloudflow-*.test.mjs tests/workflow-*.test.mjs tests/ide-responsive-contract.test.mjs",
     "test:im": "node --test tests/im-message-center-contract.test.mjs",
-    "test:file-icons": "node --experimental-strip-types --test tests/file-type-icon-contract.test.mjs"
+    "test:file-icons": "node --experimental-strip-types --test tests/file-type-icon-contract.test.mjs",
+    "test:ai-agent": "node --test tests/ai-agent-contract.test.mjs tests/ai-markdown-rendering-contract.test.mjs"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",
@@ -22,11 +23,18 @@
     "axios": "^1.16.1",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.21",
+    "dompurify": "^3.4.12",
     "element-plus": "^2.14.1",
     "emoji-picker-element": "^1.29.1",
     "fflate": "^0.8.3",
     "gsap": "^3.15.0",
+    "highlight.js": "^11.11.1",
     "hls.js": "^1.6.16",
+    "katex": "^0.16.22",
+    "markdown-it": "^14.1.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^11.12.0",
     "monaco-editor": "^0.56.0",
     "pinia": "^3.0.4",
     "protobufjs": "^7.6.5",

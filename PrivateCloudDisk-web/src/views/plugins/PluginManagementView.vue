@@ -115,12 +115,15 @@
               <div class="flex items-center justify-between"><StatusBadge :status="item.executionStatus" /><time class="text-xs text-neutral-400">{{ item.startedAt }}</time></div>
               <p class="mt-3 break-words rounded-lg bg-neutral-50 p-3 font-mono text-xs leading-5 text-neutral-600">{{ item.outputSummary || '无输出摘要' }}</p>
               <p v-if="item.errorCode" class="mt-2 text-xs text-danger">{{ item.errorCode }}</p>
+              <div class="mt-3 flex justify-end"><button class="row-button" type="button" @click="showExecutionDetail(item)"><i class="fa fa-terminal"></i> 日志与审计</button></div>
             </article>
             <p v-if="!executions.length" class="py-16 text-center text-sm text-neutral-400">暂无执行记录</p>
           </div>
         </aside>
       </div>
     </Transition>
+
+    <PluginExecutionDetailDrawer v-model="executionDetailOpen" :execution-id="selectedExecution?.executionId || ''" :plugin-id="executionPanel?.pluginId || ''" :plugin-name="executionPanel?.name || ''" />
 
     <Transition name="page-fade">
       <div
@@ -248,6 +251,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import PageHeader from '@/components/common/PageHeader.vue'
 import PageState from '@/components/common/PageState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PluginExecutionDetailDrawer from '@/components/plugins/execution/PluginExecutionDetailDrawer.vue'
 import {
   deletePluginApi,
   listWebLocalPluginDistributionsApi,
@@ -259,6 +263,7 @@ import {
   submitMarketplacePluginApi,
   setPluginEnabledApi,
   type PluginInfo,
+  type PluginExecutionInfo,
   type PluginInstallation,
 } from '@/api/modules/plugins'
 import { useToastStore } from '@/stores/toastStore'
@@ -282,6 +287,8 @@ const userInstallations = reactive<Record<string, PluginInstallation>>({})
 const executionPanel = ref<PluginInfo | null>(null)
 const executionLoading = ref(false)
 const executions = ref<any[]>([])
+const selectedExecution = ref<PluginExecutionInfo | null>(null)
+const executionDetailOpen = ref(false)
 const runtimePanel = ref(false)
 const runtimeLoading = ref(false)
 const runtimeError = ref('')
@@ -344,6 +351,11 @@ async function showExecutions(plugin: PluginInfo) {
   } finally {
     executionLoading.value = false
   }
+}
+
+function showExecutionDetail(item: PluginExecutionInfo) {
+  selectedExecution.value = item
+  executionDetailOpen.value = true
 }
 
 async function removePlugin(plugin: PluginInfo) {
@@ -582,6 +594,7 @@ function formatBytes(value: number) {
 .primary-button { @apply bg-primary text-white hover:bg-primary/90; }
 .secondary-button { @apply border border-neutral-200 bg-white text-neutral-600 hover:border-primary/30 hover:text-primary; }
 .card-action { @apply flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-primary/10 hover:text-primary; }
+.row-button { @apply inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-xs font-semibold text-neutral-600 transition hover:border-primary/30 hover:text-primary; }
 .runtime-dialog { @apply flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl; }
 .runtime-plugin-item { @apply flex w-full items-center gap-3 rounded-xl border border-transparent p-3 transition hover:bg-neutral-50; }
 .runtime-plugin-item.active { @apply border-primary/20 bg-primary/[0.04]; }

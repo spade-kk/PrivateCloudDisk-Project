@@ -1,0 +1,11 @@
+# CloudFlow YAML 周期触发（对照 CLOUDFLOW_YAML_DESIGN.md 触发类型）
+# 覆盖：trigger.interval、简单步骤。
+workflow:
+  name: periodic_cleanup
+
+trigger:
+  interval: 5m
+
+steps:
+  - id: cleanup
+    action: file.cleanup

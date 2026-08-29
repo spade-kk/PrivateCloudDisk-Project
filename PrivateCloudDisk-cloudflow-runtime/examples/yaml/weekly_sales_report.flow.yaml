@@ -1,0 +1,77 @@
+# CloudFlow YAML 示例 21：销售周报（与 DSL 同义文件 `examples/weekly_sales_report.flow` 等价）。
+# 场景：每周一 8:00（Asia/Shanghai）收集销售 Excel → 聚合 → 插件生成报告 → 保存；失败时通知。
+# 覆盖：workflow 元数据、schedule 触发器、runtime 超时/并行、input 输入声明、steps 名称、
+#       depends、when 条件（步骤输出 rowCount）、retry、插件能力调用（plugin:<id>:<fn>@<v>）、
+#       ${{ }} 表达式与字符串插值、on 级失败通知（workflow.failed / workflow.failedStep）。
+workflow:
+  name: weekly_sales_report
+  display_name: 销售周报
+  description: 每周一生成并保存销售周报
+
+trigger:
+  type: schedule
+  cron: "0 8 * * 1"
+  timezone: Asia/Shanghai
+
+runtime:
+  timeout: 30m
+  max_parallel: 4
+
+input:
+  sales_node_id:
+    type: string
+    required: true
+  template_file_id:
+    type: string
+    required: true
+  report_node_id:
+    type: string
+    required: true
+
+steps:
+  - id: collect_files
+    name: 收集销售文件
+    action: builtin:file.list
+    input:
+      nodeId: ${{ input.sales_node_id }}
+      pattern: "*.xlsx"
+    output: excel_files
+
+  - id: aggregate_data
+    name: 销售数据统计
+    action: builtin:data.aggregate_excel
+    depends: [collect_files]
+    input:
+      files: ${{ steps.collect_files.output }}
+      groupBy: region
+      metrics: ["sum(sales)", "avg(profit)"]
+    output: report_data
+
+  - id: generate_report
+    name: 生成销售报告
+    action: "plugin:8ae47c8d-41c5-4b9d-87e7-2f93b74d34d7:generate_report@1"
+    depends: [aggregate_data]
+    when: ${{ steps.aggregate_data.output.rowCount > 0 }}
+    input:
+      data: ${{ steps.aggregate_data.output }}
+      templateFileId: ${{ input.template_file_id }}
+    retry:
+      max_attempts: 2
+      strategy: exponential
+    output: report_file
+
+  - id: save_report
+    name: 保存报告
+    action: builtin:file.save
+    depends: [generate_report]
+    input:
+      source: ${{ steps.generate_report.output.file_id }}
+      targetNodeId: ${{ input.report_node_id }}
+
+  - id: notify_failure
+    name: 失败通知
+    action: api:user.notify
+    when: ${{ workflow.failed }}
+    input:
+      title: 销售周报生成失败
+      body: "失败步骤：${{ workflow.failedStep }}"

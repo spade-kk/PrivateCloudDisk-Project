@@ -1,0 +1,84 @@
+// CloudFlow 表达式子系统（expr.cloudflow.io/v1）—— Peg 文法。
+//
+// 本文件是表达式解析的**唯一事实来源**：CloudFlow DSL 与已落地的 YAML 前端只把表达式
+// **字符串**交给子系统（需求 6.1/6.31），不在此之外重复定义任何表达式词法规则。
+// 表达式规则从 CloudFlow DSL `src/grammar.pest` 完整抽取（需求 6.32：对标 GitHub
+// Actions `${{ }}` 表达式系统），并做以下**只增不减的扩展**：
+//   - 通用属性访问 `file.size` / `item.name`（需求 6.5）；
+//   - 索引访问 `list[0]`（需求 6.6）；
+//   - `input.x` / `env.K` 引用（需求 6.4）；
+//   - `KB / MB / GB` 常量（需求 6.22）。
+
+// 入口：外部只调用这两个入口，分别解析表达式与值（二者均含 SOI/EOI 完整消费检查）。
+expr_entry = { SOI ~ expression ~ EOI }
+value_entry = { SOI ~ value ~ EOI }
+
+// 表达式主体（从 DSL grammar.pest 完整抽取，不得删减 —— 只能扩展）。
+expression_body = { "{" ~ expression ~ "}" }
+// [V1.2-PIPELINE] 集合处理管道：<expr> | filter(pred) | map(field) | reduce(func)。
+expression = { ternary ~ pipeline_stage* }
+pipeline_stage = { "|" ~ pipeline_op }
+pipeline_op = _{ pipeline_filter | pipeline_map | pipeline_reduce }
+pipeline_filter = { "filter" ~ "(" ~ expression ~ ")" }
+pipeline_map = { "map" ~ "(" ~ (ident | string_value)? ~ ")" }
+pipeline_reduce = { "reduce" ~ "(" ~ ident ~ ")" }
+ternary = { logical_or ~ ("?" ~ expression ~ ":" ~ expression)? }
+logical_or = { logical_and ~ (or_op ~ logical_and)* }
+logical_and = { equality ~ (and_op ~ equality)* }
+equality = { comparison ~ (equality_op ~ comparison)* }
+comparison = { additive ~ (comparison_op ~ additive)* }
+additive = { multiplicative ~ (additive_op ~ multiplicative)* }
+multiplicative = { unary ~ (multiplicative_op ~ unary)* }
+unary = { unary_op* ~ primary }
+// 扩展：index_access（含引用基座）与 runtime_path 必须排在 local_ref 之前，
+// 使 `list[0]` / `vars.a[0]` / `file.size` 能整段捕获而不是只捕获首标识符。
+primary = { function_call | index_access | reference | runtime_path | literal | local_ref | "(" ~ expression ~ ")" }
+function_call = { ident ~ "(" ~ expression_list? ~ ")" }
+expression_list = { expression ~ ("," ~ expression)* }
+// 扩展：增加 input./env. 引用（需求 6.4）。
+reference = @{ canonical_step_ref | vars_ref | input_ref | env_ref | legacy_step_ref | system_ref }
+canonical_step_ref = { "steps" ~ "." ~ ident ~ "." ~ "output" ~ ("." ~ ident)* }
+vars_ref = { "vars" ~ "." ~ ident ~ ("." ~ ident)* }
+input_ref = { "input" ~ "." ~ ident ~ ("." ~ ident)* }
+env_ref = { "env" ~ "." ~ ident ~ ("." ~ ident)* }
+legacy_step_ref = { ident ~ "." ~ "output" ~ ("." ~ ident)* }
+system_ref = { "workflow" ~ "." ~ ident ~ ("." ~ ident)* }
+// foreach/catch 作用域内的局部引用，例如 `item` 或 `error`。语义分析负责校验其作用域。
+local_ref = @{ ident }
+literal = _{ triple_string | string_value | boolean | null | duration | number | array | object }
+null = { "null" }
+or_op = { "||" }
+and_op = { "&&" }
+equality_op = { "==" | "!=" }
+comparison_op = { ">=" | "<=" | ">" | "<" }
+additive_op = { "+" | "-" }
+multiplicative_op = { "*" | "/" | "%" }
+unary_op = { "!" | "-" }
+
+// 值（从 DSL grammar.pest 完整抽取）。
+named_argument_list = { named_argument ~ ("," ~ named_argument)* ~ ","? }
+named_argument = { ident ~ "=" ~ expression }
+value_list = { expression ~ ("," ~ expression)* ~ ","? }
+value = _{ triple_string | string_value | boolean | null | duration | number | array | call_value | reference | enum_value }
+call_value = { qualified ~ "(" ~ (named_argument_list | value_list)? ~ ")" }
+array = { "[" ~ value_list? ~ "]" }
+object = { "{" ~ object_entry ~ ("," ~ object_entry)* ~ ","? ~ "}" | "{" ~ "}" }
+object_entry = { (string_value | ident) ~ ":" ~ expression }
+enum_or_string = _{ string_value | enum_value }
+enum_value = @{ ident }
+duration = @{ ASCII_DIGIT+ ~ ("ms" | "s" | "m" | "h" | "d") }
+boolean = @{ "true" | "false" }
+// JSON number 兼容整数、小数与科学计数法；Parser 保留 serde_json::Number，禁止文本降级。
+number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+triple_string = @{ "\"\"\"" ~ (!"\"\"\"" ~ ANY)* ~ "\"\"\"" }
+string_value = @{ "\"" ~ ("\\" ~ ANY | !"\"" ~ ANY)* ~ "\"" }
+qualified = { ident ~ ("." ~ ident)* }
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
+// 扩展：通用运行时对象属性路径与索引访问（需求 6.5/6.6）。
+runtime_path = { ident ~ "." ~ ident ~ ("." ~ ident)* }
+index_access = { (reference | runtime_path | ident) ~ ("[" ~ number ~ "]")+ }
+
+WHITESPACE = _{ " " | "\t" | NEWLINE | comment }
+NEWLINE = _{ "\r\n" | "\n" | "\r" }
+comment = _{ "#" ~ (!NEWLINE ~ ANY)* }

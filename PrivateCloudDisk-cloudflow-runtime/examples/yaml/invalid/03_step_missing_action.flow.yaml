@@ -1,0 +1,4 @@
+# 反例：步骤缺少 `action`（且无 workflow/approval/控制字段）（31.3）。
+# expected: CFY-SCHEMA-1001
+steps:
+  - id: only_id

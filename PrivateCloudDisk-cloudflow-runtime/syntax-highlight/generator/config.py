@@ -50,6 +50,11 @@ TOKEN_CATEGORIES = {
         "color": "#569CD6",
         "label": "布尔字面量 true/false",
     },
+    "null_literal": {
+        "scope": "constant.language.null.cloudflow",
+        "color": "#569CD6",
+        "label": "空值字面量 null",
+    },
     "operator": {
         "scope": "keyword.operator.cloudflow",
         "color": "#D4D4D4",
@@ -105,6 +110,11 @@ TOKEN_CATEGORIES = {
         "color": "#9CDCFE",
         "label": "workflow.<name> 引用",
     },
+    "environmentReference": {
+        "scope": "variable.other.env.cloudflow",
+        "color": "#9CDCFE",
+        "label": "env.<key> 引用",
+    },
     "function": {
         "scope": "entity.name.function.cloudflow",
         "color": "#DCDAA8",
@@ -145,6 +155,8 @@ KEYWORDS = {
     "type": ["string", "number", "boolean", "array", "object", "file", "user", "space"],
     # 字面量
     "literal": ["true", "false"],
+    # 空值字面量（表达式文法 `null = { "null" }`，需求 6.3）
+    "null_literal": ["null"],
     # 限定词（可变上下文：input 在变量声明中，output 指向输出变量）
     "modifier": ["input", "output"],
 }
@@ -163,9 +175,13 @@ OPERATORS = {
 PUNCTUATION = ["{", "}", "(", ")", "[", "]", ",", ".", ";"]
 
 # 标识符前缀 → 引用类别（scope id）
+# 必须与表达式子系统 `crates/cloudflow-engine-core/src/expression/grammar.pest` 的 reference 分解（vars/steps/input/env/
+# workflow 前缀）同步：新增引用命名空间时同时更新此处与 COMPLETION_REF_PREFIXES。
 REFERENCE_PREFIXES = {
     "vars": "variableReference",
     "steps": "stepReference",
+    "input": "variableReference",
+    "env": "environmentReference",
     "workflow": "systemReference",
 }
 
@@ -182,9 +198,10 @@ NUMERIC_UNIT_KEYWORDS = ["ms", "s", "m", "h", "d"]  # duration 单位
 # 新增 DSL 能力时：1) 在 GRAMMAR.pest / AST.rs 加规则与节点；2) 在下方补充对应分类。
 # ---------------------------------------------------------------------------
 
-# 内置表达式函数白名单（与 src/semantic.rs 的 ExpressionKind::Call 白名单一致，
-# 且与 src/execution.rs 的 call() 运行时实现一致）。filter/map/reduce 为管道操作符，
-# 单独列在 PIPELINE_OPERATORS，不作为普通函数补全。
+# 内置表达式函数白名单（唯一事实来源统一在表达式子系统 `crates/cloudflow-engine-core/src/expression/builtins.rs`；
+# semantics 通过 builtins::is_builtin_function 校验，execution.rs 的 call() 运行时实现
+# 与之保持一致）。filter/map/reduce 为管道操作符，单独列在 PIPELINE_OPERATORS，
+# 不作为普通函数补全。
 BUILTIN_FUNCTIONS = {
     "size": {
         "signature": "size(value) -> number",
@@ -224,6 +241,105 @@ BUILTIN_FUNCTIONS = {
         ],
         "returnType": "boolean",
         "doc": "判断字符串是否以指定后缀结尾。",
+    },
+    "now": {
+        "signature": "now() -> number",
+        "parameters": [],
+        "returnType": "number",
+        "doc": "返回当前 Unix 时间戳（秒）；与 GitHub Actions 的 now 对齐。",
+    },
+    "get": {
+        "signature": "get(container, keyOrIndex) -> any",
+        "parameters": [
+            {"label": "container", "type": "array|object", "doc": "数组或对象"},
+            {"label": "keyOrIndex", "type": "number|string", "doc": "数组索引或对象键"},
+        ],
+        "returnType": "any",
+        "doc": "按索引/键取容器元素；不存在返回 null。",
+    },
+    "trim": {
+        "signature": "trim(text) -> string",
+        "parameters": [{"label": "text", "type": "string", "doc": "源字符串"}],
+        "returnType": "string",
+        "doc": "去除字符串首尾空白。",
+    },
+    "to_upper": {
+        "signature": "to_upper(text) -> string",
+        "parameters": [{"label": "text", "type": "string", "doc": "源字符串"}],
+        "returnType": "string",
+        "doc": "字符串转大写（成员方法调用 toUpperCase() 的等价函数形式）。",
+    },
+    "to_lower": {
+        "signature": "to_lower(text) -> string",
+        "parameters": [{"label": "text", "type": "string", "doc": "源字符串"}],
+        "returnType": "string",
+        "doc": "字符串转小写（成员方法调用 toLowerCase() 的等价函数形式）。",
+    },
+    "range": {
+        "signature": "range([start], stop, [step]) -> array",
+        "parameters": [
+            {"label": "start", "type": "number", "doc": "起始（含，缺省 0）"},
+            {"label": "stop", "type": "number", "doc": "终止（不含）"},
+            {"label": "step", "type": "number", "doc": "步长（缺省 1）"},
+        ],
+        "returnType": "array",
+        "doc": "生成数字数组（range(3) → [0,1,2]）。",
+    },
+    "abs": {
+        "signature": "abs(x) -> number",
+        "parameters": [{"label": "x", "type": "number", "doc": "数值"}],
+        "returnType": "number",
+        "doc": "绝对值。",
+    },
+    "round": {
+        "signature": "round(x) -> number",
+        "parameters": [{"label": "x", "type": "number", "doc": "数值"}],
+        "returnType": "number",
+        "doc": "四舍五入。",
+    },
+    "floor": {
+        "signature": "floor(x) -> number",
+        "parameters": [{"label": "x", "type": "number", "doc": "数值"}],
+        "returnType": "number",
+        "doc": "向下取整。",
+    },
+    "ceil": {
+        "signature": "ceil(x) -> number",
+        "parameters": [{"label": "x", "type": "number", "doc": "数值"}],
+        "returnType": "number",
+        "doc": "向上取整。",
+    },
+    # ── GitHub Actions Expressions 对齐（需求 6.32）──
+    "to_json": {
+        "signature": "to_json(value) -> string",
+        "parameters": [{"label": "value", "type": "any", "doc": "对象/数组/标量"}],
+        "returnType": "string",
+        "doc": "将值序列化为 JSON 字符串（GitHub toJSON）。",
+    },
+    "from_json": {
+        "signature": "from_json(text) -> any",
+        "parameters": [{"label": "text", "type": "string", "doc": "符合 JSON 语法的字符串"}],
+        "returnType": "any",
+        "doc": "把 JSON 字符串解析为值（GitHub fromJSON）；非字符串原样返回。",
+    },
+    "format_number": {
+        "signature": "format_number(number, [format]) -> string",
+        "parameters": [
+            {"label": "number", "type": "number", "doc": "要格式化的数值"},
+            {"label": "format", "type": "string", "doc": "可选，如 0.00 或 #,##0.00（含逗号启用千分位）"},
+        ],
+        "returnType": "string",
+        "doc": "按小数位与千分位格式化数值（GitHub formatNumber）。",
+    },
+    "format_date_time": {
+        "signature": "format_date_time(value, [format], [timezone]) -> string",
+        "parameters": [
+            {"label": "value", "type": "number|string", "doc": "Unix 秒/毫秒或 ISO 日期字符串"},
+            {"label": "format", "type": "string", "doc": "可选，.NET token：yyyy MM dd HH mm ss；缺省输出 RFC3339"},
+            {"label": "timezone", "type": "string", "doc": "可选，UTC 偏移（+08:00）或常见 IANA 时区（标准偏移，不含 DST）"},
+        ],
+        "returnType": "string",
+        "doc": "把日期/时间值按格式与时区输出（GitHub formatDateTime）。",
     },
 }
 
@@ -399,5 +515,7 @@ ERROR_CODES = {
 COMPLETION_REF_PREFIXES = {
     "vars": {"doc": "当前作用域变量引用：vars.<name>.", "nextSegment": "<name>"},
     "steps": {"doc": "步骤输出引用：steps.<step_id>.output.", "nextSegment": "<step_id>.output"},
+    "input": {"doc": "工作流输入引用：input.<name>.", "nextSegment": "<name>"},
+    "env": {"doc": "环境变量引用：env.<key>.", "nextSegment": "<key>"},
     "workflow": {"doc": "工作流系统信息引用：workflow.<name>.", "nextSegment": "<name>"},
 }

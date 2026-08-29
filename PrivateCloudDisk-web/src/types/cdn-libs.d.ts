@@ -44,6 +44,9 @@ declare module 'markdown-it-emoji' {
   type Plugin = (md: any, options?: any) => void
   const plugin: Plugin
   export default plugin
+  export const bare: Plugin
+  export const light: Plugin
+  export const full: Plugin
 }
 
 // markdown-it-table-of-contents 插件

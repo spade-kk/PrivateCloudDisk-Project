@@ -3,6 +3,7 @@ package org.project.plugin.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.project.plugin.config.PluginProperties;
+import org.project.plugin.model.ExecutionObservabilityRequest;
 import org.project.plugin.model.ExecutionRecordRequest;
 import org.project.plugin.service.PluginExecutionService;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,25 @@ public class InternalExecutionController {
             );
         }
         service.record(requests);
+        return Map.of("accepted", requests.size());
+    }
+
+    /**
+     * [PLUGIN-EXEC-OBS-001] 仅 Automation/Runtime 等受信服务可写入完整脱敏日志和审计。
+     * 原有 /batch 继续只承接摘要，避免任何公开路径意外扩大日志数据面。
+     */
+    @PostMapping("/observability/batch")
+    public Map<String, Object> recordObservability(
+            @RequestHeader(value = "X-PCD-Service-Token", required = false) String token,
+            @Valid @RequestBody List<@Valid ExecutionObservabilityRequest> requests
+    ) {
+        requireToken(token);
+        if (requests.isEmpty() || requests.size() > 100) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY, "可观测性批量大小必须为 1-100"
+            );
+        }
+        requests.forEach(service::recordObservability);
         return Map.of("accepted", requests.size());
     }
 

@@ -1,0 +1,11 @@
+{
+  "Meta Data": {
+    "Source Name": "sample",
+    "Empty Field": null
+  },
+  "Records": [
+    {"displayName": "beta", "Count": 2, "note": ""},
+    {"displayName": "alpha", "Count": 1, "note": "first"},
+    {"displayName": "gamma", "Count": 3, "note": "third"}
+  ]
+}

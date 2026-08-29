@@ -1,0 +1,6 @@
+{
+  "rows": [
+    {"product": "disk", "amount": 3, "price": 99.5},
+    {"product": "ssd", "amount": 2, "price": 299}
+  ]
+}

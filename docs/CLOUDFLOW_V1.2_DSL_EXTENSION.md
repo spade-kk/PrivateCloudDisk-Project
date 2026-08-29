@@ -1,8 +1,8 @@
 # CloudFlow DSL V1.0/V1.1 语法审计与 V1.2 新语法扩展
 
 > 生成日期：2026-08-18 ｜ 对象：`PrivateCloudDisk-cloudflow-runtime`（Rust）
-> 依据：`src/grammar.pest`、`src/ast.rs`、`src/ir.rs`、`src/parser.rs`、
-> `src/semantic.rs`、`src/compiler.rs`、`src/diagnostic.rs`、`src/execution.rs`、`docs/CLOUDFLOW_DESIGN.md`
+> 依据：`src/grammar.pest`、`crates/cloudflow-engine-core/src/ast.rs`、`crates/cloudflow-engine-core/src/ir.rs`、`src/parser.rs`、
+> `src/semantic.rs`、`src/compiler.rs`、`crates/cloudflow-engine-core/src/diagnostic.rs`、`src/execution.rs`、`docs/CLOUDFLOW_DESIGN.md`
 
 ---
 

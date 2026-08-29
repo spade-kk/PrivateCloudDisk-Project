@@ -42,6 +42,11 @@ async fn main() -> ExitCode {
             .and_then(|value| value.parse().ok())
             .unwrap_or(32),
         allowed_origins: split_env("CLOUDFLOW_CORS_ALLOWED_ORIGINS"),
+        // 开发调试执行入口（需求 4.19/4.20/9.15）：默认关闭，仅显式开启。
+        enable_dev_execute: env::var("CLOUDFLOW_ENABLE_DEBUG_EXECUTE")
+            .ok()
+            .map(|value| value.eq_ignore_ascii_case("true"))
+            .unwrap_or(false),
     };
     let runtime_config = match RuntimeConfig::from_env() {
         Ok(value) => value,
